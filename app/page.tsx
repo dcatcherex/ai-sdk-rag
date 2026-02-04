@@ -29,14 +29,16 @@ import {
   ModelSelectorTrigger,
 } from '@/components/ai-elements/model-selector';
 import { Shimmer } from '@/components/ai-elements/shimmer';
+import { SpeechInput } from '@/components/ai-elements/speech-input';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { DefaultChatTransport, type UIMessage } from 'ai';
 import { useChat } from '@ai-sdk/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckIcon, CopyIcon, PlusIcon, SparklesIcon, Trash2Icon } from 'lucide-react';
+import { CheckIcon, CopyIcon, PlusIcon, RefreshCwIcon, SparklesIcon, Trash2Icon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MessagePartRenderer } from '@/components/message-renderer';
+import { TokenUsageDisplay } from '@/components/token-usage-display';
 
 type ThreadItem = {
   id: string;
@@ -225,6 +227,43 @@ export default function Chat() {
     [selectedModel]
   );
 
+  // Handle voice input transcription
+  const handleTranscription = useCallback((transcript: string) => {
+    // Append transcript to the textarea (we'll need to use a ref for this)
+    console.log('Transcription:', transcript);
+  }, []);
+
+
+  // Regenerate message - resend from a specific point
+  const regenerateMessage = useCallback(
+    (messageId: string) => {
+      const messageIndex = messages.findIndex((m) => m.id === messageId);
+      if (messageIndex === -1) return;
+
+      // Remove all messages after this one (including this one)
+      const messagesToKeep = messages.slice(0, messageIndex);
+      setMessages(messagesToKeep);
+
+      // Find the last user message to resend
+      const lastUserMessage = messagesToKeep
+        .slice()
+        .reverse()
+        .find((m) => m.role === 'user');
+
+      if (lastUserMessage) {
+        // Extract text from message parts
+        const textParts = lastUserMessage.parts
+          .filter((p) => p.type === 'text')
+          .map((p) => (p.type === 'text' ? p.text : ''))
+          .join('\n');
+
+        // Resend the message
+        sendMessage({ text: textParts });
+      }
+    },
+    [messages, setMessages, sendMessage]
+  );
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#f7f7f9,_#eef0f7_55%,_#e6e9f2_100%)]">
       <div className="mx-auto flex min-h-screen w-full max-w-6xl gap-6 px-4 py-6">
@@ -341,6 +380,9 @@ export default function Chat() {
                 </ModelSelectorContent>
               </ModelSelector>
 
+              {/* Token Usage Display */}
+              {activeThread && <TokenUsageDisplay threadId={activeThread.id} />}
+
               {/* Status and Actions */}
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 {activeThread ? (
@@ -423,6 +465,25 @@ export default function Chat() {
                                 </Tooltip>
                               </TooltipProvider>
                             )}
+                            {/* Regenerate button for assistant messages */}
+                            {message.role === 'assistant' && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="size-7"
+                                      onClick={() => regenerateMessage(message.id)}
+                                      disabled={status === 'streaming' || status === 'submitted'}
+                                    >
+                                      <RefreshCwIcon className="size-3" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Regenerate response</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
                           </div>
                           <span className="text-[11px] text-muted-foreground">
                             {message.role === 'user' ? 'You' : 'Assistant'}
@@ -451,6 +512,7 @@ export default function Chat() {
                 if (text.trim().length === 0 && files.length === 0) {
                   return;
                 }
+
                 if (!activeThreadId) {
                   // Auto-create a thread first
                   const response = await fetch('/api/threads', { method: 'POST' });
@@ -466,12 +528,22 @@ export default function Chat() {
                   activeThreadIdRef.current = payload.thread.id;
                   setActiveThreadId(payload.thread.id);
                 }
+
                 sendMessage({ text, files });
               }}
             >
               <PromptInputBody className="gap-3 rounded-2xl border border-black/5 bg-white/70 px-3 py-2 shadow-inner">
                 <PromptInputTextarea placeholder="Ask anything or drop files to ground the response." />
-                <PromptInputSubmit onStop={stop} status={status} />
+                <div className="flex items-center gap-2">
+                  {/* Voice Input */}
+                  <SpeechInput
+                    size="icon"
+                    variant="ghost"
+                    className="size-8"
+                    onTranscriptionChange={handleTranscription}
+                  />
+                  <PromptInputSubmit onStop={stop} status={status} />
+                </div>
               </PromptInputBody>
             </PromptInput>
             {error ? (

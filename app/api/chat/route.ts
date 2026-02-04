@@ -14,7 +14,8 @@ import { getSystemPrompt } from '@/lib/prompt';
 import { tools, type ChatTools } from '@/lib/tools';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { chatMessage, chatThread } from '@/db/schema';
+import { chatMessage, chatThread, tokenUsage } from '@/db/schema';
+import { nanoid } from 'nanoid';
 
 export const maxDuration = 30;
 
@@ -107,6 +108,23 @@ export async function POST(req: Request) {
               position: index,
             }))
           );
+        }
+
+        // Track token usage - get from the result after completion
+        try {
+          const usage: any = await result.usage;
+          if (usage) {
+            await db.insert(tokenUsage).values({
+              id: nanoid(),
+              threadId,
+              model: model || chatModel,
+              promptTokens: usage.promptTokens || 0,
+              completionTokens: usage.completionTokens || 0,
+              totalTokens: usage.totalTokens || (usage.promptTokens || 0) + (usage.completionTokens || 0),
+            });
+          }
+        } catch (error) {
+          console.error('Failed to track token usage:', error);
         }
 
         await db
