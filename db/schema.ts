@@ -101,6 +101,7 @@ export const chatMessage = pgTable(
     role: text("role").notNull(),
     parts: jsonb("parts").notNull(),
     position: integer("position").notNull(),
+    reaction: text("reaction"), // 'thumbs_up', 'thumbs_down', or null
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [index("chat_message_thread_idx").on(table.threadId)],

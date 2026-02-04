@@ -35,10 +35,17 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { DefaultChatTransport, type UIMessage } from 'ai';
 import { useChat } from '@ai-sdk/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckIcon, CopyIcon, PlusIcon, RefreshCwIcon, SparklesIcon, Trash2Icon } from 'lucide-react';
+import { CheckIcon, CopyIcon, DownloadIcon, FileTextIcon, PlusIcon, RefreshCwIcon, SearchIcon, SparklesIcon, ThumbsDownIcon, ThumbsUpIcon, Trash2Icon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MessagePartRenderer } from '@/components/message-renderer';
 import { TokenUsageDisplay } from '@/components/token-usage-display';
+import { Input } from '@/components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 type ThreadItem = {
   id: string;
@@ -89,6 +96,8 @@ export default function Chat() {
   const [selectedModel, setSelectedModel] = useState(AVAILABLE_MODELS[0]?.id ?? '');
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [messageReactions, setMessageReactions] = useState<Record<string, string | null>>({});
 
   const activeThreadIdRef = useRef(activeThreadId);
   activeThreadIdRef.current = activeThreadId;
@@ -233,6 +242,76 @@ export default function Chat() {
     console.log('Transcription:', transcript);
   }, []);
 
+  // Filter threads based on search query
+  const filteredThreads = useMemo(() => {
+    if (!searchQuery.trim()) return threads;
+    const query = searchQuery.toLowerCase();
+    return threads.filter(
+      (thread: ThreadItem) =>
+        thread.title.toLowerCase().includes(query) ||
+        thread.preview.toLowerCase().includes(query)
+    );
+  }, [threads, searchQuery]);
+
+  // Export conversation
+  const exportConversation = useCallback(async (format: 'json' | 'markdown') => {
+    if (!activeThreadId) return;
+    try {
+      const response = await fetch(
+        `/api/threads/${activeThreadId}/export?format=${format}`
+      );
+      if (!response.ok) throw new Error('Export failed');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `conversation-${activeThreadId}.${format === 'json' ? 'json' : 'md'}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Export error:', error);
+    }
+  }, [activeThreadId]);
+
+  // Handle message reactions
+  const toggleReaction = useCallback(
+    async (messageId: string, reaction: 'thumbs_up' | 'thumbs_down') => {
+      const currentReaction = messageReactions[messageId];
+      const newReaction = currentReaction === reaction ? null : reaction;
+
+      // Optimistic update
+      setMessageReactions((prev) => ({ ...prev, [messageId]: newReaction }));
+
+      try {
+        await fetch(`/api/messages/${messageId}/reaction`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reaction: newReaction }),
+        });
+      } catch (error) {
+        // Revert on error
+        setMessageReactions((prev) => ({ ...prev, [messageId]: currentReaction }));
+        console.error('Failed to update reaction:', error);
+      }
+    },
+    [messageReactions]
+  );
+
+  // Load message reactions from messages
+  useEffect(() => {
+    const reactions: Record<string, string | null> = {};
+    messages.forEach((msg) => {
+      const msgData = msg as any;
+      if (msgData.reaction) {
+        reactions[msg.id] = msgData.reaction;
+      }
+    });
+    setMessageReactions(reactions);
+  }, [messages]);
+
 
   // Regenerate message - resend from a specific point
   const regenerateMessage = useCallback(
@@ -264,6 +343,31 @@ export default function Chat() {
     [messages, setMessages, sendMessage]
   );
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl + K - New thread
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        handleCreateThread();
+      }
+
+      // Cmd/Ctrl + / - Focus search
+      if ((e.metaKey || e.ctrlKey) && e.key === '/') {
+        e.preventDefault();
+        document.getElementById('thread-search')?.focus();
+      }
+
+      // Escape - Clear search
+      if (e.key === 'Escape' && searchQuery) {
+        setSearchQuery('');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleCreateThread, searchQuery]);
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#f7f7f9,_#eef0f7_55%,_#e6e9f2_100%)]">
       <div className="mx-auto flex min-h-screen w-full max-w-6xl gap-6 px-4 py-6">
@@ -275,26 +379,47 @@ export default function Chat() {
               </p>
               <h1 className="text-lg font-semibold text-foreground">Studio Chat</h1>
             </div>
-            <Button
-              size="icon"
-              variant="outline"
-              onClick={handleCreateThread}
-              disabled={createThreadMutation.isPending}
-            >
-              <PlusIcon className="size-4" />
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={handleCreateThread}
+                    disabled={createThreadMutation.isPending}
+                  >
+                    <PlusIcon className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>New thread (⌘K)</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
-          <div className="mt-6 space-y-2 overflow-y-auto">
+
+          {/* Thread Search */}
+          <div className="relative mt-4">
+            <SearchIcon className="absolute top-2.5 left-3 size-4 text-muted-foreground" />
+            <Input
+              id="thread-search"
+              type="text"
+              placeholder="Search threads... (⌘/)"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-3 text-sm"
+            />
+          </div>
+
+          <div className="mt-4 space-y-2 overflow-y-auto">
             {isThreadsLoading ? (
               <p className="px-3 text-xs text-muted-foreground">
                 Loading threads…
               </p>
-            ) : threads.length === 0 ? (
+            ) : filteredThreads.length === 0 ? (
               <p className="px-3 text-xs text-muted-foreground">
-                No threads yet. Start a new chat.
+                {searchQuery ? 'No threads found.' : 'No threads yet. Start a new chat.'}
               </p>
             ) : (
-              threads.map((thread: ThreadItem) => {
+              filteredThreads.map((thread: ThreadItem) => {
                 const isActive = thread.id === activeThreadId;
                 return (
                   <button
@@ -385,23 +510,44 @@ export default function Chat() {
 
               {/* Status and Actions */}
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {activeThread ? (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => deleteThreadMutation.mutate(activeThread.id)}
-                          disabled={deleteThreadMutation.isPending}
-                        >
-                          <Trash2Icon className="size-4" />
+                {activeThread && (
+                  <>
+                    {/* Export Menu */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost">
+                          <DownloadIcon className="size-4" />
                         </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Delete thread</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ) : null}
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => exportConversation('json')}>
+                          <FileTextIcon className="mr-2 size-4" />
+                          Export as JSON
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => exportConversation('markdown')}>
+                          <FileTextIcon className="mr-2 size-4" />
+                          Export as Markdown
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => deleteThreadMutation.mutate(activeThread.id)}
+                            disabled={deleteThreadMutation.isPending}
+                          >
+                            <Trash2Icon className="size-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Delete thread</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </>
+                )}
                 <span>
                   {status === 'streaming'
                     ? 'Streaming'
@@ -483,6 +629,49 @@ export default function Chat() {
                                   <TooltipContent>Regenerate response</TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
+                            )}
+                            {/* Message Reactions */}
+                            {message.role === 'assistant' && (
+                              <>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className={`size-7 ${
+                                          messageReactions[message.id] === 'thumbs_up'
+                                            ? 'text-green-600'
+                                            : ''
+                                        }`}
+                                        onClick={() => toggleReaction(message.id, 'thumbs_up')}
+                                      >
+                                        <ThumbsUpIcon className="size-3" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Helpful</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className={`size-7 ${
+                                          messageReactions[message.id] === 'thumbs_down'
+                                            ? 'text-red-600'
+                                            : ''
+                                        }`}
+                                        onClick={() => toggleReaction(message.id, 'thumbs_down')}
+                                      >
+                                        <ThumbsDownIcon className="size-3" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Not helpful</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </>
                             )}
                           </div>
                           <span className="text-[11px] text-muted-foreground">
