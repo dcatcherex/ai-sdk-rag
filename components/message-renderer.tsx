@@ -10,6 +10,7 @@ import {
 } from '@/components/ai-elements/tool';
 import type { UIMessagePart } from 'ai';
 import { memo } from 'react';
+import { Streamdown } from 'streamdown';
 
 export type MessagePartRendererProps = {
   part: UIMessagePart<any, any>;
@@ -87,120 +88,47 @@ export const MessagePartRenderer = memo(
 
 MessagePartRenderer.displayName = 'MessagePartRenderer';
 
-// Markdown text renderer with code block support
+// Markdown text renderer with proper markdown support using streamdown
 const MarkdownText = memo(({ content }: { content: string }) => {
-  const parts = parseMarkdownWithCode(content);
-
   return (
-    <>
-      {parts.map((part, index) => {
-        if (part.type === 'code') {
-          return (
-            <CodeBlock
-              key={index}
-              code={part.content}
-              language={(part.language || 'plaintext') as any}
-            />
-          );
-        }
-        return (
-          <div
-            key={index}
-            className="prose prose-sm dark:prose-invert max-w-none [&>*]:whitespace-pre-wrap"
-            dangerouslySetInnerHTML={{ __html: parseSimpleMarkdown(part.content) }}
-          />
-        );
-      })}
-    </>
+    <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:whitespace-pre-wrap">
+      <Streamdown
+        components={{
+          code: ({ inline, className, children, ...props }: any) => {
+            const match = /language-(\w+)/.exec(className || '');
+            const codeContent = String(children).replace(/\n$/, '');
+
+            if (!inline && match) {
+              return (
+                <CodeBlock
+                  code={codeContent}
+                  language={match[1] as any}
+                />
+              );
+            }
+
+            return (
+              <code
+                className="px-1.5 py-0.5 rounded bg-muted text-sm font-mono"
+                {...props}
+              >
+                {children}
+              </code>
+            );
+          },
+          pre: ({ children }: any) => {
+            // Return just the code element, CodeBlock handles the pre wrapper
+            return <>{children}</>;
+          },
+        }}
+      >
+        {content}
+      </Streamdown>
+    </div>
   );
 });
 
 MarkdownText.displayName = 'MarkdownText';
-
-// Simple markdown parser that extracts code blocks
-function parseMarkdownWithCode(text: string) {
-  const parts: Array<{
-    type: 'text' | 'code';
-    content: string;
-    language?: string;
-  }> = [];
-
-  const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
-  let lastIndex = 0;
-  let match;
-
-  while ((match = codeBlockRegex.exec(text)) !== null) {
-    // Add text before code block
-    if (match.index > lastIndex) {
-      parts.push({
-        type: 'text',
-        content: text.slice(lastIndex, match.index),
-      });
-    }
-
-    // Add code block
-    parts.push({
-      type: 'code',
-      content: match[2] || '',
-      language: match[1] || 'plaintext',
-    });
-
-    lastIndex = match.index + match[0].length;
-  }
-
-  // Add remaining text
-  if (lastIndex < text.length) {
-    parts.push({
-      type: 'text',
-      content: text.slice(lastIndex),
-    });
-  }
-
-  return parts.length > 0 ? parts : [{ type: 'text' as const, content: text }];
-}
-
-// Simple markdown to HTML converter for basic formatting
-function parseSimpleMarkdown(text: string): string {
-  let html = text;
-
-  // Escape HTML to prevent XSS
-  html = html
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-
-  // Headers
-  html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
-  html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
-  html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
-
-  // Bold
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-
-  // Italic
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-
-  // Inline code
-  html = html.replace(/`(.+?)`/g, '<code class="px-1 py-0.5 rounded bg-muted text-sm">$1</code>');
-
-  // Unordered lists
-  html = html.replace(/^\* (.+)$/gim, '<li>$1</li>');
-  html = html.replace(/(<li>.*<\/li>)/g, '<ul class="list-disc pl-6 space-y-1">$1</ul>');
-
-  // Ordered lists
-  html = html.replace(/^\d+\. (.+)$/gim, '<li>$1</li>');
-
-  // Links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-primary underline">$1</a>');
-
-  // Line breaks
-  html = html.replace(/\n\n/g, '</p><p>');
-  html = `<p>${html}</p>`;
-
-  return html;
-}
 
 // Utility to format file sizes
 function formatBytes(bytes: number): string {
