@@ -569,7 +569,18 @@ export default function Chat() {
               ) : (
                 <>
                   {messages.map(message => {
-                    const textContent = message.parts
+                    // Filter out control messages (step-start, step-finish, etc.)
+                    const contentParts = message.parts.filter(
+                      (p: any) =>
+                        p.type !== 'step-start' &&
+                        p.type !== 'step-finish' &&
+                        p.type !== 'step-result'
+                    );
+
+                    // Only render messages that have actual content
+                    if (contentParts.length === 0) return null;
+
+                    const textContent = contentParts
                       .filter(p => p.type === 'text')
                       .map(p => (p.type === 'text' ? p.text : ''))
                       .join('\n');
@@ -577,7 +588,7 @@ export default function Chat() {
                     return (
                       <Message from={message.role} key={message.id}>
                         <MessageContent>
-                          {message.parts.map((part, index) => (
+                          {contentParts.map((part, index) => (
                             <MessagePartRenderer
                               key={`${message.id}-${index}`}
                               part={part}

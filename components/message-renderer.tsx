@@ -21,13 +21,18 @@ export const MessagePartRenderer = memo(
   ({ part, messageId, index }: MessagePartRendererProps) => {
     const key = `${messageId}-${index}`;
 
+    // Safety check - if part is undefined or null, skip it
+    if (!part || typeof part !== 'object') {
+      return null;
+    }
+
     // Text content with markdown support
     if (part.type === 'text') {
       return <MarkdownText key={key} content={part.text} />;
     }
 
     // Tool call rendering
-    if (part.type.startsWith('tool-') && 'state' in part && 'input' in part) {
+    if (typeof part.type === 'string' && part.type.startsWith('tool-') && 'state' in part && 'input' in part) {
       const toolPart = part as any;
       return (
         <Tool key={key} defaultOpen>
@@ -66,15 +71,17 @@ export const MessagePartRenderer = memo(
       );
     }
 
-    // Fallback for unknown part types
-    return (
-      <pre
-        key={key}
-        className="whitespace-pre-wrap rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground"
-      >
-        {JSON.stringify(part, null, 2)}
-      </pre>
-    );
+    // Step-start and other control types should be ignored (don't render anything)
+    const partType = part.type as string;
+    if (partType === 'step-start' || partType === 'step-finish' || partType === 'step-result') {
+      return null;
+    }
+
+    // For debugging: only show JSON for truly unknown types
+    // This helps identify what's not being handled correctly
+    console.warn('Unknown message part type:', part.type, part);
+
+    return null; // Don't render unknown types instead of showing raw JSON
   }
 );
 
@@ -99,10 +106,9 @@ const MarkdownText = memo(({ content }: { content: string }) => {
         return (
           <div
             key={index}
-            className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap"
-          >
-            {part.content}
-          </div>
+            className="prose prose-sm dark:prose-invert max-w-none [&>*]:whitespace-pre-wrap"
+            dangerouslySetInnerHTML={{ __html: parseSimpleMarkdown(part.content) }}
+          />
         );
       })}
     </>
@@ -151,6 +157,49 @@ function parseMarkdownWithCode(text: string) {
   }
 
   return parts.length > 0 ? parts : [{ type: 'text' as const, content: text }];
+}
+
+// Simple markdown to HTML converter for basic formatting
+function parseSimpleMarkdown(text: string): string {
+  let html = text;
+
+  // Escape HTML to prevent XSS
+  html = html
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+  // Headers
+  html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+  html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+  html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+  // Bold
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+  // Italic
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+  // Inline code
+  html = html.replace(/`(.+?)`/g, '<code class="px-1 py-0.5 rounded bg-muted text-sm">$1</code>');
+
+  // Unordered lists
+  html = html.replace(/^\* (.+)$/gim, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>)/g, '<ul class="list-disc pl-6 space-y-1">$1</ul>');
+
+  // Ordered lists
+  html = html.replace(/^\d+\. (.+)$/gim, '<li>$1</li>');
+
+  // Links
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-primary underline">$1</a>');
+
+  // Line breaks
+  html = html.replace(/\n\n/g, '</p><p>');
+  html = `<p>${html}</p>`;
+
+  return html;
 }
 
 // Utility to format file sizes
