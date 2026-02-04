@@ -1,52 +1,122 @@
-import { openai } from '@ai-sdk/openai';
 import {
   streamText,
-  UIMessage,
+  type UIMessage,
+  type UIDataTypes,
   convertToModelMessages,
-  tool,
   stepCountIs,
 } from 'ai';
 import { z } from 'zod';
+import { headers } from 'next/headers';
+import { and, eq } from 'drizzle-orm';
+import { chatModel, maxSteps } from '@/lib/ai';
+import { env } from '@/lib/env';
+import { getSystemPrompt } from '@/lib/prompt';
+import { tools, type ChatTools } from '@/lib/tools';
+import { auth } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { chatMessage, chatThread } from '@/db/schema';
 
 export const maxDuration = 30;
 
+export type ChatMessage = UIMessage<never, UIDataTypes, ChatTools>;
+
+const requestSchema = z.object({
+  threadId: z.string().min(1),
+  messages: z.array(z.custom<ChatMessage>()),
+  model: z.string().optional(),
+});
+
+const getThreadPreviewFromMessages = (messages: ChatMessage[]) => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    const textPart = message.parts.find((part) => part.type === 'text');
+
+    if (textPart?.type === 'text' && textPart.text.trim()) {
+      return textPart.text.trim();
+    }
+  }
+  return 'Start a conversation…';
+};
+
+const getThreadTitleFromMessages = (messages: ChatMessage[]) => {
+  const userMessage = messages.find((message) => message.role === 'user');
+  const textPart = userMessage?.parts.find((part) => part.type === 'text');
+  if (textPart?.type !== 'text') {
+    return null;
+  }
+
+  const trimmed = textPart.text.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.length > 64 ? `${trimmed.slice(0, 64)}…` : trimmed;
+};
+
 export async function POST(req: Request) {
-  const { messages }: { messages: UIMessage[] } = await req.json();
+  env.AI_GATEWAY_API_KEY;
 
-  const result = streamText({
-    model: openai('gpt-5-nano'),
-    messages: convertToModelMessages(messages),
-    stopWhen: stepCountIs(5),
-    tools: {
-      weather: tool({
-        description: 'Get the weather in a location (fahrenheit)',
-        inputSchema: z.object({
-          location: z.string().describe('The location to get the weather for'),
-        }),
-        execute: async ({ location }) => {
-          const temperature = Math.round(Math.random() * (90 - 32) + 32);
-          return {
-            location,
-            temperature,
-          };
-        },
-      }),
-      convertFahrenheitToCelsius: tool({
-        description: 'Convert a temperature in fahrenheit to celsius',
-        inputSchema: z.object({
-          temperature: z
-            .number()
-            .describe('The temperature in fahrenheit to convert'),
-        }),
-        execute: async ({ temperature }) => {
-          const celsius = Math.round((temperature - 32) * (5 / 9));
-          return {
-            celsius,
-          };
-        },
-      }),
-    },
-  });
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-  return result.toUIMessageStreamResponse();
+    const { messages, threadId, model } = requestSchema.parse(await req.json());
+
+    const thread = await db
+      .select({ id: chatThread.id, title: chatThread.title })
+      .from(chatThread)
+      .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, session.user.id)))
+      .limit(1);
+
+    if (thread.length === 0) {
+      return Response.json({ error: 'Thread not found' }, { status: 404 });
+    }
+
+    const result = streamText({
+      model: model || chatModel,
+      system: getSystemPrompt('general_assistant'),
+      messages: await convertToModelMessages(messages),
+      stopWhen: stepCountIs(maxSteps),
+      tools,
+    });
+
+    const currentTitle = thread[0]?.title ?? 'New chat';
+
+    return result.toUIMessageStreamResponse({
+      originalMessages: messages,
+      onFinish: async ({ messages: updatedMessages }) => {
+        const chatMessages = updatedMessages as ChatMessage[];
+        const preview = getThreadPreviewFromMessages(chatMessages);
+        const nextTitle =
+          currentTitle === 'New chat'
+            ? getThreadTitleFromMessages(chatMessages) ?? currentTitle
+            : currentTitle;
+
+        await db
+          .delete(chatMessage)
+          .where(eq(chatMessage.threadId, threadId));
+        if (updatedMessages.length > 0) {
+          await db.insert(chatMessage).values(
+            updatedMessages.map((message, index) => ({
+              id: message.id || crypto.randomUUID(),
+              threadId,
+              role: message.role,
+              parts: message.parts,
+              position: index,
+            }))
+          );
+        }
+
+        await db
+          .update(chatThread)
+          .set({ preview, title: nextTitle, updatedAt: new Date() })
+          .where(eq(chatThread.id, threadId));
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return Response.json({ error: message }, { status: 400 });
+  }
 }
