@@ -77,7 +77,7 @@ const formatRelativeTime = (timestamp: number) => {
 
 export default function Chat() {
   const [activeThreadId, setActiveThreadId] = useState('');
-  const [selectedModel, setSelectedModel] = useState(availableModels[0]?.id ?? '');
+  const [selectedModel, setSelectedModel] = useState('auto');
   const [enabledModelIds, setEnabledModelIds] = useState<string[]>(
     () => availableModels.map((model) => model.id)
   );
@@ -96,11 +96,26 @@ export default function Chat() {
   selectedModelRef.current = selectedModel;
   const selectedDocIdsRef = useRef(selectedDocIds);
   selectedDocIdsRef.current = selectedDocIds;
+  const enabledModelIdsRef = useRef(enabledModelIds);
+  enabledModelIdsRef.current = enabledModelIds;
 
   const queryClient = useQueryClient();
   const enabledModels = useMemo(
     () => availableModels.filter((model) => enabledModelIds.includes(model.id)),
     [enabledModelIds]
+  );
+  const autoModel = useMemo(
+    () => ({
+      id: 'auto',
+      name: 'Auto routing',
+      provider: 'google' as const,
+      description: 'Chooses the best model for each prompt',
+    }),
+    []
+  );
+  const selectorModels = useMemo(
+    () => [autoModel, ...enabledModels],
+    [autoModel, enabledModels]
   );
   const handleToggleModel = useCallback((modelId: string) => {
     setEnabledModelIds((prev) => {
@@ -136,6 +151,7 @@ export default function Chat() {
           selectedDocumentIds: selectedDocIdsRef.current.size > 0
             ? [...selectedDocIdsRef.current]
             : undefined,
+          enabledModelIds: enabledModelIdsRef.current,
         }),
       }),
     []
@@ -245,7 +261,7 @@ export default function Chat() {
   }, [enabledModelIds]);
 
   useEffect(() => {
-    if (enabledModels.length === 0) {
+    if (selectedModel === 'auto' || enabledModels.length === 0) {
       return;
     }
     if (!enabledModels.some((model) => model.id === selectedModel)) {
@@ -287,12 +303,14 @@ export default function Chat() {
   }, []);
 
   // Get selected model details
-  const currentModel = useMemo(
-    () => enabledModels.find((model) => model.id === selectedModel)
+  const currentModel = useMemo(() => {
+    if (selectedModel === 'auto') {
+      return autoModel;
+    }
+    return enabledModels.find((model) => model.id === selectedModel)
       ?? enabledModels[0]
-      ?? availableModels[0],
-    [selectedModel, enabledModels]
-  );
+      ?? availableModels[0];
+  }, [selectedModel, enabledModels, autoModel]);
 
   // Handle voice input transcription
   const handleTranscription = useCallback((transcript: string) => {
@@ -547,7 +565,7 @@ export default function Chat() {
                   </div>
                   <ModelSelectorInput placeholder="Search models..." />
                   <ModelSelectorList>
-                    {enabledModels.map((model) => (
+                    {selectorModels.map((model) => (
                       <ModelSelectorItem
                         key={model.id}
                         value={model.id}

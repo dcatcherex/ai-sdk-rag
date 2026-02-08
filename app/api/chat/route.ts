@@ -8,7 +8,7 @@ import {
 import { z } from 'zod';
 import { headers } from 'next/headers';
 import { and, eq } from 'drizzle-orm';
-import { chatModel, maxSteps } from '@/lib/ai';
+import { availableModels, type Capability, chatModel, maxSteps } from '@/lib/ai';
 import { env } from '@/lib/env';
 import { getSystemPrompt } from '@/lib/prompt';
 import { baseTools, tools, type ChatTools } from '@/lib/tools';
@@ -27,6 +27,7 @@ const requestSchema = z.object({
   messages: z.array(z.custom<ChatMessage>()),
   model: z.string().optional(),
   selectedDocumentIds: z.array(z.string()).optional(),
+  enabledModelIds: z.array(z.string()).optional(),
 });
 
 const getThreadPreviewFromMessages = (messages: ChatMessage[]) => {
@@ -56,6 +57,97 @@ const getThreadTitleFromMessages = (messages: ChatMessage[]) => {
   return trimmed.length > 64 ? `${trimmed.slice(0, 64)}…` : trimmed;
 };
 
+const getLastUserPrompt = (messages: ChatMessage[]) => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role !== 'user') {
+      continue;
+    }
+    const textPart = message.parts.find((part) => part.type === 'text');
+    if (textPart?.type === 'text' && textPart.text.trim()) {
+      return textPart.text.trim();
+    }
+  }
+  return null;
+};
+
+const getModelByIntent = (options: {
+  prompt: string | null;
+  enabledModelIds: string[];
+}) => {
+  const { prompt, enabledModelIds } = options;
+  const enabledModels = availableModels.filter((model) =>
+    enabledModelIds.includes(model.id)
+  );
+  const safeFallback = enabledModels[0]?.id ?? chatModel;
+  if (!prompt) {
+    return safeFallback;
+  }
+
+  const lower = prompt.toLowerCase();
+  const wantsImage =
+    lower.startsWith('create image') ||
+    lower.startsWith('generate image') ||
+    lower.includes('image of') ||
+    lower.includes('draw ') ||
+    lower.includes('illustration');
+  const wantsWeb =
+    lower.includes('search') ||
+    lower.includes('latest') ||
+    lower.includes('news') ||
+    lower.includes('web') ||
+    lower.includes('source');
+  const wantsCode =
+    lower.includes('code') ||
+    lower.includes('coding') ||
+    lower.includes('typescript') ||
+    lower.includes('javascript') ||
+    lower.includes('python') ||
+    lower.includes('refactor') ||
+    lower.includes('debug') ||
+    lower.includes('implement') ||
+    lower.includes('api') ||
+    lower.includes('function') ||
+    lower.includes('class');
+  const wantsReasoning =
+    lower.includes('analy') ||
+    lower.includes('reason') ||
+    lower.includes('compare') ||
+    lower.includes('evaluate') ||
+    lower.includes('diagnose') ||
+    lower.includes('pros and cons') ||
+    lower.includes('tradeoff');
+
+  const pickByCapability = (capability: Capability) =>
+    enabledModels.find((model) =>
+      (model.capabilities ?? []).some((modelCapability) => modelCapability === capability)
+    )?.id;
+
+  if (wantsImage) {
+    return pickByCapability('image gen') ?? safeFallback;
+  }
+
+  if (wantsWeb) {
+    return pickByCapability('web search') ?? safeFallback;
+  }
+
+  if (wantsCode) {
+    return enabledModelIds.includes('openai/gpt-5.2')
+      ? 'openai/gpt-5.2'
+      : safeFallback;
+  }
+
+  if (wantsReasoning) {
+    return enabledModelIds.includes('anthropic/claude-opus-4.6')
+      ? 'anthropic/claude-opus-4.6'
+      : safeFallback;
+  }
+
+  return enabledModelIds.includes('google/gemini-3-flash')
+    ? 'google/gemini-3-flash'
+    : safeFallback;
+};
+
 export async function POST(req: Request) {
   env.AI_GATEWAY_API_KEY;
 
@@ -65,7 +157,13 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { messages, threadId, model, selectedDocumentIds } = requestSchema.parse(await req.json());
+    const {
+      messages,
+      threadId,
+      model,
+      selectedDocumentIds,
+      enabledModelIds,
+    } = requestSchema.parse(await req.json());
 
     const thread = await db
       .select({ id: chatThread.id, title: chatThread.title })
@@ -87,8 +185,20 @@ export async function POST(req: Request) {
         '\nIMPORTANT: The user has selected specific documents. You MUST use the searchKnowledge tool to find information before answering. Only respond using information from tool results. If no relevant information is found, say so.'
       : getSystemPrompt('general_assistant');
 
+    const enabledIds = enabledModelIds && enabledModelIds.length > 0
+      ? enabledModelIds.filter((modelId) =>
+          availableModels.some((option) => option.id === modelId)
+        )
+      : availableModels.map((option) => option.id);
+    const resolvedModel = model && model !== 'auto'
+      ? model
+      : getModelByIntent({
+          prompt: getLastUserPrompt(messages),
+          enabledModelIds: enabledIds.length > 0 ? enabledIds : [chatModel],
+        });
+
     const result = streamText({
-      model: model || chatModel,
+      model: resolvedModel,
       system: systemPrompt,
       messages: await convertToModelMessages(messages),
       stopWhen: stepCountIs(maxSteps),
@@ -129,7 +239,7 @@ export async function POST(req: Request) {
             await db.insert(tokenUsage).values({
               id: nanoid(),
               threadId,
-              model: model || chatModel,
+              model: resolvedModel,
               promptTokens: usage.promptTokens || 0,
               completionTokens: usage.completionTokens || 0,
               totalTokens: usage.totalTokens || (usage.promptTokens || 0) + (usage.completionTokens || 0),
