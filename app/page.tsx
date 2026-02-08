@@ -31,11 +31,17 @@ import {
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import { SpeechInput } from '@/components/ai-elements/speech-input';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { DefaultChatTransport, type UIMessage } from 'ai';
 import { useChat } from '@ai-sdk/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckIcon, CopyIcon, DownloadIcon, FileTextIcon, PlusIcon, RefreshCwIcon, SearchIcon, SparklesIcon, ThumbsDownIcon, ThumbsUpIcon, Trash2Icon } from 'lucide-react';
+import { BookOpenIcon, CheckIcon, ChevronDownIcon, CopyIcon, DownloadIcon, FileTextIcon, PlusIcon, RefreshCwIcon, SearchIcon, SparklesIcon, ThumbsDownIcon, ThumbsUpIcon, Trash2Icon } from 'lucide-react';
+import { KnowledgePanel } from '@/components/knowledge/knowledge-panel';
+import { useDocumentStats } from '@/lib/hooks/use-documents';
+import { Badge } from '@/components/ui/badge';
+import { availableModels } from '@/lib/ai';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MessagePartRenderer } from '@/components/message-renderer';
 import { TokenUsageDisplay } from '@/components/token-usage-display';
@@ -69,48 +75,67 @@ const formatRelativeTime = (timestamp: number) => {
   return `${Math.floor(diffMs / (24 * 60 * 60 * 1000))}d ago`;
 };
 
-// Available AI models
-const AVAILABLE_MODELS = [
-  {
-    id: 'google/gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
-    provider: 'google' as const,
-    description: 'Fast and efficient model',
-  },
-  {
-    id: 'openai/gpt-4o',
-    name: 'GPT-4o',
-    provider: 'openai' as const,
-    description: 'Most capable GPT-4 model',
-  },
-  {
-    id: 'anthropic/claude-3.5-sonnet',
-    name: 'Claude 3.5 Sonnet',
-    provider: 'anthropic' as const,
-    description: 'Balanced performance and speed',
-  },
-];
-
 export default function Chat() {
   const [activeThreadId, setActiveThreadId] = useState('');
-  const [selectedModel, setSelectedModel] = useState(AVAILABLE_MODELS[0]?.id ?? '');
+  const [selectedModel, setSelectedModel] = useState(availableModels[0]?.id ?? '');
+  const [enabledModelIds, setEnabledModelIds] = useState<string[]>(
+    () => availableModels.map((model) => model.id)
+  );
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
+  const [enabledModelsOpen, setEnabledModelsOpen] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [messageReactions, setMessageReactions] = useState<Record<string, string | null>>({});
+  const [knowledgePanelOpen, setKnowledgePanelOpen] = useState(false);
+  const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
+  const { data: docStats } = useDocumentStats();
 
   const activeThreadIdRef = useRef(activeThreadId);
   activeThreadIdRef.current = activeThreadId;
   const selectedModelRef = useRef(selectedModel);
   selectedModelRef.current = selectedModel;
+  const selectedDocIdsRef = useRef(selectedDocIds);
+  selectedDocIdsRef.current = selectedDocIds;
 
   const queryClient = useQueryClient();
+  const enabledModels = useMemo(
+    () => availableModels.filter((model) => enabledModelIds.includes(model.id)),
+    [enabledModelIds]
+  );
+  const handleToggleModel = useCallback((modelId: string) => {
+    setEnabledModelIds((prev) => {
+      const isEnabled = prev.includes(modelId);
+      let next = isEnabled ? prev.filter((id) => id !== modelId) : [...prev, modelId];
+      if (next.length === 0) {
+        return prev;
+      }
+      next = availableModels
+        .filter((model) => next.includes(model.id))
+        .map((model) => model.id);
+      return next;
+    });
+  }, []);
+  const handleToggleSelectDoc = useCallback((docId: string) => {
+    setSelectedDocIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(docId)) {
+        next.delete(docId);
+      } else {
+        next.add(docId);
+      }
+      return next;
+    });
+  }, []);
+
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         body: () => ({
           threadId: activeThreadIdRef.current,
           model: selectedModelRef.current,
+          selectedDocumentIds: selectedDocIdsRef.current.size > 0
+            ? [...selectedDocIdsRef.current]
+            : undefined,
         }),
       }),
     []
@@ -198,6 +223,37 @@ export default function Chat() {
   const prevThreadIdRef = useRef<string>('');
 
   useEffect(() => {
+    const stored = localStorage.getItem('chat-enabled-models');
+    if (!stored) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(stored) as string[];
+      const valid = parsed.filter((modelId) =>
+        availableModels.some((model) => model.id === modelId)
+      );
+      if (valid.length > 0) {
+        setEnabledModelIds(valid);
+      }
+    } catch {
+      return;
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('chat-enabled-models', JSON.stringify(enabledModelIds));
+  }, [enabledModelIds]);
+
+  useEffect(() => {
+    if (enabledModels.length === 0) {
+      return;
+    }
+    if (!enabledModels.some((model) => model.id === selectedModel)) {
+      setSelectedModel(enabledModels[0].id);
+    }
+  }, [enabledModels, selectedModel]);
+
+  useEffect(() => {
     if (!activeThreadId && threads.length > 0) {
       setActiveThreadId(threads[0]?.id ?? '');
     }
@@ -232,8 +288,10 @@ export default function Chat() {
 
   // Get selected model details
   const currentModel = useMemo(
-    () => AVAILABLE_MODELS.find(m => m.id === selectedModel) ?? AVAILABLE_MODELS[0],
-    [selectedModel]
+    () => enabledModels.find((model) => model.id === selectedModel)
+      ?? enabledModels[0]
+      ?? availableModels[0],
+    [selectedModel, enabledModels]
   );
 
   // Handle voice input transcription
@@ -370,7 +428,7 @@ export default function Chat() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#f7f7f9,_#eef0f7_55%,_#e6e9f2_100%)]">
-      <div className="mx-auto flex min-h-screen w-full max-w-6xl gap-6 px-4 py-6">
+      <div className={`mx-auto flex min-h-screen w-full gap-6 px-4 py-6 ${knowledgePanelOpen ? 'max-w-[90rem]' : 'max-w-6xl'}`}>
         <aside className="hidden h-[calc(100vh-3rem)] w-72 shrink-0 rounded-3xl border border-black/5 bg-white/70 p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] backdrop-blur md:flex md:flex-col">
           <div className="flex items-center justify-between">
             <div>
@@ -479,9 +537,17 @@ export default function Chat() {
                   </Button>
                 </ModelSelectorTrigger>
                 <ModelSelectorContent>
+                  <div className="border-b border-border px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Choose model
+                    </p>
+                    <p className="mt-1 text-sm text-foreground">
+                      Pick from your enabled models. Configure below.
+                    </p>
+                  </div>
                   <ModelSelectorInput placeholder="Search models..." />
                   <ModelSelectorList>
-                    {AVAILABLE_MODELS.map((model) => (
+                    {enabledModels.map((model) => (
                       <ModelSelectorItem
                         key={model.id}
                         value={model.id}
@@ -502,6 +568,47 @@ export default function Chat() {
                       </ModelSelectorItem>
                     ))}
                   </ModelSelectorList>
+                  <div className="border-t border-border px-4 py-3">
+                    <Collapsible open={enabledModelsOpen} onOpenChange={setEnabledModelsOpen}>
+                      <CollapsibleTrigger asChild>
+                        <button
+                          className="group flex w-full items-center justify-between text-left"
+                          type="button"
+                        >
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                              Enabled models
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {enabledModelIds.length} selected • Click to manage
+                            </p>
+                          </div>
+                          <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                        </button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="mt-3 max-h-64 overflow-y-auto pr-1">
+                          <div className="grid gap-2">
+                          {availableModels.map((model) => (
+                            <label
+                              key={model.id}
+                              className="flex items-center gap-3 rounded-lg border border-border/70 px-3 py-2 text-xs text-foreground"
+                            >
+                              <Checkbox
+                                checked={enabledModelIds.includes(model.id)}
+                                onCheckedChange={() => handleToggleModel(model.id)}
+                              />
+                              <span className="flex flex-col">
+                                <span className="text-sm font-medium">{model.name}</span>
+                                <span className="text-muted-foreground">{model.description}</span>
+                              </span>
+                            </label>
+                          ))}
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </div>
                 </ModelSelectorContent>
               </ModelSelector>
 
@@ -548,6 +655,29 @@ export default function Chat() {
                     </TooltipProvider>
                   </>
                 )}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant={knowledgePanelOpen ? 'default' : 'ghost'}
+                        onClick={() => setKnowledgePanelOpen((v) => !v)}
+                        className="relative"
+                      >
+                        <BookOpenIcon className="size-4" />
+                        {docStats && docStats.totalDocuments > 0 && (
+                          <Badge
+                            variant="secondary"
+                            className="absolute -top-1.5 -right-1.5 size-4 justify-center p-0 text-[9px]"
+                          >
+                            {docStats.totalDocuments}
+                          </Badge>
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Knowledge base</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <span>
                   {status === 'streaming'
                     ? 'Streaming'
@@ -707,6 +837,14 @@ export default function Chat() {
           </Conversation>
 
           <div className="border-t border-black/5 px-6 py-4">
+            {selectedDocIds.size > 0 && (
+              <div className="mb-2 flex items-center gap-1.5 text-xs text-primary">
+                <BookOpenIcon className="size-3.5" />
+                <span className="font-medium">
+                  Grounded mode — answering from {selectedDocIds.size} selected document{selectedDocIds.size !== 1 ? 's' : ''}
+                </span>
+              </div>
+            )}
             <PromptInput
               onSubmit={async ({ text, files }) => {
                 if (text.trim().length === 0 && files.length === 0) {
@@ -753,6 +891,15 @@ export default function Chat() {
             ) : null}
           </div>
         </main>
+
+        {knowledgePanelOpen && (
+          <div className="hidden h-[calc(100vh-3rem)] lg:block">
+            <KnowledgePanel
+              selectedDocIds={selectedDocIds}
+              onToggleSelect={handleToggleSelectDoc}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

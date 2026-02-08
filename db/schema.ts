@@ -1,5 +1,18 @@
 import { relations } from "drizzle-orm";
-import { boolean, index, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, text, timestamp, customType } from "drizzle-orm/pg-core";
+
+// Custom vector type for pgvector
+const vector = customType<{ data: number[]; driverData: string }>({
+  dataType(config) {
+    return `vector(${config?.dimensions ?? 1024})`;
+  },
+  toDriver(value: number[]): string {
+    return JSON.stringify(value);
+  },
+  fromDriver(value: string): number[] {
+    return JSON.parse(value);
+  },
+});
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -161,5 +174,48 @@ export const tokenUsageRelations = relations(tokenUsage, ({ one }) => ({
   thread: one(chatThread, {
     fields: [tokenUsage.threadId],
     references: [chatThread.id],
+  }),
+}));
+
+// RAG: Document storage with vector embeddings
+export const document = pgTable(
+  "document",
+  {
+    id: text("id").primaryKey(),
+    content: text("content").notNull(),
+    metadata: jsonb("metadata").default({}).notNull(),
+    embedding: vector("embedding", { dimensions: 1024 }), // mistral/mistral-embed
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("document_metadata_idx").using("gin", table.metadata),
+  ],
+);
+
+// RAG: Document chunks for large documents
+export const documentChunk = pgTable(
+  "document_chunk",
+  {
+    id: text("id").primaryKey(),
+    documentId: text("document_id").notNull(),
+    content: text("content").notNull(),
+    chunkIndex: integer("chunk_index").notNull(),
+    metadata: jsonb("metadata").default({}).notNull(),
+    embedding: vector("embedding", { dimensions: 1024 }), // mistral/mistral-embed
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("document_chunk_document_id_idx").on(table.documentId),
+  ],
+);
+
+export const documentChunkRelations = relations(documentChunk, ({ one }) => ({
+  document: one(document, {
+    fields: [documentChunk.documentId],
+    references: [document.id],
   }),
 }));

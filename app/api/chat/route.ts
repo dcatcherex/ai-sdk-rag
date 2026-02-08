@@ -11,7 +11,8 @@ import { and, eq } from 'drizzle-orm';
 import { chatModel, maxSteps } from '@/lib/ai';
 import { env } from '@/lib/env';
 import { getSystemPrompt } from '@/lib/prompt';
-import { tools, type ChatTools } from '@/lib/tools';
+import { baseTools, tools, type ChatTools } from '@/lib/tools';
+import { createScopedRagTools } from '@/lib/rag-tool';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { chatMessage, chatThread, tokenUsage } from '@/db/schema';
@@ -25,6 +26,7 @@ const requestSchema = z.object({
   threadId: z.string().min(1),
   messages: z.array(z.custom<ChatMessage>()),
   model: z.string().optional(),
+  selectedDocumentIds: z.array(z.string()).optional(),
 });
 
 const getThreadPreviewFromMessages = (messages: ChatMessage[]) => {
@@ -63,7 +65,7 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { messages, threadId, model } = requestSchema.parse(await req.json());
+    const { messages, threadId, model, selectedDocumentIds } = requestSchema.parse(await req.json());
 
     const thread = await db
       .select({ id: chatThread.id, title: chatThread.title })
@@ -75,12 +77,22 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Thread not found' }, { status: 404 });
     }
 
+    // Determine tools and system prompt based on document selection
+    const isGrounded = selectedDocumentIds && selectedDocumentIds.length > 0;
+    const activeTools = isGrounded
+      ? { ...baseTools, ...createScopedRagTools(selectedDocumentIds) }
+      : baseTools;
+    const systemPrompt = isGrounded
+      ? getSystemPrompt('general_assistant') +
+        '\nIMPORTANT: The user has selected specific documents. You MUST use the searchKnowledge tool to find information before answering. Only respond using information from tool results. If no relevant information is found, say so.'
+      : getSystemPrompt('general_assistant');
+
     const result = streamText({
       model: model || chatModel,
-      system: getSystemPrompt('general_assistant'),
+      system: systemPrompt,
       messages: await convertToModelMessages(messages),
       stopWhen: stepCountIs(maxSteps),
-      tools,
+      tools: activeTools,
     });
 
     const currentTitle = thread[0]?.title ?? 'New chat';
