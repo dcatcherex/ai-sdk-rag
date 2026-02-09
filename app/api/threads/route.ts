@@ -17,6 +17,7 @@ export async function GET() {
       id: chatThread.id,
       title: chatThread.title,
       preview: chatThread.preview,
+      pinned: chatThread.pinned,
       updatedAt: chatThread.updatedAt,
     })
     .from(chatThread)
@@ -29,6 +30,7 @@ export async function GET() {
         id: thread.id,
         title: thread.title,
         preview: thread.preview,
+        pinned: thread.pinned,
         updatedAtMs: thread.updatedAt.getTime(),
       })),
     },
@@ -63,6 +65,7 @@ export async function POST() {
       id: thread.id,
       title: thread.title,
       preview: thread.preview,
+      pinned: false,
       updatedAtMs: thread.updatedAt.getTime(),
     },
   });

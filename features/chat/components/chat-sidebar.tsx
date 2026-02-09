@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { PlusIcon, SearchIcon } from 'lucide-react';
+import { PinIcon, PinOffIcon, PlusIcon, SearchIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -9,12 +9,7 @@ import {
   SheetContent,
   SheetTitle,
 } from '@/components/ui/sheet';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+
 import { formatRelativeTime } from '../utils/format-relative-time';
 import { filterThreads } from '../utils/filter-threads';
 import type { ThreadItem } from '../types';
@@ -28,9 +23,53 @@ type ChatSidebarProps = {
   onSearchChange: (value: string) => void;
   onSelectThread: (threadId: string) => void;
   onCreateThread: () => void;
+  onTogglePin: (threadId: string, pinned: boolean) => void;
   mobileOpen?: boolean;
   onMobileOpenChange?: (open: boolean) => void;
 };
+
+const ThreadRow = ({
+  thread,
+  isActive,
+  onSelect,
+  onTogglePin,
+}: {
+  thread: ThreadItem;
+  isActive: boolean;
+  onSelect: () => void;
+  onTogglePin: () => void;
+}) => (
+  <div
+    className={`group flex w-full items-center rounded-lg text-sm transition ${
+      isActive
+        ? 'bg-muted font-medium text-foreground'
+        : 'text-foreground/80 hover:bg-muted/50'
+    }`}
+  >
+    <button
+      className="min-w-0 flex-1 truncate px-3 py-2 text-left"
+      onClick={onSelect}
+      type="button"
+    >
+      {thread.title}
+    </button>
+    <button
+      type="button"
+      className="mr-1 shrink-0 rounded p-1 text-muted-foreground opacity-0 transition hover:text-foreground group-hover:opacity-100"
+      onClick={(e) => {
+        e.stopPropagation();
+        onTogglePin();
+      }}
+      title={thread.pinned ? 'Unpin' : 'Pin'}
+    >
+      {thread.pinned ? (
+        <PinOffIcon className="size-3.5" />
+      ) : (
+        <PinIcon className="size-3.5" />
+      )}
+    </button>
+  </div>
+);
 
 const SidebarContent = ({
   activeThreadId,
@@ -41,6 +80,7 @@ const SidebarContent = ({
   onSearchChange,
   onCreateThread,
   onSelectThread,
+  onTogglePin,
 }: {
   activeThreadId: string;
   filteredThreads: ThreadItem[];
@@ -50,89 +90,92 @@ const SidebarContent = ({
   onSearchChange: (value: string) => void;
   onCreateThread: () => void;
   onSelectThread: (threadId: string) => void;
-}) => (
-  <>
-    <div className="flex items-center justify-between">
+  onTogglePin: (threadId: string, pinned: boolean) => void;
+}) => {
+  const pinnedThreads = filteredThreads.filter((t) => t.pinned);
+  const recentThreads = filteredThreads.filter((t) => !t.pinned);
+
+  return (
+    <>
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
           Workspace
         </p>
         <h1 className="text-lg font-semibold text-foreground">Studio Chat</h1>
       </div>
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              size="icon"
-              variant="outline"
-              onClick={onCreateThread}
-              disabled={isCreatingThread}
-            >
-              <PlusIcon className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>New thread (⌘K)</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    </div>
 
-    <div className="relative mt-4">
-      <SearchIcon className="absolute top-2.5 left-3 size-4 text-muted-foreground" />
-      <Input
-        id="thread-search"
-        type="text"
-        placeholder="Search threads... (⌘/)"
-        value={searchQuery}
-        onChange={(event) => onSearchChange(event.target.value)}
-        className="pl-9 pr-3 text-sm"
-      />
-    </div>
+      <Button
+        variant="outline"
+        size="sm"
+        className="mt-4 w-full justify-start gap-2"
+        onClick={onCreateThread}
+        disabled={isCreatingThread}
+      >
+        <PlusIcon className="size-4" />
+        New chat
+      </Button>
 
-    <div className="mt-4 space-y-2 overflow-y-auto">
-      {isLoading ? (
-        <p className="px-3 text-xs text-muted-foreground">Loading threads…</p>
-      ) : filteredThreads.length === 0 ? (
-        <p className="px-3 text-xs text-muted-foreground">
-          {searchQuery ? 'No threads found.' : 'No threads yet. Start a new chat.'}
-        </p>
-      ) : (
-        filteredThreads.map((thread) => {
-          const isActive = thread.id === activeThreadId;
-          return (
-            <button
-              key={thread.id}
-              className={`w-full rounded-2xl border px-3 py-3 text-left transition ${
-                isActive
-                  ? 'border-transparent bg-foreground text-background shadow-lg shadow-black/10'
-                  : 'border-black/5 bg-white/70 text-foreground hover:border-black/10 hover:bg-white'
-              }`}
-              onClick={() => onSelectThread(thread.id)}
-              type="button"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold">{thread.title}</span>
-                <span
-                  className={`text-[11px] ${
-                    isActive ? 'text-background/80' : 'text-muted-foreground'
-                  }`}
-                >
-                  {formatRelativeTime(thread.updatedAtMs)}
-                </span>
+      <div className="relative mt-3">
+        <SearchIcon className="absolute top-2.5 left-3 size-4 text-muted-foreground" />
+        <Input
+          id="thread-search"
+          type="text"
+          placeholder="Search threads... (⌘/)"
+          value={searchQuery}
+          onChange={(event) => onSearchChange(event.target.value)}
+          className="pl-9 pr-3 text-sm"
+        />
+      </div>
+
+      <div className="-mx-2 mt-4 flex-1 overflow-y-auto">
+        {isLoading ? (
+          <p className="px-3 text-xs text-muted-foreground">Loading threads…</p>
+        ) : filteredThreads.length === 0 ? (
+          <p className="px-3 text-xs text-muted-foreground">
+            {searchQuery ? 'No threads found.' : 'No threads yet. Start a new chat.'}
+          </p>
+        ) : (
+          <>
+            {pinnedThreads.length > 0 && (
+              <div className="mb-2">
+                <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Pinned
+                </p>
+                {pinnedThreads.map((thread) => (
+                  <ThreadRow
+                    key={thread.id}
+                    thread={thread}
+                    isActive={thread.id === activeThreadId}
+                    onSelect={() => onSelectThread(thread.id)}
+                    onTogglePin={() => onTogglePin(thread.id, !thread.pinned)}
+                  />
+                ))}
               </div>
-              <p
-                className={`mt-2 line-clamp-2 text-xs leading-relaxed ${
-                  isActive ? 'text-background/70' : 'text-muted-foreground'
-                }`}
-              >
-                {thread.preview}
-              </p>
-            </button>
-          );
-        })
-      )}
-    </div>
-  </>
-);
+            )}
+            {recentThreads.length > 0 && (
+              <div>
+                {pinnedThreads.length > 0 && (
+                  <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Recents
+                  </p>
+                )}
+                {recentThreads.map((thread) => (
+                  <ThreadRow
+                    key={thread.id}
+                    thread={thread}
+                    isActive={thread.id === activeThreadId}
+                    onSelect={() => onSelectThread(thread.id)}
+                    onTogglePin={() => onTogglePin(thread.id, !thread.pinned)}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </>
+  );
+};
 
 export const ChatSidebar = ({
   activeThreadId,
@@ -143,6 +186,7 @@ export const ChatSidebar = ({
   onSearchChange,
   onSelectThread,
   onCreateThread,
+  onTogglePin,
   mobileOpen = false,
   onMobileOpenChange,
 }: ChatSidebarProps) => {
@@ -165,6 +209,7 @@ export const ChatSidebar = ({
     onSearchChange,
     onCreateThread,
     onSelectThread: handleSelectThread,
+    onTogglePin,
   };
 
   return (

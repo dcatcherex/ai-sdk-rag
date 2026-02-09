@@ -52,6 +52,36 @@ export const useThreads = () => {
     },
   });
 
+  const pinThreadMutation = useMutation({
+    mutationFn: async ({ threadId, pinned }: { threadId: string; pinned: boolean }) => {
+      const response = await fetch(`/api/threads/${threadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pinned }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update thread');
+      }
+      return { threadId, pinned };
+    },
+    onMutate: async ({ threadId, pinned }) => {
+      await queryClient.cancelQueries({ queryKey: ['threads'] });
+      const previous = queryClient.getQueryData<ThreadItem[]>(['threads']);
+      queryClient.setQueryData<ThreadItem[]>(['threads'], (prev) =>
+        (prev ?? []).map((t) => (t.id === threadId ? { ...t, pinned } : t))
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['threads'], context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['threads'] });
+    },
+  });
+
   const deleteThreadMutation = useMutation({
     mutationFn: async (threadId: string) => {
       const response = await fetch(`/api/threads/${threadId}`, {
@@ -114,6 +144,7 @@ export const useThreads = () => {
     activeThread,
     activeMessages,
     createThreadMutation,
+    pinThreadMutation,
     deleteThreadMutation,
     handleCreateThread,
     ensureThread,

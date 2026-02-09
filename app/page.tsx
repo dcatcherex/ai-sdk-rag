@@ -35,6 +35,7 @@ export default function Chat() {
     activeThread,
     activeMessages,
     createThreadMutation,
+    pinThreadMutation,
     deleteThreadMutation,
     handleCreateThread,
     ensureThread,
@@ -135,6 +136,7 @@ export default function Chat() {
           onSearchChange={setSearchQuery}
           onSelectThread={setActiveThreadId}
           onCreateThread={handleCreateThread}
+          onTogglePin={(threadId, pinned) => pinThreadMutation.mutate({ threadId, pinned })}
           mobileOpen={mobileSidebarOpen}
           onMobileOpenChange={setMobileSidebarOpen}
         />

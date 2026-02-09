@@ -5,6 +5,7 @@ export type ThreadItem = {
   id: string;
   title: string;
   preview: string;
+  pinned: boolean;
   updatedAtMs: number;
 };
 

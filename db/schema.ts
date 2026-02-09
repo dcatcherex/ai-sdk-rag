@@ -96,6 +96,7 @@ export const chatThread = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     preview: text("preview").notNull(),
+    pinned: boolean("pinned").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
