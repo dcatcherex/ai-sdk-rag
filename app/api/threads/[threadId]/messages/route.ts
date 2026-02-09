@@ -1,11 +1,33 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { and, asc, eq } from "drizzle-orm";
-import type { UIMessage } from "ai";
+import { and, asc, eq, inArray } from "drizzle-orm";
+import type { UIMessage, UIMessagePart } from "ai";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { chatMessage, chatThread } from "@/db/schema";
+import { chatMessage, chatThread, mediaAsset } from "@/db/schema";
+
+type ImageFilePart = {
+  type: "file";
+  mediaType: string;
+  url: string;
+  filename?: string;
+  thumbnailUrl?: string;
+  width?: number;
+  height?: number;
+};
+
+const isImageFilePart = (part: UIMessagePart<any, any>): part is ImageFilePart => {
+  if (part.type !== "file") {
+    return false;
+  }
+  const record = part as Record<string, unknown>;
+  return (
+    typeof record.mediaType === "string" &&
+    typeof record.url === "string" &&
+    record.mediaType.startsWith("image/")
+  );
+};
 
 export async function GET(
   _request: Request,
@@ -37,11 +59,58 @@ export async function GET(
     .where(eq(chatMessage.threadId, threadId))
     .orderBy(asc(chatMessage.position));
 
-  const messages: UIMessage[] = rows.map((row) => ({
-    id: row.id,
-    role: row.role as UIMessage["role"],
-    parts: row.parts as UIMessage["parts"],
-  }));
+  const messageIds = rows.map((row) => row.id);
+  const assetRows = messageIds.length
+    ? await db
+        .select({
+          messageId: mediaAsset.messageId,
+          url: mediaAsset.url,
+          thumbnailUrl: mediaAsset.thumbnailUrl,
+          width: mediaAsset.width,
+          height: mediaAsset.height,
+        })
+        .from(mediaAsset)
+        .where(
+          and(
+            eq(mediaAsset.userId, session.user.id),
+            inArray(mediaAsset.messageId, messageIds)
+          )
+        )
+    : [];
+  const assetsByMessage = new Map<
+    string,
+    Map<string, { thumbnailUrl?: string | null; width?: number | null; height?: number | null }>
+  >();
+  assetRows.forEach((asset) => {
+    if (!assetsByMessage.has(asset.messageId)) {
+      assetsByMessage.set(asset.messageId, new Map());
+    }
+    assetsByMessage.get(asset.messageId)?.set(asset.url, asset);
+  });
+
+  const messages: UIMessage[] = rows.map((row) => {
+    const parts = (row.parts as UIMessage["parts"]).map((part) => {
+      if (!isImageFilePart(part) || part.thumbnailUrl) {
+        return part;
+      }
+      const asset = assetsByMessage.get(row.id)?.get(part.url);
+      if (!asset) {
+        return part;
+      }
+      return {
+        ...part,
+        thumbnailUrl: asset.thumbnailUrl ?? undefined,
+        width: part.width ?? asset.width ?? undefined,
+        height: part.height ?? asset.height ?? undefined,
+      };
+    });
+
+    return {
+      id: row.id,
+      role: row.role as UIMessage["role"],
+      parts,
+    };
+  });
 
   return NextResponse.json({ messages });
 }

@@ -23,14 +23,21 @@ export async function GET() {
     .where(eq(chatThread.userId, session.user.id))
     .orderBy(desc(chatThread.updatedAt));
 
-  return NextResponse.json({
-    threads: threads.map((thread) => ({
-      id: thread.id,
-      title: thread.title,
-      preview: thread.preview,
-      updatedAtMs: thread.updatedAt.getTime(),
-    })),
-  });
+  return NextResponse.json(
+    {
+      threads: threads.map((thread) => ({
+        id: thread.id,
+        title: thread.title,
+        preview: thread.preview,
+        updatedAtMs: thread.updatedAt.getTime(),
+      })),
+    },
+    {
+      headers: {
+        'Cache-Control': 'private, s-maxage=10, stale-while-revalidate=30',
+      },
+    }
+  );
 }
 
 export async function POST() {

@@ -4,7 +4,8 @@ import { boolean, index, integer, jsonb, pgTable, text, timestamp, customType } 
 // Custom vector type for pgvector
 const vector = customType<{ data: number[]; driverData: string }>({
   dataType(config) {
-    return `vector(${config?.dimensions ?? 1024})`;
+    const typed = config as { dimensions?: number } | undefined;
+    return `vector(${typed?.dimensions ?? 1024})`;
   },
   toDriver(value: number[]): string {
     return JSON.stringify(value);
@@ -136,6 +137,39 @@ export const tokenUsage = pgTable(
   (table) => [index("token_usage_thread_idx").on(table.threadId)],
 );
 
+export const mediaAsset = pgTable(
+  "media_asset",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => chatThread.id, { onDelete: "cascade" }),
+    messageId: text("message_id")
+      .notNull()
+      .references(() => chatMessage.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    r2Key: text("r2_key").notNull(),
+    url: text("url").notNull(),
+    thumbnailKey: text("thumbnail_key"),
+    thumbnailUrl: text("thumbnail_url"),
+    mimeType: text("mime_type").notNull(),
+    width: integer("width"),
+    height: integer("height"),
+    durationMs: integer("duration_ms"),
+    sizeBytes: integer("size_bytes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("media_asset_thread_idx").on(table.threadId),
+    index("media_asset_message_idx").on(table.messageId),
+    index("media_asset_user_idx").on(table.userId),
+    index("media_asset_type_idx").on(table.type),
+  ]
+);
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
@@ -163,10 +197,26 @@ export const chatThreadRelations = relations(chatThread, ({ many, one }) => ({
   }),
 }));
 
-export const chatMessageRelations = relations(chatMessage, ({ one }) => ({
+export const chatMessageRelations = relations(chatMessage, ({ one, many }) => ({
   thread: one(chatThread, {
     fields: [chatMessage.threadId],
     references: [chatThread.id],
+  }),
+  assets: many(mediaAsset),
+}));
+
+export const mediaAssetRelations = relations(mediaAsset, ({ one }) => ({
+  user: one(user, {
+    fields: [mediaAsset.userId],
+    references: [user.id],
+  }),
+  thread: one(chatThread, {
+    fields: [mediaAsset.threadId],
+    references: [chatThread.id],
+  }),
+  message: one(chatMessage, {
+    fields: [mediaAsset.messageId],
+    references: [chatMessage.id],
   }),
 }));
 
@@ -174,6 +224,51 @@ export const tokenUsageRelations = relations(tokenUsage, ({ one }) => ({
   thread: one(chatThread, {
     fields: [tokenUsage.threadId],
     references: [chatThread.id],
+  }),
+}));
+
+// Credits system
+export const userCredit = pgTable("user_credit", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  balance: integer("balance").default(0).notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+export const creditTransaction = pgTable(
+  "credit_transaction",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    amount: integer("amount").notNull(), // positive = grant, negative = usage
+    balance: integer("balance").notNull(), // balance after transaction
+    type: text("type").notNull(), // 'grant' | 'usage' | 'refund' | 'signup_bonus'
+    description: text("description"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("credit_transaction_userId_idx").on(table.userId),
+    index("credit_transaction_type_idx").on(table.type),
+  ],
+);
+
+export const userCreditRelations = relations(userCredit, ({ one }) => ({
+  user: one(user, {
+    fields: [userCredit.userId],
+    references: [user.id],
+  }),
+}));
+
+export const creditTransactionRelations = relations(creditTransaction, ({ one }) => ({
+  user: one(user, {
+    fields: [creditTransaction.userId],
+    references: [user.id],
   }),
 }));
 

@@ -10,12 +10,31 @@ import {
 } from '@/components/ai-elements/tool';
 import type { UIMessagePart } from 'ai';
 import { memo } from 'react';
+import Image from 'next/image';
 import { Streamdown } from 'streamdown';
 
 export type MessagePartRendererProps = {
   part: UIMessagePart<any, any>;
   messageId: string;
   index: number;
+};
+
+type FilePart = {
+  type: 'file';
+  mediaType: string;
+  url: string;
+  filename?: string;
+  width?: number;
+  height?: number;
+  thumbnailUrl?: string;
+};
+
+const isFilePart = (part: UIMessagePart<any, any>): part is FilePart => {
+  if (part.type !== 'file') {
+    return false;
+  }
+  const record = part as Record<string, unknown>;
+  return typeof record.mediaType === 'string' && typeof record.url === 'string';
 };
 
 export const MessagePartRenderer = memo(
@@ -36,7 +55,7 @@ export const MessagePartRenderer = memo(
     if (typeof part.type === 'string' && part.type.startsWith('tool-') && 'state' in part && 'input' in part) {
       const toolPart = part as any;
       return (
-        <Tool key={key} defaultOpen>
+        <Tool key={key} >
           <ToolHeader
             type={toolPart.type}
             state={toolPart.state}
@@ -52,23 +71,72 @@ export const MessagePartRenderer = memo(
       );
     }
 
-    // File attachment preview
-    if (part.type === 'file' && 'file' in part) {
-      const filePart = part as any;
-      return (
-        <div
-          key={key}
-          className="rounded-lg border bg-muted/50 p-3 text-sm"
-        >
-          <div className="flex items-center gap-2">
-            <span className="font-medium">📎 {filePart.file?.name ?? 'Attachment'}</span>
-            {filePart.file?.size && (
-              <span className="text-muted-foreground text-xs">
-                ({formatBytes(filePart.file.size)})
-              </span>
+    // File attachment preview (including image outputs from multimodal models)
+    if (isFilePart(part)) {
+      if (part.mediaType.startsWith('image/')) {
+        const isDataUrl = part.url.startsWith('data:');
+        const hasDimensions = typeof part.width === 'number' && typeof part.height === 'number';
+        const previewUrl = !isDataUrl && part.thumbnailUrl ? part.thumbnailUrl : part.url;
+        const showFullLink = previewUrl !== part.url;
+        return (
+          <div key={key} className="relative overflow-hidden rounded-lg border bg-muted/50 p-2">
+            {showFullLink ? (
+              <a href={part.url} target="_blank" rel="noreferrer">
+                {hasDimensions && !isDataUrl ? (
+                  <Image
+                    src={previewUrl}
+                    alt={part.filename ?? 'Generated image'}
+                    width={part.width}
+                    height={part.height}
+                    sizes="(max-width: 768px) 100vw, 640px"
+                    className="h-auto w-full rounded-md"
+                  />
+                ) : (
+                  <img
+                    src={previewUrl}
+                    alt={part.filename ?? 'Generated image'}
+                    className="h-auto w-full rounded-md"
+                  />
+                )}
+              </a>
+            ) : hasDimensions && !isDataUrl ? (
+              <Image
+                src={previewUrl}
+                alt={part.filename ?? 'Generated image'}
+                width={part.width}
+                height={part.height}
+                sizes="(max-width: 768px) 100vw, 640px"
+                className="h-auto w-full rounded-md"
+              />
+            ) : (
+              <img
+                src={previewUrl}
+                alt={part.filename ?? 'Generated image'}
+                className="h-auto w-full rounded-md"
+              />
             )}
+            <a
+              href={part.url}
+              download={part.filename ?? 'image.webp'}
+              className="absolute bottom-2 right-2 inline-flex items-center rounded-full bg-background/90 px-3 py-1 text-xs font-medium text-foreground shadow"
+            >
+              Download
+            </a>
           </div>
-        </div>
+        );
+      }
+
+      return (
+        <a
+          key={key}
+          href={part.url}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2 text-sm text-foreground hover:bg-muted"
+        >
+          <span className="font-medium">📎 {part.filename ?? 'Download file'}</span>
+          <span className="text-muted-foreground text-xs">{part.mediaType}</span>
+        </a>
       );
     }
 
@@ -130,11 +198,3 @@ const MarkdownText = memo(({ content }: { content: string }) => {
 
 MarkdownText.displayName = 'MarkdownText';
 
-// Utility to format file sizes
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${Math.round(bytes / Math.pow(k, i) * 100) / 100} ${sizes[i]}`;
-}

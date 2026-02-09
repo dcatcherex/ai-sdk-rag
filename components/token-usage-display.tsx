@@ -39,7 +39,7 @@ export function TokenUsageDisplay({ threadId }: { threadId: string }) {
       return response.json();
     },
     enabled: Boolean(threadId),
-    refetchInterval: 10000, // Refetch every 10 seconds
+    refetchInterval: 60_000, // Refetch every 60 seconds
   });
 
   // Estimate cost (rough estimates, adjust based on actual pricing)

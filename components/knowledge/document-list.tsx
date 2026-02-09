@@ -136,7 +136,7 @@ export function DocumentList({
   // Full variant for the /knowledge page
   return (
     <div>
-      <div className="overflow-hidden rounded-2xl border border-black/5 bg-white/70">
+      <div className="overflow-x-auto rounded-2xl border border-black/5 bg-white/70">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-black/5 text-left text-xs text-muted-foreground">

@@ -7,6 +7,7 @@ import { magicLink } from "better-auth/plugins";
 import { db } from "@/lib/db";
 import { MagicLinkEmail, ResetPasswordEmail, VerificationEmail } from "@/lib/email-templates";
 import { sendEmail } from "@/lib/email";
+import { addCredits, SIGNUP_BONUS_CREDITS } from "@/lib/credits";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -72,6 +73,20 @@ export const auth = betterAuth({
           theme: emailTheme,
         }),
       });
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          await addCredits({
+            userId: user.id,
+            amount: SIGNUP_BONUS_CREDITS,
+            type: 'signup_bonus',
+            description: `Welcome bonus: ${SIGNUP_BONUS_CREDITS} credits`,
+          });
+        },
+      },
     },
   },
   socialProviders,

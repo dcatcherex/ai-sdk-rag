@@ -462,7 +462,7 @@ export const CodeBlockCopyButton = ({
 
     try {
       if (!isCopied) {
-        await navigator.clipboard.writeText(code);
+        await navigator.clipboard.writeText(code ?? '');
         setIsCopied(true);
         onCopy?.();
         timeoutRef.current = window.setTimeout(
