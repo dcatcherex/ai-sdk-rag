@@ -5,6 +5,7 @@ import { BookOpenIcon } from 'lucide-react';
 import {
   PromptInput,
   PromptInputBody,
+  PromptInputFooter,
   PromptInputSubmit,
   PromptInputTextarea,
   type PromptInputMessage,
@@ -39,8 +40,13 @@ export const ChatComposer = ({
       </div>
     )}
     <PromptInput onSubmit={(message) => onSubmit(message)}>
-      <PromptInputBody className="gap-3 rounded-2xl border border-black/5 bg-white/70 px-3 py-2 shadow-inner">
-        <PromptInputTextarea placeholder="Ask anything or drop files to ground the response." />
+      <PromptInputBody>
+        <PromptInputTextarea
+          className="min-h-24 max-h-[40vh] overflow-y-auto leading-6"
+          placeholder="Ask anything or drop files to ground the response."
+        />
+      </PromptInputBody>
+      <PromptInputFooter>
         <div className="flex items-center gap-2">
           <SpeechInput
             size="icon"
@@ -50,7 +56,7 @@ export const ChatComposer = ({
           />
           <PromptInputSubmit onStop={onStop} status={status} />
         </div>
-      </PromptInputBody>
+      </PromptInputFooter>
     </PromptInput>
     {error ? (
       <p className="mt-2 text-xs text-destructive">
