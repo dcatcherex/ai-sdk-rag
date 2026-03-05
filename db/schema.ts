@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { boolean, index, integer, jsonb, pgTable, text, timestamp, customType } from "drizzle-orm/pg-core";
+import { boolean, foreignKey, index, integer, jsonb, pgTable, text, timestamp, customType } from "drizzle-orm/pg-core";
 
 // Custom vector type for pgvector
 const vector = customType<{ data: number[]; driverData: string }>({
@@ -151,6 +151,10 @@ export const mediaAsset = pgTable(
     messageId: text("message_id")
       .notNull()
       .references(() => chatMessage.id, { onDelete: "cascade" }),
+    parentAssetId: text("parent_asset_id"),
+    rootAssetId: text("root_asset_id"),
+    version: integer("version").default(1).notNull(),
+    editPrompt: text("edit_prompt"),
     type: text("type").notNull(),
     r2Key: text("r2_key").notNull(),
     url: text("url").notNull(),
@@ -164,10 +168,17 @@ export const mediaAsset = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
+    foreignKey({
+      name: "media_asset_parent_fk",
+      columns: [table.parentAssetId],
+      foreignColumns: [table.id],
+    }).onDelete("set null"),
     index("media_asset_thread_idx").on(table.threadId),
     index("media_asset_message_idx").on(table.messageId),
     index("media_asset_user_idx").on(table.userId),
     index("media_asset_type_idx").on(table.type),
+    index("media_asset_parent_idx").on(table.parentAssetId),
+    index("media_asset_root_idx").on(table.rootAssetId),
   ]
 );
 

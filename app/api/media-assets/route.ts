@@ -8,6 +8,18 @@ import { mediaAsset } from "@/db/schema";
 
 const MAX_LIMIT = 200;
 
+type DbErrorWithCode = {
+  code?: string;
+  cause?: {
+    code?: string;
+  };
+};
+
+const isMissingColumnError = (error: unknown) => {
+  const typed = error as DbErrorWithCode;
+  return typed?.code === "42703" || typed?.cause?.code === "42703";
+};
+
 export async function GET(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) {
@@ -18,29 +30,82 @@ export async function GET(request: Request) {
   const limitParam = Number(searchParams.get("limit") ?? "120");
   const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), MAX_LIMIT) : 120;
   const type = searchParams.get("type");
+  const rootAssetId = searchParams.get("rootAssetId");
+  const threadId = searchParams.get("threadId");
 
   const conditions = [eq(mediaAsset.userId, session.user.id)];
   if (type) {
     conditions.push(eq(mediaAsset.type, type));
   }
+  if (rootAssetId) {
+    conditions.push(eq(mediaAsset.rootAssetId, rootAssetId));
+  }
+  if (threadId) {
+    conditions.push(eq(mediaAsset.threadId, threadId));
+  }
 
-  const rows = await db
-    .select({
-      id: mediaAsset.id,
-      type: mediaAsset.type,
-      url: mediaAsset.url,
-      thumbnailUrl: mediaAsset.thumbnailUrl,
-      width: mediaAsset.width,
-      height: mediaAsset.height,
-      mimeType: mediaAsset.mimeType,
-      threadId: mediaAsset.threadId,
-      messageId: mediaAsset.messageId,
-      createdAt: mediaAsset.createdAt,
-    })
-    .from(mediaAsset)
-    .where(conditions.length > 1 ? and(...conditions) : conditions[0])
-    .orderBy(desc(mediaAsset.createdAt))
-    .limit(limit);
+  let rows: Array<{
+    id: string;
+    type: string;
+    url: string;
+    thumbnailUrl: string | null;
+    width: number | null;
+    height: number | null;
+    mimeType: string;
+    threadId: string;
+    messageId: string;
+    parentAssetId?: string | null;
+    rootAssetId?: string | null;
+    version?: number | null;
+    editPrompt?: string | null;
+    createdAt: Date;
+  }> = [];
+
+  try {
+    rows = await db
+      .select({
+        id: mediaAsset.id,
+        type: mediaAsset.type,
+        url: mediaAsset.url,
+        thumbnailUrl: mediaAsset.thumbnailUrl,
+        width: mediaAsset.width,
+        height: mediaAsset.height,
+        mimeType: mediaAsset.mimeType,
+        threadId: mediaAsset.threadId,
+        messageId: mediaAsset.messageId,
+        parentAssetId: mediaAsset.parentAssetId,
+        rootAssetId: mediaAsset.rootAssetId,
+        version: mediaAsset.version,
+        editPrompt: mediaAsset.editPrompt,
+        createdAt: mediaAsset.createdAt,
+      })
+      .from(mediaAsset)
+      .where(conditions.length > 1 ? and(...conditions) : conditions[0])
+      .orderBy(desc(mediaAsset.createdAt))
+      .limit(limit);
+  } catch (error) {
+    if (!isMissingColumnError(error)) {
+      throw error;
+    }
+
+    rows = await db
+      .select({
+        id: mediaAsset.id,
+        type: mediaAsset.type,
+        url: mediaAsset.url,
+        thumbnailUrl: mediaAsset.thumbnailUrl,
+        width: mediaAsset.width,
+        height: mediaAsset.height,
+        mimeType: mediaAsset.mimeType,
+        threadId: mediaAsset.threadId,
+        messageId: mediaAsset.messageId,
+        createdAt: mediaAsset.createdAt,
+      })
+      .from(mediaAsset)
+      .where(conditions.length > 1 ? and(...conditions) : conditions[0])
+      .orderBy(desc(mediaAsset.createdAt))
+      .limit(limit);
+  }
 
   return NextResponse.json(
     {

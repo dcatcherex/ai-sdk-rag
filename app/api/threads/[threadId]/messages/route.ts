@@ -7,6 +7,13 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { chatMessage, chatThread, mediaAsset } from "@/db/schema";
 
+type DbErrorWithCode = {
+  code?: string;
+  cause?: {
+    code?: string;
+  };
+};
+
 type ImageFilePart = {
   type: "file";
   mediaType: string;
@@ -15,6 +22,11 @@ type ImageFilePart = {
   thumbnailUrl?: string;
   width?: number;
   height?: number;
+  assetId?: string;
+  parentAssetId?: string;
+  rootAssetId?: string;
+  version?: number;
+  editPrompt?: string;
 };
 
 const isImageFilePart = (part: UIMessagePart<any, any>): part is ImageFilePart => {
@@ -27,6 +39,11 @@ const isImageFilePart = (part: UIMessagePart<any, any>): part is ImageFilePart =
     typeof record.url === "string" &&
     record.mediaType.startsWith("image/")
   );
+};
+
+const isMissingColumnError = (error: unknown) => {
+  const typed = error as DbErrorWithCode;
+  return typed?.code === "42703" || typed?.cause?.code === "42703";
 };
 
 export async function GET(
@@ -60,9 +77,49 @@ export async function GET(
     .orderBy(asc(chatMessage.position));
 
   const messageIds = rows.map((row) => row.id);
-  const assetRows = messageIds.length
-    ? await db
+  let assetRows: Array<{
+    id: string;
+    messageId: string;
+    url: string;
+    thumbnailUrl: string | null;
+    width: number | null;
+    height: number | null;
+    parentAssetId?: string | null;
+    rootAssetId?: string | null;
+    version?: number | null;
+    editPrompt?: string | null;
+  }> = [];
+
+  if (messageIds.length) {
+    try {
+      assetRows = await db
         .select({
+          id: mediaAsset.id,
+          messageId: mediaAsset.messageId,
+          url: mediaAsset.url,
+          thumbnailUrl: mediaAsset.thumbnailUrl,
+          width: mediaAsset.width,
+          height: mediaAsset.height,
+          parentAssetId: mediaAsset.parentAssetId,
+          rootAssetId: mediaAsset.rootAssetId,
+          version: mediaAsset.version,
+          editPrompt: mediaAsset.editPrompt,
+        })
+        .from(mediaAsset)
+        .where(
+          and(
+            eq(mediaAsset.userId, session.user.id),
+            inArray(mediaAsset.messageId, messageIds)
+          )
+        );
+    } catch (error) {
+      if (!isMissingColumnError(error)) {
+        throw error;
+      }
+
+      assetRows = await db
+        .select({
+          id: mediaAsset.id,
           messageId: mediaAsset.messageId,
           url: mediaAsset.url,
           thumbnailUrl: mediaAsset.thumbnailUrl,
@@ -75,11 +132,24 @@ export async function GET(
             eq(mediaAsset.userId, session.user.id),
             inArray(mediaAsset.messageId, messageIds)
           )
-        )
-    : [];
+        );
+    }
+  }
   const assetsByMessage = new Map<
     string,
-    Map<string, { thumbnailUrl?: string | null; width?: number | null; height?: number | null }>
+    Map<
+      string,
+      {
+        id: string;
+        thumbnailUrl?: string | null;
+        width?: number | null;
+        height?: number | null;
+        parentAssetId?: string | null;
+        rootAssetId?: string | null;
+        version?: number | null;
+        editPrompt?: string | null;
+      }
+    >
   >();
   assetRows.forEach((asset) => {
     if (!assetsByMessage.has(asset.messageId)) {
@@ -102,6 +172,11 @@ export async function GET(
         thumbnailUrl: asset.thumbnailUrl ?? undefined,
         width: part.width ?? asset.width ?? undefined,
         height: part.height ?? asset.height ?? undefined,
+        assetId: asset.id,
+        parentAssetId: asset.parentAssetId ?? undefined,
+        rootAssetId: asset.rootAssetId ?? undefined,
+        version: asset.version ?? undefined,
+        editPrompt: asset.editPrompt ?? undefined,
       };
     });
 

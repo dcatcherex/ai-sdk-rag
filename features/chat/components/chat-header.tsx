@@ -1,15 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import {
   BookOpenIcon,
   DownloadIcon,
   FileTextIcon,
-  LogOutIcon,
   MenuIcon,
   Trash2Icon,
-  UserIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,8 +15,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -31,35 +26,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { TokenUsageDisplay } from '@/components/token-usage-display';
 import { CreditBalanceDisplay } from '@/components/credit-balance-display';
 import type { ChatStatus } from 'ai';
 import type { ThreadItem, RoutingMetadata } from '../types';
 
-type UserProfileData = {
-  displayName: string;
-  email: string;
-  initials: string;
-  image: string;
-};
-
-type SessionData = {
-  user?: {
-    name?: string | null;
-    email?: string | null;
-    image?: string | null;
-  };
-} | null;
-
 type ChatHeaderProps = {
   activeThread: ThreadItem | undefined;
   status: ChatStatus;
-  // User
-  sessionData: SessionData;
-  userProfile: UserProfileData;
-  isSigningOut: boolean;
-  onSignOut: () => void;
   // Routing
   lastRouting: RoutingMetadata | null;
   lastRoutingModel:
@@ -82,10 +56,6 @@ type ChatHeaderProps = {
 export const ChatHeader = ({
   activeThread,
   status,
-  sessionData,
-  userProfile,
-  isSigningOut,
-  onSignOut,
   lastRouting,
   lastRoutingModel,
   onDeleteThread,
@@ -128,17 +98,6 @@ export const ChatHeader = ({
       </div>
     </div>
     <div className="flex items-center gap-1.5 md:gap-3">
-      <Button variant="outline" size="sm" className="hidden sm:inline-flex" asChild>
-        <Link href="/gallery">Media gallery</Link>
-      </Button>
-
-      <UserMenu
-        sessionData={sessionData}
-        userProfile={userProfile}
-        isSigningOut={isSigningOut}
-        onSignOut={onSignOut}
-      />
-
       {lastRouting?.mode === 'auto' ? (
         <TooltipProvider>
           <Tooltip>
@@ -248,63 +207,5 @@ export const ChatHeader = ({
       </DialogContent>
     </Dialog>
   </div>
-  );
-};
-
-// --- Sub-components ---
-
-type UserMenuProps = {
-  sessionData: SessionData;
-  userProfile: UserProfileData;
-  isSigningOut: boolean;
-  onSignOut: () => void;
-};
-
-const UserMenu = ({ sessionData, userProfile, isSigningOut, onSignOut }: UserMenuProps) => {
-  if (!sessionData?.user) {
-    return (
-      <Button variant="outline" size="sm" asChild>
-        <Link href="/sign-in">
-          <UserIcon className="mr-2 size-4" />
-          Sign in
-        </Link>
-      </Button>
-    );
-  }
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="rounded-full border border-black/5 bg-white/80"
-        >
-          <Avatar size="sm">
-            {userProfile.image ? (
-              <AvatarImage src={userProfile.image} alt={userProfile.displayName} />
-            ) : null}
-            <AvatarFallback className="bg-muted text-xs font-semibold text-muted-foreground">
-              {userProfile.initials}
-            </AvatarFallback>
-          </Avatar>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="flex flex-col gap-1">
-          <span className="text-sm font-semibold text-foreground">
-            {userProfile.displayName}
-          </span>
-          {userProfile.email ? (
-            <span className="text-xs text-muted-foreground">{userProfile.email}</span>
-          ) : null}
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onSignOut} disabled={isSigningOut}>
-          <LogOutIcon className="size-4" />
-          {isSigningOut ? 'Signing out…' : 'Sign out'}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 };

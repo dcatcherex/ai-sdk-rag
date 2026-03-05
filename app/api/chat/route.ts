@@ -47,6 +47,11 @@ type ImageFilePart = {
   thumbnailUrl?: string;
   width?: number;
   height?: number;
+  assetId?: string;
+  parentAssetId?: string;
+  rootAssetId?: string;
+  version?: number;
+  editPrompt?: string;
 };
 
 type MediaAssetInsert = typeof mediaAsset.$inferInsert;
@@ -113,6 +118,8 @@ const uploadImagePart = async (options: {
     ].join('/');
     const fullKey = `${baseKey}.webp`;
     const thumbKey = `${baseKey}-thumb.webp`;
+    const assetId = nanoid();
+
     const [fullUpload, thumbUpload] = await Promise.all([
       uploadPublicObject({
         key: fullKey,
@@ -127,10 +134,12 @@ const uploadImagePart = async (options: {
     ]);
 
     const asset: MediaAssetInsert = {
-      id: nanoid(),
+      id: assetId,
       userId,
       threadId,
       messageId,
+      rootAssetId: assetId,
+      version: 1,
       type: 'image',
       r2Key: fullUpload.key,
       url: fullUpload.url,
@@ -150,6 +159,9 @@ const uploadImagePart = async (options: {
       thumbnailUrl: thumbUpload.url,
       width,
       height,
+      assetId,
+      rootAssetId: assetId,
+      version: 1,
     };
 
     return {

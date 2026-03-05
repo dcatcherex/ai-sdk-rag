@@ -1,13 +1,31 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { MoreVerticalIcon, PencilIcon, PinIcon, PinOffIcon, PlusIcon, SearchIcon, Trash2Icon } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import {
+  ImageIcon,
+  LogOutIcon,
+  MoreVerticalIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
+  PencilIcon,
+  PinIcon,
+  PinOffIcon,
+  PlusIcon,
+  SearchIcon,
+  Trash2Icon,
+  UserIcon,
+} from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -24,10 +42,28 @@ import {
   SheetContent,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { cn } from '@/lib/utils';
 
 import { formatRelativeTime } from '../utils/format-relative-time';
 import { filterThreads } from '../utils/filter-threads';
 import type { ThreadItem } from '../types';
+
+type UserProfileData = {
+  displayName: string;
+  email: string;
+  initials: string;
+  image: string;
+};
+
+type SessionData = {
+  user?: {
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+  };
+} | null;
+
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'chat-sidebar-collapsed';
 
 type ChatSidebarProps = {
   activeThreadId: string;
@@ -41,8 +77,95 @@ type ChatSidebarProps = {
   onTogglePin: (threadId: string, pinned: boolean) => void;
   onRenameThread: (threadId: string, title: string) => void;
   onDeleteThread: (threadId: string) => void;
+  sessionData: SessionData;
+  userProfile: UserProfileData;
+  isSigningOut: boolean;
+  onSignOut: () => void;
   mobileOpen?: boolean;
   onMobileOpenChange?: (open: boolean) => void;
+};
+
+type SidebarAccountProps = {
+  sessionData: SessionData;
+  userProfile: UserProfileData;
+  isSigningOut: boolean;
+  onSignOut: () => void;
+  isCollapsed: boolean;
+};
+
+const SidebarAccount = ({
+  sessionData,
+  userProfile,
+  isSigningOut,
+  onSignOut,
+  isCollapsed,
+}: SidebarAccountProps) => {
+  if (!sessionData?.user) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size={isCollapsed ? 'icon' : 'sm'}
+              className={cn('rounded-full', isCollapsed ? 'size-9' : 'px-3')}
+              asChild
+            >
+              <Link href="/sign-in" aria-label="Sign in">
+                <UserIcon className="size-4" />
+                {!isCollapsed ? <span className="ml-2">Sign in</span> : null}
+              </Link>
+            </Button>
+          </TooltipTrigger>
+          {isCollapsed ? <TooltipContent side="right">Sign in</TooltipContent> : null}
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return (
+    <DropdownMenu>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-9 rounded-full border border-black/5 bg-white/80"
+              >
+                <Avatar size="sm">
+                  {userProfile.image ? (
+                    <AvatarImage src={userProfile.image} alt={userProfile.displayName} />
+                  ) : null}
+                  <AvatarFallback className="bg-muted text-xs font-semibold text-muted-foreground">
+                    {userProfile.initials}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="right">Account</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <DropdownMenuContent align={isCollapsed ? 'center' : 'end'} className="w-56">
+        <DropdownMenuLabel className="flex flex-col gap-1">
+          <span className="text-sm font-semibold text-foreground">
+            {userProfile.displayName}
+          </span>
+          {userProfile.email ? (
+            <span className="text-xs text-muted-foreground">{userProfile.email}</span>
+          ) : null}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={onSignOut} disabled={isSigningOut}>
+          <LogOutIcon className="size-4" />
+          {isSigningOut ? 'Signing out…' : 'Sign out'}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 };
 
 const ThreadRow = ({
@@ -155,6 +278,13 @@ const SidebarContent = ({
   onTogglePin,
   onRenameThread,
   onDeleteThread,
+  sessionData,
+  userProfile,
+  isSigningOut,
+  onSignOut,
+  currentPath,
+  isCollapsed = false,
+  onToggleCollapse,
 }: {
   activeThreadId: string;
   filteredThreads: ThreadItem[];
@@ -167,6 +297,13 @@ const SidebarContent = ({
   onTogglePin: (threadId: string, pinned: boolean) => void;
   onRenameThread: (threadId: string, title: string) => void;
   onDeleteThread: (threadId: string) => void;
+  sessionData: SessionData;
+  userProfile: UserProfileData;
+  isSigningOut: boolean;
+  onSignOut: () => void;
+  currentPath: string;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }) => {
   const pinnedThreads = filteredThreads.filter((t) => t.pinned);
   const recentThreads = filteredThreads.filter((t) => !t.pinned);
@@ -198,91 +335,161 @@ const SidebarContent = ({
 
   return (
     <>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-          Workspace
-        </p>
-        <h1 className="text-lg font-semibold text-foreground">Studio Chat</h1>
-      </div>
-
-      <Button
-        variant="outline"
-        size="sm"
-        className="mt-4 w-full justify-start gap-2"
-        onClick={onCreateThread}
-        disabled={isCreatingThread}
-      >
-        <PlusIcon className="size-4" />
-        New chat
-      </Button>
-
-      <div className="relative mt-3">
-        <SearchIcon className="absolute top-2.5 left-3 size-4 text-muted-foreground" />
-        <Input
-          id="thread-search"
-          type="text"
-          placeholder="Search threads... (⌘/)"
-          value={searchQuery}
-          onChange={(event) => onSearchChange(event.target.value)}
-          className="pl-9 pr-3 text-sm"
-        />
-      </div>
-
-      <div className="-mx-2 mt-4 flex-1 overflow-y-auto">
-        {isLoading ? (
-          <p className="px-3 text-xs text-muted-foreground">Loading threads…</p>
-        ) : filteredThreads.length === 0 ? (
-          <p className="px-3 text-xs text-muted-foreground">
-            {searchQuery ? 'No threads found.' : 'No threads yet. Start a new chat.'}
-          </p>
-        ) : (
-          <>
-            {pinnedThreads.length > 0 && (
-              <div className="mb-2">
-                <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Pinned
-                </p>
-                {pinnedThreads.map((thread) => (
-                  <ThreadRow
-                    key={thread.id}
-                    thread={thread}
-                    isActive={thread.id === activeThreadId}
-                    onSelect={() => onSelectThread(thread.id)}
-                    onTogglePin={() => onTogglePin(thread.id, !thread.pinned)}
-                    onRenameRequest={() => {
-                      setRenameTarget(thread);
-                      setRenameTitle(thread.title);
-                    }}
-                    onDelete={() => onDeleteThread(thread.id)}
-                  />
-                ))}
-              </div>
-            )}
-            {recentThreads.length > 0 && (
-              <div>
-                {pinnedThreads.length > 0 && (
-                  <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Recents
-                  </p>
-                )}
-                {recentThreads.map((thread) => (
-                  <ThreadRow
-                    key={thread.id}
-                    thread={thread}
-                    isActive={thread.id === activeThreadId}
-                    onSelect={() => onSelectThread(thread.id)}
-                    onTogglePin={() => onTogglePin(thread.id, !thread.pinned)}
-                    onRenameRequest={() => {
-                      setRenameTarget(thread);
-                      setRenameTitle(thread.title);
-                    }}
-                    onDelete={() => onDeleteThread(thread.id)}
-                  />
-                ))}
-              </div>
-            )}
-          </>
+      <div className={cn('flex items-start justify-between gap-2', isCollapsed && 'justify-center')}>
+        {!isCollapsed && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+              Workspace
+            </p>
+            <h1 className="text-lg font-semibold text-foreground">Studio Chat</h1>
+          </div>
         )}
+
+        {onToggleCollapse ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 shrink-0"
+                  onClick={onToggleCollapse}
+                  aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                >
+                  {isCollapsed ? <PanelLeftOpenIcon className="size-4" /> : <PanelLeftCloseIcon className="size-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                {isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : null}
+      </div>
+
+      <div className={cn('mt-4 space-y-2', isCollapsed && 'flex flex-col items-center')}>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={currentPath === '/' ? 'secondary' : 'ghost'}
+                size={isCollapsed ? 'icon' : 'sm'}
+                className={cn('justify-start gap-2', isCollapsed ? 'size-9' : 'w-full')}
+                onClick={onCreateThread}
+                disabled={isCreatingThread}
+              >
+                <PlusIcon className="size-4" />
+                {!isCollapsed ? 'New chat' : null}
+              </Button>
+            </TooltipTrigger>
+            {isCollapsed ? <TooltipContent side="right">New chat</TooltipContent> : null}
+          </Tooltip>
+        </TooltipProvider>
+
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                asChild
+                variant={currentPath.startsWith('/gallery') ? 'secondary' : 'ghost'}
+                size={isCollapsed ? 'icon' : 'sm'}
+                className={cn('justify-start gap-2', isCollapsed ? 'size-9' : 'w-full')}
+              >
+                <Link href="/gallery" aria-label="Media gallery">
+                  <ImageIcon className="size-4" />
+                  {!isCollapsed ? 'Media gallery' : null}
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            {isCollapsed ? <TooltipContent side="right">Media gallery</TooltipContent> : null}
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+
+      {!isCollapsed ? (
+        <>
+          <div className="relative mt-3">
+            <SearchIcon className="absolute top-2.5 left-3 size-4 text-muted-foreground" />
+            <Input
+              id="thread-search"
+              type="text"
+              placeholder="Search threads... (⌘/)"
+              value={searchQuery}
+              onChange={(event) => onSearchChange(event.target.value)}
+              className="pl-9 pr-3 text-sm"
+            />
+          </div>
+
+          <div className="-mx-2 mt-4 flex-1 overflow-y-auto">
+            {isLoading ? (
+              <p className="px-3 text-xs text-muted-foreground">Loading threads…</p>
+            ) : filteredThreads.length === 0 ? (
+              <p className="px-3 text-xs text-muted-foreground">
+                {searchQuery ? 'No threads found.' : 'No threads yet. Start a new chat.'}
+              </p>
+            ) : (
+              <>
+                {pinnedThreads.length > 0 && (
+                  <div className="mb-2">
+                    <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Pinned
+                    </p>
+                    {pinnedThreads.map((thread) => (
+                      <ThreadRow
+                        key={thread.id}
+                        thread={thread}
+                        isActive={thread.id === activeThreadId}
+                        onSelect={() => onSelectThread(thread.id)}
+                        onTogglePin={() => onTogglePin(thread.id, !thread.pinned)}
+                        onRenameRequest={() => {
+                          setRenameTarget(thread);
+                          setRenameTitle(thread.title);
+                        }}
+                        onDelete={() => onDeleteThread(thread.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+                {recentThreads.length > 0 && (
+                  <div>
+                    {pinnedThreads.length > 0 && (
+                      <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Recents
+                      </p>
+                    )}
+                    {recentThreads.map((thread) => (
+                      <ThreadRow
+                        key={thread.id}
+                        thread={thread}
+                        isActive={thread.id === activeThreadId}
+                        onSelect={() => onSelectThread(thread.id)}
+                        onTogglePin={() => onTogglePin(thread.id, !thread.pinned)}
+                        onRenameRequest={() => {
+                          setRenameTarget(thread);
+                          setRenameTitle(thread.title);
+                        }}
+                        onDelete={() => onDeleteThread(thread.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="mt-4 flex-1" />
+      )}
+
+      <div className={cn('mt-auto border-t border-black/5 pt-3', isCollapsed ? 'flex justify-center' : 'flex')}>
+        <SidebarAccount
+          sessionData={sessionData}
+          userProfile={userProfile}
+          isSigningOut={isSigningOut}
+          onSignOut={onSignOut}
+          isCollapsed={isCollapsed}
+        />
       </div>
 
       <Dialog open={Boolean(renameTarget)} onOpenChange={handleRenameDialogChange}>
@@ -322,9 +529,31 @@ export const ChatSidebar = ({
   onTogglePin,
   onRenameThread,
   onDeleteThread,
+  sessionData,
+  userProfile,
+  isSigningOut,
+  onSignOut,
   mobileOpen = false,
   onMobileOpenChange,
 }: ChatSidebarProps) => {
+  const pathname = usePathname();
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') {
+      return true;
+    }
+
+    const stored = window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY);
+    if (stored === null) {
+      return true;
+    }
+
+    return stored === 'true';
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(isCollapsed));
+  }, [isCollapsed]);
+
   const filteredThreads = useMemo(
     () => filterThreads(threads, searchQuery),
     [threads, searchQuery]
@@ -347,13 +576,28 @@ export const ChatSidebar = ({
     onTogglePin,
     onRenameThread,
     onDeleteThread,
+    sessionData,
+    userProfile,
+    isSigningOut,
+    onSignOut,
+    currentPath: pathname,
   };
 
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden h-[calc(100vh-3rem)] w-72 shrink-0 rounded-3xl border border-black/5 bg-white/70 p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] backdrop-blur md:flex md:flex-col">
-        <SidebarContent {...sharedProps} onSelectThread={onSelectThread} />
+      <aside
+        className={cn(
+          'hidden h-[calc(100vh-3rem)] shrink-0 rounded-3xl border border-black/5 bg-white/70 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] backdrop-blur transition-all md:flex md:flex-col',
+          isCollapsed ? 'w-20 p-3' : 'w-72 p-5'
+        )}
+      >
+        <SidebarContent
+          {...sharedProps}
+          onSelectThread={onSelectThread}
+          isCollapsed={isCollapsed}
+          onToggleCollapse={() => setIsCollapsed((prev) => !prev)}
+        />
       </aside>
 
       {/* Mobile sidebar drawer */}

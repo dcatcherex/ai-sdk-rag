@@ -158,6 +158,10 @@ export default function Chat() {
           onTogglePin={(threadId, pinned) => pinThreadMutation.mutate({ threadId, pinned })}
           onRenameThread={(threadId, title) => renameThreadMutation.mutate({ threadId, title })}
           onDeleteThread={(threadId) => deleteThreadMutation.mutate(threadId)}
+          sessionData={sessionData}
+          userProfile={userProfile}
+          isSigningOut={isSigningOut}
+          onSignOut={handleSignOut}
           mobileOpen={mobileSidebarOpen}
           onMobileOpenChange={setMobileSidebarOpen}
         />
@@ -166,10 +170,6 @@ export default function Chat() {
           <ChatHeader
             activeThread={activeThread}
             status={status}
-            sessionData={sessionData}
-            userProfile={userProfile}
-            isSigningOut={isSigningOut}
-            onSignOut={handleSignOut}
             lastRouting={lastRouting}
             lastRoutingModel={lastRoutingModel}
             onDeleteThread={(threadId) => deleteThreadMutation.mutate(threadId)}
