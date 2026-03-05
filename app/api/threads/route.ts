@@ -4,7 +4,7 @@ import { desc, eq } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { chatThread } from "@/db/schema";
+import { chatThread, mediaAsset } from "@/db/schema";
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -24,6 +24,23 @@ export async function GET() {
     .where(eq(chatThread.userId, session.user.id))
     .orderBy(desc(chatThread.updatedAt));
 
+  const imageAssets = await db
+    .select({
+      threadId: mediaAsset.threadId,
+      thumbnailUrl: mediaAsset.thumbnailUrl,
+      url: mediaAsset.url,
+    })
+    .from(mediaAsset)
+    .where(eq(mediaAsset.userId, session.user.id))
+    .orderBy(desc(mediaAsset.createdAt));
+
+  const firstImageByThread = new Map<string, string>();
+  imageAssets.forEach((asset) => {
+    if (!firstImageByThread.has(asset.threadId)) {
+      firstImageByThread.set(asset.threadId, asset.thumbnailUrl ?? asset.url);
+    }
+  });
+
   return NextResponse.json(
     {
       threads: threads.map((thread) => ({
@@ -31,6 +48,8 @@ export async function GET() {
         title: thread.title,
         preview: thread.preview,
         pinned: thread.pinned,
+        hasGeneratedImage: firstImageByThread.has(thread.id),
+        imageThumbnailUrl: firstImageByThread.get(thread.id) ?? null,
         updatedAtMs: thread.updatedAt.getTime(),
       })),
     },
@@ -66,6 +85,8 @@ export async function POST() {
       title: thread.title,
       preview: thread.preview,
       pinned: false,
+      hasGeneratedImage: false,
+      imageThumbnailUrl: null,
       updatedAtMs: thread.updatedAt.getTime(),
     },
   });

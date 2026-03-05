@@ -20,9 +20,12 @@ export default function Chat() {
   const [searchQuery, setSearchQuery] = useState('');
   const [knowledgePanelOpen, setKnowledgePanelOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [useWebSearch, setUseWebSearch] = useState(false);
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
   const selectedDocIdsRef = useRef(selectedDocIds);
   selectedDocIdsRef.current = selectedDocIds;
+  const useWebSearchRef = useRef(useWebSearch);
+  useWebSearchRef.current = useWebSearch;
 
   const { data: docStats } = useDocumentStats();
 
@@ -36,6 +39,7 @@ export default function Chat() {
     activeMessages,
     createThreadMutation,
     pinThreadMutation,
+    renameThreadMutation,
     deleteThreadMutation,
     handleCreateThread,
     ensureThread,
@@ -46,15 +50,11 @@ export default function Chat() {
     selectedModel,
     setSelectedModel,
     selectedModelRef,
-    enabledModelIds,
     enabledModelIdsRef,
     selectorModels,
     currentModel,
     modelSelectorOpen,
     setModelSelectorOpen,
-    enabledModelsOpen,
-    setEnabledModelsOpen,
-    handleToggleModel,
   } = useModelSelector();
 
   const { sessionData, userProfile, isSigningOut, handleSignOut } = useUserProfile();
@@ -79,6 +79,7 @@ export default function Chat() {
     activeMessages,
     queryClient,
     ensureThread,
+    useWebSearchRef,
   });
 
   const { messageReactions, toggleReaction } = useMessageReactions(messages);
@@ -93,10 +94,17 @@ export default function Chat() {
     return null;
   }, [messages]);
 
-  const lastRoutingModel = useMemo(
-    () => availableModels.find((model) => model.id === lastRouting?.modelId),
-    [lastRouting]
-  );
+  const lastRoutingModel = useMemo(() => {
+    const matched = availableModels.find((model) => model.id === lastRouting?.modelId);
+    if (!matched) {
+      return undefined;
+    }
+
+    return {
+      id: matched.id,
+      name: matched.name,
+    };
+  }, [lastRouting]);
 
   const handleToggleSelectDoc = useCallback((docId: string) => {
     setSelectedDocIds((prev) => {
@@ -118,6 +126,17 @@ export default function Chat() {
     [setSelectedModel, setModelSelectorOpen]
   );
 
+  const handleToggleWebSearch = useCallback(() => {
+    setUseWebSearch((prev) => !prev);
+  }, []);
+
+  const handleSuggestionClick = useCallback(
+    (suggestion: string) => {
+      handleSubmitMessage({ text: suggestion, files: [] });
+    },
+    [handleSubmitMessage]
+  );
+
   useChatKeyboardShortcuts({
     onCreateThread: handleCreateThread,
     searchQuery,
@@ -137,6 +156,8 @@ export default function Chat() {
           onSelectThread={setActiveThreadId}
           onCreateThread={handleCreateThread}
           onTogglePin={(threadId, pinned) => pinThreadMutation.mutate({ threadId, pinned })}
+          onRenameThread={(threadId, title) => renameThreadMutation.mutate({ threadId, title })}
+          onDeleteThread={(threadId) => deleteThreadMutation.mutate(threadId)}
           mobileOpen={mobileSidebarOpen}
           onMobileOpenChange={setMobileSidebarOpen}
         />
@@ -149,16 +170,6 @@ export default function Chat() {
             userProfile={userProfile}
             isSigningOut={isSigningOut}
             onSignOut={handleSignOut}
-            currentModel={currentModel}
-            selectedModel={selectedModel}
-            selectorModels={selectorModels}
-            modelSelectorOpen={modelSelectorOpen}
-            enabledModelsOpen={enabledModelsOpen}
-            enabledModelIds={enabledModelIds}
-            onModelSelectorOpenChange={setModelSelectorOpen}
-            onEnabledModelsOpenChange={setEnabledModelsOpen}
-            onSelectModel={handleSelectModel}
-            onToggleModel={handleToggleModel}
             lastRouting={lastRouting}
             lastRoutingModel={lastRoutingModel}
             onDeleteThread={(threadId) => deleteThreadMutation.mutate(threadId)}
@@ -184,7 +195,16 @@ export default function Chat() {
             selectedDocCount={selectedDocIds.size}
             status={status}
             error={error}
+            selectedModel={selectedModel}
+            selectorModels={selectorModels}
+            currentModel={currentModel}
+            modelSelectorOpen={modelSelectorOpen}
+            useWebSearch={useWebSearch}
             onStop={stop}
+            onModelSelectorOpenChange={setModelSelectorOpen}
+            onSelectModel={handleSelectModel}
+            onToggleWebSearch={handleToggleWebSearch}
+            onSuggestionClick={handleSuggestionClick}
             onTranscriptionChange={handleTranscription}
             onSubmit={handleSubmitMessage}
           />

@@ -6,6 +6,8 @@ export type ThreadItem = {
   title: string;
   preview: string;
   pinned: boolean;
+  hasGeneratedImage: boolean;
+  imageThumbnailUrl: string | null;
   updatedAtMs: number;
 };
 

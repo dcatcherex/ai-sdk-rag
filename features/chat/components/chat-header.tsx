@@ -1,21 +1,18 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import {
   BookOpenIcon,
-  ChevronDownIcon,
   DownloadIcon,
   FileTextIcon,
   LogOutIcon,
   MenuIcon,
-  SparklesIcon,
   Trash2Icon,
   UserIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   DropdownMenu,
@@ -25,22 +22,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
-  ModelSelector,
-  ModelSelectorContent,
-  ModelSelectorInput,
-  ModelSelectorItem,
-  ModelSelectorList,
-  ModelSelectorLogo,
-  ModelSelectorLogoGroup,
-  ModelSelectorName,
-  ModelSelectorTrigger,
-} from '@/components/ai-elements/model-selector';
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { TokenUsageDisplay } from '@/components/token-usage-display';
 import { CreditBalanceDisplay } from '@/components/credit-balance-display';
-import { availableModels } from '@/lib/ai';
-import type { ModelOption } from '@/lib/ai';
 import type { ChatStatus } from 'ai';
 import type { ThreadItem, RoutingMetadata } from '../types';
 
@@ -67,20 +60,14 @@ type ChatHeaderProps = {
   userProfile: UserProfileData;
   isSigningOut: boolean;
   onSignOut: () => void;
-  // Model selector
-  currentModel: ModelOption;
-  selectedModel: string;
-  selectorModels: ModelOption[];
-  modelSelectorOpen: boolean;
-  enabledModelsOpen: boolean;
-  enabledModelIds: string[];
-  onModelSelectorOpenChange: (open: boolean) => void;
-  onEnabledModelsOpenChange: (open: boolean) => void;
-  onSelectModel: (modelId: string) => void;
-  onToggleModel: (modelId: string) => void;
   // Routing
   lastRouting: RoutingMetadata | null;
-  lastRoutingModel: ModelOption | undefined;
+  lastRoutingModel:
+    | {
+        id: string;
+        name: string;
+      }
+    | undefined;
   // Actions
   onDeleteThread: (threadId: string) => void;
   isDeleting: boolean;
@@ -99,16 +86,6 @@ export const ChatHeader = ({
   userProfile,
   isSigningOut,
   onSignOut,
-  currentModel,
-  selectedModel,
-  selectorModels,
-  modelSelectorOpen,
-  enabledModelsOpen,
-  enabledModelIds,
-  onModelSelectorOpenChange,
-  onEnabledModelsOpenChange,
-  onSelectModel,
-  onToggleModel,
   lastRouting,
   lastRoutingModel,
   onDeleteThread,
@@ -118,7 +95,18 @@ export const ChatHeader = ({
   onToggleKnowledgePanel,
   docCount,
   onOpenMobileSidebar,
-}: ChatHeaderProps) => (
+}: ChatHeaderProps) => {
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  const handleConfirmDelete = () => {
+    if (!activeThread) {
+      return;
+    }
+    onDeleteThread(activeThread.id);
+    setIsDeleteDialogOpen(false);
+  };
+
+  return (
   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 px-3 py-3 md:gap-3 md:px-6 md:py-4">
     <div className="flex items-center gap-2">
       {/* Mobile hamburger */}
@@ -151,20 +139,7 @@ export const ChatHeader = ({
         onSignOut={onSignOut}
       />
 
-      <ModelSelectorDropdown
-        currentModel={currentModel}
-        selectedModel={selectedModel}
-        selectorModels={selectorModels}
-        modelSelectorOpen={modelSelectorOpen}
-        enabledModelsOpen={enabledModelsOpen}
-        enabledModelIds={enabledModelIds}
-        onModelSelectorOpenChange={onModelSelectorOpenChange}
-        onEnabledModelsOpenChange={onEnabledModelsOpenChange}
-        onSelectModel={onSelectModel}
-        onToggleModel={onToggleModel}
-      />
-
-      {selectedModel === 'auto' && lastRouting ? (
+      {lastRouting?.mode === 'auto' ? (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -211,7 +186,7 @@ export const ChatHeader = ({
                     size="icon"
                     variant="ghost"
                     className="size-8 md:size-9"
-                    onClick={() => onDeleteThread(activeThread.id)}
+                    onClick={() => setIsDeleteDialogOpen(true)}
                     disabled={isDeleting}
                   >
                     <Trash2Icon className="size-4" />
@@ -254,8 +229,27 @@ export const ChatHeader = ({
         </span>
       </div>
     </div>
+    <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <DialogContent showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>Delete this thread?</DialogTitle>
+          <DialogDescription>
+            This action cannot be undone. The selected conversation will be permanently removed.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline" disabled={isDeleting}>Cancel</Button>
+          </DialogClose>
+          <Button variant="destructive" onClick={handleConfirmDelete} disabled={isDeleting}>
+            {isDeleting ? 'Deleting...' : 'Delete thread'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
-);
+  );
+};
 
 // --- Sub-components ---
 
@@ -314,112 +308,3 @@ const UserMenu = ({ sessionData, userProfile, isSigningOut, onSignOut }: UserMen
     </DropdownMenu>
   );
 };
-
-type ModelSelectorDropdownProps = {
-  currentModel: ModelOption;
-  selectedModel: string;
-  selectorModels: ModelOption[];
-  modelSelectorOpen: boolean;
-  enabledModelsOpen: boolean;
-  enabledModelIds: string[];
-  onModelSelectorOpenChange: (open: boolean) => void;
-  onEnabledModelsOpenChange: (open: boolean) => void;
-  onSelectModel: (modelId: string) => void;
-  onToggleModel: (modelId: string) => void;
-};
-
-const ModelSelectorDropdown = ({
-  currentModel,
-  selectedModel,
-  selectorModels,
-  modelSelectorOpen,
-  enabledModelsOpen,
-  enabledModelIds,
-  onModelSelectorOpenChange,
-  onEnabledModelsOpenChange,
-  onSelectModel,
-  onToggleModel,
-}: ModelSelectorDropdownProps) => (
-  <ModelSelector open={modelSelectorOpen} onOpenChange={onModelSelectorOpenChange}>
-    <ModelSelectorTrigger asChild>
-      <Button variant="outline" size="sm" className="gap-2">
-        <ModelSelectorLogoGroup>
-          <ModelSelectorLogo provider={currentModel?.provider ?? 'google'} />
-        </ModelSelectorLogoGroup>
-        <span className="hidden sm:inline">{currentModel?.name}</span>
-        <SparklesIcon className="size-3" />
-      </Button>
-    </ModelSelectorTrigger>
-    <ModelSelectorContent>
-      <div className="border-b border-border px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-          Choose model
-        </p>
-        <p className="mt-1 text-sm text-foreground">
-          Pick from your enabled models. Configure below.
-        </p>
-      </div>
-      <ModelSelectorInput placeholder="Search models..." />
-      <ModelSelectorList>
-        {selectorModels.map((model) => (
-          <ModelSelectorItem
-            key={model.id}
-            value={model.id}
-            onSelect={() => onSelectModel(model.id)}
-          >
-            <ModelSelectorLogoGroup>
-              <ModelSelectorLogo provider={model.provider} />
-            </ModelSelectorLogoGroup>
-            <div className="flex flex-col gap-0.5">
-              <ModelSelectorName>{model.name}</ModelSelectorName>
-              <span className="text-muted-foreground text-xs">
-                {model.description}
-              </span>
-            </div>
-          </ModelSelectorItem>
-        ))}
-      </ModelSelectorList>
-      <div className="border-t border-border px-4 py-3">
-        <Collapsible open={enabledModelsOpen} onOpenChange={onEnabledModelsOpenChange}>
-          <CollapsibleTrigger asChild>
-            <button
-              className="group flex w-full items-center justify-between text-left"
-              type="button"
-            >
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                  Enabled models
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {enabledModelIds.length} selected • Click to manage
-                </p>
-              </div>
-              <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="mt-3 max-h-64 overflow-y-auto pr-1">
-              <div className="grid gap-2">
-                {availableModels.map((model) => (
-                  <label
-                    key={model.id}
-                    className="flex items-center gap-3 rounded-lg border border-border/70 px-3 py-2 text-xs text-foreground"
-                  >
-                    <Checkbox
-                      checked={enabledModelIds.includes(model.id)}
-                      onCheckedChange={() => onToggleModel(model.id)}
-                    />
-                    <span className="flex flex-col">
-                      <span className="text-sm font-medium">{model.name}</span>
-                      <span className="text-muted-foreground">{model.description}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
-    </ModelSelectorContent>
-  </ModelSelector>
-);

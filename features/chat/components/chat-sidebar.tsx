@@ -1,9 +1,24 @@
 'use client';
 
-import { useMemo } from 'react';
-import { PinIcon, PinOffIcon, PlusIcon, SearchIcon } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { MoreVerticalIcon, PencilIcon, PinIcon, PinOffIcon, PlusIcon, SearchIcon, Trash2Icon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Sheet,
   SheetContent,
@@ -24,6 +39,8 @@ type ChatSidebarProps = {
   onSelectThread: (threadId: string) => void;
   onCreateThread: () => void;
   onTogglePin: (threadId: string, pinned: boolean) => void;
+  onRenameThread: (threadId: string, title: string) => void;
+  onDeleteThread: (threadId: string) => void;
   mobileOpen?: boolean;
   onMobileOpenChange?: (open: boolean) => void;
 };
@@ -33,11 +50,15 @@ const ThreadRow = ({
   isActive,
   onSelect,
   onTogglePin,
+  onRenameRequest,
+  onDelete,
 }: {
   thread: ThreadItem;
   isActive: boolean;
   onSelect: () => void;
   onTogglePin: () => void;
+  onRenameRequest: () => void;
+  onDelete: () => void;
 }) => (
   <div
     className={`group flex w-full items-center rounded-lg text-sm transition ${
@@ -47,27 +68,78 @@ const ThreadRow = ({
     }`}
   >
     <button
-      className="min-w-0 flex-1 truncate px-3 py-2 text-left"
+      className="min-w-0 flex-1 px-3 py-2 text-left"
       onClick={onSelect}
       type="button"
     >
-      {thread.title}
+      <p className="truncate">{thread.title}</p>
+      <p className="truncate text-xs font-normal text-muted-foreground">
+        {thread.preview || formatRelativeTime(thread.updatedAtMs)}
+      </p>
     </button>
-    <button
-      type="button"
-      className="mr-1 shrink-0 rounded p-1 text-muted-foreground opacity-0 transition hover:text-foreground group-hover:opacity-100"
-      onClick={(e) => {
-        e.stopPropagation();
-        onTogglePin();
-      }}
-      title={thread.pinned ? 'Unpin' : 'Pin'}
-    >
-      {thread.pinned ? (
-        <PinOffIcon className="size-3.5" />
-      ) : (
-        <PinIcon className="size-3.5" />
-      )}
-    </button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="mr-1 shrink-0 rounded p-1 text-muted-foreground opacity-0 transition hover:text-foreground group-hover:opacity-100"
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+          aria-label="Thread actions"
+        >
+          <MoreVerticalIcon className="size-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuItem
+          onClick={(e) => {
+            e.stopPropagation();
+            onTogglePin();
+          }}
+        >
+          {thread.pinned ? <PinOffIcon className="size-4" /> : <PinIcon className="size-4" />}
+          {thread.pinned ? 'Unpin' : 'Pin'}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={(e) => {
+            e.stopPropagation();
+            onRenameRequest();
+          }}
+        >
+          <PencilIcon className="size-4" />
+          Rename
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          variant="destructive"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+        >
+          <Trash2Icon className="size-4" />
+          Delete
+        </DropdownMenuItem>
+
+        {thread.hasGeneratedImage && thread.imageThumbnailUrl ? (
+          <>
+            <DropdownMenuSeparator />
+            <div className="px-2 py-1.5">
+              <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-1.5">
+                <img
+                  src={thread.imageThumbnailUrl}
+                  alt={`${thread.title} generated theme`}
+                  className="size-10 rounded object-cover"
+                />
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-medium text-foreground">Image theme</p>
+                  <p className="truncate text-[11px] text-muted-foreground">Image created</p>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   </div>
 );
 
@@ -81,6 +153,8 @@ const SidebarContent = ({
   onCreateThread,
   onSelectThread,
   onTogglePin,
+  onRenameThread,
+  onDeleteThread,
 }: {
   activeThreadId: string;
   filteredThreads: ThreadItem[];
@@ -91,9 +165,36 @@ const SidebarContent = ({
   onCreateThread: () => void;
   onSelectThread: (threadId: string) => void;
   onTogglePin: (threadId: string, pinned: boolean) => void;
+  onRenameThread: (threadId: string, title: string) => void;
+  onDeleteThread: (threadId: string) => void;
 }) => {
   const pinnedThreads = filteredThreads.filter((t) => t.pinned);
   const recentThreads = filteredThreads.filter((t) => !t.pinned);
+  const [renameTarget, setRenameTarget] = useState<ThreadItem | null>(null);
+  const [renameTitle, setRenameTitle] = useState('');
+
+  const handleRenameSubmit = () => {
+    if (!renameTarget) {
+      return;
+    }
+    const trimmedTitle = renameTitle.trim();
+    if (!trimmedTitle || trimmedTitle === renameTarget.title) {
+      setRenameTarget(null);
+      setRenameTitle('');
+      return;
+    }
+    onRenameThread(renameTarget.id, trimmedTitle);
+    setRenameTarget(null);
+    setRenameTitle('');
+  };
+
+  const handleRenameDialogChange = (open: boolean) => {
+    if (open) {
+      return;
+    }
+    setRenameTarget(null);
+    setRenameTitle('');
+  };
 
   return (
     <>
@@ -148,6 +249,11 @@ const SidebarContent = ({
                     isActive={thread.id === activeThreadId}
                     onSelect={() => onSelectThread(thread.id)}
                     onTogglePin={() => onTogglePin(thread.id, !thread.pinned)}
+                    onRenameRequest={() => {
+                      setRenameTarget(thread);
+                      setRenameTitle(thread.title);
+                    }}
+                    onDelete={() => onDeleteThread(thread.id)}
                   />
                 ))}
               </div>
@@ -166,6 +272,11 @@ const SidebarContent = ({
                     isActive={thread.id === activeThreadId}
                     onSelect={() => onSelectThread(thread.id)}
                     onTogglePin={() => onTogglePin(thread.id, !thread.pinned)}
+                    onRenameRequest={() => {
+                      setRenameTarget(thread);
+                      setRenameTitle(thread.title);
+                    }}
+                    onDelete={() => onDeleteThread(thread.id)}
                   />
                 ))}
               </div>
@@ -173,6 +284,28 @@ const SidebarContent = ({
           </>
         )}
       </div>
+
+      <Dialog open={Boolean(renameTarget)} onOpenChange={handleRenameDialogChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename thread</DialogTitle>
+            <DialogDescription>Choose a new title for this conversation.</DialogDescription>
+          </DialogHeader>
+          <Input
+            value={renameTitle}
+            onChange={(event) => setRenameTitle(event.target.value)}
+            placeholder="Thread title"
+            maxLength={120}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => handleRenameDialogChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRenameSubmit}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
@@ -187,6 +320,8 @@ export const ChatSidebar = ({
   onSelectThread,
   onCreateThread,
   onTogglePin,
+  onRenameThread,
+  onDeleteThread,
   mobileOpen = false,
   onMobileOpenChange,
 }: ChatSidebarProps) => {
@@ -210,6 +345,8 @@ export const ChatSidebar = ({
     onCreateThread,
     onSelectThread: handleSelectThread,
     onTogglePin,
+    onRenameThread,
+    onDeleteThread,
   };
 
   return (

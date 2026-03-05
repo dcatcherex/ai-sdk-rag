@@ -16,22 +16,40 @@ export async function PATCH(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = (await request.json()) as { pinned?: boolean };
-  if (typeof body.pinned !== "boolean") {
+  const body = (await request.json()) as { pinned?: boolean; title?: string };
+  const updates: { pinned?: boolean; title?: string } = {};
+
+  if (typeof body.pinned === "boolean") {
+    updates.pinned = body.pinned;
+  }
+
+  if (typeof body.title === "string") {
+    const trimmedTitle = body.title.trim();
+    if (!trimmedTitle) {
+      return NextResponse.json({ error: "Title cannot be empty" }, { status: 400 });
+    }
+    updates.title = trimmedTitle;
+  }
+
+  if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
   const result = await db
     .update(chatThread)
-    .set({ pinned: body.pinned })
+    .set(updates)
     .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, session.user.id)))
-    .returning({ id: chatThread.id, pinned: chatThread.pinned });
+    .returning({ id: chatThread.id, pinned: chatThread.pinned, title: chatThread.title });
 
   if (result.length === 0) {
     return NextResponse.json({ error: "Thread not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ ok: true, pinned: result[0].pinned });
+  return NextResponse.json({
+    ok: true,
+    pinned: result[0].pinned,
+    title: result[0].title,
+  });
 }
 
 export async function DELETE(

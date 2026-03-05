@@ -1,5 +1,8 @@
 import {
   streamText,
+  generateImage,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
   type UIMessage,
   type UIDataTypes,
   type UIMessagePart,
@@ -163,6 +166,7 @@ const requestSchema = z.object({
   threadId: z.string().min(1),
   messages: z.array(z.custom<ChatMessage>()),
   model: z.string().optional(),
+  useWebSearch: z.boolean().optional(),
   selectedDocumentIds: z.array(z.string()).optional(),
   enabledModelIds: z.array(z.string()).optional(),
 });
@@ -213,11 +217,18 @@ type RoutingDecision = {
   reason: string;
 };
 
+type TokenUsageSnapshot = {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+};
+
 const getModelByIntent = (options: {
   prompt: string | null;
   enabledModelIds: string[];
+  useWebSearch?: boolean;
 }): RoutingDecision => {
-  const { prompt, enabledModelIds } = options;
+  const { prompt, enabledModelIds, useWebSearch } = options;
   const enabledModels = availableModels.filter((model) =>
     enabledModelIds.includes(model.id)
   );
@@ -238,6 +249,7 @@ const getModelByIntent = (options: {
     lower.includes('draw ') ||
     lower.includes('illustration');
   const wantsWeb =
+    Boolean(useWebSearch) ||
     lower.includes('search') ||
     lower.includes('latest') ||
     lower.includes('news') ||
@@ -302,6 +314,133 @@ const getModelByIntent = (options: {
 
 const toolDisabledModels = new Set(['google/gemini-2.5-flash-image']);
 
+const modelSupportsCapability = (modelId: string, capability: Capability) => {
+  const model = availableModels.find((option) => option.id === modelId);
+  if (!model) {
+    return false;
+  }
+  return (model.capabilities ?? []).some((modelCapability) => modelCapability === capability);
+};
+
+const isImageOnlyModel = (modelId: string) =>
+  modelSupportsCapability(modelId, 'image gen') && !modelSupportsCapability(modelId, 'text');
+
+const persistChatResult = async (options: {
+  updatedMessages: ChatMessage[];
+  threadId: string;
+  userId: string;
+  currentTitle: string;
+  resolvedModel: string;
+  creditCost: number;
+  tokenUsageData?: TokenUsageSnapshot | null;
+}) => {
+  const {
+    updatedMessages,
+    threadId,
+    userId,
+    currentTitle,
+    resolvedModel,
+    creditCost,
+    tokenUsageData,
+  } = options;
+
+  const messagesWithIds: ChatMessage[] = updatedMessages.map((message) => ({
+    ...message,
+    id: message.id || crypto.randomUUID(),
+  }));
+
+  const messageResults = await Promise.all(
+    messagesWithIds.map(async (message) => {
+      const partResults = await Promise.all(
+        message.parts.map(async (part, index) => {
+          if (!isImageFilePart(part)) {
+            return { part };
+          }
+
+          return uploadImagePart({
+            part,
+            threadId,
+            messageId: message.id,
+            index,
+            userId,
+          });
+        })
+      );
+
+      return {
+        message: {
+          ...message,
+          parts: partResults.map((result) => result.part),
+        },
+        assets: partResults.flatMap((result) =>
+          result.asset ? [result.asset] : []
+        ),
+      };
+    })
+  );
+
+  const chatMessages = messageResults.map((result) => result.message);
+  const assets = messageResults.flatMap((result) => result.assets);
+  const preview = getThreadPreviewFromMessages(chatMessages);
+  const nextTitle =
+    currentTitle === 'New chat'
+      ? getThreadTitleFromMessages(chatMessages) ?? currentTitle
+      : currentTitle;
+
+  await db
+    .delete(chatMessage)
+    .where(eq(chatMessage.threadId, threadId));
+  if (chatMessages.length > 0) {
+    await db.insert(chatMessage).values(
+      chatMessages.map((message, index) => ({
+        id: message.id,
+        threadId,
+        role: message.role,
+        parts: message.parts,
+        position: index,
+      }))
+    );
+  }
+
+  if (assets.length > 0) {
+    await db.insert(mediaAsset).values(assets);
+  }
+
+  // Deduct credits after successful completion
+  try {
+    await deductCredits({
+      userId,
+      amount: creditCost,
+      description: `Chat: ${resolvedModel} (thread ${threadId})`,
+    });
+  } catch (creditError) {
+    console.error('Failed to deduct credits:', creditError);
+  }
+
+  // Track token usage after completion
+  try {
+    if (tokenUsageData) {
+      await db.insert(tokenUsage).values({
+        id: nanoid(),
+        threadId,
+        model: resolvedModel,
+        promptTokens: tokenUsageData.promptTokens || 0,
+        completionTokens: tokenUsageData.completionTokens || 0,
+        totalTokens:
+          tokenUsageData.totalTokens ||
+          (tokenUsageData.promptTokens || 0) + (tokenUsageData.completionTokens || 0),
+      });
+    }
+  } catch (error) {
+    console.error('Failed to track token usage:', error);
+  }
+
+  await db
+    .update(chatThread)
+    .set({ preview, title: nextTitle, updatedAt: new Date() })
+    .where(eq(chatThread.id, threadId));
+};
+
 export async function POST(req: Request) {
   env.AI_GATEWAY_API_KEY;
 
@@ -315,6 +454,7 @@ export async function POST(req: Request) {
       messages,
       threadId,
       model,
+      useWebSearch,
       selectedDocumentIds,
       enabledModelIds,
     } = requestSchema.parse(await req.json());
@@ -353,6 +493,7 @@ export async function POST(req: Request) {
       : getModelByIntent({
           prompt: getLastUserPrompt(messages),
           enabledModelIds: enabledIds.length > 0 ? enabledIds : [chatModel],
+          useWebSearch,
         });
     const resolvedModel = routingDecision.modelId;
     const routingMetadata: RoutingMetadata = {
@@ -379,6 +520,70 @@ export async function POST(req: Request) {
       ? groundedSystemPrompt
       : getSystemPrompt('general_assistant');
 
+    const currentTitle = thread[0]?.title ?? 'New chat';
+
+    if (isImageOnlyModel(resolvedModel)) {
+      const imagePrompt = getLastUserPrompt(messages);
+      if (!imagePrompt) {
+        return Response.json({ error: 'Image generation requires a text prompt.' }, { status: 400 });
+      }
+
+      const imageResult = await generateImage({
+        model: resolvedModel,
+        prompt: imagePrompt,
+      });
+
+      const generatedImage = imageResult.image;
+      const generatedImageDataUrl = `data:${generatedImage.mediaType};base64,${generatedImage.base64}`;
+
+      const assistantMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        metadata: { routing: routingMetadata },
+        parts: [
+          {
+            type: 'file',
+            mediaType: generatedImage.mediaType,
+            url: generatedImageDataUrl,
+          },
+        ],
+      };
+
+      await persistChatResult({
+        updatedMessages: [...messages, assistantMessage],
+        threadId,
+        userId: session.user.id,
+        currentTitle,
+        resolvedModel,
+        creditCost,
+        tokenUsageData: {
+          promptTokens: imageResult.usage.inputTokens,
+          completionTokens: imageResult.usage.outputTokens,
+          totalTokens: imageResult.usage.totalTokens,
+        },
+      });
+
+      return createUIMessageStreamResponse({
+        stream: createUIMessageStream<ChatMessage>({
+          originalMessages: messages,
+          execute: ({ writer }) => {
+            writer.write({
+              type: 'start',
+              messageMetadata: { routing: routingMetadata },
+            });
+            writer.write({ type: 'start-step' });
+            writer.write({
+              type: 'file',
+              mediaType: generatedImage.mediaType,
+              url: generatedImageDataUrl,
+            });
+            writer.write({ type: 'finish-step' });
+            writer.write({ type: 'finish', finishReason: 'stop' });
+          },
+        }),
+      });
+    }
+
     const result = streamText({
       model: resolvedModel,
       system: systemPrompt,
@@ -387,107 +592,22 @@ export async function POST(req: Request) {
       ...(supportsTools ? { tools: activeTools } : {}),
     });
 
-    const currentTitle = thread[0]?.title ?? 'New chat';
-
     return result.toUIMessageStreamResponse({
       originalMessages: messages,
       messageMetadata: () => ({ routing: routingMetadata }),
       onFinish: async ({ messages: updatedMessages }) => {
-        const messagesWithIds: ChatMessage[] = (updatedMessages as ChatMessage[]).map(
-          (message) => ({
-            ...message,
-            id: message.id || crypto.randomUUID(),
-          })
-        );
-        const messageResults = await Promise.all(
-          messagesWithIds.map(async (message) => {
-            const partResults = await Promise.all(
-              message.parts.map(async (part, index) => {
-                if (!isImageFilePart(part)) {
-                  return { part };
-                }
+        const usage: unknown = await result.usage;
+        const typedUsage = usage as TokenUsageSnapshot | null;
 
-                return uploadImagePart({
-                  part,
-                  threadId,
-                  messageId: message.id,
-                  index,
-                  userId: session.user.id,
-                });
-              })
-            );
-
-            return {
-              message: {
-                ...message,
-                parts: partResults.map((result) => result.part),
-              },
-              assets: partResults.flatMap((result) =>
-                result.asset ? [result.asset] : []
-              ),
-            };
-          })
-        );
-        const chatMessages = messageResults.map((result) => result.message);
-        const assets = messageResults.flatMap((result) => result.assets);
-        const preview = getThreadPreviewFromMessages(chatMessages);
-        const nextTitle =
-          currentTitle === 'New chat'
-            ? getThreadTitleFromMessages(chatMessages) ?? currentTitle
-            : currentTitle;
-
-        await db
-          .delete(chatMessage)
-          .where(eq(chatMessage.threadId, threadId));
-        if (chatMessages.length > 0) {
-          await db.insert(chatMessage).values(
-            chatMessages.map((message, index) => ({
-              id: message.id,
-              threadId,
-              role: message.role,
-              parts: message.parts,
-              position: index,
-            }))
-          );
-        }
-
-        if (assets.length > 0) {
-          await db.insert(mediaAsset).values(assets);
-        }
-
-        // Deduct credits after successful completion
-        try {
-          await deductCredits({
-            userId: session.user.id,
-            amount: creditCost,
-            description: `Chat: ${resolvedModel} (thread ${threadId})`,
-          });
-        } catch (creditError) {
-          console.error('Failed to deduct credits:', creditError);
-        }
-
-        // Track token usage - get from the result after completion
-        try {
-          const usage: unknown = await result.usage;
-          const typedUsage = usage as { promptTokens?: number; completionTokens?: number; totalTokens?: number } | null;
-          if (typedUsage) {
-            await db.insert(tokenUsage).values({
-              id: nanoid(),
-              threadId,
-              model: resolvedModel,
-              promptTokens: typedUsage.promptTokens || 0,
-              completionTokens: typedUsage.completionTokens || 0,
-              totalTokens: typedUsage.totalTokens || (typedUsage.promptTokens || 0) + (typedUsage.completionTokens || 0),
-            });
-          }
-        } catch (error) {
-          console.error('Failed to track token usage:', error);
-        }
-
-        await db
-          .update(chatThread)
-          .set({ preview, title: nextTitle, updatedAt: new Date() })
-          .where(eq(chatThread.id, threadId));
+        await persistChatResult({
+          updatedMessages: updatedMessages as ChatMessage[],
+          threadId,
+          userId: session.user.id,
+          currentTitle,
+          resolvedModel,
+          creditCost,
+          tokenUsageData: typedUsage,
+        });
       },
     });
   } catch (error) {

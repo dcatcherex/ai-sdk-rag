@@ -20,6 +20,43 @@ export const useThreads = () => {
     },
   });
 
+  const renameThreadMutation = useMutation({
+    mutationFn: async ({ threadId, title }: { threadId: string; title: string }) => {
+      const response = await fetch(`/api/threads/${threadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to rename thread');
+      }
+      return { threadId, title };
+    },
+    onMutate: async ({ threadId, title }) => {
+      await queryClient.cancelQueries({ queryKey: ['threads'] });
+      const previous = queryClient.getQueryData<ThreadItem[]>(['threads']);
+      queryClient.setQueryData<ThreadItem[]>(['threads'], (prev) =>
+        (prev ?? []).map((thread) =>
+          thread.id === threadId
+            ? {
+                ...thread,
+                title,
+              }
+            : thread
+        )
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['threads'], context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['threads'] });
+    },
+  });
+
   const { data: activeMessages = [] } = useQuery<ChatMessage[]>({
     queryKey: ['threads', activeThreadId, 'messages'],
     enabled: Boolean(activeThreadId),
@@ -145,6 +182,7 @@ export const useThreads = () => {
     activeMessages,
     createThreadMutation,
     pinThreadMutation,
+    renameThreadMutation,
     deleteThreadMutation,
     handleCreateThread,
     ensureThread,
