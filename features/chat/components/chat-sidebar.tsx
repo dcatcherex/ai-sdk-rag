@@ -6,7 +6,10 @@ import { usePathname } from 'next/navigation';
 import {
   ImageIcon,
   LogOutIcon,
+  MonitorIcon,
+  MoonIcon,
   MoreVerticalIcon,
+  PaletteIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   PencilIcon,
@@ -14,6 +17,7 @@ import {
   PinOffIcon,
   PlusIcon,
   SearchIcon,
+  SunIcon,
   Trash2Icon,
   UserIcon,
 } from 'lucide-react';
@@ -26,9 +30,15 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useTheme } from '@/lib/theme';
 import {
   Dialog,
   DialogContent,
@@ -100,6 +110,8 @@ const SidebarAccount = ({
   onSignOut,
   isCollapsed,
 }: SidebarAccountProps) => {
+  const { theme, setTheme } = useTheme();
+
   if (!sessionData?.user) {
     return (
       <TooltipProvider>
@@ -133,7 +145,7 @@ const SidebarAccount = ({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="size-9 rounded-full border border-black/5 bg-white/80"
+                className="size-9 rounded-full border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-800"
               >
                 <Avatar size="sm">
                   {userProfile.image ? (
@@ -158,6 +170,29 @@ const SidebarAccount = ({
             <span className="text-xs text-muted-foreground">{userProfile.email}</span>
           ) : null}
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <PaletteIcon className="size-4" />
+            Theme
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuRadioGroup value={theme} onValueChange={(v) => setTheme(v as 'light' | 'dark' | 'system')}>
+              <DropdownMenuRadioItem value="light">
+                <SunIcon className="size-4" />
+                Light
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="dark">
+                <MoonIcon className="size-4" />
+                Dark
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="system">
+                <MonitorIcon className="size-4" />
+                System
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={onSignOut} disabled={isSigningOut}>
           <LogOutIcon className="size-4" />
@@ -482,7 +517,7 @@ const SidebarContent = ({
         <div className="mt-4 flex-1" />
       )}
 
-      <div className={cn('mt-auto border-t border-black/5 pt-3', isCollapsed ? 'flex justify-center' : 'flex')}>
+      <div className={cn('mt-auto border-t border-black/5 dark:border-white/10 pt-3', isCollapsed ? 'flex justify-center' : 'flex')}>
         <SidebarAccount
           sessionData={sessionData}
           userProfile={userProfile}
@@ -588,7 +623,7 @@ export const ChatSidebar = ({
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          'hidden h-[calc(100vh-3rem)] shrink-0 rounded-3xl border border-black/5 bg-white/70 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] backdrop-blur transition-all md:flex md:flex-col',
+          'hidden h-[calc(100vh-3rem)] shrink-0 rounded-3xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-zinc-900/80 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_60px_-40px_rgba(0,0,0,0.6)] backdrop-blur transition-all md:flex md:flex-col',
           isCollapsed ? 'w-20 p-3' : 'w-72 p-5'
         )}
       >

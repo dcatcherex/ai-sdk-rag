@@ -276,7 +276,7 @@ function SignInContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#fdf5e6,_#f6eee1_45%,_#efe6d7_100%)] px-4 py-12">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#fdf5e6,_#f6eee1_45%,_#efe6d7_100%)] dark:bg-[radial-gradient(circle_at_top,_#1a1b2e,_#111827_55%,_#0f172a_100%)] px-4 py-12">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-10">
         <header className="text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.4em] text-muted-foreground">
@@ -299,7 +299,7 @@ function SignInContent() {
             </Alert>
           ) : null}
           {inboxPanel ? (
-            <Card className="lg:col-span-2 border-black/5 bg-white/80 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)]">
+            <Card className="lg:col-span-2 border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-900/80 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.6)]">
               <CardHeader>
                 <CardTitle className="text-lg">{inboxPanel.title}</CardTitle>
                 <CardDescription>
@@ -315,7 +315,7 @@ function SignInContent() {
               </CardContent>
             </Card>
           ) : null}
-          <Card className="border-black/5 bg-white/80 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)]">
+          <Card className="border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-900/80 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.6)]">
             <CardHeader>
               <CardTitle className="text-lg">Email & password</CardTitle>
               <CardDescription>Sign in, create an account, or reset a password.</CardDescription>
@@ -446,7 +446,7 @@ function SignInContent() {
           </Card>
 
           <div className="flex flex-col gap-6">
-            <Card className="border-black/5 bg-white/80 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)]">
+            <Card className="border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-900/80 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.6)]">
               <CardHeader>
                 <CardTitle className="text-lg">Google OAuth</CardTitle>
                 <CardDescription>Continue with a verified Google account.</CardDescription>
@@ -458,7 +458,7 @@ function SignInContent() {
               </CardFooter>
             </Card>
 
-            <Card className="border-black/5 bg-white/80 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)]">
+            <Card className="border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-900/80 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.6)]">
               <CardHeader>
                 <CardTitle className="text-lg">Magic link</CardTitle>
                 <CardDescription>Send a one-click sign-in link to your inbox.</CardDescription>

@@ -76,7 +76,7 @@ export function DocumentList({
                   'group flex w-full items-start gap-2 rounded-xl border px-3 py-2.5 text-left transition',
                   isSelected
                     ? 'border-primary/30 bg-primary/5'
-                    : 'border-black/5 bg-white/60 hover:bg-white'
+                    : 'border-black/5 dark:border-white/10 bg-white/60 dark:bg-zinc-800/60 hover:bg-white dark:hover:bg-zinc-700/60'
                 )}
               >
                 {onToggleSelect && (
@@ -136,10 +136,10 @@ export function DocumentList({
   // Full variant for the /knowledge page
   return (
     <div>
-      <div className="overflow-x-auto rounded-2xl border border-black/5 bg-white/70">
+      <div className="overflow-x-auto rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-zinc-900/80">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-black/5 text-left text-xs text-muted-foreground">
+            <tr className="border-b border-black/5 dark:border-white/10 text-left text-xs text-muted-foreground">
               <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 font-medium">Category</th>
               <th className="px-4 py-3 font-medium">Chunks</th>
@@ -152,7 +152,7 @@ export function DocumentList({
               <tr
                 key={doc.id}
                 className={cn(
-                  'cursor-pointer border-b border-black/[0.03] transition last:border-0 hover:bg-black/[0.02]',
+                  'cursor-pointer border-b border-black/[0.03] dark:border-white/[0.06] transition last:border-0 hover:bg-black/[0.02] dark:hover:bg-white/[0.04]',
                   deleteMutation.isPending &&
                     deleteMutation.variables === doc.id &&
                     'opacity-50'

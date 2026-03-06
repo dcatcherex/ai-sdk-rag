@@ -295,7 +295,7 @@ export default function GalleryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f7f7f9,#eef0f7_55%,#e6e9f2_100%)]">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f7f7f9,#eef0f7_55%,#e6e9f2_100%)] dark:bg-[radial-gradient(circle_at_top,#1a1b2e,#111827_55%,#0f172a_100%)]">
       <div className="mx-auto flex min-h-screen w-full max-w-6xl gap-3 px-2 py-2 md:gap-6 md:px-4 md:py-6">
         <ChatSidebar
           activeThreadId={activeThreadId}
@@ -323,7 +323,7 @@ export default function GalleryPage() {
           onMobileOpenChange={setMobileSidebarOpen}
         />
 
-        <main className="flex h-[calc(100dvh-1rem)] flex-1 flex-col overflow-hidden rounded-2xl border border-black/5 bg-white/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] backdrop-blur md:h-[calc(100vh-3rem)] md:rounded-3xl">
+        <main className="flex h-[calc(100dvh-1rem)] flex-1 flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-900/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur md:h-[calc(100vh-3rem)] md:rounded-3xl">
           <div className="flex-1 overflow-y-auto px-4 py-5 md:px-6 md:py-6">
             <header className="flex flex-wrap items-center justify-between gap-4">
               <div>
@@ -364,16 +364,16 @@ export default function GalleryPage() {
                   {Array.from({ length: 6 }).map((_, index) => (
                     <Card
                       key={`skeleton-${index}`}
-                      className="h-60 animate-pulse rounded-3xl border border-black/5 bg-white/70"
+                      className="h-60 animate-pulse rounded-3xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-zinc-800/70"
                     />
                   ))}
                 </div>
               ) : error ? (
-                <Card className="rounded-3xl border border-black/5 bg-white/80 p-8 text-sm text-muted-foreground">
+                <Card className="rounded-3xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-800/80 p-8 text-sm text-muted-foreground">
                   Unable to load media right now. Please refresh.
                 </Card>
               ) : assets.length === 0 ? (
-                <Card className="rounded-3xl border border-black/5 bg-white/80 p-8 text-sm text-muted-foreground">
+                <Card className="rounded-3xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-800/80 p-8 text-sm text-muted-foreground">
                   No media yet. Generate an image in chat to see it here.
                 </Card>
               ) : (
@@ -383,7 +383,7 @@ export default function GalleryPage() {
                     return (
                       <div
                         key={asset.id}
-                        className="group relative overflow-hidden rounded-3xl border border-black/5 bg-white/80 shadow-[0_20px_40px_-30px_rgba(15,23,42,0.45)]"
+                        className="group relative overflow-hidden rounded-3xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-800/80 shadow-[0_20px_40px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_40px_-30px_rgba(0,0,0,0.6)]"
                       >
                         <div className="relative aspect-4/3 overflow-hidden">
                           <Image

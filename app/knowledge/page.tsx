@@ -24,7 +24,7 @@ export default function KnowledgePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#f7f7f9,_#eef0f7_55%,_#e6e9f2_100%)]">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#f7f7f9,_#eef0f7_55%,_#e6e9f2_100%)] dark:bg-[radial-gradient(circle_at_top,_#1a1b2e,_#111827_55%,_#0f172a_100%)]">
       <div className="mx-auto max-w-5xl px-4 py-6">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
@@ -57,7 +57,7 @@ export default function KnowledgePage() {
         </div>
 
         {/* Upload section */}
-        <div className="mb-8 rounded-3xl border border-black/5 bg-white/70 p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.25)] backdrop-blur">
+        <div className="mb-8 rounded-3xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-zinc-900/80 p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.25)] dark:shadow-[0_20px_60px_-40px_rgba(0,0,0,0.5)] backdrop-blur">
           <h2 className="mb-4 text-sm font-semibold">Upload Documents</h2>
           <DocumentUpload variant="full" />
         </div>

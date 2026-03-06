@@ -102,7 +102,7 @@ export const ChatComposer = ({
   onTranscriptionChange,
   onSubmit,
 }: ChatComposerProps) => (
-  <div className="border-t border-black/5 px-3 py-3 md:px-6 md:py-4">
+  <div className="border-t border-black/5 dark:border-white/10 px-3 py-3 md:px-6 md:py-4">
     {selectedDocCount > 0 && (
       <div className="mb-2 flex items-center gap-1.5 text-xs text-primary">
         <BookOpenIcon className="size-3.5" />
