@@ -360,7 +360,7 @@ export default function GalleryPage() {
 
             <div className="mt-5">
               {isLoading ? (
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 md:gap-6">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 md:gap-6">
                   {Array.from({ length: 6 }).map((_, index) => (
                     <Card
                       key={`skeleton-${index}`}
@@ -377,46 +377,46 @@ export default function GalleryPage() {
                   No media yet. Generate an image in chat to see it here.
                 </Card>
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 md:gap-6">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 md:gap-2">
                   {assets.map((asset) => {
                     const preview = asset.thumbnailUrl ?? asset.url;
                     return (
                       <div
                         key={asset.id}
-                        className="group relative overflow-hidden rounded-3xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-800/80 shadow-[0_20px_40px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_40px_-30px_rgba(0,0,0,0.6)]"
+                        className="group relative aspect-4/3 overflow-hidden rounded-lg border border-black/5 dark:border-white/10 shadow-[0_20px_40px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_40px_-30px_rgba(0,0,0,0.6)]"
                       >
-                        <div className="relative aspect-4/3 overflow-hidden">
-                          <Image
-                            src={preview}
-                            alt="Generated asset"
-                            fill
-                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                            className="object-cover transition duration-500 group-hover:scale-105"
-                          />
-                        </div>
-                        <div className="flex items-center justify-between gap-3 px-5 py-4">
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">Generated image</p>
-                            <p className="text-xs text-muted-foreground">
-                              {asset.width && asset.height ? `${asset.width}×${asset.height}` : asset.mimeType}
-                              {' • '}
-                              {formatRelativeTime(asset.createdAtMs)}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button variant="secondary" size="icon-sm" onClick={() => openEditor(asset)}>
-                              <SparklesIcon className="size-3" />
-                            </Button>
-                            <Button variant="secondary" size="icon-sm" asChild>
-                              <a href={asset.url} target="_blank" rel="noreferrer">
-                                <ImageIcon className="size-3" />
-                              </a>
-                            </Button>
-                            <Button variant="outline" size="icon-sm" asChild>
-                              <a href={asset.url} download>
-                                <DownloadIcon className="size-3" />
-                              </a>
-                            </Button>
+                        <Image
+                          src={preview}
+                          alt="Generated asset"
+                          fill
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          className="object-cover transition duration-500 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 flex flex-col justify-end bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                          <div className="flex items-end justify-between gap-3 px-4 py-4">
+                            <div>
+                              <p className="text-sm font-semibold text-white">Generated image</p>
+                              <p className="text-xs text-white/70">
+                                {asset.width && asset.height ? `${asset.width}×${asset.height}` : asset.mimeType}
+                                {' • '}
+                                {formatRelativeTime(asset.createdAtMs)}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button variant="secondary" size="icon-sm" onClick={() => openEditor(asset)}>
+                                <SparklesIcon className="size-3" />
+                              </Button>
+                              <Button variant="secondary" size="icon-sm" asChild>
+                                <a href={asset.url} target="_blank" rel="noreferrer">
+                                  <ImageIcon className="size-3" />
+                                </a>
+                              </Button>
+                              <Button variant="outline" size="icon-sm" asChild>
+                                <a href={asset.url} download>
+                                  <DownloadIcon className="size-3" />
+                                </a>
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </div>
