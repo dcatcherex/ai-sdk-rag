@@ -68,15 +68,15 @@ export const useChatSession = ({
     },
   });
 
-  // Sync messages only when thread changes
+  // Sync messages when thread changes (including clearing for new chat)
   useEffect(() => {
-    if (!activeThreadId) {
-      return;
-    }
     if (prevThreadIdRef.current !== activeThreadId) {
+      const prevId = prevThreadIdRef.current;
       prevThreadIdRef.current = activeThreadId;
-      stop();
-      setMessages(activeMessages);
+      // Only abort an in-flight stream when switching between existing threads,
+      // not when a new thread is first created ('' → newId).
+      if (prevId) stop();
+      setMessages(activeThreadId ? activeMessages : []);
     }
   }, [activeThreadId, activeMessages, setMessages, stop]);
 

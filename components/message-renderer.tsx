@@ -159,7 +159,7 @@ MessagePartRenderer.displayName = 'MessagePartRenderer';
 // Markdown text renderer with proper markdown support using streamdown
 const MarkdownText = memo(({ content }: { content: string }) => {
   return (
-    <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:whitespace-pre-wrap">
+    <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:whitespace-pre-wrap [&_ul]:list-none [&_ul]:pl-0 [&_ul>li]:pl-5 [&_ul>li]:my-0.5 [&_ul>li]:indent-[-1em] [&_ul>li]:before:content-['•'] [&_ul>li]:before:mr-1.5 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol>li]:my-0.5 [&_ol>li]:pl-1.5 [&_ol>li]:indent-[-0.25em]">
       <Streamdown
         components={{
           code: ({ inline, className, children, ...props }: any) => {

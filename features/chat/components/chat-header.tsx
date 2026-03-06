@@ -29,7 +29,21 @@ import {
 import { TokenUsageDisplay } from '@/components/token-usage-display';
 import { CreditBalanceDisplay } from '@/components/credit-balance-display';
 import type { ChatStatus } from 'ai';
-import type { ThreadItem, RoutingMetadata } from '../types';
+import type { ThreadItem, RoutingMetadata, ChatMessageMetadata } from '../types';
+import type { SystemPromptKey } from '@/lib/prompt';
+
+const PERSONA_LABELS: Record<SystemPromptKey, string> = {
+  general_assistant: 'General',
+  coding_copilot: 'Coding Copilot',
+  product_manager: 'Product Manager',
+  friendly_tutor: 'Friendly Tutor',
+  data_analyst: 'Data Analyst',
+  summarizer_editor: 'Summarizer',
+  security_privacy_guard: 'Security Guard',
+  research_librarian: 'Research Librarian',
+  translation_localization: 'Translator',
+  troubleshooting_debugger: 'Debugger',
+};
 
 type ChatHeaderProps = {
   activeThread: ThreadItem | undefined;
@@ -42,6 +56,7 @@ type ChatHeaderProps = {
         name: string;
       }
     | undefined;
+  lastPersona?: SystemPromptKey | null;
   // Actions
   onDeleteThread: (threadId: string) => void;
   isDeleting: boolean;
@@ -58,6 +73,7 @@ export const ChatHeader = ({
   status,
   lastRouting,
   lastRoutingModel,
+  lastPersona,
   onDeleteThread,
   isDeleting,
   onExport,
@@ -98,6 +114,21 @@ export const ChatHeader = ({
       </div>
     </div>
     <div className="flex items-center gap-1.5 md:gap-3">
+      {lastPersona && lastPersona !== 'general_assistant' ? (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="outline" className="hidden gap-1 text-xs sm:inline-flex">
+                {PERSONA_LABELS[lastPersona]}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="max-w-xs text-xs">Auto-detected persona</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ) : null}
+
       {lastRouting?.mode === 'auto' ? (
         <TooltipProvider>
           <Tooltip>

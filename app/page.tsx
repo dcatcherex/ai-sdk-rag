@@ -15,6 +15,7 @@ import { ChatComposer } from '@/features/chat/components/chat-composer';
 import { ChatMessageList } from '@/features/chat/components/chat-message-list';
 import { ChatSidebar } from '@/features/chat/components/chat-sidebar';
 import type { ChatMessage, RoutingMetadata } from '@/features/chat/types';
+import type { SystemPromptKey } from '@/lib/prompt';
 
 export default function Chat() {
   const [knowledgePanelOpen, setKnowledgePanelOpen] = useState(false);
@@ -88,6 +89,16 @@ export default function Chat() {
       const message = messages[index];
       if (message.role === 'assistant' && message.metadata?.routing) {
         return message.metadata.routing;
+      }
+    }
+    return null;
+  }, [messages]);
+
+  const lastPersona = useMemo((): SystemPromptKey | null => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (message.role === 'assistant' && message.metadata?.persona) {
+        return message.metadata.persona ?? null;
       }
     }
     return null;
@@ -167,6 +178,7 @@ export default function Chat() {
             status={status}
             lastRouting={lastRouting}
             lastRoutingModel={lastRoutingModel}
+            lastPersona={lastPersona}
             onDeleteThread={(threadId) => deleteThreadMutation.mutate(threadId)}
             isDeleting={deleteThreadMutation.isPending}
             onExport={handleExportConversation}
@@ -184,6 +196,7 @@ export default function Chat() {
             onCopyMessage={copyToClipboard}
             onRegenerateMessage={regenerateMessage}
             onToggleReaction={toggleReaction}
+            onSuggestionClick={handleSuggestionClick}
           />
 
           <ChatComposer

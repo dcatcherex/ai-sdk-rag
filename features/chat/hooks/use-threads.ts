@@ -7,6 +7,7 @@ export const useThreads = () => {
   const [activeThreadId, setActiveThreadId] = useState('');
   const activeThreadIdRef = useRef(activeThreadId);
   activeThreadIdRef.current = activeThreadId;
+  const newChatModeRef = useRef(false);
 
   const { data: threads = [], isLoading: isThreadsLoading } = useQuery<ThreadItem[]>({
     queryKey: ['threads'],
@@ -143,14 +144,18 @@ export const useThreads = () => {
     [activeThreadId, threads]
   );
 
-  // Auto-select first thread
+  // Auto-select first thread on initial load only (not when user clicks New chat)
   useEffect(() => {
-    if (!activeThreadId && threads.length > 0) {
+    if (!activeThreadId && threads.length > 0 && !newChatModeRef.current) {
       setActiveThreadId(threads[0]?.id ?? '');
+    }
+    if (activeThreadId) {
+      newChatModeRef.current = false;
     }
   }, [threads, activeThreadId]);
 
   const handleCreateThread = useCallback(() => {
+    newChatModeRef.current = true;
     setActiveThreadId('');
   }, []);
 

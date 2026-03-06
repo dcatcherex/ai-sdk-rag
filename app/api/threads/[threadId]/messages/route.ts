@@ -71,6 +71,7 @@ export async function GET(
       id: chatMessage.id,
       role: chatMessage.role,
       parts: chatMessage.parts,
+      metadata: chatMessage.metadata,
     })
     .from(chatMessage)
     .where(eq(chatMessage.threadId, threadId))
@@ -184,6 +185,7 @@ export async function GET(
       id: row.id,
       role: row.role as UIMessage["role"],
       parts,
+      ...(row.metadata ? { metadata: row.metadata } : {}),
     };
   });
 

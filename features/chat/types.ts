@@ -19,6 +19,9 @@ export type RoutingMetadata = {
 
 export type ChatMessageMetadata = {
   routing?: RoutingMetadata;
+  persona?: import('@/lib/prompt').SystemPromptKey;
+  enhancedPrompt?: string;
+  followUpSuggestions?: string[];
 };
 
 export type MessageReaction = 'thumbs_up' | 'thumbs_down';

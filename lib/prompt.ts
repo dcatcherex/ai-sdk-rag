@@ -88,6 +88,20 @@ You are an expert debugger.
 `,
 };
 
+export function detectSystemPromptKey(prompt: string): SystemPromptKey {
+  const lower = prompt.toLowerCase();
+  if (lower.match(/\b(code|typescript|javascript|python|react|function|refactor|debug|api|component)\b/)) return 'coding_copilot';
+  if (lower.match(/\b(explain|teach|learn|understand|how does|what is)\b/)) return 'friendly_tutor';
+  if (lower.match(/\b(sql|query|data|pandas|analyze|metric|dataset)\b/)) return 'data_analyst';
+  if (lower.match(/\b(summarize|summary|tldr|edit|rewrite|shorten)\b/)) return 'summarizer_editor';
+  if (lower.match(/\b(translate|translation|french|spanish|japanese|localize)\b/)) return 'translation_localization';
+  if (lower.match(/\b(security|vulnerability|auth|permission|secret|password|xss|injection)\b/)) return 'security_privacy_guard';
+  if (lower.match(/\b(research|sources|citations|find info|literature)\b/)) return 'research_librarian';
+  if (lower.match(/\b(debug|error|bug|fix|stack trace|exception|crash)\b/)) return 'troubleshooting_debugger';
+  if (lower.match(/\b(prd|product|feature|roadmap|requirements|milestone)\b/)) return 'product_manager';
+  return 'general_assistant';
+}
+
 export function getSystemPrompt(
   key: SystemPromptKey = "general_assistant"
 ): string {

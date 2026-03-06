@@ -7,6 +7,7 @@ import {
   BrainCircuitIcon,
   ImageIcon,
   LogOutIcon,
+  SettingsIcon,
   MessageSquareIcon,
   MonitorIcon,
   MoonIcon,
@@ -484,6 +485,25 @@ const SidebarContent = ({
               </Button>
             </TooltipTrigger>
             {isCollapsed ? <TooltipContent side="right">AI Models</TooltipContent> : null}
+          </Tooltip>
+        </TooltipProvider>
+
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                asChild
+                variant={currentPath.startsWith('/settings') ? 'secondary' : 'ghost'}
+                size={isCollapsed ? 'icon' : 'sm'}
+                className={cn('justify-start gap-2', isCollapsed ? 'size-9' : 'w-full')}
+              >
+                <Link href="/settings" aria-label="Settings">
+                  <SettingsIcon className="size-4" />
+                  {!isCollapsed ? 'Settings' : null}
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            {isCollapsed ? <TooltipContent side="right">Settings</TooltipContent> : null}
           </Tooltip>
         </TooltipProvider>
 

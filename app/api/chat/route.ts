@@ -12,14 +12,20 @@ import {
 import { z } from 'zod';
 import { headers } from 'next/headers';
 import { and, eq } from 'drizzle-orm';
+import type { SystemPromptKey } from '@/lib/prompt';
 import { availableModels, type Capability, chatModel, maxSteps } from '@/lib/ai';
 import { env } from '@/lib/env';
-import { getSystemPrompt } from '@/lib/prompt';
+import { getSystemPrompt, detectSystemPromptKey } from '@/lib/prompt';
+import { enhancePrompt } from '@/lib/prompt-enhance';
+import { summarizeConversation, SUMMARY_THRESHOLD } from '@/lib/conversation-summary';
+import { getUserModelScores, type ModelScoreMap } from '@/lib/model-scores';
+import { getUserMemoryContext, extractAndStoreMemory } from '@/lib/memory';
+import { generateFollowUpSuggestions } from '@/lib/follow-up-suggestions';
 import { baseTools, type ChatTools } from '@/lib/tools';
 import { createScopedRagTools } from '@/lib/rag-tool';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { chatMessage, chatThread, mediaAsset, tokenUsage } from '@/db/schema';
+import { chatMessage, chatThread, mediaAsset, tokenUsage, userPreferences } from '@/db/schema';
 import { nanoid } from 'nanoid';
 import sharp from 'sharp';
 import { uploadPublicObject } from '@/lib/r2';
@@ -35,6 +41,8 @@ type RoutingMetadata = {
 
 type ChatMessageMetadata = {
   routing?: RoutingMetadata;
+  persona?: SystemPromptKey;
+  enhancedPrompt?: string;
 };
 
 export type ChatMessage = UIMessage<ChatMessageMetadata, UIDataTypes, ChatTools>;
@@ -239,8 +247,9 @@ const getModelByIntent = (options: {
   prompt: string | null;
   enabledModelIds: string[];
   useWebSearch?: boolean;
+  userScores?: ModelScoreMap;
 }): RoutingDecision => {
-  const { prompt, enabledModelIds, useWebSearch } = options;
+  const { prompt, enabledModelIds, useWebSearch, userScores } = options;
   const enabledModels = availableModels.filter((model) =>
     enabledModelIds.includes(model.id)
   );
@@ -288,10 +297,19 @@ const getModelByIntent = (options: {
     lower.includes('pros and cons') ||
     lower.includes('tradeoff');
 
-  const pickByCapability = (capability: Capability) =>
-    enabledModels.find((model) =>
-      (model.capabilities ?? []).some((modelCapability) => modelCapability === capability)
-    )?.id;
+  const pickByCapability = (capability: Capability): string | undefined => {
+    const capable = enabledModels.filter((m) => (m.capabilities ?? []).some((c) => c === capability));
+    if (capable.length === 0) return undefined;
+    if (!userScores || userScores.size === 0) return capable[0]?.id;
+    let best = capable[0]!;
+    let bestScore = -Infinity;
+    for (const m of capable) {
+      let total = 0;
+      for (const [key, val] of userScores) { if (key.startsWith(`${m.id}::`)) total += val; }
+      if (total > bestScore) { bestScore = total; best = m; }
+    }
+    return best.id;
+  };
 
   if (wantsImage) {
     const modelId = pickByCapability('image gen');
@@ -319,6 +337,20 @@ const getModelByIntent = (options: {
       : { modelId: safeFallback, reason: 'Reasoning intent but Opus not enabled' };
   }
 
+  // Score-biased general chat: prefer highest-scored text-capable model
+  if (userScores && userScores.size > 0) {
+    const textModels = enabledModels.filter((m) => (m.capabilities ?? []).some((c) => c === 'text'));
+    if (textModels.length > 0) {
+      let best = textModels[0]!;
+      let bestScore = -Infinity;
+      for (const m of textModels) {
+        let total = 0;
+        for (const [key, val] of userScores) { if (key.startsWith(`${m.id}::`)) total += val; }
+        if (total > bestScore) { bestScore = total; best = m; }
+      }
+      return { modelId: best.id, reason: 'General chat (score-biased)' };
+    }
+  }
   return enabledModelIds.includes('google/gemini-3-flash')
     ? { modelId: 'google/gemini-3-flash', reason: 'General chat' }
     : fallback;
@@ -409,6 +441,7 @@ const persistChatResult = async (options: {
         threadId,
         role: message.role,
         parts: message.parts,
+        metadata: message.metadata ?? null,
         position: index,
       }))
     );
@@ -471,15 +504,37 @@ export async function POST(req: Request) {
       enabledModelIds,
     } = requestSchema.parse(await req.json());
 
-    const thread = await db
-      .select({ id: chatThread.id, title: chatThread.title })
-      .from(chatThread)
-      .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, session.user.id)))
-      .limit(1);
+    const [threadRows, prefsRows] = await Promise.all([
+      db
+        .select({ id: chatThread.id, title: chatThread.title })
+        .from(chatThread)
+        .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, session.user.id)))
+        .limit(1),
+      db
+        .select()
+        .from(userPreferences)
+        .where(eq(userPreferences.userId, session.user.id))
+        .limit(1),
+    ]);
+
+    const thread = threadRows;
 
     if (thread.length === 0) {
       return Response.json({ error: 'Thread not found' }, { status: 404 });
     }
+
+    const userPrefs = prefsRows[0] ?? { memoryEnabled: true, promptEnhancementEnabled: true };
+    const lastUserPrompt = getLastUserPrompt(messages);
+
+    // Feature 3: Load memory context
+    const memoryContext = userPrefs.memoryEnabled
+      ? await getUserMemoryContext(session.user.id)
+      : '';
+
+    // Feature 1: Detect persona
+    const detectedPersona: SystemPromptKey = lastUserPrompt
+      ? detectSystemPromptKey(lastUserPrompt)
+      : 'general_assistant';
 
     // Determine tools and system prompt based on document selection
     const isGrounded = selectedDocumentIds && selectedDocumentIds.length > 0;
@@ -487,9 +542,10 @@ export async function POST(req: Request) {
       ? { ...baseTools, ...createScopedRagTools(selectedDocumentIds) }
       : baseTools;
     const groundedSystemPrompt = isGrounded
-      ? getSystemPrompt('general_assistant') +
-        '\nIMPORTANT: The user has selected specific documents. You MUST use the searchKnowledge tool to find information before answering. Only respond using information from tool results. If no relevant information is found, say so.'
-      : getSystemPrompt('general_assistant');
+      ? getSystemPrompt(detectedPersona) +
+        '\nIMPORTANT: The user has selected specific documents. You MUST use the searchKnowledge tool to find information before answering. Only respond using information from tool results. If no relevant information is found, say so.' +
+        (memoryContext ? `\n\n${memoryContext}` : '')
+      : getSystemPrompt(detectedPersona) + (memoryContext ? `\n\n${memoryContext}` : '');
 
     const enabledIds = enabledModelIds && enabledModelIds.length > 0
       ? enabledModelIds.filter((modelId) =>
@@ -500,12 +556,16 @@ export async function POST(req: Request) {
     const manualResolved = manualModel && enabledIds.includes(manualModel)
       ? manualModel
       : null;
+    // Only load scores for auto-routing, skip for manual selection
+    const userScores = manualResolved ? new Map<string, number>() : await getUserModelScores(session.user.id);
+
     const routingDecision = manualResolved
       ? { modelId: manualResolved, reason: 'Manual selection' }
       : getModelByIntent({
-          prompt: getLastUserPrompt(messages),
+          prompt: lastUserPrompt,
           enabledModelIds: enabledIds.length > 0 ? enabledIds : [chatModel],
           useWebSearch,
+          userScores,
         });
     const resolvedModel = routingDecision.modelId;
     const routingMetadata: RoutingMetadata = {
@@ -530,12 +590,46 @@ export async function POST(req: Request) {
     const activeTools = supportsTools ? groundedTools : undefined;
     const systemPrompt = supportsTools
       ? groundedSystemPrompt
-      : getSystemPrompt('general_assistant');
+      : getSystemPrompt(detectedPersona) + (memoryContext ? `\n\n${memoryContext}` : '');
+
+    // Feature 2: Enhance prompt if enabled
+    let enhancedPrompt: string | undefined;
+    let messagesToSend = messages;
+    if (userPrefs.promptEnhancementEnabled && lastUserPrompt) {
+      const enhanced = await enhancePrompt(lastUserPrompt, memoryContext);
+      if (enhanced !== lastUserPrompt) {
+        enhancedPrompt = enhanced;
+        // Replace text in the last user message
+        const lastUserIdx = messages.map((m) => m.role).lastIndexOf('user');
+        if (lastUserIdx !== -1) {
+          messagesToSend = messages.map((m, i) => {
+            if (i !== lastUserIdx) return m;
+            return {
+              ...m,
+              parts: m.parts.map((p) =>
+                p.type === 'text' ? { ...p, text: enhanced } : p
+              ),
+            };
+          });
+        }
+      }
+    }
+
+    // Feature A: Conversation Summary Injection
+    let conversationSummaryBlock = '';
+    if (messages.length > SUMMARY_THRESHOLD) {
+      const { summary, trimmedMessages } = await summarizeConversation(messagesToSend as import('@/features/chat/types').ChatMessage[]);
+      if (summary) {
+        conversationSummaryBlock = `\n\n<conversation_summary>\nSummary of earlier conversation:\n${summary}\n</conversation_summary>`;
+        messagesToSend = trimmedMessages;
+      }
+    }
+    const effectiveSystemPrompt = systemPrompt + conversationSummaryBlock;
 
     const currentTitle = thread[0]?.title ?? 'New chat';
 
     if (isImageOnlyModel(resolvedModel)) {
-      const imagePrompt = getLastUserPrompt(messages);
+      const imagePrompt = enhancedPrompt ?? lastUserPrompt;
       if (!imagePrompt) {
         return Response.json({ error: 'Image generation requires a text prompt.' }, { status: 400 });
       }
@@ -551,7 +645,7 @@ export async function POST(req: Request) {
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        metadata: { routing: routingMetadata },
+        metadata: { routing: routingMetadata, persona: detectedPersona, ...(enhancedPrompt ? { enhancedPrompt } : {}) },
         parts: [
           {
             type: 'file',
@@ -581,7 +675,7 @@ export async function POST(req: Request) {
           execute: ({ writer }) => {
             writer.write({
               type: 'start',
-              messageMetadata: { routing: routingMetadata },
+              messageMetadata: { routing: routingMetadata, persona: detectedPersona, ...(enhancedPrompt ? { enhancedPrompt } : {}) },
             });
             writer.write({ type: 'start-step' });
             writer.write({
@@ -598,21 +692,47 @@ export async function POST(req: Request) {
 
     const result = streamText({
       model: resolvedModel,
-      system: systemPrompt,
-      messages: await convertToModelMessages(messages),
+      system: effectiveSystemPrompt,
+      messages: await convertToModelMessages(messagesToSend),
       stopWhen: stepCountIs(maxSteps),
       ...(supportsTools ? { tools: activeTools } : {}),
     });
 
     return result.toUIMessageStreamResponse({
       originalMessages: messages,
-      messageMetadata: () => ({ routing: routingMetadata }),
+      messageMetadata: () => ({ routing: routingMetadata, persona: detectedPersona, ...(enhancedPrompt ? { enhancedPrompt } : {}) }),
       onFinish: async ({ messages: updatedMessages }) => {
         const usage: unknown = await result.usage;
         const typedUsage = usage as TokenUsageSnapshot | null;
 
+        // Feature 4: Generate follow-up suggestions and inject into last assistant message
+        const typedMessages = updatedMessages as ChatMessage[];
+        const lastAssistantIdx = typedMessages.map((m) => m.role).lastIndexOf('assistant');
+        let messagesWithSuggestions = typedMessages;
+
+        if (lastAssistantIdx !== -1) {
+          const contextStr = typedMessages.slice(-6)
+            .map((m) => {
+              const textPart = m.parts.find((p) => p.type === 'text');
+              const text = textPart?.type === 'text' ? textPart.text.slice(0, 400) : '';
+              return `${m.role}: ${text}`;
+            })
+            .filter((line) => !line.endsWith(': '))
+            .join('\n');
+
+          const suggestions = await generateFollowUpSuggestions(contextStr);
+
+          if (suggestions.length > 0) {
+            messagesWithSuggestions = typedMessages.map((m, i) =>
+              i === lastAssistantIdx
+                ? { ...m, metadata: { ...m.metadata, followUpSuggestions: suggestions } }
+                : m
+            );
+          }
+        }
+
         await persistChatResult({
-          updatedMessages: updatedMessages as ChatMessage[],
+          updatedMessages: messagesWithSuggestions,
           threadId,
           userId: session.user.id,
           currentTitle,
@@ -620,6 +740,16 @@ export async function POST(req: Request) {
           creditCost,
           tokenUsageData: typedUsage,
         });
+
+        // Feature 3: Extract and store memory (fire-and-forget)
+        if (userPrefs.memoryEnabled) {
+          void extractAndStoreMemory(
+            session.user.id,
+            messagesWithSuggestions as Array<{ role: string; parts?: Array<{ type: string; text?: string }> }>,
+            threadId,
+            memoryContext,
+          );
+        }
       },
     });
   } catch (error) {
