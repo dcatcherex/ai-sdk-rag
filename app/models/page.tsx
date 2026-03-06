@@ -5,15 +5,11 @@ import { useRouter } from 'next/navigation';
 import { ChatSidebar } from '@/features/chat/components/chat-sidebar';
 import { useThreads } from '@/features/chat/hooks/use-threads';
 import { useUserProfile } from '@/features/chat/hooks/use-user-profile';
-import { useGalleryAssets } from '@/features/gallery/hooks/use-gallery-assets';
-import { useImageEditor } from '@/features/gallery/hooks/use-image-editor';
-import { GalleryGrid } from '@/features/gallery/components/gallery-grid';
-import { ImageEditor } from '@/features/gallery/components/image-editor/image-editor';
+import { ModelsTable } from '@/features/models/components/models-table';
 
-export default function GalleryPage() {
+export default function ModelsPage() {
   const router = useRouter();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'image'>('image');
 
   const {
     activeThreadId,
@@ -28,10 +24,6 @@ export default function GalleryPage() {
   } = useThreads();
 
   const { sessionData, userProfile, isSigningOut, handleSignOut } = useUserProfile();
-
-  const { assets, isLoading, error } = useGalleryAssets(filter);
-  const editorState = useImageEditor();
-  const { editorOpen, selectedAsset, openEditor, closeEditor } = editorState;
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f7f7f9,#eef0f7_55%,#e6e9f2_100%)] dark:bg-[radial-gradient(circle_at_top,#1a1b2e,#111827_55%,#0f172a_100%)]">
@@ -55,18 +47,7 @@ export default function GalleryPage() {
         />
 
         <main className="flex h-[calc(100dvh-1rem)] flex-1 flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-900/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur md:h-[calc(100vh-3rem)] md:rounded-3xl">
-          {editorOpen && selectedAsset ? (
-            <ImageEditor asset={selectedAsset} onClose={closeEditor} editorState={editorState} />
-          ) : (
-            <GalleryGrid
-              assets={assets}
-              isLoading={isLoading}
-              error={error as Error | null}
-              filter={filter}
-              onFilterChange={setFilter}
-              onEdit={openEditor}
-            />
-          )}
+          <ModelsTable />
         </main>
       </div>
     </div>

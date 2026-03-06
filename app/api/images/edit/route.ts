@@ -16,6 +16,7 @@ const requestSchema = z.object({
   sourceAssetId: z.string().min(1),
   prompt: z.string().min(1),
   maskDataUrl: z.string().optional(),
+  model: z.string().optional(),
 });
 
 type ImageFilePart = {
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { threadId, sourceAssetId, prompt, maskDataUrl } = requestSchema.parse(await req.json());
+    const { threadId, sourceAssetId, prompt, maskDataUrl, model } = requestSchema.parse(await req.json());
 
     const [threadRow] = await db
       .select({ id: chatThread.id })
@@ -97,7 +98,7 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Source image not found' }, { status: 404 });
     }
 
-    const modelId = 'openai/gpt-image-1.5';
+    const modelId = model ?? 'openai/gpt-image-1.5';
     const creditCost = getCreditCost(modelId);
     const currentBalance = await getUserBalance(session.user.id);
     if (currentBalance < creditCost) {

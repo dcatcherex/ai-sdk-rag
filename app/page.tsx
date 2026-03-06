@@ -17,7 +17,6 @@ import { ChatSidebar } from '@/features/chat/components/chat-sidebar';
 import type { ChatMessage, RoutingMetadata } from '@/features/chat/types';
 
 export default function Chat() {
-  const [searchQuery, setSearchQuery] = useState('');
   const [knowledgePanelOpen, setKnowledgePanelOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [useWebSearch, setUseWebSearch] = useState(false);
@@ -139,8 +138,6 @@ export default function Chat() {
 
   useChatKeyboardShortcuts({
     onCreateThread: handleCreateThread,
-    searchQuery,
-    setSearchQuery,
   });
 
   return (
@@ -151,8 +148,6 @@ export default function Chat() {
           threads={threads}
           isLoading={isThreadsLoading}
           isCreatingThread={createThreadMutation.isPending}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
           onSelectThread={setActiveThreadId}
           onCreateThread={handleCreateThread}
           onTogglePin={(threadId, pinned) => pinThreadMutation.mutate({ threadId, pinned })}

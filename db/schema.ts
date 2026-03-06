@@ -284,6 +284,24 @@ export const creditTransactionRelations = relations(creditTransaction, ({ one })
   }),
 }));
 
+export const userModelPreference = pgTable("user_model_preference", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  enabledModelIds: text("enabled_model_ids").array().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+export const userModelPreferenceRelations = relations(userModelPreference, ({ one }) => ({
+  user: one(user, {
+    fields: [userModelPreference.userId],
+    references: [user.id],
+  }),
+}));
+
 // RAG: Document storage with vector embeddings
 export const document = pgTable(
   "document",

@@ -151,8 +151,8 @@ export const useThreads = () => {
   }, [threads, activeThreadId]);
 
   const handleCreateThread = useCallback(() => {
-    createThreadMutation.mutate();
-  }, [createThreadMutation]);
+    setActiveThreadId('');
+  }, []);
 
   const ensureThread = useCallback(async (): Promise<string> => {
     if (activeThreadId) {
@@ -180,7 +180,7 @@ export const useThreads = () => {
     isThreadsLoading,
     activeThread,
     activeMessages,
-    createThreadMutation,
+    createThreadMutation, // kept for isPending state in sidebar
     pinThreadMutation,
     renameThreadMutation,
     deleteThreadMutation,

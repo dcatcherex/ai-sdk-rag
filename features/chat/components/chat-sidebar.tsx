@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  BrainCircuitIcon,
   ImageIcon,
   LogOutIcon,
+  MessageSquareIcon,
   MonitorIcon,
   MoonIcon,
   MoreVerticalIcon,
@@ -20,6 +22,7 @@ import {
   SunIcon,
   Trash2Icon,
   UserIcon,
+  XIcon,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -80,8 +83,6 @@ type ChatSidebarProps = {
   threads: ThreadItem[];
   isLoading: boolean;
   isCreatingThread: boolean;
-  searchQuery: string;
-  onSearchChange: (value: string) => void;
   onSelectThread: (threadId: string) => void;
   onCreateThread: () => void;
   onTogglePin: (threadId: string, pinned: boolean) => void;
@@ -231,9 +232,6 @@ const ThreadRow = ({
       type="button"
     >
       <p className="truncate">{thread.title}</p>
-      <p className="truncate text-xs font-normal text-muted-foreground">
-        {thread.preview || formatRelativeTime(thread.updatedAtMs)}
-      </p>
     </button>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -303,11 +301,9 @@ const ThreadRow = ({
 
 const SidebarContent = ({
   activeThreadId,
-  filteredThreads,
+  threads,
   isLoading,
   isCreatingThread,
-  searchQuery,
-  onSearchChange,
   onCreateThread,
   onSelectThread,
   onTogglePin,
@@ -322,11 +318,9 @@ const SidebarContent = ({
   onToggleCollapse,
 }: {
   activeThreadId: string;
-  filteredThreads: ThreadItem[];
+  threads: ThreadItem[];
   isLoading: boolean;
   isCreatingThread: boolean;
-  searchQuery: string;
-  onSearchChange: (value: string) => void;
   onCreateThread: () => void;
   onSelectThread: (threadId: string) => void;
   onTogglePin: (threadId: string, pinned: boolean) => void;
@@ -340,10 +334,43 @@ const SidebarContent = ({
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
 }) => {
-  const pinnedThreads = filteredThreads.filter((t) => t.pinned);
-  const recentThreads = filteredThreads.filter((t) => !t.pinned);
+  const pinnedThreads = threads.filter((t) => t.pinned);
+  const recentThreads = threads.filter((t) => !t.pinned);
   const [renameTarget, setRenameTarget] = useState<ThreadItem | null>(null);
   const [renameTitle, setRenameTitle] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<ThreadItem | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [popupQuery, setPopupQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const filteredForPopup = useMemo(
+    () => (popupQuery.trim() ? threads.filter((t) =>
+      t.title.toLowerCase().includes(popupQuery.toLowerCase()) ||
+      (t.preview ?? '').toLowerCase().includes(popupQuery.toLowerCase())
+    ) : threads),
+    [threads, popupQuery]
+  );
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === '/') {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  const handleSearchOpenChange = (open: boolean) => {
+    setSearchOpen(open);
+    if (!open) setPopupQuery('');
+  };
+
+  const handleSelectFromPopup = (threadId: string) => {
+    onSelectThread(threadId);
+    handleSearchOpenChange(false);
+  };
 
   const handleRenameSubmit = () => {
     if (!renameTarget) {
@@ -440,29 +467,57 @@ const SidebarContent = ({
             {isCollapsed ? <TooltipContent side="right">Media gallery</TooltipContent> : null}
           </Tooltip>
         </TooltipProvider>
+
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                asChild
+                variant={currentPath.startsWith('/models') ? 'secondary' : 'ghost'}
+                size={isCollapsed ? 'icon' : 'sm'}
+                className={cn('justify-start gap-2', isCollapsed ? 'size-9' : 'w-full')}
+              >
+                <Link href="/models" aria-label="AI Models">
+                  <BrainCircuitIcon className="size-4" />
+                  {!isCollapsed ? 'AI Models' : null}
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            {isCollapsed ? <TooltipContent side="right">AI Models</TooltipContent> : null}
+          </Tooltip>
+        </TooltipProvider>
+
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size={isCollapsed ? 'icon' : 'sm'}
+                className={cn('justify-start gap-2', isCollapsed ? 'size-9' : 'w-full')}
+                onClick={() => setSearchOpen(true)}
+              >
+                <SearchIcon className="size-4" />
+                {!isCollapsed ? (
+                  <span className="flex-1 text-left text-muted-foreground font-normal">
+                    Search chats
+                    <kbd className="ml-2 text-[10px] opacity-50">⌘/</kbd>
+                  </span>
+                ) : null}
+              </Button>
+            </TooltipTrigger>
+            {isCollapsed ? <TooltipContent side="right">Search chats</TooltipContent> : null}
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       {!isCollapsed ? (
         <>
-          <div className="relative mt-3">
-            <SearchIcon className="absolute top-2.5 left-3 size-4 text-muted-foreground" />
-            <Input
-              id="thread-search"
-              type="text"
-              placeholder="Search threads... (⌘/)"
-              value={searchQuery}
-              onChange={(event) => onSearchChange(event.target.value)}
-              className="pl-9 pr-3 text-sm"
-            />
-          </div>
-
           <div className="-mx-2 mt-4 flex-1 overflow-y-auto">
             {isLoading ? (
               <p className="px-3 text-xs text-muted-foreground">Loading threads…</p>
-            ) : filteredThreads.length === 0 ? (
-              <p className="px-3 text-xs text-muted-foreground">
-                {searchQuery ? 'No threads found.' : 'No threads yet. Start a new chat.'}
-              </p>
+            ) : threads.length === 0 ? (
+              <p className="px-3 text-xs text-muted-foreground">No threads yet. Start a new chat.</p>
             ) : (
               <>
                 {pinnedThreads.length > 0 && (
@@ -481,7 +536,7 @@ const SidebarContent = ({
                           setRenameTarget(thread);
                           setRenameTitle(thread.title);
                         }}
-                        onDelete={() => onDeleteThread(thread.id)}
+                        onDelete={() => setDeleteTarget(thread)}
                       />
                     ))}
                   </div>
@@ -504,7 +559,7 @@ const SidebarContent = ({
                           setRenameTarget(thread);
                           setRenameTitle(thread.title);
                         }}
-                        onDelete={() => onDeleteThread(thread.id)}
+                        onDelete={() => setDeleteTarget(thread)}
                       />
                     ))}
                   </div>
@@ -527,6 +582,58 @@ const SidebarContent = ({
         />
       </div>
 
+      <Dialog open={searchOpen} onOpenChange={handleSearchOpenChange}>
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
+          <div className="flex items-center border-b px-3">
+            <SearchIcon className="mr-2 size-4 shrink-0 text-muted-foreground" />
+            <input
+              ref={searchInputRef}
+              autoFocus
+              value={popupQuery}
+              onChange={(e) => setPopupQuery(e.target.value)}
+              placeholder="Search chats..."
+              className="flex-1 bg-transparent py-3.5 text-sm outline-none placeholder:text-muted-foreground"
+            />
+            {popupQuery && (
+              <button
+                type="button"
+                onClick={() => setPopupQuery('')}
+                className="ml-1 rounded p-1 text-muted-foreground hover:text-foreground"
+              >
+                <XIcon className="size-3.5" />
+              </button>
+            )}
+          </div>
+          <div className="max-h-96 overflow-y-auto py-2">
+            {isLoading ? (
+              <p className="px-4 py-3 text-sm text-muted-foreground">Loading…</p>
+            ) : filteredForPopup.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-muted-foreground">No chats found.</p>
+            ) : (
+              filteredForPopup.map((thread) => (
+                <button
+                  key={thread.id}
+                  type="button"
+                  onClick={() => handleSelectFromPopup(thread.id)}
+                  className={cn(
+                    'flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition hover:bg-muted/60',
+                    thread.id === activeThreadId && 'bg-muted'
+                  )}
+                >
+                  <MessageSquareIcon className="size-4 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{thread.title}</p>
+                    {thread.preview ? (
+                      <p className="truncate text-xs text-muted-foreground">{thread.preview}</p>
+                    ) : null}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={Boolean(renameTarget)} onOpenChange={handleRenameDialogChange}>
         <DialogContent>
           <DialogHeader>
@@ -548,6 +655,35 @@ const SidebarContent = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete thread</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete{' '}
+              <span className="font-medium text-foreground">&ldquo;{deleteTarget?.title}&rdquo;</span>?
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (deleteTarget) {
+                  onDeleteThread(deleteTarget.id);
+                  setDeleteTarget(null);
+                }
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
@@ -557,8 +693,6 @@ export const ChatSidebar = ({
   threads,
   isLoading,
   isCreatingThread,
-  searchQuery,
-  onSearchChange,
   onSelectThread,
   onCreateThread,
   onTogglePin,
@@ -589,11 +723,6 @@ export const ChatSidebar = ({
     window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(isCollapsed));
   }, [isCollapsed]);
 
-  const filteredThreads = useMemo(
-    () => filterThreads(threads, searchQuery),
-    [threads, searchQuery]
-  );
-
   const handleSelectThread = (threadId: string) => {
     onSelectThread(threadId);
     onMobileOpenChange?.(false);
@@ -601,11 +730,9 @@ export const ChatSidebar = ({
 
   const sharedProps = {
     activeThreadId,
-    filteredThreads,
+    threads,
     isLoading,
     isCreatingThread,
-    searchQuery,
-    onSearchChange,
     onCreateThread,
     onSelectThread: handleSelectThread,
     onTogglePin,
@@ -629,7 +756,6 @@ export const ChatSidebar = ({
       >
         <SidebarContent
           {...sharedProps}
-          onSelectThread={onSelectThread}
           isCollapsed={isCollapsed}
           onToggleCollapse={() => setIsCollapsed((prev) => !prev)}
         />
