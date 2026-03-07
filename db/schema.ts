@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import { boolean, foreignKey, index, integer, jsonb, pgTable, text, timestamp, customType } from "drizzle-orm/pg-core";
 
 // Custom vector type for pgvector
@@ -382,4 +382,20 @@ export const documentChunkRelations = relations(documentChunk, ({ one }) => ({
     fields: [documentChunk.documentId],
     references: [document.id],
   }),
+}));
+
+export const agent = pgTable('agent', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  systemPrompt: text('system_prompt').notNull(),
+  modelId: text('model_id'),
+  enabledTools: text('enabled_tools').array().notNull().default(sql`'{}'::text[]`),
+  createdAt: timestamp('created_at').notNull(),
+  updatedAt: timestamp('updated_at').notNull(),
+}, (table) => [index('agent_userId_idx').on(table.userId)]);
+
+export const agentRelations = relations(agent, ({ one }) => ({
+  user: one(user, { fields: [agent.userId], references: [user.id] }),
 }));

@@ -25,7 +25,8 @@ import { baseTools, type ChatTools } from '@/lib/tools';
 import { createScopedRagTools } from '@/lib/rag-tool';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { chatMessage, chatThread, mediaAsset, tokenUsage, userPreferences } from '@/db/schema';
+import { chatMessage, chatThread, mediaAsset, tokenUsage, userPreferences, agent } from '@/db/schema';
+import { createAgentTools } from '@/lib/agent-tools';
 import { nanoid } from 'nanoid';
 import sharp from 'sharp';
 import { uploadPublicObject } from '@/lib/r2';
@@ -189,6 +190,7 @@ const requestSchema = z.object({
   useWebSearch: z.boolean().optional(),
   selectedDocumentIds: z.array(z.string()).optional(),
   enabledModelIds: z.array(z.string()).optional(),
+  agentId: z.string().optional(),
 });
 
 const getThreadPreviewFromMessages = (messages: ChatMessage[]) => {
@@ -502,6 +504,7 @@ export async function POST(req: Request) {
       useWebSearch,
       selectedDocumentIds,
       enabledModelIds,
+      agentId,
     } = requestSchema.parse(await req.json());
 
     const [threadRows, prefsRows] = await Promise.all([
@@ -526,6 +529,16 @@ export async function POST(req: Request) {
     const userPrefs = prefsRows[0] ?? { memoryEnabled: true, promptEnhancementEnabled: true };
     const lastUserPrompt = getLastUserPrompt(messages);
 
+    // Fetch active agent if provided
+    const activeAgentRows = agentId
+      ? await db
+          .select()
+          .from(agent)
+          .where(and(eq(agent.id, agentId), eq(agent.userId, session.user.id)))
+          .limit(1)
+      : [];
+    const activeAgent = activeAgentRows[0] ?? null;
+
     // Feature 3: Load memory context
     const memoryContext = userPrefs.memoryEnabled
       ? await getUserMemoryContext(session.user.id)
@@ -536,23 +549,29 @@ export async function POST(req: Request) {
       ? detectSystemPromptKey(lastUserPrompt)
       : 'general_assistant';
 
-    // Determine tools and system prompt based on document selection
+    // Determine tools and system prompt based on document selection or active agent
     const isGrounded = selectedDocumentIds && selectedDocumentIds.length > 0;
-    const groundedTools = isGrounded
-      ? { ...baseTools, ...createScopedRagTools(selectedDocumentIds) }
-      : baseTools;
-    const groundedSystemPrompt = isGrounded
-      ? getSystemPrompt(detectedPersona) +
-        '\nIMPORTANT: The user has selected specific documents. You MUST use the searchKnowledge tool to find information before answering. Only respond using information from tool results. If no relevant information is found, say so.' +
-        (memoryContext ? `\n\n${memoryContext}` : '')
-      : getSystemPrompt(detectedPersona) + (memoryContext ? `\n\n${memoryContext}` : '');
+    const groundedTools = activeAgent
+      ? createAgentTools(activeAgent.enabledTools, selectedDocumentIds)
+      : isGrounded
+        ? { ...baseTools, ...createScopedRagTools(selectedDocumentIds) }
+        : baseTools;
+    const groundedSystemPrompt = activeAgent
+      ? activeAgent.systemPrompt + (memoryContext ? `\n\n${memoryContext}` : '')
+      : isGrounded
+        ? getSystemPrompt(detectedPersona) +
+          '\nIMPORTANT: The user has selected specific documents. You MUST use the searchKnowledge tool to find information before answering. Only respond using information from tool results. If no relevant information is found, say so.' +
+          (memoryContext ? `\n\n${memoryContext}` : '')
+        : getSystemPrompt(detectedPersona) + (memoryContext ? `\n\n${memoryContext}` : '');
 
     const enabledIds = enabledModelIds && enabledModelIds.length > 0
       ? enabledModelIds.filter((modelId) =>
           availableModels.some((option) => option.id === modelId)
         )
       : availableModels.map((option) => option.id);
-    const manualModel = model && model !== 'auto' ? model : null;
+    // Agent suggested model is used when user hasn't explicitly chosen a model
+    const agentSuggestedModel = activeAgent?.modelId ?? null;
+    const manualModel = model && model !== 'auto' ? model : (agentSuggestedModel ?? null);
     const manualResolved = manualModel && enabledIds.includes(manualModel)
       ? manualModel
       : null;

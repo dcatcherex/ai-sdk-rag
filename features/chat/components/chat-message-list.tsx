@@ -128,7 +128,8 @@ export const ChatMessageList = ({
                 : [];
 
             return (
-              <Message from={message.role} key={message.id}>
+              <div key={message.id} id={`msg-${message.id}`} className="scroll-mt-4">
+              <Message from={message.role}>
                 <MessageContent>
                   {contentParts.map((part, index) => (
                     <MessagePartRenderer
@@ -236,6 +237,7 @@ export const ChatMessageList = ({
                   </span>
                 </MessageToolbar>
               </Message>
+              </div>
             );
           })}
           {status === 'streaming' && (

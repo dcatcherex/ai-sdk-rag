@@ -2,6 +2,8 @@
 
 import type { ChatStatus } from 'ai';
 import { BookOpenIcon, CheckIcon, GlobeIcon } from 'lucide-react';
+import { AgentSelector } from '@/features/agents/components/agent-selector';
+import type { Agent } from '@/features/agents/types';
 import {
   Attachment,
   AttachmentPreview,
@@ -76,6 +78,9 @@ type ChatComposerProps = {
   currentModel: { name: string; provider: string };
   modelSelectorOpen: boolean;
   useWebSearch: boolean;
+  agents: Agent[];
+  selectedAgentId: string | null;
+  onSelectAgent: (id: string | null) => void;
   onStop: () => void;
   onModelSelectorOpenChange: (open: boolean) => void;
   onSelectModel: (modelId: string) => void;
@@ -94,6 +99,9 @@ export const ChatComposer = ({
   currentModel,
   modelSelectorOpen,
   useWebSearch,
+  agents,
+  selectedAgentId,
+  onSelectAgent,
   onStop,
   onModelSelectorOpenChange,
   onSelectModel,
@@ -139,6 +147,11 @@ export const ChatComposer = ({
               <PromptInputActionAddAttachments />
             </PromptInputActionMenuContent>
           </PromptInputActionMenu>
+          <AgentSelector
+            agents={agents}
+            selectedAgentId={selectedAgentId}
+            onSelectAgent={onSelectAgent}
+          />
           <PromptInputButton
             onClick={onToggleWebSearch}
             variant={useWebSearch ? 'default' : 'ghost'}

@@ -14,6 +14,7 @@ type UseChatSessionOptions = {
   selectedDocIdsRef: React.RefObject<Set<string>>;
   enabledModelIdsRef: React.RefObject<string[]>;
   useWebSearchRef: React.RefObject<boolean>;
+  selectedAgentIdRef: React.RefObject<string | null>;
   activeMessages: ChatMessage[];
   queryClient: QueryClient;
   ensureThread: () => Promise<string>;
@@ -26,6 +27,7 @@ export const useChatSession = ({
   selectedDocIdsRef,
   enabledModelIdsRef,
   useWebSearchRef,
+  selectedAgentIdRef,
   activeMessages,
   queryClient,
   ensureThread,
@@ -44,6 +46,7 @@ export const useChatSession = ({
             ? [...selectedDocIdsRef.current]
             : undefined,
           enabledModelIds: enabledModelIdsRef.current,
+          agentId: selectedAgentIdRef.current ?? undefined,
         }),
       }),
     [
@@ -52,6 +55,7 @@ export const useChatSession = ({
       selectedDocIdsRef,
       enabledModelIdsRef,
       useWebSearchRef,
+      selectedAgentIdRef,
     ]
   );
 

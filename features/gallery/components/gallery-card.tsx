@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import { DownloadIcon, ImageIcon, SparklesIcon } from 'lucide-react';
+import { DownloadIcon, ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatRelativeTime } from '../utils';
 import type { MediaAsset } from '../types';
@@ -13,7 +13,10 @@ export const GalleryCard = ({ asset, onEdit }: Props) => {
   const preview = asset.thumbnailUrl ?? asset.url;
 
   return (
-    <div className="group relative aspect-square overflow-hidden rounded-lg border border-black/5 dark:border-white/10 shadow-[0_20px_40px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_40px_-30px_rgba(0,0,0,0.6)]">
+    <div
+      className="group relative aspect-square overflow-hidden rounded-lg border border-black/5 dark:border-white/10 shadow-[0_20px_40px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_40px_-30px_rgba(0,0,0,0.6)] cursor-pointer"
+      onClick={() => onEdit(asset)}
+    >
       <Image
         src={preview}
         alt="Generated asset"
@@ -32,15 +35,12 @@ export const GalleryCard = ({ asset, onEdit }: Props) => {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            <Button variant="secondary" size="icon-sm" onClick={() => onEdit(asset)}>
-              <SparklesIcon className="size-3" />
-            </Button>
-            <Button variant="secondary" size="icon-sm" asChild>
+            <Button variant="secondary" size="icon-sm" asChild onClick={(e) => e.stopPropagation()}>
               <a href={asset.url} target="_blank" rel="noreferrer">
                 <ImageIcon className="size-3" />
               </a>
             </Button>
-            <Button variant="outline" size="icon-sm" asChild>
+            <Button variant="outline" size="icon-sm" asChild onClick={(e) => e.stopPropagation()}>
               <a href={asset.url} download>
                 <DownloadIcon className="size-3" />
               </a>

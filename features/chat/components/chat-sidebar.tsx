@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  BotIcon,
   BrainCircuitIcon,
   ImageIcon,
   LogOutIcon,
@@ -485,6 +486,25 @@ const SidebarContent = ({
               </Button>
             </TooltipTrigger>
             {isCollapsed ? <TooltipContent side="right">AI Models</TooltipContent> : null}
+          </Tooltip>
+        </TooltipProvider>
+
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                asChild
+                variant={currentPath.startsWith('/agents') ? 'secondary' : 'ghost'}
+                size={isCollapsed ? 'icon' : 'sm'}
+                className={cn('justify-start gap-2', isCollapsed ? 'size-9' : 'w-full')}
+              >
+                <Link href="/agents" aria-label="Agents">
+                  <BotIcon className="size-4" />
+                  {!isCollapsed ? 'Agents' : null}
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            {isCollapsed ? <TooltipContent side="right">Agents</TooltipContent> : null}
           </Tooltip>
         </TooltipProvider>
 

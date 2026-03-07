@@ -6,6 +6,7 @@ import {
   DownloadIcon,
   FileTextIcon,
   MenuIcon,
+  TableOfContentsIcon,
   Trash2Icon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -65,6 +66,9 @@ type ChatHeaderProps = {
   knowledgePanelOpen: boolean;
   onToggleKnowledgePanel: () => void;
   docCount: number;
+  // Outline
+  outlinePanelOpen: boolean;
+  onToggleOutlinePanel: () => void;
   onOpenMobileSidebar?: () => void;
 };
 
@@ -80,6 +84,8 @@ export const ChatHeader = ({
   knowledgePanelOpen,
   onToggleKnowledgePanel,
   docCount,
+  outlinePanelOpen,
+  onToggleOutlinePanel,
   onOpenMobileSidebar,
 }: ChatHeaderProps) => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -187,6 +193,21 @@ export const ChatHeader = ({
             </TooltipProvider>
           </>
         )}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant={outlinePanelOpen ? 'default' : 'ghost'}
+                onClick={onToggleOutlinePanel}
+                className="size-8 md:size-9"
+              >
+                <TableOfContentsIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Conversation outline</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
