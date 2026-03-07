@@ -32,6 +32,7 @@ export async function GET(request: Request) {
   const type = searchParams.get("type");
   const rootAssetId = searchParams.get("rootAssetId");
   const threadId = searchParams.get("threadId");
+  const messageId = searchParams.get("messageId");
 
   const conditions = [eq(mediaAsset.userId, session.user.id)];
   if (type) {
@@ -43,6 +44,9 @@ export async function GET(request: Request) {
   }
   if (threadId) {
     conditions.push(eq(mediaAsset.threadId, threadId));
+  }
+  if (messageId) {
+    conditions.push(eq(mediaAsset.messageId, messageId));
   }
 
   let rows: Array<{

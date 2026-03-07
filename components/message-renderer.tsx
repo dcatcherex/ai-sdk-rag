@@ -12,11 +12,15 @@ import type { UIMessagePart } from 'ai';
 import { memo } from 'react';
 import Image from 'next/image';
 import { Streamdown } from 'streamdown';
+import { ShareIcon, CopyIcon, DownloadIcon } from 'lucide-react';
+import type { MediaAsset } from '@/features/gallery/types';
 
 export type MessagePartRendererProps = {
   part: UIMessagePart<any, any>;
   messageId: string;
+  threadId?: string;
   index: number;
+  onImageClick?: (asset: MediaAsset) => void;
 };
 
 type FilePart = {
@@ -27,6 +31,11 @@ type FilePart = {
   width?: number;
   height?: number;
   thumbnailUrl?: string;
+  assetId?: string;
+  parentAssetId?: string;
+  rootAssetId?: string;
+  version?: number;
+  editPrompt?: string;
 };
 
 const isFilePart = (part: UIMessagePart<any, any>): part is FilePart => {
@@ -38,7 +47,7 @@ const isFilePart = (part: UIMessagePart<any, any>): part is FilePart => {
 };
 
 export const MessagePartRenderer = memo(
-  ({ part, messageId, index }: MessagePartRendererProps) => {
+  ({ part, messageId, threadId, index, onImageClick }: MessagePartRendererProps) => {
     const key = `${messageId}-${index}`;
 
     // Safety check - if part is undefined or null, skip it
@@ -74,54 +83,125 @@ export const MessagePartRenderer = memo(
     // File attachment preview (including image outputs from multimodal models)
     if (isFilePart(part)) {
       if (part.mediaType.startsWith('image/')) {
+        const filePart = part as FilePart;
         const isDataUrl = part.url.startsWith('data:');
         const hasDimensions = typeof part.width === 'number' && typeof part.height === 'number';
         const previewUrl = !isDataUrl && part.thumbnailUrl ? part.thumbnailUrl : part.url;
-        const showFullLink = previewUrl !== part.url;
+        const canEdit = Boolean(onImageClick && !isDataUrl);
+
+        const handleEditClick = async () => {
+          if (!onImageClick) return;
+
+          // If assetId is already in the part, use it directly
+          if (filePart.assetId) {
+            onImageClick({
+              id: filePart.assetId,
+              type: 'image',
+              url: filePart.url,
+              thumbnailUrl: filePart.thumbnailUrl ?? null,
+              width: filePart.width ?? null,
+              height: filePart.height ?? null,
+              mimeType: filePart.mediaType,
+              threadId: threadId ?? '',
+              messageId,
+              parentAssetId: filePart.parentAssetId ?? null,
+              rootAssetId: filePart.rootAssetId ?? filePart.assetId,
+              version: filePart.version ?? 1,
+              editPrompt: filePart.editPrompt ?? null,
+              createdAtMs: Date.now(),
+            });
+            return;
+          }
+
+          // Fallback: look up asset by messageId from the API
+          if (messageId) {
+            try {
+              const res = await fetch(`/api/media-assets?messageId=${encodeURIComponent(messageId)}`);
+              if (res.ok) {
+                const data = await res.json() as { assets: MediaAsset[] };
+                const match = data.assets.find((a) => a.url === filePart.url || a.thumbnailUrl === filePart.thumbnailUrl);
+                if (match) { onImageClick(match); return; }
+              }
+            } catch { /* fall through */ }
+          }
+        };
+
+        const imgElement = hasDimensions && !isDataUrl ? (
+          <Image
+            src={previewUrl}
+            alt={part.filename ?? 'Generated image'}
+            width={part.width}
+            height={part.height}
+            sizes="(max-width: 768px) 100vw, 640px"
+            className="h-auto w-full rounded-md"
+          />
+        ) : (
+          <img
+            src={previewUrl}
+            alt={part.filename ?? 'Generated image'}
+            className="h-auto w-full rounded-md"
+          />
+        );
+
+        const handleShare = async (e: React.MouseEvent) => {
+          e.stopPropagation();
+          try {
+            await navigator.share({ url: part.url });
+          } catch {
+            await navigator.clipboard.writeText(part.url);
+          }
+        };
+
+        const handleCopy = async (e: React.MouseEvent) => {
+          e.stopPropagation();
+          try {
+            const res = await fetch(part.url);
+            const blob = await res.blob();
+            await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+          } catch {
+            await navigator.clipboard.writeText(part.url);
+          }
+        };
+
         return (
-          <div key={key} className="relative overflow-hidden rounded-lg border bg-muted/50 p-2">
-            {showFullLink ? (
-              <a href={part.url} target="_blank" rel="noreferrer">
-                {hasDimensions && !isDataUrl ? (
-                  <Image
-                    src={previewUrl}
-                    alt={part.filename ?? 'Generated image'}
-                    width={part.width}
-                    height={part.height}
-                    sizes="(max-width: 768px) 100vw, 640px"
-                    className="h-auto w-full rounded-md"
-                  />
-                ) : (
-                  <img
-                    src={previewUrl}
-                    alt={part.filename ?? 'Generated image'}
-                    className="h-auto w-full rounded-md"
-                  />
-                )}
-              </a>
-            ) : hasDimensions && !isDataUrl ? (
-              <Image
-                src={previewUrl}
-                alt={part.filename ?? 'Generated image'}
-                width={part.width}
-                height={part.height}
-                sizes="(max-width: 768px) 100vw, 640px"
-                className="h-auto w-full rounded-md"
-              />
-            ) : (
-              <img
-                src={previewUrl}
-                alt={part.filename ?? 'Generated image'}
-                className="h-auto w-full rounded-md"
-              />
-            )}
-            <a
-              href={part.url}
-              download={part.filename ?? 'image.webp'}
-              className="absolute bottom-2 right-2 inline-flex items-center rounded-full bg-background/90 px-3 py-1 text-xs font-medium text-foreground shadow"
+          <div
+            key={key}
+            className={`group/img relative overflow-hidden rounded-lg border bg-muted/50 p-2 ${canEdit ? 'cursor-pointer' : ''}`}
+            onClick={canEdit ? handleEditClick : undefined}
+          >
+            {imgElement}
+            {/* Button group — visible on hover */}
+            <div
+              className="absolute bottom-3 right-3 flex items-center gap-1.5 opacity-0 transition-opacity duration-150 group-hover/img:opacity-100"
+              onClick={(e) => e.stopPropagation()}
             >
-              Download
-            </a>
+              {typeof navigator !== 'undefined' && 'share' in navigator && (
+                <button
+                  type="button"
+                  title="Share"
+                  onClick={handleShare}
+                  className="flex size-8 items-center justify-center rounded-full bg-background/90 shadow hover:bg-background transition-colors"
+                >
+                  <ShareIcon className="size-3.5 text-foreground" />
+                </button>
+              )}
+              <button
+                type="button"
+                title="Copy image"
+                onClick={handleCopy}
+                className="flex size-8 items-center justify-center rounded-full bg-background/90 shadow hover:bg-background transition-colors"
+              >
+                <CopyIcon className="size-3.5 text-foreground" />
+              </button>
+              <a
+                href={part.url}
+                download={part.filename ?? 'image.webp'}
+                title="Download"
+                className="flex size-8 items-center justify-center rounded-full bg-background/90 shadow hover:bg-background transition-colors"
+              >
+                <DownloadIcon className="size-3.5 text-foreground" />
+              </a>
+            </div>
           </div>
         );
       }

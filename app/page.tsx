@@ -15,6 +15,8 @@ import { ChatComposer } from '@/features/chat/components/chat-composer';
 import { ChatMessageList } from '@/features/chat/components/chat-message-list';
 import { ChatSidebar } from '@/features/chat/components/chat-sidebar';
 import { ConversationOutline } from '@/features/chat/components/conversation-outline';
+import { ImageEditor } from '@/features/gallery/components/image-editor/image-editor';
+import { useImageEditor } from '@/features/gallery/hooks/use-image-editor';
 import { useAgents } from '@/features/agents/hooks/use-agents';
 import type { ChatMessage, RoutingMetadata } from '@/features/chat/types';
 import type { SystemPromptKey } from '@/lib/prompt';
@@ -92,6 +94,9 @@ export default function Chat() {
   });
 
   const { messageReactions, toggleReaction } = useMessageReactions(messages);
+
+  const imageEditorState = useImageEditor();
+  const { editorOpen, selectedAsset, openEditor, closeEditor } = imageEditorState;
 
   const lastRouting = useMemo((): RoutingMetadata | null => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -182,54 +187,66 @@ export default function Chat() {
         />
 
         <main className="flex h-[calc(100dvh-1rem)] flex-1 flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-900/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur md:h-[calc(100vh-3rem)] md:rounded-3xl">
-          <ChatHeader
-            activeThread={activeThread}
-            status={status}
-            lastRouting={lastRouting}
-            lastRoutingModel={lastRoutingModel}
-            lastPersona={lastPersona}
-            onDeleteThread={(threadId) => deleteThreadMutation.mutate(threadId)}
-            isDeleting={deleteThreadMutation.isPending}
-            onExport={handleExportConversation}
-            knowledgePanelOpen={knowledgePanelOpen}
-            onToggleKnowledgePanel={() => setKnowledgePanelOpen((v) => !v)}
-            outlinePanelOpen={outlinePanelOpen}
-            onToggleOutlinePanel={() => setOutlinePanelOpen((v) => !v)}
-            docCount={docStats?.totalDocuments ?? 0}
-            onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
-          />
+          {editorOpen && selectedAsset ? (
+            <ImageEditor
+              asset={selectedAsset}
+              onClose={closeEditor}
+              editorState={imageEditorState}
+            />
+          ) : (
+            <>
+              <ChatHeader
+                activeThread={activeThread}
+                status={status}
+                lastRouting={lastRouting}
+                lastRoutingModel={lastRoutingModel}
+                lastPersona={lastPersona}
+                onDeleteThread={(threadId) => deleteThreadMutation.mutate(threadId)}
+                isDeleting={deleteThreadMutation.isPending}
+                onExport={handleExportConversation}
+                knowledgePanelOpen={knowledgePanelOpen}
+                onToggleKnowledgePanel={() => setKnowledgePanelOpen((v) => !v)}
+                outlinePanelOpen={outlinePanelOpen}
+                onToggleOutlinePanel={() => setOutlinePanelOpen((v) => !v)}
+                docCount={docStats?.totalDocuments ?? 0}
+                onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
+              />
 
-          <ChatMessageList
-            messages={messages}
-            status={status}
-            copiedMessageId={copiedMessageId}
-            messageReactions={messageReactions}
-            onCopyMessage={copyToClipboard}
-            onRegenerateMessage={regenerateMessage}
-            onToggleReaction={toggleReaction}
-            onSuggestionClick={handleSuggestionClick}
-          />
+              <ChatMessageList
+                messages={messages}
+                status={status}
+                threadId={activeThreadId ?? undefined}
+                copiedMessageId={copiedMessageId}
+                messageReactions={messageReactions}
+                onCopyMessage={copyToClipboard}
+                onRegenerateMessage={regenerateMessage}
+                onToggleReaction={toggleReaction}
+                onSuggestionClick={handleSuggestionClick}
+                onImageClick={openEditor}
+              />
 
-          <ChatComposer
-            selectedDocCount={selectedDocIds.size}
-            status={status}
-            error={error}
-            selectedModel={selectedModel}
-            selectorModels={selectorModels}
-            currentModel={currentModel}
-            modelSelectorOpen={modelSelectorOpen}
-            useWebSearch={useWebSearch}
-            agents={agents}
-            selectedAgentId={selectedAgentId}
-            onSelectAgent={setSelectedAgentId}
-            onStop={stop}
-            onModelSelectorOpenChange={setModelSelectorOpen}
-            onSelectModel={handleSelectModel}
-            onToggleWebSearch={handleToggleWebSearch}
-            onSuggestionClick={handleSuggestionClick}
-            onTranscriptionChange={handleTranscription}
-            onSubmit={handleSubmitMessage}
-          />
+              <ChatComposer
+                selectedDocCount={selectedDocIds.size}
+                status={status}
+                error={error}
+                selectedModel={selectedModel}
+                selectorModels={selectorModels}
+                currentModel={currentModel}
+                modelSelectorOpen={modelSelectorOpen}
+                useWebSearch={useWebSearch}
+                agents={agents}
+                selectedAgentId={selectedAgentId}
+                onSelectAgent={setSelectedAgentId}
+                onStop={stop}
+                onModelSelectorOpenChange={setModelSelectorOpen}
+                onSelectModel={handleSelectModel}
+                onToggleWebSearch={handleToggleWebSearch}
+                onSuggestionClick={handleSuggestionClick}
+                onTranscriptionChange={handleTranscription}
+                onSubmit={handleSubmitMessage}
+              />
+            </>
+          )}
         </main>
 
         {outlinePanelOpen && (

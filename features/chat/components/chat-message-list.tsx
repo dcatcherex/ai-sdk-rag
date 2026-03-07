@@ -28,18 +28,21 @@ import {
   getTextContentFromParts,
 } from '../utils/message-parts';
 import type { ChatMessage, ChatMessageMetadata, ChatMessagePart, MessageReaction } from '../types';
+import type { MediaAsset } from '@/features/gallery/types';
 
 type ReactionMap = Record<string, MessageReaction | null>;
 
 type ChatMessageListProps = {
   messages: ChatMessage[];
   status: ChatStatus;
+  threadId?: string;
   copiedMessageId: string | null;
   messageReactions: ReactionMap;
   onCopyMessage: (messageId: string, text: string) => void;
   onRegenerateMessage: (messageId: string) => void;
   onToggleReaction: (messageId: string, reaction: MessageReaction) => void;
   onSuggestionClick: (suggestion: string) => void;
+  onImageClick?: (asset: MediaAsset) => void;
 };
 
 const EnhancedPromptChip = ({ text }: { text: string }) => {
@@ -85,12 +88,14 @@ const FollowUpChips = ({ suggestions, onSuggestionClick }: {
 export const ChatMessageList = ({
   messages,
   status,
+  threadId,
   copiedMessageId,
   messageReactions,
   onCopyMessage,
   onRegenerateMessage,
   onToggleReaction,
   onSuggestionClick,
+  onImageClick,
 }: ChatMessageListProps) => {
   const lastAssistantIdx = messages.reduce((acc, m, i) => (m.role === 'assistant' ? i : acc), -1);
 
@@ -136,7 +141,9 @@ export const ChatMessageList = ({
                       key={`${message.id}-${index}`}
                       part={part}
                       messageId={message.id}
+                      threadId={threadId}
                       index={index}
+                      onImageClick={onImageClick}
                     />
                   ))}
                   {enhancedPrompt && <EnhancedPromptChip text={enhancedPrompt} />}
