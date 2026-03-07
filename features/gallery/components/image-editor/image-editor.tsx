@@ -106,6 +106,8 @@ export const ImageEditor = ({ asset, onClose, editorState, activeGalleryVersionI
           <EditorCanvas
             selectedVersion={selectedVersion}
             maskCanvasRef={maskCanvasRef}
+            brushSize={brushSize}
+            activeTool={activeTool}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
