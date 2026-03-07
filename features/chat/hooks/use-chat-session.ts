@@ -158,6 +158,7 @@ export const useChatSession = ({
 
   return {
     messages,
+    setMessages,
     status,
     error,
     stop,

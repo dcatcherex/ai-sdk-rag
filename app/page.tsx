@@ -18,14 +18,29 @@ import { ConversationOutline } from '@/features/chat/components/conversation-out
 import { ImageEditor } from '@/features/gallery/components/image-editor/image-editor';
 import { useImageEditor } from '@/features/gallery/hooks/use-image-editor';
 import { useAgents } from '@/features/agents/hooks/use-agents';
+import { useComparePreset } from '@/features/chat/hooks/use-compare-preset';
+import { CompareGrid, type ComparePrompt } from '@/features/chat/components/compare-grid';
 import type { ChatMessage, RoutingMetadata } from '@/features/chat/types';
 import type { SystemPromptKey } from '@/lib/prompt';
+import type { PromptInputMessage } from '@/components/ai-elements/prompt-input';
 
 export default function Chat() {
   const [knowledgePanelOpen, setKnowledgePanelOpen] = useState(false);
   const [outlinePanelOpen, setOutlinePanelOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [useWebSearch, setUseWebSearch] = useState(false);
+  const [compareMode, setCompareMode] = useState(false);
+  const [submittedComparePrompt, setSubmittedComparePrompt] = useState<ComparePrompt | null>(null);
+  const [compareUserMessageId, setCompareUserMessageId] = useState<string>(() => crypto.randomUUID());
+  const { presetIds, presetMode, toggleModel: toggleCompareModel, clearPreset: clearPresetIds } = useComparePreset();
+  const clearPreset = useCallback(() => {
+    clearPresetIds();
+    setSubmittedComparePrompt(null);
+  }, [clearPresetIds]);
+  const handleToggleCompareMode = useCallback(() => {
+    setCompareMode((prev) => !prev);
+    if (compareMode) setSubmittedComparePrompt(null);
+  }, [compareMode]);
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const selectedDocIdsRef = useRef(selectedDocIds);
@@ -71,6 +86,7 @@ export default function Chat() {
 
   const {
     messages,
+    setMessages,
     status,
     error,
     stop,
@@ -154,6 +170,31 @@ export default function Chat() {
     setUseWebSearch((prev) => !prev);
   }, []);
 
+
+  const handleCompareSubmit = useCallback(
+    async ({ text }: PromptInputMessage) => {
+      if (!text.trim() || presetIds.length < 2) return;
+      await ensureThread();
+      const newUserMessageId = crypto.randomUUID();
+      setCompareUserMessageId(newUserMessageId);
+      setSubmittedComparePrompt({
+        text,
+        groupId: crypto.randomUUID(),
+        timestamp: Date.now(),
+      });
+    },
+    [presetIds.length, ensureThread]
+  );
+
+  const handleCompareAllComplete = useCallback(
+    (userMessage: import('@/features/chat/types').ChatMessage, assistantMessages: import('@/features/chat/types').ChatMessage[]) => {
+      setMessages((prev) => [...prev, userMessage, ...assistantMessages]);
+      setSubmittedComparePrompt(null);
+      void queryClient.invalidateQueries({ queryKey: ['credits'] });
+    },
+    [setMessages, queryClient]
+  );
+
   const handleSuggestionClick = useCallback(
     (suggestion: string) => {
       handleSubmitMessage({ text: suggestion, files: [] });
@@ -224,6 +265,17 @@ export default function Chat() {
                 onSuggestionClick={handleSuggestionClick}
                 onImageClick={openEditor}
               />
+              {compareMode && (
+                <div className="border-t border-black/5 dark:border-white/10 overflow-auto">
+                  <CompareGrid
+                    modelIds={presetIds}
+                    submittedPrompt={submittedComparePrompt}
+                    threadId={activeThreadId ?? ''}
+                    userMessageId={compareUserMessageId}
+                    onAllComplete={handleCompareAllComplete}
+                  />
+                </div>
+              )}
 
               <ChatComposer
                 selectedDocCount={selectedDocIds.size}
@@ -243,7 +295,13 @@ export default function Chat() {
                 onToggleWebSearch={handleToggleWebSearch}
                 onSuggestionClick={handleSuggestionClick}
                 onTranscriptionChange={handleTranscription}
-                onSubmit={handleSubmitMessage}
+                onSubmit={compareMode ? handleCompareSubmit : handleSubmitMessage}
+                compareMode={compareMode}
+                comparePresetIds={presetIds}
+                comparePresetMode={presetMode}
+                onToggleCompareMode={handleToggleCompareMode}
+                onToggleCompareModel={toggleCompareModel}
+                onClearComparePreset={clearPreset}
               />
             </>
           )}

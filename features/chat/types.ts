@@ -22,6 +22,10 @@ export type ChatMessageMetadata = {
   persona?: import('@/lib/prompt').SystemPromptKey;
   enhancedPrompt?: string;
   followUpSuggestions?: string[];
+  // Compare mode
+  compareGroupId?: string;
+  compareModelId?: string;
+  compareModelName?: string;
 };
 
 export type MessageReaction = 'thumbs_up' | 'thumbs_down';
