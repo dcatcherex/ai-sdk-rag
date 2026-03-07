@@ -149,6 +149,7 @@ const uploadImagePart = async (options: {
       messageId,
       rootAssetId: assetId,
       version: 1,
+      editPrompt: part.editPrompt ?? null,
       type: 'image',
       r2Key: fullUpload.key,
       url: fullUpload.url,
@@ -670,6 +671,7 @@ export async function POST(req: Request) {
             type: 'file',
             mediaType: generatedImage.mediaType,
             url: generatedImageDataUrl,
+            editPrompt: imagePrompt,
           },
         ],
       };

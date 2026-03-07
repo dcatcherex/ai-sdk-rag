@@ -1,15 +1,16 @@
 import Image from 'next/image';
-import { DownloadIcon, ImageIcon } from 'lucide-react';
+import { DownloadIcon, ImageIcon, LayersIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatRelativeTime } from '../utils';
 import type { MediaAsset } from '../types';
 
 type Props = {
   asset: MediaAsset;
+  versionCount?: number;
   onEdit: (asset: MediaAsset) => void;
 };
 
-export const GalleryCard = ({ asset, onEdit }: Props) => {
+export const GalleryCard = ({ asset, versionCount = 1, onEdit }: Props) => {
   const preview = asset.thumbnailUrl ?? asset.url;
 
   return (
@@ -17,6 +18,12 @@ export const GalleryCard = ({ asset, onEdit }: Props) => {
       className="group relative aspect-square overflow-hidden rounded-lg border border-black/5 dark:border-white/10 shadow-[0_20px_40px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_40px_-30px_rgba(0,0,0,0.6)] cursor-pointer"
       onClick={() => onEdit(asset)}
     >
+      {versionCount > 1 && (
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
+          <LayersIcon className="size-2.5" />
+          {versionCount}
+        </div>
+      )}
       <Image
         src={preview}
         alt="Generated asset"

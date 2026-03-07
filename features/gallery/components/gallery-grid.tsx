@@ -3,10 +3,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ImageIcon } from 'lucide-react';
 import { GalleryCard } from './gallery-card';
+import type { AssetGroup } from '../hooks/use-gallery-assets';
 import type { MediaAsset } from '../types';
 
 type Props = {
-  assets: MediaAsset[];
+  assetGroups: AssetGroup[];
+  activeVersions: Record<string, string>;
   isLoading: boolean;
   error: Error | null;
   filter: 'all' | 'image';
@@ -16,7 +18,7 @@ type Props = {
 
 const GRID_CLASS = 'grid gap-4 sm:grid-cols-2 xl:grid-cols-4 md:gap-2';
 
-export const GalleryGrid = ({ assets, isLoading, error, filter, onFilterChange, onEdit }: Props) => {
+export const GalleryGrid = ({ assetGroups, activeVersions, isLoading, error, filter, onFilterChange, onEdit }: Props) => {
   return (
     <div className="flex-1 overflow-y-auto px-4 py-5 md:px-6 md:py-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
@@ -50,7 +52,7 @@ export const GalleryGrid = ({ assets, isLoading, error, filter, onFilterChange, 
           All media
         </Button>
         <Badge variant="secondary" className="ml-auto">
-          {assets.length} items
+          {assetGroups.length} items
         </Badge>
       </section>
 
@@ -68,15 +70,26 @@ export const GalleryGrid = ({ assets, isLoading, error, filter, onFilterChange, 
           <Card className="rounded-3xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-800/80 p-8 text-sm text-muted-foreground">
             Unable to load media right now. Please refresh.
           </Card>
-        ) : assets.length === 0 ? (
+        ) : assetGroups.length === 0 ? (
           <Card className="rounded-3xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-800/80 p-8 text-sm text-muted-foreground">
             No media yet. Generate an image in chat to see it here.
           </Card>
         ) : (
           <div className={GRID_CLASS}>
-            {assets.map((asset) => (
-              <GalleryCard key={asset.id} asset={asset} onEdit={onEdit} />
-            ))}
+            {assetGroups.map(({ rootId, versions, count }) => {
+              const activeId = activeVersions[rootId];
+              const activeAsset = activeId
+                ? (versions.find((v) => v.id === activeId) ?? versions[versions.length - 1])
+                : versions[versions.length - 1];
+              return (
+                <GalleryCard
+                  key={rootId}
+                  asset={activeAsset}
+                  versionCount={count}
+                  onEdit={onEdit}
+                />
+              );
+            })}
           </div>
         )}
       </div>

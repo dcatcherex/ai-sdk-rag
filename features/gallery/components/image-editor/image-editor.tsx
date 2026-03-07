@@ -13,9 +13,12 @@ type Props = {
   asset: MediaAsset;
   onClose: () => void;
   editorState: ReturnType<typeof useImageEditor>;
+  activeGalleryVersionId?: string | null;
+  onSetActiveVersion?: (rootId: string, assetId: string) => void;
 };
 
-export const ImageEditor = ({ asset, onClose, editorState }: Props) => {
+export const ImageEditor = ({ asset, onClose, editorState, activeGalleryVersionId, onSetActiveVersion }: Props) => {
+  const rootId = asset.rootAssetId ?? asset.id;
   const {
     versionsOpen,
     setVersionsOpen,
@@ -113,7 +116,9 @@ export const ImageEditor = ({ asset, onClose, editorState }: Props) => {
           <VersionPanel
             versionHistory={versionHistory}
             selectedVersionId={selectedVersionId}
+            activeGalleryVersionId={activeGalleryVersionId}
             onSelectVersion={setSelectedVersionId}
+            onSetActiveVersion={onSetActiveVersion ? (assetId) => onSetActiveVersion(rootId, assetId) : undefined}
           />
         )}
       </div>

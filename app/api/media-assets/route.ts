@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -38,7 +38,8 @@ export async function GET(request: Request) {
     conditions.push(eq(mediaAsset.type, type));
   }
   if (rootAssetId) {
-    conditions.push(eq(mediaAsset.rootAssetId, rootAssetId));
+    // Include both the root asset itself (id = rootAssetId) and all its children (rootAssetId = rootAssetId)
+    conditions.push(or(eq(mediaAsset.id, rootAssetId), eq(mediaAsset.rootAssetId, rootAssetId))!);
   }
   if (threadId) {
     conditions.push(eq(mediaAsset.threadId, threadId));
