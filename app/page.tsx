@@ -95,6 +95,7 @@ export default function Chat() {
     copyToClipboard,
     handleSubmitMessage,
     regenerateMessage,
+    deleteMessage,
     handleExportConversation,
     handleTranscription,
   } = useChatSession({
@@ -196,12 +197,56 @@ export default function Chat() {
     [setMessages, queryClient]
   );
 
+  const handleVoiceTurnComplete = useCallback(
+    async (userText: string, aiText: string) => {
+      const threadId = await ensureThread();
+      await fetch('/api/voice-turn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ threadId, userText, aiText }),
+      });
+
+      // Fetch fresh messages and replace local state directly.
+      // Avoids duplicates — invalidateQueries uses prefix matching and would
+      // also refetch ['threads', threadId, 'messages'], creating duplicate IDs.
+      const msgRes = await fetch(`/api/threads/${threadId}/messages`);
+      const { messages: freshMessages } = await msgRes.json() as { messages: ChatMessage[] };
+      setMessages(freshMessages);
+      queryClient.setQueryData(['threads', threadId, 'messages'], freshMessages);
+
+      // Exact: true — only refresh the sidebar thread list, not child queries.
+      await queryClient.invalidateQueries({ queryKey: ['threads'], exact: true });
+    },
+    [ensureThread, queryClient, setMessages]
+  );
+
   const handleSuggestionClick = useCallback(
     (suggestion: string) => {
       handleSubmitMessage({ text: suggestion, files: [] });
     },
     [handleSubmitMessage]
   );
+
+  // Build voice history from current messages — text parts only, capped for context window
+  const voiceHistory = useMemo(() => {
+    return messages
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .flatMap((m) => {
+        const rawParts = m.parts as unknown;
+        const text = Array.isArray(rawParts)
+          ? (rawParts as Array<Record<string, unknown>>)
+              .filter((p) => p.type === 'text' && typeof p.text === 'string' && (p.text as string).trim())
+              .map((p) => p.text as string)
+              .join(' ')
+              .trim()
+          : typeof (m as { content?: string }).content === 'string'
+            ? ((m as { content: string }).content).trim()
+            : '';
+        // Skip empty, tool-call JSON blobs, or bare punctuation
+        if (!text || text.startsWith('{') || text.startsWith('`')) return [];
+        return [{ role: m.role as 'user' | 'assistant', text }];
+      });
+  }, [messages]);
 
   useChatKeyboardShortcuts({
     onCreateThread: handleCreateThread,
@@ -263,6 +308,7 @@ export default function Chat() {
                 messageReactions={messageReactions}
                 onCopyMessage={copyToClipboard}
                 onRegenerateMessage={regenerateMessage}
+                onDeleteMessage={deleteMessage}
                 onToggleReaction={toggleReaction}
                 onSuggestionClick={handleSuggestionClick}
                 onImageClick={openEditor}
@@ -298,6 +344,8 @@ export default function Chat() {
                 onSuggestionClick={handleSuggestionClick}
                 onTranscriptionChange={handleTranscription}
                 onSubmit={compareMode ? handleCompareSubmit : handleSubmitMessage}
+                onVoiceTurnComplete={handleVoiceTurnComplete}
+                voiceHistory={voiceHistory}
                 compareMode={compareMode}
                 comparePresetIds={presetIds}
                 comparePresetMode={presetMode}

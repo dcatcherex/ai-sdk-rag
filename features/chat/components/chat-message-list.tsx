@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { ChatStatus } from 'ai';
-import { CheckIcon, ChevronDownIcon, CopyIcon, RefreshCwIcon, SparklesIcon, ThumbsDownIcon, ThumbsUpIcon } from 'lucide-react';
+import { CheckIcon, ChevronDownIcon, CopyIcon, RefreshCwIcon, SparklesIcon, ThumbsDownIcon, ThumbsUpIcon, Trash2Icon } from 'lucide-react';
 import { Streamdown } from 'streamdown';
 import { CodeBlock } from '@/components/ai-elements/code-block';
 import { ModelSelectorLogo } from '@/components/ai-elements/model-selector';
@@ -20,6 +20,16 @@ import {
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import { Button } from '@/components/ui/button';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -32,6 +42,7 @@ import {
 } from '../utils/message-parts';
 import type { ChatMessage, ChatMessageMetadata, ChatMessagePart, MessageReaction } from '../types';
 import type { MediaAsset } from '@/features/gallery/types';
+import { SelectionContextMenu } from './selection-context-menu';
 
 type ReactionMap = Record<string, MessageReaction | null>;
 
@@ -47,6 +58,7 @@ type ChatMessageListProps = {
   onToggleReaction: (messageId: string, reaction: MessageReaction) => void;
   onSuggestionClick: (suggestion: string) => void;
   onImageClick?: (asset: MediaAsset) => void;
+  onDeleteMessage: (messageId: string, partnerMessageId?: string) => void;
 };
 
 // ── Compare group card ──────────────────────────────────────────────────────
@@ -204,8 +216,47 @@ export const ChatMessageList = ({
   onToggleReaction,
   onSuggestionClick,
   onImageClick,
+  onDeleteMessage,
 }: ChatMessageListProps) => {
   const lastAssistantIdx = messages.reduce((acc, m, i) => (m.role === 'assistant' ? i : acc), -1);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Pending delete: { messageId, partnerMessageId? }
+  type PendingDelete = { messageId: string; partnerMessageId?: string };
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  const [hoveredDeleteIds, setHoveredDeleteIds] = useState<Set<string>>(new Set());
+
+  const getPair = useRef((messageId: string, msgIndex: number): { messageId: string; partnerMessageId?: string } => {
+    const msg = messages[msgIndex];
+    let partnerMessageId: string | undefined;
+    if (msg.role === 'user') {
+      const next = messages[msgIndex + 1];
+      if (next?.role === 'assistant') partnerMessageId = next.id;
+    } else if (msg.role === 'assistant') {
+      const prev = messages[msgIndex - 1];
+      if (prev?.role === 'user') partnerMessageId = prev.id;
+    }
+    return { messageId, partnerMessageId };
+  });
+  getPair.current = (messageId: string, msgIndex: number) => {
+    const msg = messages[msgIndex];
+    let partnerMessageId: string | undefined;
+    if (msg.role === 'user') {
+      const next = messages[msgIndex + 1];
+      if (next?.role === 'assistant') partnerMessageId = next.id;
+    } else if (msg.role === 'assistant') {
+      const prev = messages[msgIndex - 1];
+      if (prev?.role === 'user') partnerMessageId = prev.id;
+    }
+    return { messageId, partnerMessageId };
+  };
+
+  const requestDelete = useRef((messageId: string, msgIndex: number) => {
+    setPendingDelete(getPair.current(messageId, msgIndex));
+  });
+  requestDelete.current = (messageId: string, msgIndex: number) => {
+    setPendingDelete(getPair.current(messageId, msgIndex));
+  };
 
   // Group consecutive compare-assistant messages together
   const groupedItems = useMemo((): MessageGroupItem[] => {
@@ -238,6 +289,7 @@ export const ChatMessageList = ({
   }, [messages]);
 
   return (
+  <div ref={contentRef} className="flex-1 flex flex-col overflow-hidden min-h-0">
   <Conversation className="flex-1">
     <ConversationContent className="px-3 md:px-6">
       {messages.length === 0 ? (
@@ -289,8 +341,18 @@ export const ChatMessageList = ({
               && isSyncingFollowUpSuggestions
               && followUpSuggestions.length === 0;
 
+            const isDeleteHighlighted = hoveredDeleteIds.has(message.id);
+
             return (
-              <div key={message.id} id={`msg-${message.id}`} className="scroll-mt-4">
+              <div
+                key={message.id}
+                id={`msg-${message.id}`}
+                className={`scroll-mt-4 rounded-xl transition-colors duration-150 ${
+                  isDeleteHighlighted
+                    ? 'bg-red-50/70 dark:bg-red-950/30 ring-1 ring-red-200 dark:ring-red-800/50'
+                    : ''
+                }`}
+              >
               <Message from={message.role}>
                 <MessageContent>
                   {contentParts.map((part, index) => (
@@ -365,6 +427,27 @@ export const ChatMessageList = ({
                         </Tooltip>
                       </TooltipProvider>
                     )}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="size-7 text-muted-foreground hover:text-red-500"
+                            onClick={() => requestDelete.current(message.id, msgIndex)}
+                            onMouseEnter={() => {
+                              const { messageId, partnerMessageId } = getPair.current(message.id, msgIndex);
+                              setHoveredDeleteIds(new Set([messageId, ...(partnerMessageId ? [partnerMessageId] : [])]));
+                            }}
+                            onMouseLeave={() => setHoveredDeleteIds(new Set())}
+                            disabled={status === 'streaming' || status === 'submitted'}
+                          >
+                            <Trash2Icon className="size-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Delete exchange</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     {message.role === 'assistant' && (
                       <>
                         <TooltipProvider>
@@ -427,6 +510,36 @@ export const ChatMessageList = ({
       )}
     </ConversationContent>
     <ConversationScrollButton />
+
+    <SelectionContextMenu containerRef={contentRef} onAction={onSuggestionClick} />
+
+    <AlertDialog open={!!pendingDelete} onOpenChange={(open) => { if (!open) setPendingDelete(null); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete this exchange?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {pendingDelete?.partnerMessageId
+              ? 'This will permanently remove the message and its paired response.'
+              : 'This will permanently remove this message.'}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-red-500 hover:bg-red-600 text-white"
+            onClick={() => {
+              if (pendingDelete) {
+                onDeleteMessage(pendingDelete.messageId, pendingDelete.partnerMessageId);
+                setPendingDelete(null);
+              }
+            }}
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </Conversation>
+  </div>
   );
 };

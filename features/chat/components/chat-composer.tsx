@@ -4,6 +4,8 @@ import { useCallback, useRef, useState } from 'react';
 import type { ChatStatus } from 'ai';
 import { toast } from 'sonner';
 import { AudioLinesIcon, BookOpenIcon, CheckIcon, Columns2Icon, GlobeIcon, SlidersHorizontalIcon, XIcon } from 'lucide-react';
+import { useLiveVoice, type VoiceHistoryTurn } from '@/features/chat/hooks/use-live-voice';
+import { VoiceMode } from '@/features/chat/components/voice-mode';
 import { AgentSelector } from '@/features/agents/components/agent-selector';
 import type { Agent } from '@/features/agents/types';
 import type { ComparePresetMode } from '@/features/chat/hooks/use-compare-preset';
@@ -263,13 +265,17 @@ const ComposerAttachments = () => {
 
 type ComposerActionButtonsProps = {
   status: ChatStatus;
+  voiceOpen: boolean;
   onStop: () => void;
+  onOpenVoice: () => void;
   onTranscriptionChange: (transcript: string) => void;
 };
 
 const ComposerActionButtons = ({
   status,
+  voiceOpen,
   onStop,
+  onOpenVoice,
   onTranscriptionChange,
 }: ComposerActionButtonsProps) => {
   const { textInput } = usePromptInputController();
@@ -334,9 +340,13 @@ const ComposerActionButtons = ({
       {isEmpty && !isDictating ? (
         <button
           type="button"
-          title="Real-time voice coming soon"
-          className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          onClick={() => alert('Real-time voice coming soon')}
+          title="Voice conversation"
+          onClick={onOpenVoice}
+          className={`flex size-8 items-center justify-center rounded-md transition-colors ${
+            voiceOpen
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800'
+          }`}
         >
           <AudioLinesIcon className="size-4" />
         </button>
@@ -368,6 +378,8 @@ type ChatComposerProps = {
   onSuggestionClick: (suggestion: string) => void;
   onTranscriptionChange: (transcript: string) => void;
   onSubmit: (message: PromptInputMessage) => void | Promise<void>;
+  onVoiceTurnComplete?: (userText: string, aiText: string) => Promise<void>;
+  voiceHistory?: VoiceHistoryTurn[];
   // Compare mode
   compareMode: boolean;
   comparePresetIds: string[];
@@ -377,7 +389,7 @@ type ChatComposerProps = {
   onClearComparePreset: () => void;
 };
 
-export const ChatComposer = ({
+export function ChatComposer({
   selectedDocCount,
   status,
   error,
@@ -396,121 +408,157 @@ export const ChatComposer = ({
   onSuggestionClick,
   onTranscriptionChange,
   onSubmit,
+  onVoiceTurnComplete,
+  voiceHistory,
   compareMode,
   comparePresetIds,
   comparePresetMode,
   onToggleCompareMode,
   onToggleCompareModel,
   onClearComparePreset,
-}: ChatComposerProps) => (
-  <div className="border-t border-black/5 dark:border-white/10 px-3 py-3 md:px-6 md:py-4">
-    {selectedDocCount > 0 && (
-      <div className="mb-2 flex items-center gap-1.5 text-xs text-primary">
-        <BookOpenIcon className="size-3.5" />
-        <span className="font-medium">
-          Grounded mode — answering from {selectedDocCount} selected document
-          {selectedDocCount !== 1 ? 's' : ''}
-        </span>
-      </div>
-    )}
-    {/* <Suggestions className="mb-3">
-      {composerSuggestions.map((suggestion) => (
-        <Suggestion
-          key={suggestion}
-          onClick={onSuggestionClick}
-          suggestion={suggestion}
-        />
-      ))}
-    </Suggestions> */}
-    <PromptInputProvider>
-    <PromptInput onSubmit={(message) => onSubmit(message)} >
-      <PromptInputHeader>
-        <ComposerAttachments />
-      </PromptInputHeader>
-      <PromptInputBody>
-        <PromptInputTextarea
-          className="max-h-[40vh] overflow-y-auto leading-6"
-          placeholder={
-            compareMode
-              ? 'Type a prompt to compare across models…'
-              : 'Ask anything or drop files to ground the response.'
-          }
-        />
-      </PromptInputBody>
-      <PromptInputFooter>
-        <PromptInputTools>
-          <PromptInputActionMenu>
-            <PromptInputActionMenuTrigger />
-            <PromptInputActionMenuContent>
-              <PromptInputActionAddAttachments />
-            </PromptInputActionMenuContent>
-          </PromptInputActionMenu>
-          {!compareMode && (
-            <AgentSelector
-              agents={agents}
-              selectedAgentId={selectedAgentId}
-              onSelectAgent={onSelectAgent}
-            />
-          )}
-          {!compareMode && (
-            <PromptInputButton
-              onClick={onToggleWebSearch}
-              variant={useWebSearch ? 'default' : 'ghost'}
-            >
-              <GlobeIcon className="size-4" />
-              <span>Search</span>
-            </PromptInputButton>
-          )}
-          {!compareMode && (
-            <ModelSelector open={modelSelectorOpen} onOpenChange={onModelSelectorOpenChange}>
-              <ModelSelectorTrigger asChild>
-                <PromptInputButton>
-                  <ModelSelectorLogo provider={currentModel.provider} />
-                  <ModelSelectorName>{currentModel.name}</ModelSelectorName>
-                </PromptInputButton>
-              </ModelSelectorTrigger>
-              <ModelSelectorContent>
-                <ModelSelectorList>
-                  <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
-                  {selectorModels.map((model) => (
-                    <ModelSelectorItem
-                      key={model.id}
-                      onSelect={() => onSelectModel(model.id)}
-                      value={model.id}
-                    >
-                      <ModelSelectorLogo provider={model.provider} />
-                      <ModelSelectorName>{model.name}</ModelSelectorName>
-                      {selectedModel === model.id ? (
-                        <CheckIcon className="ml-auto size-4" />
-                      ) : null}
-                    </ModelSelectorItem>
-                  ))}
-                </ModelSelectorList>
-              </ModelSelectorContent>
-            </ModelSelector>
-          )}
-          <CompareModelPicker
-            compareMode={compareMode}
-            comparePresetIds={comparePresetIds}
-            comparePresetMode={comparePresetMode}
-            selectorModels={selectorModels}
-            onToggleCompareMode={onToggleCompareMode}
-            onToggleCompareModel={onToggleCompareModel}
-            onClearComparePreset={onClearComparePreset}
+}: ChatComposerProps) {
+  const [voiceOpen, setVoiceOpen] = useState(false);
+
+  const {
+    voiceState,
+    transcript,
+    micLevel,
+    speakAloud,
+    connect,
+    disconnect,
+    toggleSpeakAloud,
+  } = useLiveVoice({
+    enabled: voiceOpen,
+    onError: (msg) => toast.error('Voice error', { description: msg }),
+    onTurnComplete: onVoiceTurnComplete,
+    history: voiceHistory,
+  });
+
+  const handleOpenVoice = useCallback(() => {
+    setVoiceOpen(true);
+    void connect();
+  }, [connect]);
+
+  const handleCloseVoice = useCallback(() => {
+    disconnect();
+    setVoiceOpen(false);
+  }, [disconnect]);
+
+  return (
+    <div className="relative border-t border-black/5 dark:border-white/10 px-3 py-3 md:px-6 md:py-4">
+      {voiceOpen && (
+        <div className="absolute bottom-full left-0 right-0 z-10 px-3 pb-1 md:px-6">
+          <VoiceMode
+            voiceState={voiceState}
+            transcript={transcript}
+            micLevel={micLevel}
+            speakAloud={speakAloud}
+            onClose={handleCloseVoice}
+            onToggleSpeakAloud={toggleSpeakAloud}
           />
-        </PromptInputTools>
-        <ComposerActionButtons
-          status={status}
-          onStop={onStop}
-          onTranscriptionChange={onTranscriptionChange}
-        />
-      </PromptInputFooter>
-    </PromptInput>
-    </PromptInputProvider>
-    {error ? (
-      <p className="mt-2 text-xs text-destructive">
-        {error.message || 'Something went wrong. Please try again.'}
-      </p>
-    ) : null}
-  </div>
-);
+        </div>
+      )}
+      {selectedDocCount > 0 && (
+        <div className="mb-2 flex items-center gap-1.5 text-xs text-primary">
+          <BookOpenIcon className="size-3.5" />
+          <span className="font-medium">
+            Grounded mode — answering from {selectedDocCount} selected document
+            {selectedDocCount !== 1 ? 's' : ''}
+          </span>
+        </div>
+      )}
+      <PromptInputProvider>
+      <PromptInput onSubmit={(message) => onSubmit(message)} >
+        <PromptInputHeader>
+          <ComposerAttachments />
+        </PromptInputHeader>
+        <PromptInputBody>
+          <PromptInputTextarea
+            className="max-h-[40vh] overflow-y-auto leading-6"
+            placeholder={
+              compareMode
+                ? 'Type a prompt to compare across models…'
+                : 'Ask anything or drop files to ground the response.'
+            }
+          />
+        </PromptInputBody>
+        <PromptInputFooter>
+          <PromptInputTools>
+            <PromptInputActionMenu>
+              <PromptInputActionMenuTrigger />
+              <PromptInputActionMenuContent>
+                <PromptInputActionAddAttachments />
+              </PromptInputActionMenuContent>
+            </PromptInputActionMenu>
+            {!compareMode && (
+              <AgentSelector
+                agents={agents}
+                selectedAgentId={selectedAgentId}
+                onSelectAgent={onSelectAgent}
+              />
+            )}
+            {!compareMode && (
+              <PromptInputButton
+                onClick={onToggleWebSearch}
+                variant={useWebSearch ? 'default' : 'ghost'}
+              >
+                <GlobeIcon className="size-4" />
+                <span>Search</span>
+              </PromptInputButton>
+            )}
+            {!compareMode && (
+              <ModelSelector open={modelSelectorOpen} onOpenChange={onModelSelectorOpenChange}>
+                <ModelSelectorTrigger asChild>
+                  <PromptInputButton>
+                    <ModelSelectorLogo provider={currentModel.provider} />
+                    <ModelSelectorName>{currentModel.name}</ModelSelectorName>
+                  </PromptInputButton>
+                </ModelSelectorTrigger>
+                <ModelSelectorContent>
+                  <ModelSelectorList>
+                    <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
+                    {selectorModels.map((model) => (
+                      <ModelSelectorItem
+                        key={model.id}
+                        onSelect={() => onSelectModel(model.id)}
+                        value={model.id}
+                      >
+                        <ModelSelectorLogo provider={model.provider} />
+                        <ModelSelectorName>{model.name}</ModelSelectorName>
+                        {selectedModel === model.id ? (
+                          <CheckIcon className="ml-auto size-4" />
+                        ) : null}
+                      </ModelSelectorItem>
+                    ))}
+                  </ModelSelectorList>
+                </ModelSelectorContent>
+              </ModelSelector>
+            )}
+            <CompareModelPicker
+              compareMode={compareMode}
+              comparePresetIds={comparePresetIds}
+              comparePresetMode={comparePresetMode}
+              selectorModels={selectorModels}
+              onToggleCompareMode={onToggleCompareMode}
+              onToggleCompareModel={onToggleCompareModel}
+              onClearComparePreset={onClearComparePreset}
+            />
+          </PromptInputTools>
+          <ComposerActionButtons
+            status={status}
+            voiceOpen={voiceOpen}
+            onStop={onStop}
+            onOpenVoice={handleOpenVoice}
+            onTranscriptionChange={onTranscriptionChange}
+          />
+        </PromptInputFooter>
+      </PromptInput>
+      </PromptInputProvider>
+      {error ? (
+        <p className="mt-2 text-xs text-destructive">
+          {error.message || 'Something went wrong. Please try again.'}
+        </p>
+      ) : null}
+    </div>
+  );
+}

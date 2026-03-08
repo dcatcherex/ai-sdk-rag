@@ -238,6 +238,31 @@ export const useChatSession = ({
     [messages, setMessages, sendMessage]
   );
 
+  const deleteMessage = useCallback(
+    async (messageId: string, partnerMessageId?: string) => {
+      const idsToRemove = new Set([messageId, ...(partnerMessageId ? [partnerMessageId] : [])]);
+      const snapshot = messages;
+
+      // Optimistically update UI
+      setMessages(messages.filter((m) => !idsToRemove.has(m.id)));
+
+      try {
+        await fetch(`/api/messages/${messageId}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ alsoDeleteId: partnerMessageId }),
+        });
+        if (activeThreadId) {
+          await queryClient.invalidateQueries({ queryKey: ['threads', activeThreadId, 'messages'] });
+        }
+      } catch (err) {
+        console.error('Failed to delete message:', err);
+        setMessages(snapshot);
+      }
+    },
+    [messages, setMessages, activeThreadId, queryClient]
+  );
+
   const handleExportConversation = useCallback(
     async (format: 'json' | 'markdown') => {
       if (!activeThreadId) {
@@ -268,6 +293,7 @@ export const useChatSession = ({
     copyToClipboard,
     handleSubmitMessage,
     regenerateMessage,
+    deleteMessage,
     handleExportConversation,
     handleTranscription,
   };
