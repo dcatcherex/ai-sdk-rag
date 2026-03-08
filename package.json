@@ -12,6 +12,7 @@
     "@ai-sdk/openai": "^3.0.25",
     "@ai-sdk/react": "^3.0.71",
     "@aws-sdk/client-s3": "^3.888.0",
+    "@google/genai": "^1.44.0",
     "@neondatabase/serverless": "^1.0.2",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tooltip": "^1.2.8",
