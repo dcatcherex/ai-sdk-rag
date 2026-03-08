@@ -96,8 +96,28 @@ ${existingContext || '(none yet)'}`;
 
     if (validFacts.length === 0) return;
 
+    // String-based dedup: fetch existing fact texts and skip near-duplicates
+    const existingFacts = await db
+      .select({ fact: userMemory.fact })
+      .from(userMemory)
+      .where(eq(userMemory.userId, userId));
+
+    const normalize = (s: string) =>
+      s.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim().replace(/\s+/g, ' ');
+
+    const existingNorms = existingFacts.map((f) => normalize(f.fact));
+
+    const dedupedFacts = validFacts.filter((f) => {
+      const newNorm = normalize(f.fact);
+      return !existingNorms.some(
+        (ex) => ex === newNorm || (newNorm.length > 15 && (ex.includes(newNorm) || newNorm.includes(ex)))
+      );
+    });
+
+    if (dedupedFacts.length === 0) return;
+
     await db.insert(userMemory).values(
-      validFacts.map((f) => ({
+      dedupedFacts.map((f) => ({
         id: nanoid(),
         userId,
         category: f.category,

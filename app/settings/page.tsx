@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { BrainCircuitIcon, SparklesIcon, Trash2Icon } from 'lucide-react';
+import { BrainCircuitIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, GitMergeIcon, PencilIcon, SparklesIcon, Trash2Icon, XIcon } from 'lucide-react';
 import { ChatSidebar } from '@/features/chat/components/chat-sidebar';
 import { useThreads } from '@/features/chat/hooks/use-threads';
 import { useUserProfile } from '@/features/chat/hooks/use-user-profile';
@@ -23,6 +23,8 @@ type Preferences = {
   promptEnhancementEnabled: boolean;
 };
 
+const CATEGORY_ORDER = ['expertise', 'preference', 'context', 'goal'] as const;
+
 const CATEGORY_LABELS: Record<string, string> = {
   preference: 'Preference',
   expertise: 'Expertise',
@@ -37,6 +39,10 @@ const CATEGORY_COLORS: Record<string, string> = {
   goal: 'bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400',
 };
 
+function normalizeFact(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim().replace(/\s+/g, ' ');
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -44,6 +50,10 @@ export default function SettingsPage() {
   const [prefs, setPrefs] = useState<Preferences>({ memoryEnabled: true, promptEnhancementEnabled: true });
   const [isLoadingFacts, setIsLoadingFacts] = useState(true);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ ...CATEGORY_ORDER.reduce((acc, cat) => ({ ...acc, [cat]: true }), {}) }); // default: all collapsed
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const editRef = useRef<HTMLTextAreaElement>(null);
 
   const {
     activeThreadId,
@@ -106,6 +116,54 @@ export default function SettingsPage() {
     }
   };
 
+  const startEdit = (fact: MemoryFact) => {
+    setEditingId(fact.id);
+    setEditValue(fact.fact);
+    setTimeout(() => editRef.current?.focus(), 0);
+  };
+
+  const cancelEdit = () => setEditingId(null);
+
+  const saveFact = async (id: string) => {
+    const trimmed = editValue.trim();
+    if (!trimmed) return;
+    setFacts((prev) => prev.map((f) => (f.id === id ? { ...f, fact: trimmed } : f)));
+    setEditingId(null);
+    await fetch(`/api/user/memory/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fact: trimmed }),
+    });
+  };
+
+  const consolidate = async () => {
+    const seen = new Map<string, string>();
+    const toDelete: string[] = [];
+    for (const fact of [...facts].reverse()) {
+      const norm = normalizeFact(fact.fact);
+      if (seen.has(norm)) {
+        toDelete.push(fact.id);
+      } else {
+        seen.set(norm, fact.id);
+      }
+    }
+    if (toDelete.length === 0) return;
+    setFacts((prev) => prev.filter((f) => !toDelete.includes(f.id)));
+    await Promise.all(toDelete.map((id) => fetch(`/api/user/memory/${id}`, { method: 'DELETE' })));
+  };
+
+  const toggleCategory = (cat: string) =>
+    setCollapsed((prev) => ({ ...prev, [cat]: !prev[cat] }));
+
+  const grouped: Array<{ category: string; facts: MemoryFact[] }> = CATEGORY_ORDER
+    .map((cat) => ({ category: cat, facts: facts.filter((f) => f.category === cat) }))
+    .filter((g) => g.facts.length > 0);
+
+  // also catch any facts with unknown categories
+  const knownCats = new Set(CATEGORY_ORDER as readonly string[]);
+  const otherFacts = facts.filter((f) => !knownCats.has(f.category));
+  if (otherFacts.length > 0) grouped.push({ category: 'other', facts: otherFacts });
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f7f7f9,#eef0f7_55%,#e6e9f2_100%)] dark:bg-[radial-gradient(circle_at_top,#1a1b2e,#111827_55%,#0f172a_100%)]">
       <div className="mx-auto flex min-h-screen w-full max-w-6xl gap-3 px-2 py-2 md:gap-6 md:px-4 md:py-6">
@@ -163,37 +221,92 @@ export default function SettingsPage() {
                 <p className="text-sm text-muted-foreground italic">No facts stored yet. Start chatting to build your memory.</p>
               ) : (
                 <>
-                  <div className="space-y-2 mb-4">
-                    {facts.map((fact) => (
-                      <div
-                        key={fact.id}
-                        className="flex items-start gap-3 rounded-lg border border-black/5 dark:border-white/10 bg-white/50 dark:bg-zinc-800/30 px-3 py-2.5"
-                      >
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${CATEGORY_COLORS[fact.category] ?? 'bg-muted text-muted-foreground'}`}>
-                          {CATEGORY_LABELS[fact.category] ?? fact.category}
-                        </span>
-                        <p className="flex-1 text-sm text-foreground">{fact.fact}</p>
+                  <div className="space-y-3 mb-4">
+                    {grouped.map(({ category, facts: catFacts }) => (
+                      <div key={category} className="rounded-lg border border-black/5 dark:border-white/10 overflow-hidden">
+                        {/* Category header */}
                         <button
                           type="button"
-                          onClick={() => void deleteFact(fact.id)}
-                          className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive transition-colors"
-                          aria-label="Delete fact"
+                          onClick={() => toggleCategory(category)}
+                          className="w-full flex items-center gap-2 px-3 py-2 bg-black/2 dark:bg-white/3 hover:bg-black/4 dark:hover:bg-white/5 transition-colors"
                         >
-                          <Trash2Icon className="size-3.5" />
+                          {collapsed[category]
+                            ? <ChevronRightIcon className="size-3.5 text-muted-foreground shrink-0" />
+                            : <ChevronDownIcon className="size-3.5 text-muted-foreground shrink-0" />}
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${CATEGORY_COLORS[category] ?? 'bg-muted text-muted-foreground'}`}>
+                            {CATEGORY_LABELS[category] ?? category}
+                          </span>
+                          <span className="text-xs text-muted-foreground">{catFacts.length}</span>
                         </button>
+
+                        {/* Facts list */}
+                        {!collapsed[category] && (
+                          <div className="divide-y divide-black/5 dark:divide-white/5">
+                            {catFacts.map((fact) => (
+                              <div key={fact.id} className="flex items-start gap-2 px-3 py-2 bg-white/50 dark:bg-zinc-800/20 group">
+                                {editingId === fact.id ? (
+                                  <>
+                                    <textarea
+                                      ref={editRef}
+                                      value={editValue}
+                                      onChange={(e) => setEditValue(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void saveFact(fact.id); }
+                                        if (e.key === 'Escape') cancelEdit();
+                                      }}
+                                      rows={2}
+                                      className="flex-1 text-sm bg-transparent border border-black/10 dark:border-white/10 rounded px-2 py-1 resize-none focus:outline-none focus:ring-1 focus:ring-black/20 dark:focus:ring-white/20"
+                                    />
+                                    <div className="flex flex-col gap-1 shrink-0">
+                                      <button type="button" onClick={() => void saveFact(fact.id)} className="rounded p-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors" aria-label="Save">
+                                        <CheckIcon className="size-3.5" />
+                                      </button>
+                                      <button type="button" onClick={cancelEdit} className="rounded p-1 text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors" aria-label="Cancel">
+                                        <XIcon className="size-3.5" />
+                                      </button>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <p className="flex-1 text-sm text-foreground">{fact.fact}</p>
+                                    <div className="flex gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <button type="button" onClick={() => startEdit(fact)} className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors" aria-label="Edit fact">
+                                        <PencilIcon className="size-3.5" />
+                                      </button>
+                                      <button type="button" onClick={() => void deleteFact(fact.id)} className="rounded p-1 text-muted-foreground hover:text-destructive transition-colors" aria-label="Delete fact">
+                                        <Trash2Icon className="size-3.5" />
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void clearAllFacts()}
-                    disabled={isDeletingAll}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2Icon className="mr-2 size-3.5" />
-                    {isDeletingAll ? 'Clearing…' : 'Clear all facts'}
-                  </Button>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void consolidate()}
+                    >
+                      <GitMergeIcon className="mr-2 size-3.5" />
+                      Consolidate duplicates
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void clearAllFacts()}
+                      disabled={isDeletingAll}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2Icon className="mr-2 size-3.5" />
+                      {isDeletingAll ? 'Clearing…' : 'Clear all facts'}
+                    </Button>
+                  </div>
                 </>
               )}
             </section>
