@@ -208,7 +208,7 @@ export async function POST(req: Request) {
         id: crypto.randomUUID(),
         role: 'assistant',
         metadata: messageMetadata(),
-        parts: [{ type: 'file', mediaType: generatedImage.mediaType, url: imageDataUrl, editPrompt: imagePrompt }],
+        parts: [{ type: 'file', mediaType: generatedImage.mediaType, url: imageDataUrl, editPrompt: imagePrompt } as ChatMessage['parts'][number]],
       };
 
       await persistChatResult({

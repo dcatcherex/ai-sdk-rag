@@ -239,8 +239,8 @@ export default function Chat() {
               .map((p) => p.text as string)
               .join(' ')
               .trim()
-          : typeof (m as { content?: string }).content === 'string'
-            ? ((m as { content: string }).content).trim()
+          : typeof (m as unknown as { content?: string }).content === 'string'
+            ? ((m as unknown as { content: string }).content).trim()
             : '';
         // Skip empty, tool-call JSON blobs, or bare punctuation
         if (!text || text.startsWith('{') || text.startsWith('`')) return [];

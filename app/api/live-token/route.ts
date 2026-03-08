@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Modality } from '@google/genai';
 import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 
@@ -21,7 +21,7 @@ export async function GET() {
       liveConnectConstraints: {
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         config: {
-          responseModalities: ['AUDIO'],
+          responseModalities: [Modality.AUDIO],
           inputAudioTranscription: {},
           outputAudioTranscription: {},
         },
