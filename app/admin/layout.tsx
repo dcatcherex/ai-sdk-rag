@@ -18,7 +18,6 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { authClient } from '@/lib/auth-client';
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboardIcon },
@@ -57,7 +56,7 @@ export default function AdminLayout({
 
   if (checking) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-sm text-muted-foreground">Checking access…</div>
       </div>
     );
@@ -67,7 +66,7 @@ export default function AdminLayout({
 
   const navContent = (
     <>
-      <nav className="flex flex-1 flex-col gap-1 p-3">
+      <nav className="flex flex-1 flex-col gap-0.5 p-3">
         {navItems.map((item) => {
           const isActive =
             item.href === '/admin'
@@ -107,9 +106,9 @@ export default function AdminLayout({
   );
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-muted/40 dark:bg-background">
       {/* Desktop sidebar */}
-      <aside className="hidden w-56 flex-col border-r bg-white md:flex">
+      <aside className="hidden w-56 flex-col border-r bg-card md:flex">
         <div className="flex items-center gap-2 border-b px-5 py-4">
           <ShieldIcon className="size-5 text-primary" />
           <span className="text-sm font-bold tracking-tight">Admin Panel</span>
@@ -132,7 +131,7 @@ export default function AdminLayout({
       {/* Main content */}
       <main className="flex-1 overflow-auto">
         {/* Mobile top bar */}
-        <div className="flex items-center gap-3 border-b bg-white px-4 py-3 md:hidden">
+        <div className="flex items-center gap-3 border-b bg-card px-4 py-3 md:hidden">
           <Button size="icon" variant="ghost" onClick={() => setMobileNavOpen(true)}>
             <MenuIcon className="size-5" />
           </Button>

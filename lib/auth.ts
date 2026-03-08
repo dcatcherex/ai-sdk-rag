@@ -3,11 +3,14 @@ import { createElement } from "react";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { magicLink } from "better-auth/plugins";
+import { eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
+import { user as userTable } from "@/db/schema";
 import { MagicLinkEmail, ResetPasswordEmail, VerificationEmail } from "@/lib/email-templates";
 import { sendEmail } from "@/lib/email";
 import { addCredits, SIGNUP_BONUS_CREDITS } from "@/lib/credits";
+import { isAdminEmail } from "@/lib/admin";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -78,7 +81,17 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
+        before: async (userData) => {
+          if (process.env.DISABLE_SIGNUP === 'true') {
+            throw new Error('New registrations are currently disabled.');
+          }
+          return { data: userData };
+        },
         after: async (user) => {
+          // If approval required and not an admin, mark as unapproved
+          if (process.env.REQUIRE_APPROVAL === 'true' && !isAdminEmail(user.email)) {
+            await db.update(userTable).set({ approved: false }).where(eq(userTable.id, user.id));
+          }
           await addCredits({
             userId: user.id,
             amount: SIGNUP_BONUS_CREDITS,

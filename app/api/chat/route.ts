@@ -10,7 +10,7 @@ import { headers } from 'next/headers';
 import { and, eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { agent, chatThread, userPreferences } from '@/db/schema';
+import { agent, chatThread, user as userTable, userPreferences } from '@/db/schema';
 import { availableModels, maxSteps } from '@/lib/ai';
 import { getSystemPrompt, detectSystemPromptKey } from '@/lib/prompt';
 import { enhancePrompt } from '@/lib/prompt-enhance';
@@ -37,6 +37,19 @@ export async function POST(req: Request) {
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session?.user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check approval status
+    const userRow = await db
+      .select({ approved: userTable.approved })
+      .from(userTable)
+      .where(eq(userTable.id, session.user.id))
+      .limit(1);
+    if (!userRow[0]?.approved) {
+      return Response.json(
+        { error: 'Your account is pending approval. Please contact the admin.' },
+        { status: 403 }
+      );
     }
 
     const { messages, threadId, model, useWebSearch, selectedDocumentIds, enabledModelIds, agentId } =

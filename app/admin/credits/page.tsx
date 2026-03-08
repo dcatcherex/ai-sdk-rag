@@ -32,11 +32,11 @@ type Transaction = {
   createdAt: string;
 };
 
-const TYPE_LABELS: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  grant: { label: 'Grant', variant: 'default' },
-  usage: { label: 'Usage', variant: 'secondary' },
-  refund: { label: 'Refund', variant: 'outline' },
-  signup_bonus: { label: 'Signup Bonus', variant: 'default' },
+const TYPE_LABELS: Record<string, { label: string; className: string }> = {
+  grant:        { label: 'Grant',        className: 'border-green-300 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400' },
+  usage:        { label: 'Usage',        className: 'border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-400' },
+  refund:       { label: 'Refund',       className: 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-400' },
+  signup_bonus: { label: 'Signup Bonus', className: 'border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-400' },
 };
 
 export default function AdminCreditsPage() {
@@ -99,16 +99,16 @@ export default function AdminCreditsPage() {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-lg border bg-white">
+      <div className="overflow-x-auto rounded-xl border bg-card shadow-sm">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>User</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead className="text-right">Balance After</TableHead>
-              <TableHead>Description</TableHead>
+            <TableRow className="bg-muted/50 hover:bg-muted/50">
+              <TableHead className="font-semibold text-foreground">Date</TableHead>
+              <TableHead className="font-semibold text-foreground">User</TableHead>
+              <TableHead className="font-semibold text-foreground">Type</TableHead>
+              <TableHead className="text-right font-semibold text-foreground">Amount</TableHead>
+              <TableHead className="text-right font-semibold text-foreground">Balance After</TableHead>
+              <TableHead className="font-semibold text-foreground">Description</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -128,35 +128,35 @@ export default function AdminCreditsPage() {
               transactions.map((tx) => {
                 const typeInfo = TYPE_LABELS[tx.type] ?? {
                   label: tx.type,
-                  variant: 'outline' as const,
+                  className: 'border-border bg-muted text-muted-foreground',
                 };
                 return (
-                  <TableRow key={tx.id}>
+                  <TableRow key={tx.id} className="hover:bg-muted/30">
                     <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                       {formatDateTime(tx.createdAt)}
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">
                         <span className="font-medium">{tx.userName ?? '—'}</span>
-                        <span className="ml-1.5 text-muted-foreground">
-                          {tx.userEmail}
-                        </span>
+                        {tx.userEmail && (
+                          <span className="ml-1.5 text-muted-foreground">
+                            {tx.userEmail}
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={typeInfo.variant} className="text-xs">
+                      <Badge variant="outline" className={`text-xs ${typeInfo.className}`}>
                         {typeInfo.label}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm">
-                      <span
-                        className={tx.amount > 0 ? 'text-green-600' : 'text-red-500'}
-                      >
+                    <TableCell className="text-right font-mono text-sm font-medium">
+                      <span className={tx.amount > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
                         {tx.amount > 0 ? '+' : ''}
                         {tx.amount}
                       </span>
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm">
+                    <TableCell className="text-right font-mono text-sm text-muted-foreground">
                       {tx.balance}
                     </TableCell>
                     <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
