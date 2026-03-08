@@ -3,7 +3,6 @@
 import Link from "next/link";
 import {
   BotIcon,
-  BrainCircuitIcon,
   ImageIcon,
   PlusIcon,
   SearchIcon,
@@ -30,12 +29,6 @@ const NAV_ITEMS: NavItem[] = [
     label: "Media gallery",
     icon: <ImageIcon className="size-4" />,
     matchFn: (p) => p.startsWith("/gallery"),
-  },
-  {
-    href: "/models",
-    label: "AI Models",
-    icon: <BrainCircuitIcon className="size-4" />,
-    matchFn: (p) => p.startsWith("/models"),
   },
   {
     href: "/agents",

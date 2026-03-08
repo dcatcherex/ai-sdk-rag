@@ -3,11 +3,29 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  BrainCircuitIcon,
+  MonitorIcon,
+  MoonIcon,
+  PaletteIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   SettingsIcon,
+  SunIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useTheme } from "@/lib/theme";
 import {
   Tooltip,
   TooltipContent,
@@ -61,6 +79,7 @@ export const SidebarContent = ({
 }: Props) => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -152,30 +171,75 @@ export const SidebarContent = ({
           isCollapsed ? "flex flex-col items-center gap-2" : "space-y-1",
         )}
       >
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                asChild
-                variant={
-                  currentPath.startsWith("/settings") ? "secondary" : "ghost"
-                }
-                size={isCollapsed ? "icon" : "sm"}
-                className={cn(
-                  isCollapsed ? "size-9" : "justify-start gap-2 w-full",
-                )}
-              >
-                <Link href="/settings" aria-label="Settings">
-                  <SettingsIcon className="size-4" />
-                  {!isCollapsed ? "Settings & help" : null}
-                </Link>
-              </Button>
-            </TooltipTrigger>
-            {isCollapsed ? (
-              <TooltipContent side="right">Settings & help</TooltipContent>
-            ) : null}
-          </Tooltip>
-        </TooltipProvider>
+        <DropdownMenu>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant={
+                      currentPath.startsWith("/settings") ||
+                      currentPath.startsWith("/models")
+                        ? "secondary"
+                        : "ghost"
+                    }
+                    size={isCollapsed ? "icon" : "sm"}
+                    className={cn(
+                      isCollapsed ? "size-9" : "justify-start gap-2 w-full",
+                    )}
+                  >
+                    <SettingsIcon className="size-4" />
+                    {!isCollapsed ? "Settings & help" : null}
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              {isCollapsed ? (
+                <TooltipContent side="right">Settings & help</TooltipContent>
+              ) : null}
+            </Tooltip>
+          </TooltipProvider>
+          <DropdownMenuContent side="top" align="start" className="w-48">
+            <DropdownMenuItem asChild>
+              <Link href="/models">
+                <BrainCircuitIcon className="size-4" />
+                AI Models
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <PaletteIcon className="size-4" />
+                Theme
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuRadioGroup
+                  value={theme}
+                  onValueChange={(v) => setTheme(v as "light" | "dark" | "system")}
+                >
+                  <DropdownMenuRadioItem value="light">
+                    <SunIcon className="size-4" />
+                    Light
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="dark">
+                    <MoonIcon className="size-4" />
+                    Dark
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="system">
+                    <MonitorIcon className="size-4" />
+                    System
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/settings">
+                <SettingsIcon className="size-4" />
+                Settings
+              </Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <SidebarAccount
           sessionData={sessionData}
