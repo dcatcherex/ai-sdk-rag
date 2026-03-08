@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { ChatStatus } from 'ai';
-import { BookOpenIcon, CheckIcon, Columns2Icon, GlobeIcon, SlidersHorizontalIcon, XIcon } from 'lucide-react';
+import { toast } from 'sonner';
+import { AudioLinesIcon, BookOpenIcon, CheckIcon, Columns2Icon, GlobeIcon, SlidersHorizontalIcon, XIcon } from 'lucide-react';
 import { AgentSelector } from '@/features/agents/components/agent-selector';
 import type { Agent } from '@/features/agents/types';
 import type { ComparePresetMode } from '@/features/chat/hooks/use-compare-preset';
@@ -35,8 +36,10 @@ import {
   PromptInputHeader,
   PromptInputSubmit,
   PromptInputTextarea,
+  PromptInputProvider,
   PromptInputTools,
   usePromptInputAttachments,
+  usePromptInputController,
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input';
 import { SpeechInput } from '@/components/ai-elements/speech-input';
@@ -256,6 +259,96 @@ const ComposerAttachments = () => {
   );
 };
 
+// ── Composer action buttons (voice / submit) ──────────────────────────────────
+
+type ComposerActionButtonsProps = {
+  status: ChatStatus;
+  onStop: () => void;
+  onTranscriptionChange: (transcript: string) => void;
+};
+
+const ComposerActionButtons = ({
+  status,
+  onStop,
+  onTranscriptionChange,
+}: ComposerActionButtonsProps) => {
+  const { textInput } = usePromptInputController();
+  const [isDictating, setIsDictating] = useState(false);
+  const isEmpty = textInput.value.trim() === '';
+  const isGenerating = status === 'submitted' || status === 'streaming';
+
+  // Keep textInput in a ref so handleTranscription stays stable (no recognition restarts)
+  const textInputRef = useRef(textInput);
+  textInputRef.current = textInput;
+
+  const handleTranscription = useCallback((transcript: string) => {
+    const current = textInputRef.current.value;
+    const next = current ? `${current} ${transcript}` : transcript;
+    textInputRef.current.setInput(next);
+    onTranscriptionChange(next);
+  }, [onTranscriptionChange]);
+
+  const handleAudioRecorded = useCallback(async (audioBlob: Blob): Promise<string> => {
+    const toastId = toast.loading('Transcribing via Gemini 2.5 Flash Lite…');
+    try {
+      const fd = new FormData();
+      fd.append('audio', audioBlob);
+      const res = await fetch('/api/transcribe', { method: 'POST', body: fd });
+      const json = await res.json() as { transcript?: string; model?: string; error?: string };
+      if (!res.ok) throw new Error(json.error ?? 'Transcription failed');
+      toast.success('Transcribed', {
+        id: toastId,
+        description: `via ${json.model}`,
+        duration: 3000,
+      });
+      return json.transcript ?? '';
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      toast.error('Transcription failed', {
+        id: toastId,
+        description: msg,
+      });
+      return '';
+    }
+  }, []);
+
+  if (isGenerating) {
+    return (
+      <div className="ml-auto">
+        <PromptInputSubmit onStop={onStop} status={status} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="ml-auto flex items-center gap-2">
+      <SpeechInput
+        size="icon"
+        variant="ghost"
+        className="size-8"
+        lang={typeof navigator !== 'undefined' ? navigator.language : 'en-US'}
+        onTranscriptionChange={handleTranscription}
+        onAudioRecorded={handleAudioRecorded}
+        onListeningChange={setIsDictating}
+      />
+      {isEmpty && !isDictating ? (
+        <button
+          type="button"
+          title="Real-time voice coming soon"
+          className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          onClick={() => alert('Real-time voice coming soon')}
+        >
+          <AudioLinesIcon className="size-4" />
+        </button>
+      ) : (
+        <PromptInputSubmit onStop={onStop} status={status} />
+      )}
+    </div>
+  );
+};
+
+// ── ChatComposer ───────────────────────────────────────────────────────────────
+
 type ChatComposerProps = {
   selectedDocCount: number;
   status: ChatStatus;
@@ -329,6 +422,7 @@ export const ChatComposer = ({
         />
       ))}
     </Suggestions> */}
+    <PromptInputProvider>
     <PromptInput onSubmit={(message) => onSubmit(message)} >
       <PromptInputHeader>
         <ComposerAttachments />
@@ -405,17 +499,14 @@ export const ChatComposer = ({
             onClearComparePreset={onClearComparePreset}
           />
         </PromptInputTools>
-        <div className="ml-auto flex items-center gap-2">
-          <SpeechInput
-            size="icon"
-            variant="ghost"
-            className="size-8"
-            onTranscriptionChange={onTranscriptionChange}
-          />
-          <PromptInputSubmit onStop={onStop} status={status} />
-        </div>
+        <ComposerActionButtons
+          status={status}
+          onStop={onStop}
+          onTranscriptionChange={onTranscriptionChange}
+        />
       </PromptInputFooter>
     </PromptInput>
+    </PromptInputProvider>
     {error ? (
       <p className="mt-2 text-xs text-destructive">
         {error.message || 'Something went wrong. Please try again.'}

@@ -332,3 +332,4 @@ export const availableModels = [
 
 export const chatModel = availableModels[0]?.id ?? "google/gemini-3-flash";
 export const maxSteps = 5;
+export const transcriptionModel = "google/gemini-2.5-flash-lite";

@@ -746,18 +746,15 @@ export const ChatSidebar = ({
   onMobileOpenChange,
 }: ChatSidebarProps) => {
   const pathname = usePathname();
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
-    if (typeof window === 'undefined') {
-      return true;
-    }
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
+  // Sync from localStorage after hydration to avoid SSR mismatch
+  useEffect(() => {
     const stored = window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY);
-    if (stored === null) {
-      return true;
+    if (stored !== null) {
+      setIsCollapsed(stored === 'true');
     }
-
-    return stored === 'true';
-  });
+  }, []);
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(isCollapsed));

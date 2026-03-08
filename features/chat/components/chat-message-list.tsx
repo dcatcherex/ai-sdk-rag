@@ -39,6 +39,7 @@ type ChatMessageListProps = {
   messages: ChatMessage[];
   status: ChatStatus;
   threadId?: string;
+  isSyncingFollowUpSuggestions?: boolean;
   copiedMessageId: string | null;
   messageReactions: ReactionMap;
   onCopyMessage: (messageId: string, text: string) => void;
@@ -195,6 +196,7 @@ export const ChatMessageList = ({
   messages,
   status,
   threadId,
+  isSyncingFollowUpSuggestions = false,
   copiedMessageId,
   messageReactions,
   onCopyMessage,
@@ -275,10 +277,17 @@ export const ChatMessageList = ({
               : undefined;
 
             // Show follow-up suggestions only on the last assistant message when ready
+            const isLastAssistant = msgIndex === lastAssistantIdx && message.role === 'assistant';
             const followUpSuggestions =
-              msgIndex === lastAssistantIdx && status === 'ready'
+              isLastAssistant && status === 'ready'
                 ? (message.metadata as ChatMessageMetadata | undefined)?.followUpSuggestions ?? []
                 : [];
+            const showFollowUpLoading = isLastAssistant && status === 'submitted';
+            const showFollowUpSyncHint =
+              isLastAssistant
+              && status === 'ready'
+              && isSyncingFollowUpSuggestions
+              && followUpSuggestions.length === 0;
 
             return (
               <div key={message.id} id={`msg-${message.id}`} className="scroll-mt-4">
@@ -295,6 +304,18 @@ export const ChatMessageList = ({
                     />
                   ))}
                   {enhancedPrompt && <EnhancedPromptChip text={enhancedPrompt} />}
+                  {showFollowUpLoading && (
+                    <div className="mt-3 flex gap-2">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-7 w-24 animate-pulse rounded-full bg-zinc-200 dark:bg-zinc-700" />
+                      ))}
+                    </div>
+                  )}
+                  {showFollowUpSyncHint && (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Generating follow-up questions...
+                    </p>
+                  )}
                   {followUpSuggestions.length > 0 && (
                     <FollowUpChips suggestions={followUpSuggestions} onSuggestionClick={onSuggestionClick} />
                   )}

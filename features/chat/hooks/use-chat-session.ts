@@ -7,6 +7,24 @@ import { exportConversation } from '../utils/export-conversation';
 import type { ChatMessage, ChatMessagePart } from '../types';
 import type { PromptInputMessage } from '@/components/ai-elements/prompt-input';
 
+const FOLLOW_UP_SYNC_MAX_ATTEMPTS = 15;
+const FOLLOW_UP_SYNC_RETRY_DELAY_MS = 500;
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const fetchThreadMessages = async (threadId: string): Promise<ChatMessage[]> => {
+  const response = await fetch(`/api/threads/${threadId}/messages`, {
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to load messages');
+  }
+
+  const payload = (await response.json()) as { messages: ChatMessage[] };
+  return payload.messages;
+};
+
 type UseChatSessionOptions = {
   activeThreadId: string;
   activeThreadIdRef: React.RefObject<string>;
@@ -33,6 +51,7 @@ export const useChatSession = ({
   ensureThread,
 }: UseChatSessionOptions) => {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [isSyncingFollowUpSuggestions, setIsSyncingFollowUpSuggestions] = useState(false);
   const prevThreadIdRef = useRef<string>('');
 
   const transport = useMemo(
@@ -64,34 +83,116 @@ export const useChatSession = ({
     onFinish: async () => {
       await queryClient.invalidateQueries({ queryKey: ['threads'] });
       await queryClient.invalidateQueries({ queryKey: ['credits'] });
-      if (activeThreadId) {
+      // Use ref — activeThreadId in closure may be stale (e.g. '' when thread was just created)
+      const threadId = activeThreadIdRef.current;
+      if (threadId) {
         await queryClient.invalidateQueries({
-          queryKey: ['threads', activeThreadId, 'messages'],
+          queryKey: ['threads', threadId, 'messages'],
         });
+
+        setIsSyncingFollowUpSuggestions(true);
+        try {
+          await syncFollowUpSuggestions(threadId);
+        } finally {
+          setIsSyncingFollowUpSuggestions(false);
+        }
       }
     },
   });
+
+  const mergeFollowUpSuggestions = useCallback((messagesToMerge: ChatMessage[]) => {
+    setMessages((current) => {
+      if (current.length === 0) return current;
+      let changed = false;
+      const updated = current.map((msg) => {
+        const dbMsg = messagesToMerge.find((m) => m.id === msg.id);
+        if (!dbMsg?.metadata?.followUpSuggestions?.length) return msg;
+        if ((msg.metadata as import('../types').ChatMessageMetadata)?.followUpSuggestions?.length) return msg;
+        changed = true;
+        return {
+          ...msg,
+          metadata: {
+            ...(msg.metadata ?? {}),
+            followUpSuggestions: dbMsg.metadata.followUpSuggestions,
+          },
+        };
+      });
+      return changed ? updated : current;
+    });
+  }, [setMessages]);
+
+  const replaceMessagesFromDb = useCallback((messagesToSync: ChatMessage[]) => {
+    setMessages(messagesToSync);
+  }, [setMessages]);
+
+  const syncFollowUpSuggestions = useCallback(async (threadId: string) => {
+    let attempts = 0;
+    while (attempts < FOLLOW_UP_SYNC_MAX_ATTEMPTS) {
+      try {
+        const threadMessages = await fetchThreadMessages(threadId);
+        queryClient.setQueryData(['threads', threadId, 'messages'], threadMessages);
+        mergeFollowUpSuggestions(threadMessages);
+
+        const lastAssistantMessage = [...threadMessages]
+          .reverse()
+          .find((message) => message.role === 'assistant');
+        const hasFollowUpSuggestions = !!lastAssistantMessage?.metadata?.followUpSuggestions?.length;
+
+        if (hasFollowUpSuggestions) {
+          replaceMessagesFromDb(threadMessages);
+          return;
+        }
+      } catch (error) {
+        if (attempts === FOLLOW_UP_SYNC_MAX_ATTEMPTS - 1) {
+          console.error('Failed to sync follow-up suggestions:', error);
+          return;
+        }
+      }
+
+      attempts++;
+      if (attempts < FOLLOW_UP_SYNC_MAX_ATTEMPTS) {
+        await delay(FOLLOW_UP_SYNC_RETRY_DELAY_MS);
+      }
+    }
+  }, [mergeFollowUpSuggestions, queryClient, replaceMessagesFromDb]);
 
   // Sync messages when thread changes (including clearing for new chat)
   useEffect(() => {
     if (prevThreadIdRef.current !== activeThreadId) {
       const prevId = prevThreadIdRef.current;
       prevThreadIdRef.current = activeThreadId;
-      // Only abort an in-flight stream when switching between existing threads,
-      // not when a new thread is first created ('' → newId).
-      if (prevId) stop();
-      setMessages(activeThreadId ? activeMessages : []);
+
+      if (prevId) {
+        // Switching between two real threads — abort stream and sync from DB
+        stop();
+        setMessages(activeThreadId ? activeMessages : []);
+      } else if (!activeThreadId) {
+        // Back to "new chat" blank state — clear messages
+        setMessages([]);
+      }
+      // If prevId === '' and we got a new threadId (ensureThread just created one),
+      // do NOT touch messages — sendMessage already added the optimistic user bubble.
+      // The DB-sync effect below will merge follow-up suggestions once streaming finishes.
     }
   }, [activeThreadId, activeMessages, setMessages, stop]);
 
   useEffect(() => {
     if (!activeThreadId) {
+      setIsSyncingFollowUpSuggestions(false);
       return;
     }
     if (messages.length === 0 && activeMessages.length > 0 && status === 'ready') {
       setMessages(activeMessages);
     }
   }, [activeMessages, activeThreadId, messages.length, setMessages, status]);
+
+  useEffect(() => {
+    if (status !== 'ready' || activeMessages.length === 0) {
+      return;
+    }
+
+    mergeFollowUpSuggestions(activeMessages);
+  }, [activeMessages, mergeFollowUpSuggestions, status]);
 
   const copyToClipboard = useCallback(async (messageId: string, text: string) => {
     try {
@@ -162,6 +263,7 @@ export const useChatSession = ({
     status,
     error,
     stop,
+    isSyncingFollowUpSuggestions,
     copiedMessageId,
     copyToClipboard,
     handleSubmitMessage,

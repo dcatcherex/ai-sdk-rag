@@ -90,6 +90,7 @@ export default function Chat() {
     status,
     error,
     stop,
+    isSyncingFollowUpSuggestions,
     copiedMessageId,
     copyToClipboard,
     handleSubmitMessage,
@@ -257,6 +258,7 @@ export default function Chat() {
                 messages={messages}
                 status={status}
                 threadId={activeThreadId ?? undefined}
+                isSyncingFollowUpSuggestions={isSyncingFollowUpSuggestions}
                 copiedMessageId={copiedMessageId}
                 messageReactions={messageReactions}
                 onCopyMessage={copyToClipboard}
