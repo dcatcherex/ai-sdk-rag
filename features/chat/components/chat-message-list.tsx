@@ -1,9 +1,11 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { MutableRefObject } from 'react';
 import type { ChatStatus } from 'ai';
 import { CheckIcon, ChevronDownIcon, CopyIcon, RefreshCwIcon, SparklesIcon, ThumbsDownIcon, ThumbsUpIcon, Trash2Icon } from 'lucide-react';
 import { Streamdown } from 'streamdown';
+import { useStickToBottomContext } from 'use-stick-to-bottom';
 import { CodeBlock } from '@/components/ai-elements/code-block';
 import { ModelSelectorLogo } from '@/components/ai-elements/model-selector';
 import {
@@ -204,6 +206,89 @@ type MessageGroupItem =
   | { type: 'regular'; message: ChatMessage; msgIndex: number }
   | { type: 'compareGroup'; messages: ChatMessage[]; groupId: string };
 
+type ThreadScrollMemoryProps = {
+  threadKey: string;
+  threadId?: string;
+  messagesLength: number;
+  pendingRestoreThreadKeyRef: MutableRefObject<string | null>;
+  scrollPositionsRef: MutableRefObject<Map<string, number>>;
+};
+
+const ThreadScrollMemory = ({
+  threadKey,
+  threadId,
+  messagesLength,
+  pendingRestoreThreadKeyRef,
+  scrollPositionsRef,
+}: ThreadScrollMemoryProps) => {
+  const { scrollRef, stopScroll } = useStickToBottomContext();
+  const isRestoringRef = useRef(true);
+
+  useLayoutEffect(() => {
+    isRestoringRef.current = true;
+    pendingRestoreThreadKeyRef.current = threadKey;
+    stopScroll();
+  }, [pendingRestoreThreadKeyRef, stopScroll, threadKey]);
+
+  useEffect(() => {
+    const scrollElement = scrollRef.current;
+    if (!scrollElement) {
+      return;
+    }
+
+    const saveScrollPosition = () => {
+      if (isRestoringRef.current) {
+        return;
+      }
+      scrollPositionsRef.current.set(threadKey, scrollElement.scrollTop);
+    };
+
+    scrollElement.addEventListener('scroll', saveScrollPosition, { passive: true });
+
+    return () => {
+      saveScrollPosition();
+      scrollElement.removeEventListener('scroll', saveScrollPosition);
+    };
+  }, [scrollPositionsRef, scrollRef, threadKey]);
+
+  useLayoutEffect(() => {
+    if (pendingRestoreThreadKeyRef.current !== threadKey) {
+      return;
+    }
+
+    if (threadId && messagesLength === 0) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      const scrollElement = scrollRef.current;
+      if (!scrollElement) {
+        return;
+      }
+
+      const savedPosition = scrollPositionsRef.current.get(threadKey);
+
+      if (typeof savedPosition === 'number') {
+        scrollElement.scrollTop = savedPosition;
+      } else if (threadId && messagesLength > 0) {
+        scrollElement.scrollTop = scrollElement.scrollHeight;
+      } else {
+        scrollElement.scrollTop = 0;
+      }
+
+      scrollPositionsRef.current.set(threadKey, scrollElement.scrollTop);
+      isRestoringRef.current = false;
+      pendingRestoreThreadKeyRef.current = null;
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [messagesLength, pendingRestoreThreadKeyRef, scrollPositionsRef, scrollRef, threadId, threadKey]);
+
+  return null;
+};
+
 export const ChatMessageList = ({
   messages,
   status,
@@ -220,6 +305,8 @@ export const ChatMessageList = ({
 }: ChatMessageListProps) => {
   const lastAssistantIdx = messages.reduce((acc, m, i) => (m.role === 'assistant' ? i : acc), -1);
   const contentRef = useRef<HTMLDivElement>(null);
+  const scrollPositionsRef = useRef<Map<string, number>>(new Map());
+  const pendingRestoreThreadKeyRef = useRef<string | null>(null);
 
   // Pending delete: { messageId, partnerMessageId? }
   type PendingDelete = { messageId: string; partnerMessageId?: string };
@@ -288,9 +375,18 @@ export const ChatMessageList = ({
     return result;
   }, [messages]);
 
+  const conversationKey = threadId ?? 'new-thread';
+
   return (
   <div ref={contentRef} className="flex-1 flex flex-col overflow-hidden min-h-0">
-  <Conversation className="flex-1">
+  <Conversation className="flex-1" initial={false}>
+    <ThreadScrollMemory
+      threadKey={conversationKey}
+      threadId={threadId}
+      messagesLength={messages.length}
+      pendingRestoreThreadKeyRef={pendingRestoreThreadKeyRef}
+      scrollPositionsRef={scrollPositionsRef}
+    />
     <ConversationContent className="px-3 md:px-6">
       {messages.length === 0 ? (
         <ConversationEmptyState
