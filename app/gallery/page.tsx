@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChatSidebar } from '@/features/chat/components/chat-sidebar';
-import { useThreads } from '@/features/chat/hooks/use-threads';
+import { useThreads, setNewChatIntent } from '@/features/chat/hooks/use-threads';
 import { useUserProfile } from '@/features/chat/hooks/use-user-profile';
 import { useGalleryAssets } from '@/features/gallery/hooks/use-gallery-assets';
 import { useImageEditor } from '@/features/gallery/hooks/use-image-editor';
@@ -28,7 +28,6 @@ export default function GalleryPage() {
     pinThreadMutation,
     renameThreadMutation,
     deleteThreadMutation,
-    handleCreateThread,
   } = useThreads();
 
   const { sessionData, userProfile, isSigningOut, handleSignOut } = useUserProfile();
@@ -59,7 +58,7 @@ export default function GalleryPage() {
           isLoading={isThreadsLoading}
           isCreatingThread={createThreadMutation.isPending}
           onSelectThread={(threadId) => { setActiveThreadId(threadId); router.push('/'); }}
-          onCreateThread={() => { handleCreateThread(); router.push('/'); }}
+          onCreateThread={() => { setNewChatIntent(); router.push('/'); }}
           onTogglePin={(threadId, pinned) => pinThreadMutation.mutate({ threadId, pinned })}
           onRenameThread={(threadId, title) => renameThreadMutation.mutate({ threadId, title })}
           onDeleteThread={(threadId) => deleteThreadMutation.mutate(threadId)}

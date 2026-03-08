@@ -143,6 +143,7 @@ export const SidebarContent = ({
       {/* Nav */}
       <SidebarNav
         currentPath={currentPath}
+        activeThreadId={activeThreadId}
         isCollapsed={isCollapsed}
         isCreatingThread={isCreatingThread}
         onCreateThread={onCreateThread}
@@ -154,7 +155,7 @@ export const SidebarContent = ({
         <SidebarThreadList
           threads={threads}
           isLoading={isLoading}
-          activeThreadId={activeThreadId}
+          activeThreadId={currentPath === "/" ? activeThreadId : ""}
           onSelectThread={onSelectThread}
           onTogglePin={onTogglePin}
           onRenameThread={onRenameThread}

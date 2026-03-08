@@ -40,6 +40,7 @@ const NAV_ITEMS: NavItem[] = [
 
 type Props = {
   currentPath: string;
+  activeThreadId: string;
   isCollapsed: boolean;
   isCreatingThread: boolean;
   onCreateThread: () => void;
@@ -67,6 +68,7 @@ const NavButton = ({
 
 export const SidebarNav = ({
   currentPath,
+  activeThreadId,
   isCollapsed,
   isCreatingThread,
   onCreateThread,
@@ -84,7 +86,7 @@ export const SidebarNav = ({
     >
       <NavButton isCollapsed={isCollapsed} tooltip="New chat">
         <Button
-          variant={currentPath === "/" ? "secondary" : "ghost"}
+          variant={currentPath === "/" && !activeThreadId ? "secondary" : "ghost"}
           size={isCollapsed ? "icon" : "sm"}
           className={cn(isCollapsed ? "size-9" : "justify-start gap-2 w-full")}
           onClick={onCreateThread}

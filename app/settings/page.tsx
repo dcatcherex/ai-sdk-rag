@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BrainCircuitIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, GitMergeIcon, PencilIcon, SparklesIcon, Trash2Icon, XIcon } from 'lucide-react';
 import { ChatSidebar } from '@/features/chat/components/chat-sidebar';
-import { useThreads } from '@/features/chat/hooks/use-threads';
+import { useThreads, setNewChatIntent } from '@/features/chat/hooks/use-threads';
 import { useUserProfile } from '@/features/chat/hooks/use-user-profile';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -64,7 +64,6 @@ export default function SettingsPage() {
     pinThreadMutation,
     renameThreadMutation,
     deleteThreadMutation,
-    handleCreateThread,
   } = useThreads();
 
   const { sessionData, userProfile, isSigningOut, handleSignOut } = useUserProfile();
@@ -173,7 +172,7 @@ export default function SettingsPage() {
           isLoading={isThreadsLoading}
           isCreatingThread={createThreadMutation.isPending}
           onSelectThread={(threadId) => { setActiveThreadId(threadId); router.push('/'); }}
-          onCreateThread={() => { handleCreateThread(); router.push('/'); }}
+          onCreateThread={() => { setNewChatIntent(); router.push('/'); }}
           onTogglePin={(threadId, pinned) => pinThreadMutation.mutate({ threadId, pinned })}
           onRenameThread={(threadId, title) => renameThreadMutation.mutate({ threadId, title })}
           onDeleteThread={(threadId) => deleteThreadMutation.mutate(threadId)}

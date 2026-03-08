@@ -2,12 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ChatMessage, ThreadItem } from '../types';
 
+// Module-level flag so cross-page navigation can signal "open as new chat"
+let pendingNewChatMode = false;
+export const setNewChatIntent = () => { pendingNewChatMode = true; };
+
 export const useThreads = () => {
   const queryClient = useQueryClient();
   const [activeThreadId, setActiveThreadId] = useState('');
   const activeThreadIdRef = useRef(activeThreadId);
   activeThreadIdRef.current = activeThreadId;
-  const newChatModeRef = useRef(false);
+  // Consume the module-level flag on mount (useRef only uses its arg on first render)
+  const newChatModeRef = useRef(pendingNewChatMode);
+  pendingNewChatMode = false;
 
   const { data: threads = [], isLoading: isThreadsLoading } = useQuery<ThreadItem[]>({
     queryKey: ['threads'],
