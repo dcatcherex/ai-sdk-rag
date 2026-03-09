@@ -12,7 +12,7 @@ import { useMessageReactions } from '@/features/chat/hooks/use-message-reactions
 import { useChatKeyboardShortcuts } from '@/features/chat/hooks/use-chat-keyboard-shortcuts';
 import { ChatHeader } from '@/features/chat/components/chat-header';
 import { ChatComposer } from '@/features/chat/components/chat-composer';
-import { ChatMessageList } from '@/features/chat/components/chat-message-list';
+import { ChatMessageList, type FontSize } from '@/features/chat/components/chat-message-list';
 import { ChatSidebar } from '@/features/chat/components/chat-sidebar';
 import { ConversationOutline } from '@/features/chat/components/conversation-outline';
 import { ImageEditor } from '@/features/gallery/components/image-editor/image-editor';
@@ -28,6 +28,15 @@ import type { PromptInputMessage } from '@/components/ai-elements/prompt-input';
 export default function Chat() {
   const [knowledgePanelOpen, setKnowledgePanelOpen] = useState(false);
   const [outlinePanelOpen, setOutlinePanelOpen] = useState(false);
+  const [widenMode, setWidenMode] = useState(false);
+  const [fontSize, setFontSize] = useState<FontSize>(() => {
+    if (typeof window === 'undefined') return 'base';
+    return (localStorage.getItem('chat-font-size') as FontSize) ?? 'sm';
+  });
+  const handleChangeFontSize = useCallback((size: FontSize) => {
+    setFontSize(size);
+    localStorage.setItem('chat-font-size', size);
+  }, []);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [useWebSearch, setUseWebSearch] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
@@ -267,8 +276,8 @@ export default function Chat() {
   });
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#f7f7f9,_#eef0f7_55%,_#e6e9f2_100%)] dark:bg-[radial-gradient(circle_at_top,_#1a1b2e,_#111827_55%,_#0f172a_100%)]">
-      <div className={`mx-auto flex min-h-screen w-full gap-3 px-2 py-2 md:gap-6 md:px-4 md:py-6 ${knowledgePanelOpen || outlinePanelOpen ? 'max-w-[90rem]' : 'max-w-6xl'}`}>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f7f7f9,#eef0f7_55%,#e6e9f2_100%)] dark:bg-[radial-gradient(circle_at_top,#1a1b2e,#111827_55%,#0f172a_100%)]">
+      <div className={`mx-auto flex min-h-screen w-full gap-3 px-2 py-2 md:gap-6 md:px-4 md:py-6 transition-all duration-300 ${widenMode ? 'w-full' : knowledgePanelOpen || outlinePanelOpen ? 'max-w-360' : 'max-w-6xl'}`}>
         <ChatSidebar
           activeThreadId={activeThreadId}
           threads={threads}
@@ -285,6 +294,7 @@ export default function Chat() {
           onSignOut={handleSignOut}
           mobileOpen={mobileSidebarOpen}
           onMobileOpenChange={setMobileSidebarOpen}
+          forceCollapsed={widenMode}
         />
 
         <main className="flex h-[calc(100dvh-1rem)] flex-1 flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-900/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur md:h-[calc(100vh-3rem)] md:rounded-3xl">
@@ -309,6 +319,10 @@ export default function Chat() {
                 onToggleKnowledgePanel={() => setKnowledgePanelOpen((v) => !v)}
                 outlinePanelOpen={outlinePanelOpen}
                 onToggleOutlinePanel={() => setOutlinePanelOpen((v) => !v)}
+                widenMode={widenMode}
+                onToggleWidenMode={() => setWidenMode((v) => !v)}
+                fontSize={fontSize}
+                onChangeFontSize={handleChangeFontSize}
                 docCount={docStats?.totalDocuments ?? 0}
                 onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
               />
@@ -320,6 +334,7 @@ export default function Chat() {
                 isSyncingFollowUpSuggestions={isSyncingFollowUpSuggestions}
                 copiedMessageId={copiedMessageId}
                 messageReactions={messageReactions}
+                fontSize={fontSize}
                 onCopyMessage={copyToClipboard}
                 onRegenerateMessage={regenerateMessage}
                 onDeleteMessage={deleteMessage}

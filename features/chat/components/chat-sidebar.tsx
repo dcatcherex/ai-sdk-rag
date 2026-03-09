@@ -37,6 +37,7 @@ export type ChatSidebarProps = {
   onSignOut: () => void;
   mobileOpen?: boolean;
   onMobileOpenChange?: (open: boolean) => void;
+  forceCollapsed?: boolean;
 };
 
 export const ChatSidebar = ({
@@ -55,10 +56,12 @@ export const ChatSidebar = ({
   onSignOut,
   mobileOpen = false,
   onMobileOpenChange,
+  forceCollapsed = false,
 }: ChatSidebarProps) => {
   const pathname = usePathname();
   // Reads from module cache — no effect needed, no flash on remount
   const [isCollapsed, setIsCollapsed] = useState(readCollapsed);
+  const effectiveCollapsed = forceCollapsed || isCollapsed;
 
   const handleToggleCollapse = () => {
     setIsCollapsed((prev) => {
@@ -97,13 +100,13 @@ export const ChatSidebar = ({
       <aside
         className={cn(
           "hidden h-[calc(100vh-3rem)] shrink-0 rounded-3xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-zinc-900/80 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_60px_-40px_rgba(0,0,0,0.6)] backdrop-blur transition-all md:flex md:flex-col",
-          isCollapsed ? "w-20 p-3" : "w-72 p-5",
+          effectiveCollapsed ? "w-20 p-3" : "w-72 p-5",
         )}
       >
         <SidebarContent
           {...sharedProps}
-          isCollapsed={isCollapsed}
-          onToggleCollapse={handleToggleCollapse}
+          isCollapsed={effectiveCollapsed}
+          onToggleCollapse={forceCollapsed ? undefined : handleToggleCollapse}
         />
       </aside>
 

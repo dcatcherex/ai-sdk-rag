@@ -48,6 +48,15 @@ import { SelectionContextMenu } from './selection-context-menu';
 
 type ReactionMap = Record<string, MessageReaction | null>;
 
+export type FontSize = 'sm' | 'base' | 'lg' | 'xl';
+
+const FONT_SIZE_CLASS: Record<FontSize, string> = {
+  sm: 'text-sm',
+  base: 'text-base',
+  lg: 'text-lg',
+  xl: 'text-xl',
+};
+
 type ChatMessageListProps = {
   messages: ChatMessage[];
   status: ChatStatus;
@@ -55,6 +64,7 @@ type ChatMessageListProps = {
   isSyncingFollowUpSuggestions?: boolean;
   copiedMessageId: string | null;
   messageReactions: ReactionMap;
+  fontSize?: FontSize;
   onCopyMessage: (messageId: string, text: string) => void;
   onRegenerateMessage: (messageId: string) => void;
   onToggleReaction: (messageId: string, reaction: MessageReaction) => void;
@@ -359,6 +369,7 @@ export const ChatMessageList = ({
   isSyncingFollowUpSuggestions = false,
   copiedMessageId,
   messageReactions,
+  fontSize = 'sm',
   onCopyMessage,
   onRegenerateMessage,
   onToggleReaction,
@@ -442,7 +453,7 @@ export const ChatMessageList = ({
   const conversationKey = threadId ?? 'new-thread';
 
   return (
-  <div ref={contentRef} className="flex-1 flex flex-col overflow-hidden min-h-0">
+  <div ref={contentRef} className={`flex-1 flex flex-col overflow-hidden min-h-0 ${FONT_SIZE_CLASS[fontSize]}`}>
   <Conversation className="flex-1" initial={false}>
     <ThreadScrollMemory
       threadKey={conversationKey}

@@ -5,7 +5,9 @@ import {
   BookOpenIcon,
   DownloadIcon,
   FileTextIcon,
+  Maximize2Icon,
   MenuIcon,
+  Minimize2Icon,
   TableOfContentsIcon,
   Trash2Icon,
 } from 'lucide-react';
@@ -32,6 +34,9 @@ import { CreditBalanceDisplay } from '@/components/credit-balance-display';
 import type { ChatStatus } from 'ai';
 import type { ThreadItem, RoutingMetadata, ChatMessageMetadata } from '../types';
 import type { SystemPromptKey } from '@/lib/prompt';
+import type { FontSize } from './chat-message-list';
+
+const FONT_SIZES: FontSize[] = ['sm', 'base', 'lg', 'xl'];
 
 const PERSONA_LABELS: Record<SystemPromptKey, string> = {
   general_assistant: 'General',
@@ -69,6 +74,12 @@ type ChatHeaderProps = {
   // Outline
   outlinePanelOpen: boolean;
   onToggleOutlinePanel: () => void;
+  // Wide mode
+  widenMode: boolean;
+  onToggleWidenMode: () => void;
+  // Font size
+  fontSize: FontSize;
+  onChangeFontSize: (size: FontSize) => void;
   onOpenMobileSidebar?: () => void;
 };
 
@@ -86,6 +97,10 @@ export const ChatHeader = ({
   docCount,
   outlinePanelOpen,
   onToggleOutlinePanel,
+  widenMode,
+  onToggleWidenMode,
+  fontSize,
+  onChangeFontSize,
   onOpenMobileSidebar,
 }: ChatHeaderProps) => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -193,6 +208,55 @@ export const ChatHeader = ({
             </TooltipProvider>
           </>
         )}
+        <div className="hidden items-center sm:flex">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-8 md:size-9 text-xs font-bold"
+                  disabled={fontSize === FONT_SIZES[0]}
+                  onClick={() => onChangeFontSize(FONT_SIZES[Math.max(0, FONT_SIZES.indexOf(fontSize) - 1)])}
+                >
+                  A-
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Decrease font size</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-8 md:size-9 text-sm font-bold"
+                  disabled={fontSize === FONT_SIZES[FONT_SIZES.length - 1]}
+                  onClick={() => onChangeFontSize(FONT_SIZES[Math.min(FONT_SIZES.length - 1, FONT_SIZES.indexOf(fontSize) + 1)])}
+                >
+                  A+
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Increase font size</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant={widenMode ? 'default' : 'ghost'}
+                onClick={onToggleWidenMode}
+                className="size-8 md:size-9"
+              >
+                {widenMode ? <Minimize2Icon className="size-4" /> : <Maximize2Icon className="size-4" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{widenMode ? 'Exit wide mode' : 'Wide mode'}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>

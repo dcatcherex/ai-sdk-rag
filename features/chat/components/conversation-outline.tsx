@@ -95,7 +95,7 @@ export const ConversationOutline = ({ messages }: ConversationOutlineProps) => {
   const turnCount = items.filter((i) => i.role === 'user').length;
 
   return (
-    <div className="flex h-[calc(100vh-3rem)] w-60 flex-col rounded-2xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-900/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur overflow-hidden md:rounded-3xl">
+    <div className="flex h-[calc(100vh-3rem)] w-70 flex-col rounded-2xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-900/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur overflow-hidden md:rounded-3xl">
       <div className="flex items-center justify-between border-b border-black/5 dark:border-white/10 px-4 py-3.5">
         <span className="text-sm font-semibold">Outline</span>
         {turnCount > 0 && (
