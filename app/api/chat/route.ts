@@ -18,8 +18,7 @@ import { summarizeConversation, SUMMARY_THRESHOLD } from '@/lib/conversation-sum
 import { getUserModelScores } from '@/lib/model-scores';
 import { getUserMemoryContext, extractAndStoreMemory } from '@/lib/memory';
 import { generateFollowUpSuggestions } from '@/lib/follow-up-suggestions';
-import { baseTools } from '@/lib/tools';
-import { createScopedRagTools } from '@/lib/rag-tool';
+import { buildToolSet } from '@/lib/tools';
 import { createAgentTools } from '@/lib/agent-tools';
 import { getCreditCost, getUserBalance } from '@/lib/credits';
 import { requestSchema } from '@/features/chat/server/schema';
@@ -74,7 +73,7 @@ export async function POST(req: Request) {
     }
 
     const currentTitle = threadRows[0]!.title ?? 'New chat';
-    const userPrefs = prefsRows[0] ?? { memoryEnabled: true, promptEnhancementEnabled: true };
+    const userPrefs = prefsRows[0] ?? { memoryEnabled: true, promptEnhancementEnabled: true, enabledToolIds: null };
     const lastUserPrompt = getLastUserPrompt(messages);
 
     // ── Load agent, memory ───────────────────────────────────────────────────
@@ -96,11 +95,21 @@ export async function POST(req: Request) {
       : 'general_assistant';
 
     const isGrounded = !!selectedDocumentIds?.length;
+
+    // Determine which tool group IDs are active for this request:
+    //   1. Agent has its own explicit list (overrides everything)
+    //   2. Otherwise use the user's saved preferences (null = all tools)
+    const activeToolIds = activeAgent
+      ? activeAgent.enabledTools
+      : (userPrefs.enabledToolIds ?? null);
+
     const groundedTools = activeAgent
-      ? createAgentTools(activeAgent.enabledTools, selectedDocumentIds)
-      : isGrounded
-        ? { ...baseTools, ...createScopedRagTools(selectedDocumentIds) }
-        : baseTools;
+      ? createAgentTools(activeAgent.enabledTools, session.user.id, selectedDocumentIds)
+      : buildToolSet({
+          enabledToolIds: activeToolIds,
+          userId: session.user.id,
+          documentIds: isGrounded ? selectedDocumentIds : undefined,
+        });
 
     const groundedSystemPrompt = activeAgent
       ? activeAgent.systemPrompt + (memoryContext ? `\n\n${memoryContext}` : '')

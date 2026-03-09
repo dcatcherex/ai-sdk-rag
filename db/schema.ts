@@ -290,6 +290,8 @@ export const userPreferences = pgTable("user_preferences", {
   userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
   memoryEnabled: boolean("memory_enabled").default(true).notNull(),
   promptEnhancementEnabled: boolean("prompt_enhancement_enabled").default(true).notNull(),
+  /** null = all tools enabled (default for new users). Set to array to restrict. */
+  enabledToolIds: text("enabled_tool_ids").array(),
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
 });
 
@@ -385,6 +387,49 @@ export const documentChunkRelations = relations(documentChunk, ({ one }) => ({
     fields: [documentChunk.documentId],
     references: [document.id],
   }),
+}));
+
+// Certificate templates and batch jobs
+export const certificateTemplate = pgTable('certificate_template', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  r2Key: text('r2_key').notNull(),
+  url: text('url').notNull(),
+  thumbnailKey: text('thumbnail_key'),
+  thumbnailUrl: text('thumbnail_url'),
+  width: integer('width').notNull(),
+  height: integer('height').notNull(),
+  // Array of TextFieldConfig stored as JSONB
+  fields: jsonb('fields').notNull().default(sql`'[]'::jsonb`),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [index('certificate_template_userId_idx').on(table.userId)]);
+
+export const certificateJob = pgTable('certificate_job', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  templateId: text('template_id').notNull().references(() => certificateTemplate.id, { onDelete: 'cascade' }),
+  status: text('status').notNull().default('pending'), // pending | processing | completed | failed
+  format: text('format').notNull().default('png'),     // png | jpg | pdf
+  totalCount: integer('total_count').notNull().default(0),
+  processedCount: integer('processed_count').notNull().default(0),
+  zipKey: text('zip_key'),
+  zipUrl: text('zip_url'),
+  error: text('error'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  completedAt: timestamp('completed_at'),
+}, (table) => [index('certificate_job_userId_idx').on(table.userId)]);
+
+export const certificateTemplateRelations = relations(certificateTemplate, ({ one, many }) => ({
+  user: one(user, { fields: [certificateTemplate.userId], references: [user.id] }),
+  jobs: many(certificateJob),
+}));
+
+export const certificateJobRelations = relations(certificateJob, ({ one }) => ({
+  user: one(user, { fields: [certificateJob.userId], references: [user.id] }),
+  template: one(certificateTemplate, { fields: [certificateJob.templateId], references: [certificateTemplate.id] }),
 }));
 
 export const agent = pgTable('agent', {

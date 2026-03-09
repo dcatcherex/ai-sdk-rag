@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  AwardIcon,
   BotIcon,
   ImageIcon,
   PlusIcon,
@@ -35,6 +36,12 @@ const NAV_ITEMS: NavItem[] = [
     label: "Agents",
     icon: <BotIcon className="size-4" />,
     matchFn: (p) => p.startsWith("/agents"),
+  },
+  {
+    href: "/certificate",
+    label: "Certificates",
+    icon: <AwardIcon className="size-4" />,
+    matchFn: (p) => p.startsWith("/certificate"),
   },
 ];
 

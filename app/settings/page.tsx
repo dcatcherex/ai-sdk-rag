@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { BrainCircuitIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, GitMergeIcon, PencilIcon, SparklesIcon, Trash2Icon, XIcon } from 'lucide-react';
+import { BrainCircuitIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, GitMergeIcon, PencilIcon, SparklesIcon, Trash2Icon, WrenchIcon, XIcon } from 'lucide-react';
+import { TOOL_REGISTRY, ALL_TOOL_IDS, type ToolId } from '@/lib/tool-registry';
 import { ChatSidebar } from '@/features/chat/components/chat-sidebar';
 import { useThreads, setNewChatIntent } from '@/features/chat/hooks/use-threads';
 import { useUserProfile } from '@/features/chat/hooks/use-user-profile';
@@ -21,6 +22,7 @@ type MemoryFact = {
 type Preferences = {
   memoryEnabled: boolean;
   promptEnhancementEnabled: boolean;
+  enabledToolIds: string[] | null; // null = all tools enabled
 };
 
 const CATEGORY_ORDER = ['expertise', 'preference', 'context', 'goal'] as const;
@@ -47,7 +49,7 @@ export default function SettingsPage() {
   const router = useRouter();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [facts, setFacts] = useState<MemoryFact[]>([]);
-  const [prefs, setPrefs] = useState<Preferences>({ memoryEnabled: true, promptEnhancementEnabled: true });
+  const [prefs, setPrefs] = useState<Preferences>({ memoryEnabled: true, promptEnhancementEnabled: true, enabledToolIds: null });
   const [isLoadingFacts, setIsLoadingFacts] = useState(true);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ ...CATEGORY_ORDER.reduce((acc, cat) => ({ ...acc, [cat]: true }), {}) }); // default: all collapsed
@@ -98,6 +100,18 @@ export default function SettingsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
     });
+  };
+
+  // Which tool IDs are currently enabled (null means all)
+  const effectiveToolIds: string[] = prefs.enabledToolIds ?? ALL_TOOL_IDS;
+
+  const toggleTool = async (toolId: ToolId, enabled: boolean) => {
+    const next = enabled
+      ? [...effectiveToolIds, toolId]
+      : effectiveToolIds.filter((id) => id !== toolId);
+    // If all tools are enabled, store null (cleaner default)
+    const value = next.length === ALL_TOOL_IDS.length ? null : next;
+    await updatePref({ enabledToolIds: value });
   };
 
   const deleteFact = async (id: string) => {
@@ -331,6 +345,48 @@ export default function SettingsPage() {
               <p className="text-sm text-muted-foreground">
                 Before sending your message, a fast AI rewrites it to be more specific, add context, and clarify output format — while keeping your original intent. Your message is displayed unchanged; only the model sees the improved version.
               </p>
+            </section>
+
+            {/* Tools */}
+            <section className="border-t border-black/5 dark:border-white/10 pt-6">
+              <div className="flex items-center gap-2 mb-1">
+                <WrenchIcon className="size-5 text-muted-foreground" />
+                <h3 className="text-base font-semibold">AI Tools</h3>
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                Choose which tools the AI can use during chat. Disabling tools reduces token usage and keeps the AI focused.
+              </p>
+
+              {/* Group tools by group label */}
+              {(['utilities', 'knowledge', 'productivity'] as const).map((group) => {
+                const groupTools = ALL_TOOL_IDS.filter((id) => TOOL_REGISTRY[id].group === group);
+                if (groupTools.length === 0) return null;
+                const groupLabel = { utilities: 'Utilities', knowledge: 'Knowledge', productivity: 'Productivity' }[group];
+                return (
+                  <div key={group} className="mb-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">{groupLabel}</p>
+                    <div className="space-y-2">
+                      {groupTools.map((toolId) => {
+                        const entry = TOOL_REGISTRY[toolId];
+                        const isEnabled = effectiveToolIds.includes(toolId);
+                        return (
+                          <div key={toolId} className="flex items-start justify-between gap-4 rounded-lg border border-black/5 dark:border-white/10 px-4 py-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium">{entry.label}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">{entry.description}</p>
+                            </div>
+                            <Switch
+                              checked={isEnabled}
+                              onCheckedChange={(v) => void toggleTool(toolId as ToolId, v)}
+                              className="shrink-0 mt-0.5"
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </section>
 
             {/* Link to Models */}
