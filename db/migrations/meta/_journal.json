@@ -36,6 +36,20 @@
       "when": 1773021672193,
       "tag": "0004_medical_onslaught",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1773043156006,
+      "tag": "0005_motionless_marvel_apes",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1773045753309,
+      "tag": "0006_fair_orphan",
+      "breakpoints": true
     }
   ]
 }

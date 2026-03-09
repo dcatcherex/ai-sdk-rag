@@ -36,6 +36,7 @@ type UseChatSessionOptions = {
   activeMessages: ChatMessage[];
   queryClient: QueryClient;
   ensureThread: () => Promise<string>;
+  followUpSuggestionsEnabled?: boolean;
 };
 
 export const useChatSession = ({
@@ -49,6 +50,7 @@ export const useChatSession = ({
   activeMessages,
   queryClient,
   ensureThread,
+  followUpSuggestionsEnabled = true,
 }: UseChatSessionOptions) => {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [isSyncingFollowUpSuggestions, setIsSyncingFollowUpSuggestions] = useState(false);
@@ -90,11 +92,13 @@ export const useChatSession = ({
           queryKey: ['threads', threadId, 'messages'],
         });
 
-        setIsSyncingFollowUpSuggestions(true);
-        try {
-          await syncFollowUpSuggestions(threadId);
-        } finally {
-          setIsSyncingFollowUpSuggestions(false);
+        if (followUpSuggestionsEnabled) {
+          setIsSyncingFollowUpSuggestions(true);
+          try {
+            await syncFollowUpSuggestions(threadId);
+          } finally {
+            setIsSyncingFollowUpSuggestions(false);
+          }
         }
       }
     },

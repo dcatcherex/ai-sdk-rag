@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { KnowledgePanel } from '@/components/knowledge/knowledge-panel';
 import { useDocumentStats } from '@/lib/hooks/use-documents';
 import { useThreads } from '@/features/chat/hooks/use-threads';
@@ -41,6 +41,13 @@ export default function Chat() {
     setCompareMode((prev) => !prev);
     if (compareMode) setSubmittedComparePrompt(null);
   }, [compareMode]);
+  const [followUpSuggestionsEnabled, setFollowUpSuggestionsEnabled] = useState(true);
+  useEffect(() => {
+    void fetch('/api/user/preferences')
+      .then((r) => r.ok ? r.json() : null)
+      .then((prefs) => { if (prefs) setFollowUpSuggestionsEnabled(prefs.followUpSuggestionsEnabled ?? true); });
+  }, []);
+
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const selectedDocIdsRef = useRef(selectedDocIds);
@@ -109,6 +116,7 @@ export default function Chat() {
     ensureThread,
     useWebSearchRef,
     selectedAgentIdRef,
+    followUpSuggestionsEnabled,
   });
 
   const { messageReactions, toggleReaction } = useMessageReactions(messages);

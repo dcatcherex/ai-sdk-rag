@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import type { ChatStatus } from 'ai';
-import { CheckIcon, ChevronDownIcon, CopyIcon, RefreshCwIcon, SparklesIcon, ThumbsDownIcon, ThumbsUpIcon, Trash2Icon } from 'lucide-react';
+import { CheckIcon, ChevronDownIcon, CopyIcon, InfoIcon, RefreshCwIcon, SparklesIcon, ThumbsDownIcon, ThumbsUpIcon, Trash2Icon } from 'lucide-react';
 import { Streamdown } from 'streamdown';
 import { useStickToBottomContext } from 'use-stick-to-bottom';
 import { CodeBlock } from '@/components/ai-elements/code-block';
@@ -184,6 +184,69 @@ const EnhancedPromptChip = ({ text }: { text: string }) => {
   );
 };
 
+const PERSONA_LABELS: Record<string, string> = {
+  general_assistant: 'General',
+  coding_copilot: 'Coding',
+  product_manager: 'Product',
+  friendly_tutor: 'Tutor',
+  data_analyst: 'Data Analysis',
+  summarizer_editor: 'Summarizer',
+  security_privacy_guard: 'Security',
+  research_librarian: 'Research',
+  translation_localization: 'Translation',
+  troubleshooting_debugger: 'Debugger',
+};
+
+const GenerationDetails = ({ metadata }: { metadata: ChatMessageMetadata }) => {
+  const [promptOpen, setPromptOpen] = useState(false);
+  const { routing, persona, enhancedPrompt } = metadata;
+  if (!routing) return null;
+
+  return (
+    <div className="mt-3 rounded-lg border border-black/6 dark:border-white/8 bg-black/2 dark:bg-white/3 px-3 py-2.5 space-y-2">
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Model</span>
+          <span className="text-[11px] font-medium text-foreground">{routing.modelId.split('/')[1] ?? routing.modelId}</span>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${routing.mode === 'manual' ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400' : 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400'}`}>
+            {routing.mode === 'manual' ? 'Manual' : 'Auto'}
+          </span>
+        </div>
+        {routing.mode === 'auto' && routing.reason && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Reason</span>
+            <span className="text-[11px] text-muted-foreground">{routing.reason}</span>
+          </div>
+        )}
+        {persona && persona !== 'general_assistant' && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Persona</span>
+            <span className="text-[11px] text-muted-foreground">{PERSONA_LABELS[persona] ?? persona}</span>
+          </div>
+        )}
+      </div>
+      {enhancedPrompt && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setPromptOpen((v) => !v)}
+            className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+          >
+            <SparklesIcon className="size-3" />
+            Enhanced prompt
+            <ChevronDownIcon className={`size-3 transition-transform ${promptOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {promptOpen && (
+            <p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed border-l-2 border-black/10 dark:border-white/10 pl-2">
+              {enhancedPrompt}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const FollowUpChips = ({ suggestions, onSuggestionClick }: {
   suggestions: string[];
   onSuggestionClick: (suggestion: string) => void;
@@ -312,6 +375,7 @@ export const ChatMessageList = ({
   type PendingDelete = { messageId: string; partnerMessageId?: string };
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [hoveredDeleteIds, setHoveredDeleteIds] = useState<Set<string>>(new Set());
+  const [openInfoId, setOpenInfoId] = useState<string | null>(null);
 
   const getPair = useRef((messageId: string, msgIndex: number): { messageId: string; partnerMessageId?: string } => {
     const msg = messages[msgIndex];
@@ -477,6 +541,9 @@ export const ChatMessageList = ({
                   {followUpSuggestions.length > 0 && (
                     <FollowUpChips suggestions={followUpSuggestions} onSuggestionClick={onSuggestionClick} />
                   )}
+                  {openInfoId === message.id && message.metadata && (
+                    <GenerationDetails metadata={message.metadata as ChatMessageMetadata} />
+                  )}
                 </MessageContent>
                 <MessageToolbar className="justify-between">
                   <div className="flex gap-1">
@@ -584,6 +651,23 @@ export const ChatMessageList = ({
                             <TooltipContent>Not helpful</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
+                        {(message.metadata as ChatMessageMetadata | undefined)?.routing && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className={`size-7 ${openInfoId === message.id ? 'text-blue-500' : ''}`}
+                                  onClick={() => setOpenInfoId((id) => id === message.id ? null : message.id)}
+                                >
+                                  <InfoIcon className="size-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Generation details</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                       </>
                     )}
                   </div>

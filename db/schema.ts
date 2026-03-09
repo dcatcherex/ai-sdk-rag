@@ -289,11 +289,25 @@ export const creditTransactionRelations = relations(creditTransaction, ({ one })
 export const userPreferences = pgTable("user_preferences", {
   userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
   memoryEnabled: boolean("memory_enabled").default(true).notNull(),
+  memoryInjectEnabled: boolean("memory_inject_enabled").default(true).notNull(),
+  memoryExtractEnabled: boolean("memory_extract_enabled").default(true).notNull(),
+  personaDetectionEnabled: boolean("persona_detection_enabled").default(true).notNull(),
   promptEnhancementEnabled: boolean("prompt_enhancement_enabled").default(true).notNull(),
+  followUpSuggestionsEnabled: boolean("follow_up_suggestions_enabled").default(true).notNull(),
   /** null = all tools enabled (default for new users). Set to array to restrict. */
   enabledToolIds: text("enabled_tool_ids").array(),
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
 });
+
+export const personaCustomization = pgTable("persona_customization", {
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  personaKey: text("persona_key").notNull(),
+  extraInstructions: text("extra_instructions").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  { name: "persona_customization_pkey", columns: [table.userId, table.personaKey] },
+  index("persona_customization_userId_idx").on(table.userId),
+]);
 
 export const userMemory = pgTable("user_memory", {
   id: text("id").primaryKey(),

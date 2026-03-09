@@ -1,0 +1,2 @@
+ALTER TABLE "user_preferences" ADD COLUMN "memory_inject_enabled" boolean DEFAULT true NOT NULL;--> statement-breakpoint
+ALTER TABLE "user_preferences" ADD COLUMN "memory_extract_enabled" boolean DEFAULT true NOT NULL;

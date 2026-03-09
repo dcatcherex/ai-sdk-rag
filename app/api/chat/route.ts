@@ -10,9 +10,10 @@ import { headers } from 'next/headers';
 import { and, eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { agent, chatThread, user as userTable, userPreferences } from '@/db/schema';
+import { agent, chatThread, personaCustomization, user as userTable, userPreferences } from '@/db/schema';
 import { availableModels, maxSteps } from '@/lib/ai';
-import { getSystemPrompt, detectSystemPromptKey } from '@/lib/prompt';
+import { getSystemPrompt } from '@/lib/prompt';
+import { detectPersona } from '@/lib/persona-detection';
 import { enhancePrompt } from '@/lib/prompt-enhance';
 import { summarizeConversation, SUMMARY_THRESHOLD } from '@/lib/conversation-summary';
 import { getUserModelScores } from '@/lib/model-scores';
@@ -33,29 +34,25 @@ export const maxDuration = 30;
 
 export async function POST(req: Request) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
+    // ── Stage 1: auth + body parse in parallel ───────────────────────────────
+    const [session, rawBody] = await Promise.all([
+      headers().then((h) => auth.api.getSession({ headers: h })),
+      req.json(),
+    ]);
     if (!session?.user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check approval status
-    const userRow = await db
-      .select({ approved: userTable.approved })
-      .from(userTable)
-      .where(eq(userTable.id, session.user.id))
-      .limit(1);
-    if (!userRow[0]?.approved) {
-      return Response.json(
-        { error: 'Your account is pending approval. Please contact the admin.' },
-        { status: 403 }
-      );
-    }
-
     const { messages, threadId, model, useWebSearch, selectedDocumentIds, enabledModelIds, agentId } =
-      requestSchema.parse(await req.json());
+      requestSchema.parse(rawBody);
 
-    // ── Load thread + user prefs in parallel ────────────────────────────────
-    const [threadRows, prefsRows] = await Promise.all([
+    // ── Stage 2: all independent DB queries in parallel ──────────────────────
+    const [userRow, threadRows, prefsRows, balance, activeAgentRows, personaCustomRows] = await Promise.all([
+      db
+        .select({ approved: userTable.approved })
+        .from(userTable)
+        .where(eq(userTable.id, session.user.id))
+        .limit(1),
       db
         .select({ id: chatThread.id, title: chatThread.title })
         .from(chatThread)
@@ -66,18 +63,7 @@ export async function POST(req: Request) {
         .from(userPreferences)
         .where(eq(userPreferences.userId, session.user.id))
         .limit(1),
-    ]);
-
-    if (threadRows.length === 0) {
-      return Response.json({ error: 'Thread not found' }, { status: 404 });
-    }
-
-    const currentTitle = threadRows[0]!.title ?? 'New chat';
-    const userPrefs = prefsRows[0] ?? { memoryEnabled: true, promptEnhancementEnabled: true, enabledToolIds: null };
-    const lastUserPrompt = getLastUserPrompt(messages);
-
-    // ── Load agent, memory ───────────────────────────────────────────────────
-    const [activeAgentRows, memoryContext] = await Promise.all([
+      getUserBalance(session.user.id),
       agentId
         ? db
             .select()
@@ -85,14 +71,38 @@ export async function POST(req: Request) {
             .where(and(eq(agent.id, agentId), eq(agent.userId, session.user.id)))
             .limit(1)
         : Promise.resolve([]),
-      userPrefs.memoryEnabled ? getUserMemoryContext(session.user.id) : Promise.resolve(''),
+      db
+        .select({ personaKey: personaCustomization.personaKey, extraInstructions: personaCustomization.extraInstructions })
+        .from(personaCustomization)
+        .where(eq(personaCustomization.userId, session.user.id)),
     ]);
-    const activeAgent = activeAgentRows[0] ?? null;
 
-    // ── Persona + system prompt + tools ─────────────────────────────────────
-    const detectedPersona: SystemPromptKey = lastUserPrompt
-      ? detectSystemPromptKey(lastUserPrompt)
-      : 'general_assistant';
+    if (!userRow[0]?.approved) {
+      return Response.json(
+        { error: 'Your account is pending approval. Please contact the admin.' },
+        { status: 403 }
+      );
+    }
+    if (threadRows.length === 0) {
+      return Response.json({ error: 'Thread not found' }, { status: 404 });
+    }
+
+    const currentTitle = threadRows[0]!.title ?? 'New chat';
+    const userPrefs = prefsRows[0] ?? { memoryEnabled: true, memoryInjectEnabled: true, memoryExtractEnabled: true, personaDetectionEnabled: true, promptEnhancementEnabled: true, followUpSuggestionsEnabled: true, enabledToolIds: null };
+    const activeAgent = activeAgentRows[0] ?? null;
+    const personaCustomMap: Record<string, string> = {};
+    for (const row of personaCustomRows) personaCustomMap[row.personaKey] = row.extraInstructions;
+    const lastUserPrompt = getLastUserPrompt(messages);
+
+    // ── Stage 3: memory + persona detection in parallel ─────────────────────
+    const [memoryContext, detectedPersona] = await Promise.all([
+      (userPrefs.memoryEnabled && userPrefs.memoryInjectEnabled)
+        ? getUserMemoryContext(session.user.id)
+        : Promise.resolve(''),
+      (userPrefs.personaDetectionEnabled ?? true) && lastUserPrompt
+        ? detectPersona(lastUserPrompt)
+        : Promise.resolve('general_assistant' as SystemPromptKey),
+    ]);
 
     const isGrounded = !!selectedDocumentIds?.length;
 
@@ -111,13 +121,17 @@ export async function POST(req: Request) {
           documentIds: isGrounded ? selectedDocumentIds : undefined,
         });
 
+    const personaExtraInstructions = !activeAgent ? (personaCustomMap[detectedPersona] ?? '') : '';
     const groundedSystemPrompt = activeAgent
       ? activeAgent.systemPrompt + (memoryContext ? `\n\n${memoryContext}` : '')
       : isGrounded
         ? getSystemPrompt(detectedPersona) +
+          (personaExtraInstructions ? `\n\n<user_instructions>\n${personaExtraInstructions}\n</user_instructions>` : '') +
           '\nIMPORTANT: The user has selected specific documents. You MUST use the searchKnowledge tool to find information before answering. Only respond using information from tool results. If no relevant information is found, say so.' +
           (memoryContext ? `\n\n${memoryContext}` : '')
-        : getSystemPrompt(detectedPersona) + (memoryContext ? `\n\n${memoryContext}` : '');
+        : getSystemPrompt(detectedPersona) +
+          (personaExtraInstructions ? `\n\n<user_instructions>\n${personaExtraInstructions}\n</user_instructions>` : '') +
+          (memoryContext ? `\n\n${memoryContext}` : '');
 
     // ── Model routing ────────────────────────────────────────────────────────
     const enabledIds =
@@ -151,7 +165,6 @@ export async function POST(req: Request) {
 
     // ── Credit check ─────────────────────────────────────────────────────────
     const creditCost = getCreditCost(resolvedModel);
-    const balance = await getUserBalance(session.user.id);
     if (balance < creditCost) {
       return Response.json(
         {
@@ -273,7 +286,7 @@ export async function POST(req: Request) {
         // Inject follow-up suggestions into last assistant message
         const lastAssistantIdx = typedMessages.map((m) => m.role).lastIndexOf('assistant');
         let messagesWithSuggestions = typedMessages;
-        if (lastAssistantIdx !== -1) {
+        if (lastAssistantIdx !== -1 && (userPrefs.followUpSuggestionsEnabled ?? true)) {
           const contextStr = typedMessages
             .slice(-6)
             .map((m) => {
@@ -304,7 +317,7 @@ export async function POST(req: Request) {
           tokenUsageData: usage,
         });
 
-        if (userPrefs.memoryEnabled) {
+        if (userPrefs.memoryEnabled && userPrefs.memoryExtractEnabled) {
           void extractAndStoreMemory(
             session.user.id,
             messagesWithSuggestions as Array<{ role: string; parts?: Array<{ type: string; text?: string }> }>,

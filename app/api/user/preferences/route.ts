@@ -18,14 +18,22 @@ export async function GET() {
   if (prefs.length === 0) {
     return Response.json({
       memoryEnabled: true,
+      memoryInjectEnabled: true,
+      memoryExtractEnabled: true,
+      personaDetectionEnabled: true,
       promptEnhancementEnabled: true,
+      followUpSuggestionsEnabled: true,
       enabledToolIds: null, // null = all tools
     });
   }
 
   return Response.json({
     memoryEnabled: prefs[0].memoryEnabled,
+    memoryInjectEnabled: prefs[0].memoryInjectEnabled,
+    memoryExtractEnabled: prefs[0].memoryExtractEnabled,
+    personaDetectionEnabled: prefs[0].personaDetectionEnabled,
     promptEnhancementEnabled: prefs[0].promptEnhancementEnabled,
+    followUpSuggestionsEnabled: prefs[0].followUpSuggestionsEnabled,
     enabledToolIds: prefs[0].enabledToolIds ?? null,
   });
 }
@@ -36,7 +44,11 @@ export async function PUT(req: Request) {
 
   const body = await req.json() as {
     memoryEnabled?: boolean;
+    memoryInjectEnabled?: boolean;
+    memoryExtractEnabled?: boolean;
+    personaDetectionEnabled?: boolean;
     promptEnhancementEnabled?: boolean;
+    followUpSuggestionsEnabled?: boolean;
     enabledToolIds?: string[] | null;
   };
 
@@ -53,14 +65,22 @@ export async function PUT(req: Request) {
     .values({
       userId: session.user.id,
       memoryEnabled: body.memoryEnabled ?? true,
+      memoryInjectEnabled: body.memoryInjectEnabled ?? true,
+      memoryExtractEnabled: body.memoryExtractEnabled ?? true,
+      personaDetectionEnabled: body.personaDetectionEnabled ?? true,
       promptEnhancementEnabled: body.promptEnhancementEnabled ?? true,
+      followUpSuggestionsEnabled: body.followUpSuggestionsEnabled ?? true,
       enabledToolIds: body.enabledToolIds ?? null,
     })
     .onConflictDoUpdate({
       target: userPreferences.userId,
       set: {
         ...(body.memoryEnabled !== undefined && { memoryEnabled: body.memoryEnabled }),
+        ...(body.memoryInjectEnabled !== undefined && { memoryInjectEnabled: body.memoryInjectEnabled }),
+        ...(body.memoryExtractEnabled !== undefined && { memoryExtractEnabled: body.memoryExtractEnabled }),
+        ...(body.personaDetectionEnabled !== undefined && { personaDetectionEnabled: body.personaDetectionEnabled }),
         ...(body.promptEnhancementEnabled !== undefined && { promptEnhancementEnabled: body.promptEnhancementEnabled }),
+        ...(body.followUpSuggestionsEnabled !== undefined && { followUpSuggestionsEnabled: body.followUpSuggestionsEnabled }),
         ...(body.enabledToolIds !== undefined && { enabledToolIds: body.enabledToolIds }),
         updatedAt: new Date(),
       },
