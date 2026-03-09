@@ -37,6 +37,7 @@ export interface SearchResult {
 }
 
 export interface AddDocumentOptions {
+  userId?: string;
   metadata?: Record<string, any>;
   chunkSize?: number;
   chunkOverlap?: number;
@@ -46,6 +47,7 @@ export interface SearchOptions {
   limit?: number;
   minSimilarity?: number;
   filter?: Record<string, any>;
+  userId?: string;
 }
 
 /**
@@ -58,15 +60,17 @@ export async function addDocument(
 ): Promise<string> {
   const documentId = nanoid();
   const metadata = options.metadata || {};
+  const userId = options.userId ?? null;
 
   // For shorter documents, store as single document
   if (content.length < 2000) {
     const embedding = await generateEmbedding(content);
 
     await db.execute(sql`
-      INSERT INTO document (id, content, metadata, embedding, created_at, updated_at)
+      INSERT INTO document (id, user_id, content, metadata, embedding, created_at, updated_at)
       VALUES (
         ${documentId},
+        ${userId},
         ${content},
         ${JSON.stringify(metadata)}::jsonb,
         ${JSON.stringify(embedding)}::vector,
@@ -95,9 +99,10 @@ export async function addDocument(
 
   // Store parent document (without embedding to save space)
   await db.execute(sql`
-    INSERT INTO document (id, content, metadata, created_at, updated_at)
+    INSERT INTO document (id, user_id, content, metadata, created_at, updated_at)
     VALUES (
       ${documentId},
+      ${userId},
       ${content},
       ${JSON.stringify(metadata)}::jsonb,
       NOW(),
@@ -136,8 +141,10 @@ export async function addDocuments(
 
   for (const doc of documents) {
     const id = await addDocument(doc.content, {
-      ...options,
+      userId: options.userId,
       metadata: doc.metadata,
+      chunkSize: options.chunkSize,
+      chunkOverlap: options.chunkOverlap,
     });
     ids.push(id);
   }
@@ -155,12 +162,17 @@ export async function searchDocuments(
 ): Promise<SearchResult[]> {
   const limit = options.limit || 5;
   const minSimilarity = options.minSimilarity || 0.5;
+  const userId = options.userId ?? null;
 
   // Generate embedding for query
   const queryEmbedding = await generateEmbedding(query);
 
   // Format vector for pgvector - must use sql.raw() to avoid parameterization
   const vectorStr = `[${queryEmbedding.join(',')}]`;
+
+  const userFilter = userId
+    ? sql`AND user_id = ${userId}`
+    : sql`AND user_id IS NULL`;
 
   // Search in both document and document_chunk tables
   // Use UNION to combine results from both
@@ -173,18 +185,21 @@ export async function searchDocuments(
         1 - (embedding <=> ${sql.raw(`'${vectorStr}'::vector`)}) as similarity
       FROM document
       WHERE embedding IS NOT NULL
+        ${userFilter}
         AND 1 - (embedding <=> ${sql.raw(`'${vectorStr}'::vector`)}) > ${minSimilarity}
 
       UNION ALL
 
       SELECT
-        id,
-        content,
-        metadata,
-        1 - (embedding <=> ${sql.raw(`'${vectorStr}'::vector`)}) as similarity
-      FROM document_chunk
-      WHERE embedding IS NOT NULL
-        AND 1 - (embedding <=> ${sql.raw(`'${vectorStr}'::vector`)}) > ${minSimilarity}
+        dc.id,
+        dc.content,
+        dc.metadata,
+        1 - (dc.embedding <=> ${sql.raw(`'${vectorStr}'::vector`)}) as similarity
+      FROM document_chunk dc
+      JOIN document d ON d.id = dc.document_id
+      WHERE dc.embedding IS NOT NULL
+        AND d.user_id ${userId ? sql`= ${userId}` : sql`IS NULL`}
+        AND 1 - (dc.embedding <=> ${sql.raw(`'${vectorStr}'::vector`)}) > ${minSimilarity}
     )
     SELECT * FROM all_results
     ORDER BY similarity DESC
@@ -210,6 +225,7 @@ export async function searchDocumentsWithFilter(
 ): Promise<SearchResult[]> {
   const limit = options.limit || 5;
   const minSimilarity = options.minSimilarity || 0.5;
+  const userId = options.userId ?? null;
 
   const queryEmbedding = await generateEmbedding(query);
   const vectorStr = `[${queryEmbedding.join(',')}]`;
@@ -228,19 +244,22 @@ export async function searchDocumentsWithFilter(
         1 - (embedding <=> ${sql.raw(`'${vectorStr}'::vector`)}) as similarity
       FROM document
       WHERE embedding IS NOT NULL
+        AND user_id ${userId ? sql`= ${userId}` : sql`IS NULL`}
         AND 1 - (embedding <=> ${sql.raw(`'${vectorStr}'::vector`)}) > ${minSimilarity}
         AND ${sql.join(filterConditions, sql` AND `)}
 
       UNION ALL
 
       SELECT
-        id,
-        content,
-        metadata,
-        1 - (embedding <=> ${sql.raw(`'${vectorStr}'::vector`)}) as similarity
-      FROM document_chunk
-      WHERE embedding IS NOT NULL
-        AND 1 - (embedding <=> ${sql.raw(`'${vectorStr}'::vector`)}) > ${minSimilarity}
+        dc.id,
+        dc.content,
+        dc.metadata,
+        1 - (dc.embedding <=> ${sql.raw(`'${vectorStr}'::vector`)}) as similarity
+      FROM document_chunk dc
+      JOIN document d ON d.id = dc.document_id
+      WHERE dc.embedding IS NOT NULL
+        AND d.user_id ${userId ? sql`= ${userId}` : sql`IS NULL`}
+        AND 1 - (dc.embedding <=> ${sql.raw(`'${vectorStr}'::vector`)}) > ${minSimilarity}
         AND ${sql.join(filterConditions, sql` AND `)}
     )
     SELECT * FROM all_results
@@ -257,13 +276,14 @@ export async function searchDocumentsWithFilter(
 }
 
 /**
- * Get document by ID
+ * Get document by ID, optionally scoped to a user
  */
-export async function getDocument(id: string): Promise<Document | null> {
+export async function getDocument(id: string, userId?: string): Promise<Document | null> {
   const results = await db.execute(sql`
     SELECT id, content, metadata, created_at, updated_at
     FROM document
     WHERE id = ${id}
+    ${userId !== undefined ? sql`AND user_id = ${userId}` : sql``}
   `);
 
   if (results.rows.length === 0) return null;
@@ -279,11 +299,18 @@ export async function getDocument(id: string): Promise<Document | null> {
 }
 
 /**
- * Delete document and all its chunks
+ * Delete document and all its chunks, optionally scoped to a user
  */
-export async function deleteDocument(id: string): Promise<void> {
+export async function deleteDocument(id: string, userId?: string): Promise<boolean> {
+  // Verify ownership before deleting
+  const check = await db.execute(sql`
+    SELECT id FROM document WHERE id = ${id}
+    ${userId !== undefined ? sql`AND user_id = ${userId}` : sql``}
+  `);
+  if (check.rows.length === 0) return false;
   await db.execute(sql`DELETE FROM document_chunk WHERE document_id = ${id}`);
   await db.execute(sql`DELETE FROM document WHERE id = ${id}`);
+  return true;
 }
 
 /**
@@ -299,6 +326,7 @@ export interface ListDocumentsOptions {
   limit?: number;
   category?: string;
   search?: string;
+  userId?: string;
 }
 
 export interface ListDocumentsResult {
@@ -319,6 +347,9 @@ export async function listDocuments(
   const offset = (page - 1) * limit;
 
   const conditions = [];
+  if (options.userId !== undefined) {
+    conditions.push(sql`d.user_id = ${options.userId}`);
+  }
   if (options.category) {
     conditions.push(sql`d.metadata->>'category' = ${options.category}`);
   }
@@ -372,11 +403,11 @@ export async function listDocuments(
 /**
  * Get a document with all its chunks
  */
-export async function getDocumentWithChunks(id: string): Promise<{
+export async function getDocumentWithChunks(id: string, userId?: string): Promise<{
   document: Document;
   chunks: DocumentChunk[];
 } | null> {
-  const doc = await getDocument(id);
+  const doc = await getDocument(id, userId);
   if (!doc) return null;
 
   const chunkResults = await db.execute(sql`
@@ -462,17 +493,23 @@ export async function searchDocumentsByIds(
 /**
  * Get knowledge base statistics
  */
-export async function getDocumentStats(): Promise<{
+export async function getDocumentStats(userId?: string): Promise<{
   totalDocuments: number;
   totalChunks: number;
   categories: Array<{ name: string; count: number }>;
 }> {
-  const docCount = await db.execute(sql`SELECT COUNT(*) as count FROM document`);
-  const chunkCount = await db.execute(sql`SELECT COUNT(*) as count FROM document_chunk`);
+  const userFilter = userId !== undefined ? sql`WHERE user_id = ${userId}` : sql``;
+  const userJoinFilter = userId !== undefined ? sql`WHERE d.user_id = ${userId}` : sql``;
+  const docCount = await db.execute(sql`SELECT COUNT(*) as count FROM document ${userFilter}`);
+  const chunkCount = await db.execute(sql`
+    SELECT COUNT(*) as count FROM document_chunk dc
+    JOIN document d ON d.id = dc.document_id
+    ${userJoinFilter}
+  `);
   const categoryResults = await db.execute(sql`
     SELECT metadata->>'category' as name, COUNT(*) as count
     FROM document
-    WHERE metadata->>'category' IS NOT NULL
+    ${userId !== undefined ? sql`WHERE user_id = ${userId} AND metadata->>'category' IS NOT NULL` : sql`WHERE metadata->>'category' IS NOT NULL`}
     GROUP BY metadata->>'category'
     ORDER BY count DESC
   `);

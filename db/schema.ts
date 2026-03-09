@@ -347,6 +347,7 @@ export const document = pgTable(
   "document",
   {
     id: text("id").primaryKey(),
+    userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
     content: text("content").notNull(),
     metadata: jsonb("metadata").default({}).notNull(),
     embedding: vector("embedding", { dimensions: 1024 }), // mistral/mistral-embed
@@ -358,6 +359,7 @@ export const document = pgTable(
   },
   (table) => [
     index("document_metadata_idx").using("gin", table.metadata),
+    index("document_user_id_idx").on(table.userId),
   ],
 );
 

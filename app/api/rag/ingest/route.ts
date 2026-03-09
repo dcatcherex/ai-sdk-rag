@@ -7,6 +7,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { headers } from 'next/headers';
+import { auth } from '@/lib/auth';
 import {
   ingestTextDocument,
   ingestDocuments,
@@ -15,10 +17,14 @@ import {
   ingestFromURL
 } from '@/lib/document-ingestion';
 
-export const runtime = 'edge';
-
 export async function POST(req: NextRequest) {
   try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    const userId = session?.user?.id;
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await req.json();
     const { type, content, documents, url, category, metadata } = body;
 
@@ -33,7 +39,7 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           );
         }
-        result = await ingestTextDocument(content, { category, metadata });
+        result = await ingestTextDocument(content, { userId, category, metadata });
         return NextResponse.json({
           success: true,
           documentId: result,
@@ -48,7 +54,7 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           );
         }
-        result = await ingestDocuments(documents, { category, metadata });
+        result = await ingestDocuments(documents, { userId, category, metadata });
         return NextResponse.json({
           success: true,
           documentIds: result,
@@ -64,7 +70,7 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           );
         }
-        result = await ingestMarkdown(content, { category, metadata });
+        result = await ingestMarkdown(content, { userId, category, metadata });
         return NextResponse.json({
           success: true,
           documentIds: result,
@@ -81,7 +87,7 @@ export async function POST(req: NextRequest) {
           );
         }
         const contentField = body.contentField || 'content';
-        result = await ingestJSON(documents, contentField, { category, metadata });
+        result = await ingestJSON(documents, contentField, { userId, category, metadata });
         return NextResponse.json({
           success: true,
           documentIds: result,
@@ -97,7 +103,7 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           );
         }
-        result = await ingestFromURL(url, { category, metadata });
+        result = await ingestFromURL(url, { userId, category, metadata });
         return NextResponse.json({
           success: true,
           documentId: result,

@@ -9,6 +9,7 @@ import { addDocument, addDocuments } from './vector-store';
 import { chunkText } from './embeddings';
 
 export interface IngestionOptions {
+  userId?: string;
   category?: string;
   source?: string;
   metadata?: Record<string, any>;
@@ -31,6 +32,7 @@ export async function ingestTextDocument(
   };
 
   return await addDocument(content, {
+    userId: options.userId,
     metadata,
     chunkSize: options.chunkSize,
     chunkOverlap: options.chunkOverlap,
@@ -56,6 +58,7 @@ export async function ingestDocuments(
   }));
 
   return await addDocuments(docs, {
+    userId: options.userId,
     chunkSize: options.chunkSize,
     chunkOverlap: options.chunkOverlap,
   });

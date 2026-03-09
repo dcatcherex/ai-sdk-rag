@@ -7,12 +7,18 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { headers } from 'next/headers';
+import { auth } from '@/lib/auth';
 import { searchDocuments, searchDocumentsWithFilter } from '@/lib/vector-store';
-
-export const runtime = 'edge';
 
 export async function GET(req: NextRequest) {
   try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    const userId = session?.user?.id;
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const searchParams = req.nextUrl.searchParams;
     const query = searchParams.get('q');
     const limit = parseInt(searchParams.get('limit') || '5');
@@ -32,10 +38,10 @@ export async function GET(req: NextRequest) {
       results = await searchDocumentsWithFilter(
         query,
         { category },
-        { limit, minSimilarity }
+        { limit, minSimilarity, userId }
       );
     } else {
-      results = await searchDocuments(query, { limit, minSimilarity });
+      results = await searchDocuments(query, { limit, minSimilarity, userId });
     }
 
     return NextResponse.json({

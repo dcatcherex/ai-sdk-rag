@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { headers } from 'next/headers';
+import { auth } from '@/lib/auth';
 import { listDocuments } from '@/lib/vector-store';
 import {
   ingestTextDocument,
@@ -15,15 +17,25 @@ function sanitizeText(text: string): string {
     .trim();
 }
 
+async function getSessionUserId(): Promise<string | null> {
+  const session = await auth.api.getSession({ headers: await headers() });
+  return session?.user?.id ?? null;
+}
+
 export async function GET(req: NextRequest) {
   try {
+    const userId = await getSessionUserId();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const params = req.nextUrl.searchParams;
     const page = parseInt(params.get('page') || '1');
     const limit = parseInt(params.get('limit') || '20');
     const category = params.get('category') || undefined;
     const search = params.get('search') || undefined;
 
-    const result = await listDocuments({ page, limit, category, search });
+    const result = await listDocuments({ page, limit, category, search, userId });
     return NextResponse.json(result);
   } catch (error) {
     console.error('List documents error:', error);
@@ -36,6 +48,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const userId = await getSessionUserId();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const url = formData.get('url') as string | null;
@@ -56,6 +73,7 @@ export async function POST(req: NextRequest) {
     if (url) {
       docTitle = docTitle || url;
       documentId = await ingestFromURL(url, {
+        userId,
         category,
         metadata: { title: docTitle },
       });
@@ -70,12 +88,14 @@ export async function POST(req: NextRequest) {
         const { text: pdfPages } = await extractText(buffer);
         const content = sanitizeText(pdfPages.join('\n'));
         documentId = await ingestTextDocument(content, {
+          userId,
           category,
           metadata: { title: docTitle, fileType: 'pdf', fileName: file.name },
         });
       } else if (ext === 'md' || ext === 'markdown') {
         const content = sanitizeText(await file.text());
         documentId = await ingestMarkdown(content, {
+          userId,
           category,
           metadata: { title: docTitle, fileType: ext, fileName: file.name },
         });
@@ -85,17 +105,20 @@ export async function POST(req: NextRequest) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) {
             documentId = await ingestJSON(parsed, 'content', {
+              userId,
               category,
               metadata: { title: docTitle, fileType: ext, fileName: file.name },
             });
           } else {
             documentId = await ingestTextDocument(JSON.stringify(parsed, null, 2), {
+              userId,
               category,
               metadata: { title: docTitle, fileType: ext, fileName: file.name },
             });
           }
         } catch {
           documentId = await ingestTextDocument(raw, {
+            userId,
             category,
             metadata: { title: docTitle, fileType: ext, fileName: file.name },
           });
@@ -104,6 +127,7 @@ export async function POST(req: NextRequest) {
         // txt, csv, etc.
         const content = sanitizeText(await file.text());
         documentId = await ingestTextDocument(content, {
+          userId,
           category,
           metadata: { title: docTitle, fileType: ext || 'txt', fileName: file.name },
         });
@@ -111,6 +135,7 @@ export async function POST(req: NextRequest) {
     } else {
       docTitle = docTitle || 'Untitled document';
       documentId = await ingestTextDocument(sanitizeText(text!), {
+        userId,
         category,
         metadata: { title: docTitle },
       });
