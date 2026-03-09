@@ -18,6 +18,7 @@ import { ConversationOutline } from '@/features/chat/components/conversation-out
 import { ImageEditor } from '@/features/gallery/components/image-editor/image-editor';
 import { useImageEditor } from '@/features/gallery/hooks/use-image-editor';
 import { useAgents } from '@/features/agents/hooks/use-agents';
+import { useCustomPersonas } from '@/features/chat/hooks/use-custom-personas';
 import { useComparePreset } from '@/features/chat/hooks/use-compare-preset';
 import { CompareGrid, type ComparePrompt } from '@/features/chat/components/compare-grid';
 import type { ChatMessage, RoutingMetadata } from '@/features/chat/types';
@@ -50,14 +51,18 @@ export default function Chat() {
 
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(null);
   const selectedDocIdsRef = useRef(selectedDocIds);
   selectedDocIdsRef.current = selectedDocIds;
   const useWebSearchRef = useRef(useWebSearch);
   useWebSearchRef.current = useWebSearch;
   const selectedAgentIdRef = useRef(selectedAgentId);
   selectedAgentIdRef.current = selectedAgentId;
+  const selectedPersonaIdRef = useRef(selectedPersonaId);
+  selectedPersonaIdRef.current = selectedPersonaId;
 
   const { data: agents = [] } = useAgents();
+  const { data: customPersonas = [] } = useCustomPersonas();
 
   const { data: docStats } = useDocumentStats();
 
@@ -116,6 +121,7 @@ export default function Chat() {
     ensureThread,
     useWebSearchRef,
     selectedAgentIdRef,
+    selectedPersonaIdRef,
     followUpSuggestionsEnabled,
   });
 
@@ -134,7 +140,7 @@ export default function Chat() {
     return null;
   }, [messages]);
 
-  const lastPersona = useMemo((): SystemPromptKey | null => {
+  const lastPersona = useMemo((): string | null => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const message = messages[index];
       if (message.role === 'assistant' && message.metadata?.persona) {
@@ -345,6 +351,9 @@ export default function Chat() {
                 agents={agents}
                 selectedAgentId={selectedAgentId}
                 onSelectAgent={setSelectedAgentId}
+                customPersonas={customPersonas}
+                selectedPersonaId={selectedPersonaId}
+                onSelectPersona={setSelectedPersonaId}
                 onStop={stop}
                 onModelSelectorOpenChange={setModelSelectorOpen}
                 onSelectModel={handleSelectModel}

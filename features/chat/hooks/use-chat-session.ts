@@ -33,6 +33,7 @@ type UseChatSessionOptions = {
   enabledModelIdsRef: React.RefObject<string[]>;
   useWebSearchRef: React.RefObject<boolean>;
   selectedAgentIdRef: React.RefObject<string | null>;
+  selectedPersonaIdRef: React.RefObject<string | null>;
   activeMessages: ChatMessage[];
   queryClient: QueryClient;
   ensureThread: () => Promise<string>;
@@ -47,6 +48,7 @@ export const useChatSession = ({
   enabledModelIdsRef,
   useWebSearchRef,
   selectedAgentIdRef,
+  selectedPersonaIdRef,
   activeMessages,
   queryClient,
   ensureThread,
@@ -68,6 +70,7 @@ export const useChatSession = ({
             : undefined,
           enabledModelIds: enabledModelIdsRef.current,
           agentId: selectedAgentIdRef.current ?? undefined,
+          personaId: selectedPersonaIdRef.current ?? undefined,
         }),
       }),
     [
@@ -77,6 +80,7 @@ export const useChatSession = ({
       enabledModelIdsRef,
       useWebSearchRef,
       selectedAgentIdRef,
+      selectedPersonaIdRef,
     ]
   );
 

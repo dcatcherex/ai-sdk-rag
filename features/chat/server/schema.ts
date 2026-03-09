@@ -13,6 +13,7 @@ export const requestSchema = z.object({
   selectedDocumentIds: z.array(z.string()).optional(),
   enabledModelIds: z.array(z.string()).optional(),
   agentId: z.string().optional(),
+  personaId: z.string().optional(),
 });
 
 export type ChatRequest = z.infer<typeof requestSchema>;

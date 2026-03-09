@@ -57,7 +57,7 @@ type ChatHeaderProps = {
         name: string;
       }
     | undefined;
-  lastPersona?: SystemPromptKey | null;
+  lastPersona?: string | null;
   // Actions
   onDeleteThread: (threadId: string) => void;
   isDeleting: boolean;
@@ -125,7 +125,7 @@ export const ChatHeader = ({
           <Tooltip>
             <TooltipTrigger asChild>
               <Badge variant="outline" className="hidden gap-1 text-xs sm:inline-flex">
-                {PERSONA_LABELS[lastPersona]}
+                {lastPersona.startsWith('custom:') ? lastPersona.slice(7) : (PERSONA_LABELS[lastPersona as SystemPromptKey] ?? lastPersona)}
               </Badge>
             </TooltipTrigger>
             <TooltipContent>

@@ -7,7 +7,9 @@ import { AudioLinesIcon, BookOpenIcon, CheckIcon, Columns2Icon, GlobeIcon, Slide
 import { useLiveVoice, type VoiceHistoryTurn } from '@/features/chat/hooks/use-live-voice';
 import { VoiceMode } from '@/features/chat/components/voice-mode';
 import { AgentSelector } from '@/features/agents/components/agent-selector';
+import { PersonaSelector } from '@/features/chat/components/persona-selector';
 import type { Agent } from '@/features/agents/types';
+import type { CustomPersona } from '@/features/chat/types/custom-persona';
 import type { ComparePresetMode } from '@/features/chat/hooks/use-compare-preset';
 import { availableModels } from '@/lib/ai';
 import {
@@ -20,6 +22,7 @@ import {
   ModelSelector,
   ModelSelectorContent,
   ModelSelectorEmpty,
+  ModelSelectorInput,
   ModelSelectorItem,
   ModelSelectorList,
   ModelSelectorLogo,
@@ -55,6 +58,33 @@ const composerSuggestions = [
   'Turn this into a checklist',
   'Translate this to Thai and English',
 ];
+
+// ── Speed / Cost dot indicators ───────────────────────────────────────────────
+
+function speedTier(model: { throughput?: number } | undefined): number {
+  if (!model?.throughput) return 1;
+  if (model.throughput >= 200) return 3;
+  if (model.throughput >= 80) return 2;
+  return 1;
+}
+
+function costTier(model: { inputCost?: number } | undefined): number {
+  if (!model?.inputCost) return 1;
+  if (model.inputCost >= 2) return 3;
+  if (model.inputCost >= 0.4) return 2;
+  return 1;
+}
+
+const Dots = ({ filled, color }: { filled: number; color: string }) => (
+  <div className="flex gap-0.5">
+    {[0, 1, 2].map((i) => (
+      <span
+        key={i}
+        className={`size-1.5 rounded-full ${i < filled ? color : 'bg-zinc-200 dark:bg-zinc-700'}`}
+      />
+    ))}
+  </div>
+);
 
 // ── Compare model picker popover ─────────────────────────────────────────────
 
@@ -149,6 +179,15 @@ const CompareModelPicker = ({
           </div>
         )}
 
+        {/* Column header */}
+        <div className="flex items-center border-b border-black/5 dark:border-white/10 px-3 py-1.5">
+          <span className="flex-1 text-[11px] font-medium text-muted-foreground">Model</span>
+          <div className="flex gap-4 text-[11px] font-medium text-muted-foreground">
+            <span>Speed</span>
+            <span>Cost</span>
+          </div>
+        </div>
+
         {/* Model list */}
         <div className="max-h-60 overflow-y-auto overscroll-contain">
           <div className="p-1.5">
@@ -188,6 +227,10 @@ const CompareModelPicker = ({
                   <span className={`flex-1 truncate text-[12px] ${selected ? 'font-medium text-foreground' : 'text-zinc-700 dark:text-zinc-300'}`}>
                     {model.name}
                   </span>
+                  <div className="flex items-center gap-3">
+                    <Dots filled={speedTier(fullModel)} color="bg-blue-400" />
+                    <Dots filled={costTier(fullModel)} color="bg-amber-400" />
+                  </div>
                 </button>
               );
             })}
@@ -371,6 +414,9 @@ type ChatComposerProps = {
   agents: Agent[];
   selectedAgentId: string | null;
   onSelectAgent: (id: string | null) => void;
+  customPersonas: CustomPersona[];
+  selectedPersonaId: string | null;
+  onSelectPersona: (id: string | null) => void;
   onStop: () => void;
   onModelSelectorOpenChange: (open: boolean) => void;
   onSelectModel: (modelId: string) => void;
@@ -401,6 +447,9 @@ export function ChatComposer({
   agents,
   selectedAgentId,
   onSelectAgent,
+  customPersonas,
+  selectedPersonaId,
+  onSelectPersona,
   onStop,
   onModelSelectorOpenChange,
   onSelectModel,
@@ -498,6 +547,13 @@ export function ChatComposer({
               />
             )}
             {!compareMode && (
+              <PersonaSelector
+                customPersonas={customPersonas}
+                selectedPersonaId={selectedPersonaId}
+                onSelectPersona={onSelectPersona}
+              />
+            )}
+            {!compareMode && (
               <PromptInputButton
                 onClick={onToggleWebSearch}
                 variant={useWebSearch ? 'default' : 'ghost'}
@@ -515,21 +571,39 @@ export function ChatComposer({
                   </PromptInputButton>
                 </ModelSelectorTrigger>
                 <ModelSelectorContent>
+                  <ModelSelectorInput placeholder="Search models…" />
+                  <div className="flex items-center px-3 py-1.5 border-b border-black/5 dark:border-white/10">
+                    <span className="flex-1 text-[11px] font-medium text-muted-foreground">Model</span>
+                    <div className="flex gap-5 pr-1 text-[11px] font-medium text-muted-foreground">
+                      <span>Speed</span>
+                      <span>Cost</span>
+                    </div>
+                  </div>
                   <ModelSelectorList>
                     <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
-                    {selectorModels.map((model) => (
-                      <ModelSelectorItem
-                        key={model.id}
-                        onSelect={() => onSelectModel(model.id)}
-                        value={model.id}
-                      >
-                        <ModelSelectorLogo provider={model.provider} />
-                        <ModelSelectorName>{model.name}</ModelSelectorName>
-                        {selectedModel === model.id ? (
-                          <CheckIcon className="ml-auto size-4" />
-                        ) : null}
-                      </ModelSelectorItem>
-                    ))}
+                    {selectorModels.map((model) => {
+                      const fullModel = availableModels.find((m) => m.id === model.id);
+                      const isAuto = model.id === 'auto';
+                      return (
+                        <ModelSelectorItem
+                          key={model.id}
+                          onSelect={() => onSelectModel(model.id)}
+                          value={model.id}
+                        >
+                          <ModelSelectorLogo provider={model.provider} />
+                          <ModelSelectorName>{model.name}</ModelSelectorName>
+                          <div className="ml-auto flex items-center gap-3">
+                            {!isAuto && (
+                              <>
+                                <Dots filled={speedTier(fullModel)} color="bg-blue-400" />
+                                <Dots filled={costTier(fullModel)} color="bg-amber-400" />
+                              </>
+                            )}
+                            {selectedModel === model.id && <CheckIcon className="size-3.5 text-primary" />}
+                          </div>
+                        </ModelSelectorItem>
+                      );
+                    })}
                   </ModelSelectorList>
                 </ModelSelectorContent>
               </ModelSelector>

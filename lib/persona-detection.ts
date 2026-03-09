@@ -3,7 +3,7 @@ import { type SystemPromptKey, detectSystemPromptKey } from '@/lib/prompt';
 
 const DETECTION_MODEL = 'google/gemini-2.5-flash-lite';
 
-const VALID_KEYS: SystemPromptKey[] = [
+export const VALID_PERSONA_KEYS: SystemPromptKey[] = [
   'general_assistant',
   'coding_copilot',
   'product_manager',
@@ -40,12 +40,12 @@ export async function detectPersona(prompt: string): Promise<SystemPromptKey> {
       model: DETECTION_MODEL,
       system: SYSTEM_PROMPT,
       prompt: prompt.slice(0, 500),
-      maxTokens: 10,
+      maxOutputTokens: 10,
       temperature: 0,
     });
 
     const key = text.trim().toLowerCase() as SystemPromptKey;
-    return VALID_KEYS.includes(key) ? key : detectSystemPromptKey(prompt);
+    return VALID_PERSONA_KEYS.includes(key) ? key : detectSystemPromptKey(prompt);
   } catch {
     // Fall back to regex on any failure
     return detectSystemPromptKey(prompt);

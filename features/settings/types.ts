@@ -1,0 +1,16 @@
+export type MemoryFact = {
+  id: string;
+  category: string;
+  fact: string;
+  createdAt: string;
+};
+
+export type Preferences = {
+  memoryEnabled: boolean;
+  memoryInjectEnabled: boolean;
+  memoryExtractEnabled: boolean;
+  personaDetectionEnabled: boolean;
+  promptEnhancementEnabled: boolean;
+  followUpSuggestionsEnabled: boolean;
+  enabledToolIds: string[] | null; // null = all tools enabled
+};

@@ -10,7 +10,8 @@ import { headers } from 'next/headers';
 import { and, eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { agent, chatThread, personaCustomization, user as userTable, userPreferences } from '@/db/schema';
+import { agent, chatThread, customPersona, personaCustomization, user as userTable, userPreferences } from '@/db/schema';
+import { VALID_PERSONA_KEYS } from '@/lib/persona-detection';
 import { availableModels, maxSteps } from '@/lib/ai';
 import { getSystemPrompt } from '@/lib/prompt';
 import { detectPersona } from '@/lib/persona-detection';
@@ -43,11 +44,15 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { messages, threadId, model, useWebSearch, selectedDocumentIds, enabledModelIds, agentId } =
+    const { messages, threadId, model, useWebSearch, selectedDocumentIds, enabledModelIds, agentId, personaId } =
       requestSchema.parse(rawBody);
 
+    // Determine if personaId refers to a built-in key or a custom persona DB row
+    const isBuiltinPersona = personaId ? (VALID_PERSONA_KEYS as string[]).includes(personaId) : false;
+    const isCustomPersonaId = personaId && !isBuiltinPersona;
+
     // ── Stage 2: all independent DB queries in parallel ──────────────────────
-    const [userRow, threadRows, prefsRows, balance, activeAgentRows, personaCustomRows] = await Promise.all([
+    const [userRow, threadRows, prefsRows, balance, activeAgentRows, personaCustomRows, customPersonaRows] = await Promise.all([
       db
         .select({ approved: userTable.approved })
         .from(userTable)
@@ -75,6 +80,13 @@ export async function POST(req: Request) {
         .select({ personaKey: personaCustomization.personaKey, extraInstructions: personaCustomization.extraInstructions })
         .from(personaCustomization)
         .where(eq(personaCustomization.userId, session.user.id)),
+      isCustomPersonaId
+        ? db
+            .select({ id: customPersona.id, name: customPersona.name, systemPrompt: customPersona.systemPrompt })
+            .from(customPersona)
+            .where(and(eq(customPersona.id, personaId!), eq(customPersona.userId, session.user.id)))
+            .limit(1)
+        : Promise.resolve([]),
     ]);
 
     if (!userRow[0]?.approved) {
@@ -94,14 +106,21 @@ export async function POST(req: Request) {
     for (const row of personaCustomRows) personaCustomMap[row.personaKey] = row.extraInstructions;
     const lastUserPrompt = getLastUserPrompt(messages);
 
+    const customPersonaRow = customPersonaRows[0] ?? null;
+
     // ── Stage 3: memory + persona detection in parallel ─────────────────────
     const [memoryContext, detectedPersona] = await Promise.all([
       (userPrefs.memoryEnabled && userPrefs.memoryInjectEnabled)
         ? getUserMemoryContext(session.user.id)
         : Promise.resolve(''),
-      (userPrefs.personaDetectionEnabled ?? true) && lastUserPrompt
-        ? detectPersona(lastUserPrompt)
-        : Promise.resolve('general_assistant' as SystemPromptKey),
+      // personaId overrides auto-detection: built-in key used directly, custom persona resolved above
+      isBuiltinPersona
+        ? Promise.resolve(personaId as SystemPromptKey)
+        : isCustomPersonaId
+          ? Promise.resolve('general_assistant' as SystemPromptKey) // placeholder; custom prompt used below
+          : (userPrefs.personaDetectionEnabled ?? true) && lastUserPrompt
+            ? detectPersona(lastUserPrompt)
+            : Promise.resolve('general_assistant' as SystemPromptKey),
     ]);
 
     const isGrounded = !!selectedDocumentIds?.length;
@@ -122,14 +141,21 @@ export async function POST(req: Request) {
         });
 
     const personaExtraInstructions = !activeAgent ? (personaCustomMap[detectedPersona] ?? '') : '';
+    // Base system prompt: agent > custom persona > built-in persona
+    const baseSystemPrompt = activeAgent
+      ? activeAgent.systemPrompt
+      : customPersonaRow
+        ? customPersonaRow.systemPrompt
+        : getSystemPrompt(detectedPersona);
+
     const groundedSystemPrompt = activeAgent
       ? activeAgent.systemPrompt + (memoryContext ? `\n\n${memoryContext}` : '')
       : isGrounded
-        ? getSystemPrompt(detectedPersona) +
+        ? baseSystemPrompt +
           (personaExtraInstructions ? `\n\n<user_instructions>\n${personaExtraInstructions}\n</user_instructions>` : '') +
           '\nIMPORTANT: The user has selected specific documents. You MUST use the searchKnowledge tool to find information before answering. Only respond using information from tool results. If no relevant information is found, say so.' +
           (memoryContext ? `\n\n${memoryContext}` : '')
-        : getSystemPrompt(detectedPersona) +
+        : baseSystemPrompt +
           (personaExtraInstructions ? `\n\n<user_instructions>\n${personaExtraInstructions}\n</user_instructions>` : '') +
           (memoryContext ? `\n\n${memoryContext}` : '');
 
@@ -178,7 +204,7 @@ export async function POST(req: Request) {
     const activeTools = supportsTools ? groundedTools : undefined;
     const systemPrompt = supportsTools
       ? groundedSystemPrompt
-      : getSystemPrompt(detectedPersona) + (memoryContext ? `\n\n${memoryContext}` : '');
+      : baseSystemPrompt + (memoryContext ? `\n\n${memoryContext}` : '');
 
     // ── Prompt enhancement ───────────────────────────────────────────────────
     let enhancedPrompt: string | undefined;
@@ -211,7 +237,7 @@ export async function POST(req: Request) {
 
     const messageMetadata = (): ChatMessageMetadata => ({
       routing: routingMetadata,
-      persona: detectedPersona,
+      persona: customPersonaRow ? `custom:${customPersonaRow.name}` : detectedPersona,
       ...(enhancedPrompt ? { enhancedPrompt } : {}),
     });
 

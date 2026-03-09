@@ -299,6 +299,15 @@ export const userPreferences = pgTable("user_preferences", {
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
 });
 
+export const customPersona = pgTable("custom_persona", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  systemPrompt: text("system_prompt").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [index("custom_persona_userId_idx").on(table.userId)]);
+
 export const personaCustomization = pgTable("persona_customization", {
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   personaKey: text("persona_key").notNull(),
