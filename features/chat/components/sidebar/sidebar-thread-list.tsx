@@ -90,57 +90,29 @@ export const SidebarThreadList = ({
             No threads yet. Start a new chat.
           </p>
         ) : (
-          <>
-            {pinnedThreads.length > 0 && (
-              <div className="mb-2">
-                {pinnedThreads.map((thread) => (
-                  <SidebarThreadRow
-                    key={thread.id}
-                    ref={thread.id === activeThreadId ? activeRowRef : null}
-                    thread={thread}
-                    isActive={thread.id === activeThreadId}
-                    onSelect={() => {
-                      clickedIdRef.current = thread.id;
-                      onSelectThread(thread.id);
-                    }}
-                    onTogglePin={() => onTogglePin(thread.id, !thread.pinned)}
-                    onRenameRequest={() => {
-                      setRenameTarget(thread);
-                      setRenameTitle(thread.title);
-                    }}
-                    onDelete={() => setDeleteTarget(thread)}
-                  />
-                ))}
-              </div>
-            )}
-            {recentThreads.length > 0 && (
-              <div>
-                {pinnedThreads.length > 0 && (
-                  <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Recents
-                  </p>
-                )}
-                {recentThreads.map((thread) => (
-                  <SidebarThreadRow
-                    key={thread.id}
-                    ref={thread.id === activeThreadId ? activeRowRef : null}
-                    thread={thread}
-                    isActive={thread.id === activeThreadId}
-                    onSelect={() => {
-                      clickedIdRef.current = thread.id;
-                      onSelectThread(thread.id);
-                    }}
-                    onTogglePin={() => onTogglePin(thread.id, !thread.pinned)}
-                    onRenameRequest={() => {
-                      setRenameTarget(thread);
-                      setRenameTitle(thread.title);
-                    }}
-                    onDelete={() => setDeleteTarget(thread)}
-                  />
-                ))}
-              </div>
-            )}
-          </>
+          <div>
+            <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Chats
+            </p>
+            {[...pinnedThreads, ...recentThreads].map((thread) => (
+              <SidebarThreadRow
+                key={thread.id}
+                ref={thread.id === activeThreadId ? activeRowRef : null}
+                thread={thread}
+                isActive={thread.id === activeThreadId}
+                onSelect={() => {
+                  clickedIdRef.current = thread.id;
+                  onSelectThread(thread.id);
+                }}
+                onTogglePin={() => onTogglePin(thread.id, !thread.pinned)}
+                onRenameRequest={() => {
+                  setRenameTarget(thread);
+                  setRenameTitle(thread.title);
+                }}
+                onDelete={() => setDeleteTarget(thread)}
+              />
+            ))}
+          </div>
         )}
       </ScrollArea>
 
