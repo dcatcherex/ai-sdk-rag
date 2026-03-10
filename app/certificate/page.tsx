@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChatSidebar } from '@/features/chat/components/chat-sidebar';
-import { useThreads, setNewChatIntent } from '@/features/chat/hooks/use-threads';
+import { useThreads, setNewChatIntent, setPendingThread } from '@/features/chat/hooks/use-threads';
 import { useUserProfile } from '@/features/chat/hooks/use-user-profile';
 import { useTemplates } from '@/features/certificate/hooks/use-templates';
 import { TemplateSelector } from '@/features/certificate/components/template-selector';
@@ -53,7 +53,7 @@ export default function CertificatePage() {
           threads={threads}
           isLoading={isThreadsLoading}
           isCreatingThread={createThreadMutation.isPending}
-          onSelectThread={(threadId) => { setActiveThreadId(threadId); router.push('/'); }}
+          onSelectThread={(threadId) => { setPendingThread(threadId); router.push('/'); }}
           onCreateThread={() => { setNewChatIntent(); router.push('/'); }}
           onTogglePin={(threadId, pinned) => pinThreadMutation.mutate({ threadId, pinned })}
           onRenameThread={(threadId, title) => renameThreadMutation.mutate({ threadId, title })}

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { BrainCircuitIcon, MessageCircleQuestionIcon, ScanTextIcon, SparklesIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ChatSidebar } from '@/features/chat/components/chat-sidebar';
-import { useThreads, setNewChatIntent } from '@/features/chat/hooks/use-threads';
+import { useThreads, setNewChatIntent, setPendingThread } from '@/features/chat/hooks/use-threads';
 import { useUserProfile } from '@/features/chat/hooks/use-user-profile';
 import { useSettingsPreferences } from '@/features/settings/hooks/use-settings-preferences';
 import { MemorySection } from '@/features/settings/components/memory-section';
@@ -66,7 +66,7 @@ export default function SettingsPage() {
           threads={threads}
           isLoading={isThreadsLoading}
           isCreatingThread={createThreadMutation.isPending}
-          onSelectThread={(threadId) => { setActiveThreadId(threadId); router.push('/'); }}
+          onSelectThread={(threadId) => { setPendingThread(threadId); router.push('/'); }}
           onCreateThread={() => { setNewChatIntent(); router.push('/'); }}
           onTogglePin={(threadId, pinned) => pinThreadMutation.mutate({ threadId, pinned })}
           onRenameThread={(threadId, title) => renameThreadMutation.mutate({ threadId, title })}

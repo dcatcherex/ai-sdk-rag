@@ -6,9 +6,17 @@ import type { ChatMessage, ThreadItem } from '../types';
 let pendingNewChatMode = false;
 export const setNewChatIntent = () => { pendingNewChatMode = true; };
 
+// Module-level thread ID so cross-page navigation preserves the selected thread
+let pendingThreadId = '';
+export const setPendingThread = (id: string) => { pendingThreadId = id; };
+
 export const useThreads = () => {
   const queryClient = useQueryClient();
-  const [activeThreadId, setActiveThreadId] = useState('');
+  const [activeThreadId, setActiveThreadId] = useState(() => {
+    const id = pendingThreadId;
+    pendingThreadId = '';
+    return id;
+  });
   const activeThreadIdRef = useRef(activeThreadId);
   activeThreadIdRef.current = activeThreadId;
   // Consume the module-level flag on mount (useRef only uses its arg on first render)
