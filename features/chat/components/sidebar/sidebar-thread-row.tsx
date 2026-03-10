@@ -49,6 +49,9 @@ export const SidebarThreadRow = forwardRef<HTMLDivElement, Props>(({
     >
       <p className="truncate">{thread.title}</p>
     </button>
+    {thread.pinned && (
+      <PinIcon className="mr-1 size-3 shrink-0 rotate-45 text-muted-foreground opacity-60" />
+    )}
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button

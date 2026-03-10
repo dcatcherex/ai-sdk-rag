@@ -93,9 +93,6 @@ export const SidebarThreadList = ({
           <>
             {pinnedThreads.length > 0 && (
               <div className="mb-2">
-                <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Pinned
-                </p>
                 {pinnedThreads.map((thread) => (
                   <SidebarThreadRow
                     key={thread.id}
