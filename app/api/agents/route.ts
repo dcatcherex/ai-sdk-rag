@@ -1,11 +1,12 @@
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, or } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { agent } from '@/db/schema';
+import { agent, agentShare, user as userTable } from '@/db/schema';
+import type { SharedUser } from '@/features/agents/types';
 
 const createSchema = z.object({
   name: z.string().min(1).max(100),
@@ -13,6 +14,9 @@ const createSchema = z.object({
   systemPrompt: z.string().min(1),
   modelId: z.string().optional().nullable(),
   enabledTools: z.array(z.string()).optional(),
+  documentIds: z.array(z.string()).optional(),
+  isPublic: z.boolean().optional(),
+  sharedUserIds: z.array(z.string()).optional(),
 });
 
 export async function GET() {
@@ -21,13 +25,88 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const agents = await db
+  // 1. Own agents
+  const ownAgents = await db
     .select()
     .from(agent)
     .where(eq(agent.userId, session.user.id))
     .orderBy(desc(agent.updatedAt));
 
-  return NextResponse.json({ agents });
+  // 2. Share lists for own agents
+  const ownAgentIds = ownAgents.map((a) => a.id);
+  const shares =
+    ownAgentIds.length > 0
+      ? await db
+          .select({
+            agentId: agentShare.agentId,
+            userId: userTable.id,
+            name: userTable.name,
+            email: userTable.email,
+            image: userTable.image,
+          })
+          .from(agentShare)
+          .innerJoin(userTable, eq(agentShare.sharedWithUserId, userTable.id))
+          .where(inArray(agentShare.agentId, ownAgentIds))
+      : [];
+  const shareMap = shares.reduce<Record<string, SharedUser[]>>((acc, s) => {
+    (acc[s.agentId] ??= []).push({ id: s.userId, name: s.name, email: s.email, image: s.image });
+    return acc;
+  }, {});
+  const ownAgentsOut = ownAgents.map((a) => ({ ...a, sharedWith: shareMap[a.id] ?? [] }));
+
+  // 3. Public agents from other users
+  const publicAgents = await db
+    .select({
+      id: agent.id,
+      userId: agent.userId,
+      name: agent.name,
+      description: agent.description,
+      systemPrompt: agent.systemPrompt,
+      modelId: agent.modelId,
+      enabledTools: agent.enabledTools,
+      documentIds: agent.documentIds,
+      isPublic: agent.isPublic,
+      createdAt: agent.createdAt,
+      updatedAt: agent.updatedAt,
+      ownerName: userTable.name,
+    })
+    .from(agent)
+    .innerJoin(userTable, eq(agent.userId, userTable.id))
+    .where(and(eq(agent.isPublic, true), ne(agent.userId, session.user.id)))
+    .orderBy(desc(agent.updatedAt));
+
+  // 4. Targeted shares (non-public agents shared specifically with me)
+  const targetedShared = await db
+    .select({
+      id: agent.id,
+      userId: agent.userId,
+      name: agent.name,
+      description: agent.description,
+      systemPrompt: agent.systemPrompt,
+      modelId: agent.modelId,
+      enabledTools: agent.enabledTools,
+      documentIds: agent.documentIds,
+      isPublic: agent.isPublic,
+      createdAt: agent.createdAt,
+      updatedAt: agent.updatedAt,
+      ownerName: userTable.name,
+    })
+    .from(agentShare)
+    .innerJoin(agent, eq(agentShare.agentId, agent.id))
+    .innerJoin(userTable, eq(agent.userId, userTable.id))
+    .where(
+      and(
+        eq(agentShare.sharedWithUserId, session.user.id),
+        ne(agent.userId, session.user.id),
+      ),
+    )
+    .orderBy(desc(agent.updatedAt));
+
+  // Deduplicate: if agent is both public AND targeted-shared, only include once
+  const publicIds = new Set(publicAgents.map((a) => a.id));
+  const deduped = targetedShared.filter((a) => !publicIds.has(a.id));
+
+  return NextResponse.json({ agents: [...ownAgentsOut, ...publicAgents, ...deduped] });
 }
 
 export async function POST(req: Request) {
@@ -47,11 +126,23 @@ export async function POST(req: Request) {
     systemPrompt: body.systemPrompt,
     modelId: body.modelId ?? null,
     enabledTools: body.enabledTools ?? [],
+    documentIds: body.documentIds ?? [],
+    isPublic: body.isPublic ?? false,
     createdAt: now,
     updatedAt: now,
   };
 
   await db.insert(agent).values(newAgent);
+
+  if (body.sharedUserIds && body.sharedUserIds.length > 0) {
+    await db.insert(agentShare).values(
+      body.sharedUserIds.map((userId) => ({
+        id: crypto.randomUUID(),
+        agentId: newAgent.id,
+        sharedWithUserId: userId,
+      })),
+    ).onConflictDoNothing();
+  }
 
   return NextResponse.json({ agent: newAgent }, { status: 201 });
 }

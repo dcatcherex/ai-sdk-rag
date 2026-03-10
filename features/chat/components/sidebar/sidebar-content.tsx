@@ -39,6 +39,7 @@ import { SidebarAccount } from "./sidebar-account";
 import { SidebarNav } from "./sidebar-nav";
 import { SidebarSearch } from "./sidebar-search";
 import { SidebarThreadList } from "./sidebar-thread-list";
+import { CreditBalanceDisplay } from "@/components/credit-balance-display";
 
 type Props = {
   activeThreadId: string;
@@ -237,13 +238,16 @@ export const SidebarContent = ({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <SidebarAccount
-          sessionData={sessionData}
-          userProfile={userProfile}
-          isSigningOut={isSigningOut}
-          onSignOut={onSignOut}
-          isCollapsed={isCollapsed}
-        />
+        <div className={cn("flex items-center", !isCollapsed && "gap-2")}>
+          <SidebarAccount
+            sessionData={sessionData}
+            userProfile={userProfile}
+            isSigningOut={isSigningOut}
+            onSignOut={onSignOut}
+            isCollapsed={isCollapsed}
+          />
+          {!isCollapsed && <CreditBalanceDisplay />}
+        </div>
       </div>
 
       {/* Search dialog */}

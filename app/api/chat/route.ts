@@ -7,10 +7,10 @@ import {
   stepCountIs,
 } from 'ai';
 import { headers } from 'next/headers';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, exists, or } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { agent, chatThread, customPersona, personaCustomization, user as userTable, userPreferences } from '@/db/schema';
+import { agent, agentShare, chatThread, customPersona, personaCustomization, user as userTable, userPreferences } from '@/db/schema';
 import { VALID_PERSONA_KEYS } from '@/lib/persona-detection';
 import { availableModels, maxSteps } from '@/lib/ai';
 import { getSystemPrompt } from '@/lib/prompt';
@@ -73,7 +73,26 @@ export async function POST(req: Request) {
         ? db
             .select()
             .from(agent)
-            .where(and(eq(agent.id, agentId), eq(agent.userId, session.user.id)))
+            .where(
+              and(
+                eq(agent.id, agentId),
+                or(
+                  eq(agent.userId, session.user.id),
+                  eq(agent.isPublic, true),
+                  exists(
+                    db
+                      .select({ id: agentShare.agentId })
+                      .from(agentShare)
+                      .where(
+                        and(
+                          eq(agentShare.agentId, agentId),
+                          eq(agentShare.sharedWithUserId, session.user.id),
+                        ),
+                      ),
+                  ),
+                ),
+              ),
+            )
             .limit(1)
         : Promise.resolve([]),
       db
@@ -123,7 +142,15 @@ export async function POST(req: Request) {
             : Promise.resolve('general_assistant' as SystemPromptKey),
     ]);
 
-    const isGrounded = !!selectedDocumentIds?.length;
+    // Merge agent pre-associated docs + user-selected docs (union, deduplicated)
+    const agentDocIds = activeAgent?.documentIds ?? [];
+    const userDocIds = selectedDocumentIds ?? [];
+    const effectiveDocIds =
+      agentDocIds.length > 0 || userDocIds.length > 0
+        ? [...new Set([...agentDocIds, ...userDocIds])]
+        : undefined;
+
+    const isGrounded = !!effectiveDocIds?.length;
 
     // Determine which tool group IDs are active for this request:
     //   1. Agent has its own explicit list (overrides everything)
@@ -133,11 +160,11 @@ export async function POST(req: Request) {
       : (userPrefs.enabledToolIds ?? null);
 
     const groundedTools = activeAgent
-      ? createAgentTools(activeAgent.enabledTools, session.user.id, selectedDocumentIds)
+      ? createAgentTools(activeAgent.enabledTools, session.user.id, effectiveDocIds)
       : buildToolSet({
           enabledToolIds: activeToolIds,
           userId: session.user.id,
-          documentIds: isGrounded ? selectedDocumentIds : undefined,
+          documentIds: isGrounded ? effectiveDocIds : undefined,
         });
 
     const personaExtraInstructions = !activeAgent ? (personaCustomMap[detectedPersona] ?? '') : '';
@@ -149,7 +176,11 @@ export async function POST(req: Request) {
         : getSystemPrompt(detectedPersona);
 
     const groundedSystemPrompt = activeAgent
-      ? activeAgent.systemPrompt + (memoryContext ? `\n\n${memoryContext}` : '')
+      ? activeAgent.systemPrompt +
+        (isGrounded
+          ? '\nIMPORTANT: The user has selected specific documents. You MUST use the searchKnowledge tool to find information before answering. Only respond using information from tool results. If no relevant information is found, say so.'
+          : '') +
+        (memoryContext ? `\n\n${memoryContext}` : '')
       : isGrounded
         ? baseSystemPrompt +
           (personaExtraInstructions ? `\n\n<user_instructions>\n${personaExtraInstructions}\n</user_instructions>` : '') +

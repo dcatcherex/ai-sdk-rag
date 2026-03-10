@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { agent } from '@/db/schema';
+import { agent, agentShare } from '@/db/schema';
 
 const updateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -13,6 +13,9 @@ const updateSchema = z.object({
   systemPrompt: z.string().min(1).optional(),
   modelId: z.string().optional().nullable(),
   enabledTools: z.array(z.string()).optional(),
+  documentIds: z.array(z.string()).optional(),
+  isPublic: z.boolean().optional(),
+  sharedUserIds: z.array(z.string()).optional(),
 });
 
 export async function PUT(
@@ -37,11 +40,27 @@ export async function PUT(
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
+  const { sharedUserIds, ...agentFields } = body;
+
   const updated = await db
     .update(agent)
-    .set({ ...body, updatedAt: new Date() })
+    .set({ ...agentFields, updatedAt: new Date() })
     .where(and(eq(agent.id, id), eq(agent.userId, session.user.id)))
     .returning();
+
+  // Replace shares when provided (delete all + re-insert)
+  if (sharedUserIds !== undefined) {
+    await db.delete(agentShare).where(eq(agentShare.agentId, id));
+    if (sharedUserIds.length > 0) {
+      await db.insert(agentShare).values(
+        sharedUserIds.map((userId) => ({
+          id: crypto.randomUUID(),
+          agentId: id,
+          sharedWithUserId: userId,
+        })),
+      ).onConflictDoNothing();
+    }
+  }
 
   return NextResponse.json({ agent: updated[0] });
 }

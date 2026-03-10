@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { BotIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react';
+import { BotIcon, GlobeIcon, PencilIcon, PlusIcon, Trash2Icon, UsersIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -14,15 +14,18 @@ import {
 } from '@/components/ui/dialog';
 import { availableModels } from '@/lib/ai';
 import { TOOL_REGISTRY } from '@/lib/tool-registry';
+import { authClient } from '@/lib/auth-client';
 import { useAgents, useCreateAgent, useUpdateAgent, useDeleteAgent } from '../hooks/use-agents';
 import { AgentFormDialog } from './agent-form-dialog';
-import type { Agent, CreateAgentInput } from '../types';
+import type { Agent, AgentWithSharing, CreateAgentInput } from '../types';
 
 export const AgentsList = () => {
   const { data: agents = [], isLoading } = useAgents();
   const createAgent = useCreateAgent();
   const updateAgent = useUpdateAgent();
   const deleteAgent = useDeleteAgent();
+  const { data: sessionData } = authClient.useSession();
+  const currentUserId = sessionData?.user?.id;
 
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Agent | null>(null);
@@ -97,57 +100,89 @@ export const AgentsList = () => {
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
-            {agents.map((agent) => (
-              <div
-                key={agent.id}
-                className="group relative flex flex-col gap-2 rounded-xl border border-black/5 dark:border-white/10 bg-muted/30 p-4 transition hover:bg-muted/50"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <BotIcon className="size-4 shrink-0 text-primary" />
-                    <span className="font-medium truncate">{agent.name}</span>
+            {agents.map((agent) => {
+              const isOwner = agent.userId === currentUserId;
+              const withSharing = agent as AgentWithSharing;
+              return (
+                <div
+                  key={agent.id}
+                  className="group relative flex flex-col gap-2 rounded-xl border border-black/5 dark:border-white/10 bg-muted/30 p-4 transition hover:bg-muted/50"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <BotIcon className="size-4 shrink-0 text-primary" />
+                      <span className="font-medium truncate">{agent.name}</span>
+                    </div>
+                    {isOwner && (
+                      <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100 transition">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7"
+                          onClick={() => openEdit(agent)}
+                        >
+                          <PencilIcon className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteTarget(agent)}
+                        >
+                          <Trash2Icon className="size-3.5" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100 transition">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-7"
-                      onClick={() => openEdit(agent)}
-                    >
-                      <PencilIcon className="size-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-7 text-destructive hover:text-destructive"
-                      onClick={() => setDeleteTarget(agent)}
-                    >
-                      <Trash2Icon className="size-3.5" />
-                    </Button>
-                  </div>
-                </div>
 
-                {agent.description && (
-                  <p className="text-xs text-muted-foreground line-clamp-2">
-                    {agent.description}
-                  </p>
-                )}
+                  {agent.description && (
+                    <p className="text-xs text-muted-foreground line-clamp-2">
+                      {agent.description}
+                    </p>
+                  )}
 
-                <div className="flex flex-wrap gap-1.5 mt-auto pt-1">
-                  <Badge variant="secondary" className="text-[11px]">
-                    {modelName(agent.modelId)}
-                  </Badge>
-                  {agent.enabledTools.map((toolId) => {
-                    const meta = TOOL_REGISTRY[toolId as keyof typeof TOOL_REGISTRY];
-                    return meta ? (
-                      <Badge key={toolId} variant="outline" className="text-[11px]">
-                        {meta.label}
+                  {!isOwner && withSharing.ownerName && (
+                    <p className="text-xs text-muted-foreground">
+                      By {withSharing.ownerName}
+                    </p>
+                  )}
+
+                  {/* Shared-with list — visible inline on the card */}
+                  {isOwner && (withSharing.sharedWith?.length ?? 0) > 0 && (
+                    <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                      <UsersIcon className="size-3 shrink-0 mt-0.5" />
+                      <span className="leading-snug">
+                        {withSharing.sharedWith!.map((u) => u.name).join(', ')}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-1.5 mt-auto pt-1">
+                    <Badge variant="secondary" className="text-[11px]">
+                      {modelName(agent.modelId)}
+                    </Badge>
+                    {(agent.documentIds?.length ?? 0) > 0 && (
+                      <Badge variant="outline" className="text-[11px]">
+                        {agent.documentIds.length} doc{agent.documentIds.length !== 1 ? 's' : ''}
                       </Badge>
-                    ) : null;
-                  })}
+                    )}
+                    {isOwner && agent.isPublic && (
+                      <Badge variant="secondary" className="text-[11px] gap-1">
+                        <GlobeIcon className="size-2.5" /> Public
+                      </Badge>
+                    )}
+                    {agent.enabledTools.map((toolId) => {
+                      const meta = TOOL_REGISTRY[toolId as keyof typeof TOOL_REGISTRY];
+                      return meta ? (
+                        <Badge key={toolId} variant="outline" className="text-[11px]">
+                          {meta.label}
+                        </Badge>
+                      ) : null;
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { boolean, foreignKey, index, integer, jsonb, pgTable, text, timestamp, customType } from "drizzle-orm/pg-core";
+import { boolean, foreignKey, index, integer, jsonb, pgTable, text, timestamp, customType, uniqueIndex } from "drizzle-orm/pg-core";
 
 // Custom vector type for pgvector
 const vector = customType<{ data: number[]; driverData: string }>({
@@ -463,10 +463,30 @@ export const agent = pgTable('agent', {
   systemPrompt: text('system_prompt').notNull(),
   modelId: text('model_id'),
   enabledTools: text('enabled_tools').array().notNull().default(sql`'{}'::text[]`),
+  documentIds: text('document_ids').array().notNull().default(sql`'{}'::text[]`),
+  isPublic: boolean('is_public').notNull().default(false),
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull(),
 }, (table) => [index('agent_userId_idx').on(table.userId)]);
 
-export const agentRelations = relations(agent, ({ one }) => ({
+export const agentRelations = relations(agent, ({ one, many }) => ({
   user: one(user, { fields: [agent.userId], references: [user.id] }),
+  shares: many(agentShare),
+}));
+
+export const agentShare = pgTable('agent_share', {
+  id: text('id').primaryKey(),
+  agentId: text('agent_id').notNull().references(() => agent.id, { onDelete: 'cascade' }),
+  sharedWithUserId: text('shared_with_user_id').notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('agent_share_unique_idx').on(table.agentId, table.sharedWithUserId),
+  index('agent_share_agentId_idx').on(table.agentId),
+  index('agent_share_sharedWithUserId_idx').on(table.sharedWithUserId),
+]);
+
+export const agentShareRelations = relations(agentShare, ({ one }) => ({
+  agent: one(agent, { fields: [agentShare.agentId], references: [agent.id] }),
+  sharedWithUser: one(user, { fields: [agentShare.sharedWithUserId], references: [user.id] }),
 }));

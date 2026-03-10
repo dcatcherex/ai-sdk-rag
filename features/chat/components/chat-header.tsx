@@ -8,6 +8,7 @@ import {
   Maximize2Icon,
   MenuIcon,
   Minimize2Icon,
+  MoreHorizontalIcon,
   TableOfContentsIcon,
   Trash2Icon,
 } from 'lucide-react';
@@ -18,6 +19,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -29,10 +34,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { TokenUsageDisplay } from '@/components/token-usage-display';
-import { CreditBalanceDisplay } from '@/components/credit-balance-display';
 import type { ChatStatus } from 'ai';
-import type { ThreadItem, RoutingMetadata, ChatMessageMetadata } from '../types';
+import type { ThreadItem, RoutingMetadata } from '../types';
 import type { SystemPromptKey } from '@/lib/prompt';
 import type { FontSize } from './message-list';
 
@@ -106,139 +109,34 @@ export const ChatHeader = ({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const handleConfirmDelete = () => {
-    if (!activeThread) {
-      return;
-    }
+    if (!activeThread) return;
     onDeleteThread(activeThread.id);
     setIsDeleteDialogOpen(false);
   };
 
+  const fontSizeIndex = FONT_SIZES.indexOf(fontSize);
+
   return (
-  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 dark:border-white/10 px-3 py-3 md:gap-3 md:px-6 md:py-4">
-    <div className="flex items-center gap-2">
-      {/* Mobile hamburger */}
-      <Button
-        size="icon"
-        variant="ghost"
-        className="md:hidden"
-        onClick={onOpenMobileSidebar}
-      >
-        <MenuIcon className="size-5" />
-      </Button>
-      <div className="min-w-0">
-        <h2 className="truncate text-base font-semibold text-foreground md:text-lg">
-          {activeThread?.title ?? 'New chat'}
-        </h2>
-      </div>
-    </div>
-    <div className="flex items-center gap-1.5 md:gap-3">
-      {lastPersona && lastPersona !== 'general_assistant' ? (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge variant="outline" className="hidden gap-1 text-xs sm:inline-flex">
-                {lastPersona.startsWith('custom:') ? lastPersona.slice(7) : (PERSONA_LABELS[lastPersona as SystemPromptKey] ?? lastPersona)}
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="max-w-xs text-xs">Auto-detected persona</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      ) : null}
-
-      {lastRouting?.mode === 'auto' ? (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge variant="secondary" className="hidden gap-1 text-xs sm:inline-flex">
-                Auto → {lastRoutingModel?.name ?? lastRouting.modelId}
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="max-w-xs text-xs">{lastRouting.reason}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      ) : null}
-
-      <span className="hidden sm:inline-flex"><CreditBalanceDisplay /></span>
-
-      {activeThread && <span className="hidden lg:inline-flex"><TokenUsageDisplay threadId={activeThread.id} /></span>}
-
-      <div className="flex items-center gap-1 text-xs text-muted-foreground md:gap-2">
-        {activeThread && (
-          <>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="icon" variant="ghost" className="size-8 md:size-9">
-                  <DownloadIcon className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onExport('json')}>
-                  <FileTextIcon className="mr-2 size-4" />
-                  Export as JSON
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onExport('markdown')}>
-                  <FileTextIcon className="mr-2 size-4" />
-                  Export as Markdown
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="size-8 md:size-9"
-                    onClick={() => setIsDeleteDialogOpen(true)}
-                    disabled={isDeleting}
-                  >
-                    <Trash2Icon className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Delete thread</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </>
-        )}
-        <div className="hidden items-center sm:flex">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="size-8 md:size-9 text-xs font-bold"
-                  disabled={fontSize === FONT_SIZES[0]}
-                  onClick={() => onChangeFontSize(FONT_SIZES[Math.max(0, FONT_SIZES.indexOf(fontSize) - 1)])}
-                >
-                  A-
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Decrease font size</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="size-8 md:size-9 text-sm font-bold"
-                  disabled={fontSize === FONT_SIZES[FONT_SIZES.length - 1]}
-                  onClick={() => onChangeFontSize(FONT_SIZES[Math.min(FONT_SIZES.length - 1, FONT_SIZES.indexOf(fontSize) + 1)])}
-                >
-                  A+
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Increase font size</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 dark:border-white/10 px-3 py-3 md:gap-3 md:px-6 md:py-4">
+      <div className="flex items-center gap-2">
+        {/* Mobile hamburger */}
+        <Button
+          size="icon"
+          variant="ghost"
+          className="md:hidden"
+          onClick={onOpenMobileSidebar}
+        >
+          <MenuIcon className="size-5" />
+        </Button>
+        <div className="min-w-0">
+          <h2 className="truncate text-base font-semibold text-foreground md:text-lg">
+            {activeThread?.title ?? 'New chat'}
+          </h2>
         </div>
+      </div>
+
+      <div className="flex items-center gap-1">
+        {/* Wide mode */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -254,6 +152,8 @@ export const ChatHeader = ({
             <TooltipContent>{widenMode ? 'Exit wide mode' : 'Wide mode'}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
+
+        {/* Outline */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -266,9 +166,11 @@ export const ChatHeader = ({
                 <TableOfContentsIcon className="size-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Conversation outline</TooltipContent>
+            <TooltipContent>Outline</TooltipContent>
           </Tooltip>
         </TooltipProvider>
+
+        {/* Knowledge base — stays visible because of the badge */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -292,33 +194,95 @@ export const ChatHeader = ({
             <TooltipContent>Knowledge base</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <span className="hidden sm:inline">
-          {status === 'streaming'
-            ? 'Streaming'
-            : status === 'submitted'
-              ? 'Thinking'
-              : 'Ready'}
-        </span>
+
+        {/* More menu */}
+        <DropdownMenu>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button size="icon" variant="ghost" className="size-8 md:size-9">
+                    <MoreHorizontalIcon className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>More options</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <DropdownMenuContent align="end" className="w-52">
+            {/* Font size */}
+            <DropdownMenuItem
+              onClick={() => onChangeFontSize(FONT_SIZES[Math.max(0, fontSizeIndex - 1)])}
+              disabled={fontSizeIndex === 0}
+            >
+              <span className="mr-2 text-xs font-bold">A-</span>
+              Decrease font size
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => onChangeFontSize(FONT_SIZES[Math.min(FONT_SIZES.length - 1, fontSizeIndex + 1)])}
+              disabled={fontSizeIndex === FONT_SIZES.length - 1}
+            >
+              <span className="mr-2 text-sm font-bold">A+</span>
+              Increase font size
+            </DropdownMenuItem>
+
+            {activeThread && (
+              <>
+                <DropdownMenuSeparator />
+
+                {/* Export submenu */}
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <DownloadIcon className="mr-2 size-4" />
+                    Export
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuItem onClick={() => onExport('json')}>
+                      <FileTextIcon className="mr-2 size-4" />
+                      Export as JSON
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onExport('markdown')}>
+                      <FileTextIcon className="mr-2 size-4" />
+                      Export as Markdown
+                    </DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+
+                <DropdownMenuSeparator />
+
+                {/* Delete */}
+                <DropdownMenuItem
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                  disabled={isDeleting}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2Icon className="mr-2 size-4" />
+                  Delete thread
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Delete this thread?</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. The selected conversation will be permanently removed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline" disabled={isDeleting}>Cancel</Button>
+            </DialogClose>
+            <Button variant="destructive" onClick={handleConfirmDelete} disabled={isDeleting}>
+              {isDeleting ? 'Deleting...' : 'Delete thread'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
-    <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-      <DialogContent showCloseButton={false}>
-        <DialogHeader>
-          <DialogTitle>Delete this thread?</DialogTitle>
-          <DialogDescription>
-            This action cannot be undone. The selected conversation will be permanently removed.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline" disabled={isDeleting}>Cancel</Button>
-          </DialogClose>
-          <Button variant="destructive" onClick={handleConfirmDelete} disabled={isDeleting}>
-            {isDeleting ? 'Deleting...' : 'Delete thread'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  </div>
   );
 };

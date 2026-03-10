@@ -50,6 +50,20 @@
       "when": 1773045753309,
       "tag": "0006_fair_orphan",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1773119465564,
+      "tag": "0007_brief_punisher",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1773200000000,
+      "tag": "0008_agent_sharing",
+      "breakpoints": true
     }
   ]
 }
