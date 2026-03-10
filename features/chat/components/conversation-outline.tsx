@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { SearchIcon } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import type { ChatMessage, ChatMessagePart } from '../types';
 import { getTextContentFromParts } from '../utils/message-parts';
 
@@ -118,7 +119,7 @@ export const ConversationOutline = ({ messages }: ConversationOutlineProps) => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-1.5">
+      <ScrollArea className="flex-1 overflow-y-auto py-1.5">
         {messages.length === 0 ? (
           <p className="px-4 py-8 text-center text-xs text-muted-foreground">
             Start a conversation to see the outline
@@ -161,7 +162,7 @@ export const ConversationOutline = ({ messages }: ConversationOutlineProps) => {
             </button>
           ))
         )}
-      </div>
+      </ScrollArea>
     </div>
   );
 };

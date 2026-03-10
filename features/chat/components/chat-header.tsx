@@ -34,7 +34,7 @@ import { CreditBalanceDisplay } from '@/components/credit-balance-display';
 import type { ChatStatus } from 'ai';
 import type { ThreadItem, RoutingMetadata, ChatMessageMetadata } from '../types';
 import type { SystemPromptKey } from '@/lib/prompt';
-import type { FontSize } from './chat-message-list';
+import type { FontSize } from './message-list';
 
 const FONT_SIZES: FontSize[] = ['sm', 'base', 'lg', 'xl'];
 
@@ -126,9 +126,6 @@ export const ChatHeader = ({
         <MenuIcon className="size-5" />
       </Button>
       <div className="min-w-0">
-        <p className="hidden text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground sm:block">
-          {activeThread ? 'Selected thread' : 'New conversation'}
-        </p>
         <h2 className="truncate text-base font-semibold text-foreground md:text-lg">
           {activeThread?.title ?? 'New chat'}
         </h2>

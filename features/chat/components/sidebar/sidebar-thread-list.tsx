@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -79,7 +80,7 @@ export const SidebarThreadList = ({
 
   return (
     <>
-      <div className="-mx-2 mt-4 flex-1 overflow-y-auto">
+      <ScrollArea className="h-70 w-full mt-4 flex-1 overflow-y-auto">
         {isLoading ? (
           <p className="px-3 text-xs text-muted-foreground">
             Loading threads…
@@ -144,7 +145,7 @@ export const SidebarThreadList = ({
             )}
           </>
         )}
-      </div>
+      </ScrollArea>
 
       <Dialog open={Boolean(renameTarget)} onOpenChange={handleRenameClose}>
         <DialogContent>

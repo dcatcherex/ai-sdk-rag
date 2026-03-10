@@ -103,12 +103,7 @@ export const SidebarContent = ({
       >
         {!isCollapsed && (
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-              Workspace
-            </p>
-            <h1 className="text-lg font-semibold text-foreground">
-              Studio Chat
-            </h1>
+            <h1 className="text-lg font-semibold text-foreground">Vaja</h1>
           </div>
         )}
         {onToggleCollapse ? (

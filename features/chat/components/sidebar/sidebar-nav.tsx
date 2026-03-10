@@ -95,7 +95,7 @@ export const SidebarNav = ({
         <Button
           variant={currentPath === "/" && !activeThreadId ? "secondary" : "ghost"}
           size={isCollapsed ? "icon" : "sm"}
-          className={cn(isCollapsed ? "size-9" : "justify-start gap-2 w-full")}
+          className={cn(isCollapsed ? "size-9" : "justify-start gap-2 w-full font-normal")}
           onClick={onCreateThread}
           disabled={isCreatingThread}
         >
@@ -111,10 +111,10 @@ export const SidebarNav = ({
             variant={matchFn(currentPath) ? "secondary" : "ghost"}
             size={isCollapsed ? "icon" : "sm"}
             className={cn(
-              isCollapsed ? "size-9" : "justify-start gap-2 w-full",
+              isCollapsed ? "size-9" : "justify-start gap-2 w-full font-normal ",
             )}
           >
-            <Link href={href} aria-label={label}>
+            <Link href={href} aria-label={label} >
               {icon}
               {!isCollapsed ? label : null}
             </Link>
@@ -132,9 +132,8 @@ export const SidebarNav = ({
         >
           <SearchIcon className="size-4" />
           {!isCollapsed ? (
-            <span className="flex-1 text-left text-muted-foreground font-normal">
+            <span className="flex-1 text-left  font-normal">
               Search chats
-              <kbd className="ml-2 text-[10px] opacity-50">⌘/</kbd>
             </span>
           ) : null}
         </Button>
