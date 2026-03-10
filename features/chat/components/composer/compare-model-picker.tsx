@@ -183,7 +183,7 @@ export const CompareModelPicker = ({
         }`}
       >
         <Columns2Icon className="size-4" />
-        <span className="hidden sm:inline">Compare</span>
+        <span className="hidden sm:inline"></span>
         {comparePresetIds.length > 0 && (
           <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none ${
             compareMode ? 'bg-white/20' : 'bg-primary/15 text-primary'

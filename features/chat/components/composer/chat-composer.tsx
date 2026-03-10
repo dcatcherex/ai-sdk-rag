@@ -220,11 +220,11 @@ export function ChatComposer({
               )}
               {!compareMode && (
                 <PromptInputButton
+                  className="hover:cursor-pointer"
                   onClick={onToggleWebSearch}
                   variant={useWebSearch ? 'default' : 'ghost'}
                 >
                   <GlobeIcon className="size-4" />
-                  <span>Search</span>
                 </PromptInputButton>
               )}
               {!compareMode && (

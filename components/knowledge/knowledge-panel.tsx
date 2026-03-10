@@ -32,12 +32,12 @@ export function KnowledgePanel({ selectedDocIds, onToggleSelect }: KnowledgePane
   return (
     <aside className={`flex h-full ${WIDTH} shrink-0 flex-col rounded-3xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-zinc-900/80 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_60px_-40px_rgba(0,0,0,0.6)] backdrop-blur`}>
       {/* Header */}
-      <div className="px-4 pt-4 pb-3">
+      <div className="px-4 py-3.5">
         <div className="flex items-center justify-between">
           <div>
             
             <h3 className="text-sm font-semibold text-foreground">
-              Documents
+              Knowledge
               {stats && stats.totalDocuments > 0 && (
                 <span className="ml-1.5 text-xs font-normal text-muted-foreground">
                   ({stats.totalDocuments})

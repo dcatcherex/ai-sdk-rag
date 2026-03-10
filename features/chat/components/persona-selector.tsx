@@ -49,7 +49,7 @@ export const PersonaSelector = ({
         <Button
           variant={selectedPersonaId ? 'default' : 'ghost'}
           size="sm"
-          className="h-8 gap-1.5 px-2.5 text-xs"
+          className="h-8 gap-1.5 px-2.5 text-xs hover:cursor-pointer"
         >
           <UserCircle2Icon className="size-3.5" />
           <span className="max-w-[100px] truncate">

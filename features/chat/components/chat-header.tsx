@@ -117,7 +117,7 @@ export const ChatHeader = ({
   const fontSizeIndex = FONT_SIZES.indexOf(fontSize);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 dark:border-white/10 px-3 py-3 md:gap-3 md:px-6 md:py-4">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 dark:border-white/10 px-3 py-2 md:gap-3 md:px-6 md:py-1.5">
       <div className="flex items-center gap-2">
         {/* Mobile hamburger */}
         <Button
@@ -129,7 +129,7 @@ export const ChatHeader = ({
           <MenuIcon className="size-5" />
         </Button>
         <div className="min-w-0">
-          <h2 className="truncate text-base font-semibold text-foreground md:text-lg">
+          <h2 className="truncate text-base font-medium text-foreground md:text-lg">
             {activeThread?.title ?? 'New chat'}
           </h2>
         </div>
@@ -144,7 +144,7 @@ export const ChatHeader = ({
                 size="icon"
                 variant={widenMode ? 'default' : 'ghost'}
                 onClick={onToggleWidenMode}
-                className="size-8 md:size-9"
+                className="size-8 hover:cursor-pointer"
               >
                 {widenMode ? <Minimize2Icon className="size-4" /> : <Maximize2Icon className="size-4" />}
               </Button>
@@ -161,7 +161,7 @@ export const ChatHeader = ({
                 size="icon"
                 variant={outlinePanelOpen ? 'default' : 'ghost'}
                 onClick={onToggleOutlinePanel}
-                className="size-8 md:size-9"
+                className="size-8 hover:cursor-pointer"
               >
                 <TableOfContentsIcon className="size-4" />
               </Button>
@@ -178,7 +178,7 @@ export const ChatHeader = ({
                 size="icon"
                 variant={knowledgePanelOpen ? 'default' : 'ghost'}
                 onClick={onToggleKnowledgePanel}
-                className="relative size-8 md:size-9"
+                className="relative size-8 hover:cursor-pointer"
               >
                 <BookOpenIcon className="size-4" />
                 {docCount > 0 && (
@@ -201,7 +201,7 @@ export const ChatHeader = ({
             <Tooltip>
               <TooltipTrigger asChild>
                 <DropdownMenuTrigger asChild>
-                  <Button size="icon" variant="ghost" className="size-8 md:size-9">
+                  <Button size="icon" variant="ghost" className="size-8 hover:cursor-pointer">
                     <MoreHorizontalIcon className="size-4" />
                   </Button>
                 </DropdownMenuTrigger>

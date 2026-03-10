@@ -4,7 +4,7 @@ import { useEnabledModels } from '@/features/models/hooks/use-enabled-models';
 
 const AUTO_MODEL = {
   id: 'auto',
-  name: 'Auto routing',
+  name: 'Auto',
   provider: 'google' as const,
   description: 'Chooses the best model for each prompt',
 } as const;
