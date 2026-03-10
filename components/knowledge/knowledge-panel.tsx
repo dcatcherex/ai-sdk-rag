@@ -27,15 +27,15 @@ export function KnowledgePanel({ selectedDocIds, onToggleSelect }: KnowledgePane
     setDetailOpen(true);
   };
 
+  const WIDTH = 'w-70';
+
   return (
-    <aside className="flex h-full w-80 shrink-0 flex-col rounded-3xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-zinc-900/80 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_60px_-40px_rgba(0,0,0,0.6)] backdrop-blur">
+    <aside className={`flex h-full ${WIDTH} shrink-0 flex-col rounded-3xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-zinc-900/80 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_60px_-40px_rgba(0,0,0,0.6)] backdrop-blur`}>
       {/* Header */}
       <div className="px-4 pt-4 pb-3">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-              Knowledge
-            </p>
+            
             <h3 className="text-sm font-semibold text-foreground">
               Documents
               {stats && stats.totalDocuments > 0 && (

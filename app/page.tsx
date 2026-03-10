@@ -277,7 +277,7 @@ export default function Chat() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f7f7f9,#eef0f7_55%,#e6e9f2_100%)] dark:bg-[radial-gradient(circle_at_top,#1a1b2e,#111827_55%,#0f172a_100%)]">
-      <div className={`mx-auto flex min-h-screen w-full gap-3 px-2 py-2 md:gap-6 md:px-4 md:py-6 transition-all duration-300 ${widenMode ? 'w-full' : knowledgePanelOpen || outlinePanelOpen ? 'max-w-360' : 'max-w-6xl'}`}>
+      <div className={`mx-auto flex min-h-screen w-full gap-3 px-2 py-2 md:gap-6 md:px-4 md:py-6 transition-all duration-300 ${widenMode || (knowledgePanelOpen && outlinePanelOpen) ? 'w-full' : knowledgePanelOpen || outlinePanelOpen ? 'max-w-360' : 'max-w-6xl'}`}>
         <ChatSidebar
           activeThreadId={activeThreadId}
           threads={threads}
