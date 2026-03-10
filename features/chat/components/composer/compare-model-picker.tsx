@@ -192,8 +192,12 @@ export const CompareModelPicker = ({
           </span>
         )}
       </button>
-      <div className={`w-px self-stretch ${compareMode ? 'bg-white/20' : 'bg-black/8 dark:bg-white/10'}`} />
-      {ModelPickerPopover}
+      {compareMode && (
+        <>
+          <div className="w-px self-stretch bg-white/20" />
+          {ModelPickerPopover}
+        </>
+      )}
     </div>
   );
 };

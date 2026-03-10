@@ -34,6 +34,7 @@ import {
   PromptInputActionAddAttachments,
   PromptInputActionMenu,
   PromptInputActionMenuContent,
+  PromptInputActionMenuItem,
   PromptInputActionMenuTrigger,
   PromptInputBody,
   PromptInputButton,
@@ -202,32 +203,35 @@ export function ChatComposer({
                 <PromptInputActionMenuTrigger />
                 <PromptInputActionMenuContent>
                   <PromptInputActionAddAttachments />
+                  {!compareMode && (
+                    <PromptInputActionMenuItem
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        onToggleWebSearch();
+                      }}
+                    >
+                      <GlobeIcon className="mr-2 size-4" />
+                      Web search
+                      {useWebSearch && <CheckIcon className="ml-auto size-3.5 text-primary" />}
+                    </PromptInputActionMenuItem>
+                  )}
                 </PromptInputActionMenuContent>
               </PromptInputActionMenu>
-              {!compareMode && (
+              {!compareMode && selectedPersonaId === null && (
                 <AgentSelector
                   agents={agents}
                   selectedAgentId={selectedAgentId}
                   onSelectAgent={onSelectAgent}
                 />
               )}
-              {!compareMode && (
+              {!compareMode && selectedAgentId === null && (
                 <PersonaSelector
                   customPersonas={customPersonas}
                   selectedPersonaId={selectedPersonaId}
                   onSelectPersona={onSelectPersona}
                 />
               )}
-              {!compareMode && (
-                <PromptInputButton
-                  className="hover:cursor-pointer"
-                  onClick={onToggleWebSearch}
-                  variant={useWebSearch ? 'default' : 'ghost'}
-                >
-                  <GlobeIcon className="size-4" />
-                </PromptInputButton>
-              )}
-              {!compareMode && (
+              {!compareMode && selectedAgentId === null && (
                 <ModelSelector open={modelSelectorOpen} onOpenChange={onModelSelectorOpenChange}>
                   <ModelSelectorTrigger asChild>
                     <PromptInputButton>
