@@ -10,7 +10,7 @@ export const FollowUpChips = ({ suggestions, onSuggestionClick }: FollowUpChipsP
         key={s}
         type="button"
         onClick={() => onSuggestionClick(s)}
-        className="rounded-full border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 px-3 py-1 text-[12px] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700/60 hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors text-left"
+        className="rounded-full border border-zinc-200 dark:border-border bg-zinc-50 dark:bg-muted/60 px-3 py-1 text-[12px] text-zinc-600 dark:text-foreground/80 hover:bg-zinc-100 dark:hover:bg-secondary/60 hover:border-zinc-300 dark:hover:border-border transition-colors text-left"
       >
         {s}
       </button>

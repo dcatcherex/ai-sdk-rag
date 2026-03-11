@@ -92,7 +92,7 @@ const changeTypeStyles: Record<ChangeType, string> = {
     "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
   patch: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
   added: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  removed: "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400",
+  removed: "bg-gray-100 text-gray-700 dark:bg-card/30 dark:text-muted-foreground",
 };
 
 const changeTypeIcons: Record<ChangeType, React.ReactNode> = {

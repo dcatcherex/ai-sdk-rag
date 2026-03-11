@@ -98,17 +98,17 @@ export const ConversationOutline = ({ messages }: ConversationOutlineProps) => {
   const WIDTH = 'w-70';
 
   return (
-    <div className={`flex h-[calc(100vh-3rem)] ${WIDTH} flex-col rounded-2xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-900/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur overflow-hidden md:rounded-3xl`}>
-      <div className="flex items-center justify-between border-b border-black/5 dark:border-white/10 px-4 py-3.5">
+    <div className={`flex h-[calc(100vh-3rem)] ${WIDTH} flex-col rounded-2xl border border-black/5 dark:border-border bg-white/80 dark:bg-card/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur overflow-hidden md:rounded-3xl`}>
+      <div className="flex items-center justify-between border-b border-black/5 dark:border-border px-4 py-3.5">
         <span className="text-sm font-semibold">Outline</span>
         {turnCount > 0 && (
-          <span className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+          <span className="rounded-full bg-zinc-100 dark:bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
             {turnCount} {turnCount === 1 ? 'turn' : 'turns'}
           </span>
         )}
       </div>
 
-      <div className="border-b border-black/5 dark:border-white/10 px-3 py-2.5">
+      <div className="border-b border-black/5 dark:border-border px-3 py-2.5">
         <div className="relative">
           <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
           <input
@@ -116,7 +116,7 @@ export const ConversationOutline = ({ messages }: ConversationOutlineProps) => {
             placeholder="Filter..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-zinc-50 dark:bg-zinc-800 pl-7 pr-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+            className="w-full rounded-lg border border-black/10 dark:border-border bg-zinc-50 dark:bg-muted pl-7 pr-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
           />
         </div>
       </div>
@@ -134,7 +134,7 @@ export const ConversationOutline = ({ messages }: ConversationOutlineProps) => {
               key={`${item.messageId}-${i}`}
               type="button"
               onClick={() => scrollTo(item.messageId)}
-              className={`w-full text-left transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800/60 ${
+              className={`w-full text-left transition-colors hover:bg-zinc-100 dark:hover:bg-muted/60 ${
                 item.role === 'user' ? 'mt-1 px-3 py-2' : 'px-3 py-1'
               }`}
               style={

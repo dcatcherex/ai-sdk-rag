@@ -15,7 +15,7 @@ export const GalleryCard = ({ asset, versionCount = 1, onEdit }: Props) => {
 
   return (
     <div
-      className="group relative aspect-square overflow-hidden rounded-lg border border-black/5 dark:border-white/10 shadow-[0_20px_40px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_40px_-30px_rgba(0,0,0,0.6)] cursor-pointer"
+      className="group relative aspect-square overflow-hidden rounded-lg border border-black/5 dark:border-border shadow-[0_20px_40px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_40px_-30px_rgba(0,0,0,0.6)] cursor-pointer"
       onClick={() => onEdit(asset)}
     >
       {versionCount > 1 && (

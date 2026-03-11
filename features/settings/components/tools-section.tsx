@@ -16,7 +16,7 @@ type Props = {
 
 export function ToolsSection({ effectiveToolIds, onToggleTool }: Props) {
   return (
-    <section className="border-t border-black/5 dark:border-white/10 pt-6">
+    <section className="border-t border-black/5 dark:border-border pt-6">
       <div className="flex items-center gap-2 mb-1">
         <WrenchIcon className="size-5 text-muted-foreground" />
         <h3 className="text-base font-semibold">AI Tools</h3>
@@ -36,7 +36,7 @@ export function ToolsSection({ effectiveToolIds, onToggleTool }: Props) {
                 const entry = TOOL_REGISTRY[toolId];
                 const isEnabled = effectiveToolIds.includes(toolId);
                 return (
-                  <div key={toolId} className="flex items-start justify-between gap-4 rounded-lg border border-black/5 dark:border-white/10 px-4 py-3">
+                  <div key={toolId} className="flex items-start justify-between gap-4 rounded-lg border border-black/5 dark:border-border px-4 py-3">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium">{entry.label}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{entry.description}</p>

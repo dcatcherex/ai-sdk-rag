@@ -66,7 +66,7 @@ export const EditorPromptBar = ({
   const currentModel = IMAGE_EDIT_MODELS.find((m) => m.id === selectedModel);
 
   return (
-    <div className="shrink-0 border-t border-black/5 dark:border-white/10 px-4 py-3">
+    <div className="shrink-0 border-t border-black/5 dark:border-border px-4 py-3">
       {submitError && <p className="mb-2 text-xs text-destructive">{submitError}</p>}
       <PromptInputProvider>
         <PromptInput onSubmit={({ text }) => onSubmit(text)}>

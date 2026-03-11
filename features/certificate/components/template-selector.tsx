@@ -20,7 +20,7 @@ export function TemplateSelector({ templates, selectedId, onSelect, onUploadClic
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Templates</h2>
+        <h2 className="text-sm font-semibold text-zinc-700 dark:text-foreground/80">Templates</h2>
         <Button size="sm" variant="outline" onClick={onUploadClick}>
           <Plus className="mr-1 h-3.5 w-3.5" /> Add template
         </Button>
@@ -40,11 +40,11 @@ export function TemplateSelector({ templates, selectedId, onSelect, onUploadClic
               'group relative cursor-pointer overflow-hidden rounded-xl border-2 transition-all',
               selectedId === t.id
                 ? 'border-indigo-500 ring-2 ring-indigo-300/50 dark:ring-indigo-600/50'
-                : 'border-transparent hover:border-zinc-300 dark:hover:border-zinc-600',
+                : 'border-transparent hover:border-zinc-300 dark:hover:border-border',
             )}
             onClick={() => onSelect(t)}
           >
-            <div className="relative aspect-[4/3] w-full bg-zinc-100 dark:bg-zinc-800">
+            <div className="relative aspect-[4/3] w-full bg-zinc-100 dark:bg-muted">
               {t.thumbnailUrl ? (
                 <Image src={t.thumbnailUrl} alt={t.name} fill className="object-cover" unoptimized />
               ) : (
@@ -57,14 +57,14 @@ export function TemplateSelector({ templates, selectedId, onSelect, onUploadClic
             )}
 
             <div className="px-2 py-1.5">
-              <p className="truncate text-xs font-medium text-zinc-700 dark:text-zinc-300">{t.name}</p>
+              <p className="truncate text-xs font-medium text-zinc-700 dark:text-foreground/80">{t.name}</p>
               <p className="text-[10px] text-zinc-400">
                 {t.width}×{t.height}px · {t.fields.length} field{t.fields.length !== 1 ? 's' : ''}
               </p>
             </div>
 
             <button
-              className="absolute left-2 top-2 hidden rounded-full bg-white/90 p-1 text-red-500 shadow transition hover:bg-red-50 group-hover:flex dark:bg-zinc-800/90"
+              className="absolute left-2 top-2 hidden rounded-full bg-white/90 p-1 text-red-500 shadow transition hover:bg-red-50 group-hover:flex dark:bg-muted/90"
               onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(t.id); }}
               title="Delete template"
             >

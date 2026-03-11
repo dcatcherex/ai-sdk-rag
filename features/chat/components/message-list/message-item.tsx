@@ -144,7 +144,7 @@ export const MessageItem = ({
           {showFollowUpLoading && (
             <div className="mt-3 flex gap-2">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-7 w-24 animate-pulse rounded-full bg-zinc-200 dark:bg-zinc-700" />
+                <div key={i} className="h-7 w-24 animate-pulse rounded-full bg-zinc-200 dark:bg-secondary" />
               ))}
             </div>
           )}

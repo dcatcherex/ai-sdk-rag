@@ -47,7 +47,7 @@ export function PersonaInstructionsSection({ personaInstructions, onSave }: Prop
           const hasInstructions = !!personaInstructions[key];
           const isEditing = editing === key;
           return (
-            <div key={key} className="rounded-lg border border-black/5 dark:border-white/10 overflow-hidden">
+            <div key={key} className="rounded-lg border border-black/5 dark:border-border overflow-hidden">
               <button
                 type="button"
                 onClick={() => isEditing ? cancelEdit() : openEdit(key)}

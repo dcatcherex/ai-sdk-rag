@@ -200,12 +200,12 @@ export const SelectionContextMenu = ({ containerRef, onAction }: SelectionContex
       }}
       onMouseDown={(e) => e.preventDefault()}
     >
-      <div className="flex items-center gap-0.5 rounded-lg border border-black/10 dark:border-white/10 bg-white dark:bg-zinc-800 shadow-lg shadow-black/10 p-1">
+      <div className="flex items-center gap-0.5 rounded-lg border border-black/10 dark:border-border bg-white dark:bg-muted shadow-lg shadow-black/10 p-1">
         {ACTIONS.map((action) => (
           <button
             key={action.label}
             type="button"
-            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 whitespace-nowrap transition-colors"
+            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-zinc-700 dark:text-foreground hover:bg-zinc-100 dark:hover:bg-secondary whitespace-nowrap transition-colors"
             onMouseDown={(e) => {
               e.preventDefault();
               onAction(action.buildPrompt(menu.text));

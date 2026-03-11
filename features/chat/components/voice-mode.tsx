@@ -75,9 +75,9 @@ export const VoiceMode = ({
   const isActive = isListening || isAiSpeaking;
 
   return (
-    <div className="mx-1 mb-2 overflow-hidden rounded-xl border border-black/8 dark:border-white/10 bg-white/95 dark:bg-zinc-900/95 shadow-lg backdrop-blur">
+    <div className="mx-1 mb-2 overflow-hidden rounded-xl border border-black/8 dark:border-border bg-white/95 dark:bg-card/95 shadow-lg backdrop-blur">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-black/5 dark:border-white/10 px-3 py-2">
+      <div className="flex items-center justify-between border-b border-black/5 dark:border-border px-3 py-2">
         <div className="flex items-center gap-2">
           <span className={`size-2 rounded-full ${STATUS_DOT[voiceState]}`} />
           <span className="text-xs font-medium text-foreground">{STATUS_TEXT[voiceState]}</span>
@@ -87,7 +87,7 @@ export const VoiceMode = ({
             type="button"
             onClick={onToggleSpeakAloud}
             title={speakAloud ? 'Mute AI voice' : 'Unmute AI voice'}
-            className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-foreground"
+            className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-zinc-100 dark:hover:bg-muted hover:text-foreground"
           >
             {speakAloud ? <Volume2Icon className="size-3.5" /> : <VolumeXIcon className="size-3.5" />}
           </button>
@@ -95,7 +95,7 @@ export const VoiceMode = ({
             type="button"
             onClick={onClose}
             title="Close voice mode"
-            className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-foreground"
+            className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-zinc-100 dark:hover:bg-muted hover:text-foreground"
           >
             <XIcon className="size-3.5" />
           </button>
@@ -114,13 +114,13 @@ export const VoiceMode = ({
 
       {/* Transcript */}
       {transcript.length > 0 && (
-        <div className="max-h-40 overflow-y-auto border-t border-black/5 dark:border-white/10 px-3 py-2 space-y-1.5">
+        <div className="max-h-40 overflow-y-auto border-t border-black/5 dark:border-border px-3 py-2 space-y-1.5">
           {transcript.map((turn, i) => (
             <div key={i} className={`flex gap-1.5 text-[12px] leading-relaxed ${turn.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <span className={`rounded-lg px-2 py-1 max-w-[85%] ${
                 turn.role === 'user'
                   ? 'bg-primary text-primary-foreground'
-                  : 'bg-zinc-100 dark:bg-zinc-800 text-foreground'
+                  : 'bg-zinc-100 dark:bg-muted text-foreground'
               }`}>
                 {turn.text}
                 {turn.partial && (

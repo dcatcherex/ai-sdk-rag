@@ -222,7 +222,7 @@ export const AgentFormDialog = ({
                   onChange={(e) => setDocSearch(e.target.value)}
                   className="h-8 text-xs"
                 />
-                <div className="max-h-40 overflow-y-auto rounded-md border border-black/5 dark:border-white/10 p-1 space-y-0.5">
+                <div className="max-h-40 overflow-y-auto rounded-md border border-black/5 dark:border-border p-1 space-y-0.5">
                   {filteredDocuments.map((doc) => {
                     const title = (doc.metadata?.title as string | undefined) ?? doc.id;
                     const checked = documentIds.includes(doc.id);
@@ -258,7 +258,7 @@ export const AgentFormDialog = ({
           </div>
 
           {/* Public toggle */}
-          <div className="flex items-center justify-between rounded-lg border border-black/5 dark:border-white/10 p-3">
+          <div className="flex items-center justify-between rounded-lg border border-black/5 dark:border-border p-3">
             <div className="space-y-0.5">
               <Label htmlFor="agent-public" className="text-sm font-medium cursor-pointer">
                 Share publicly
@@ -311,7 +311,7 @@ export const AgentFormDialog = ({
               className="h-8 text-xs"
             />
             {unaddedResults.length > 0 && (
-              <div className="rounded-md border border-black/5 dark:border-white/10 p-1 space-y-0.5 max-h-32 overflow-y-auto">
+              <div className="rounded-md border border-black/5 dark:border-border p-1 space-y-0.5 max-h-32 overflow-y-auto">
                 {unaddedResults.map((u) => (
                   <button
                     key={u.id}

@@ -63,7 +63,7 @@ export const ImageEditor = ({ asset, onClose, editorState, activeGalleryVersionI
   return (
     <div className="flex h-full flex-col">
       {/* Top bar */}
-      <div className="flex shrink-0 items-center justify-between border-b border-black/5 dark:border-white/10 px-5 py-3">
+      <div className="flex shrink-0 items-center justify-between border-b border-black/5 dark:border-border px-5 py-3">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon-sm" onClick={onClose}>
             <ArrowLeftIcon className="size-4" />

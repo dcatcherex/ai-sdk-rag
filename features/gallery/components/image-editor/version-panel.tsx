@@ -21,7 +21,7 @@ export const VersionPanel = ({
   };
 
   return (
-    <div className="w-44 shrink-0 overflow-y-auto border-l border-black/5 dark:border-white/10 p-3">
+    <div className="w-44 shrink-0 overflow-y-auto border-l border-black/5 dark:border-border p-3">
       <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
         Versions
       </p>
@@ -39,7 +39,7 @@ export const VersionPanel = ({
                 className={`w-full overflow-hidden rounded-xl border text-left transition ${
                   selectedVersionId === v.id
                     ? 'border-primary ring-1 ring-primary'
-                    : 'border-black/5 dark:border-white/10 hover:border-primary/50'
+                    : 'border-black/5 dark:border-border hover:border-primary/50'
                 }`}
               >
                 <div className="relative aspect-square overflow-hidden bg-muted/30">

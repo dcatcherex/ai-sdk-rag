@@ -45,12 +45,12 @@ export const GenerationDetails = ({ metadata }: { metadata: ChatMessageMetadata 
   if (!routing) return null;
 
   return (
-    <div className="mt-3 rounded-lg border border-black/6 dark:border-white/8 bg-black/2 dark:bg-white/3 px-3 py-2.5 space-y-2">
+    <div className="mt-3 rounded-lg border border-black/6 dark:border-border/50 bg-black/2 dark:bg-white/3 px-3 py-2.5 space-y-2">
       <div className="flex flex-wrap gap-x-4 gap-y-1.5">
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Model</span>
           <span className="text-[11px] font-medium text-foreground">{routing.modelId.split('/')[1] ?? routing.modelId}</span>
-          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${routing.mode === 'manual' ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400' : 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400'}`}>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${routing.mode === 'manual' ? 'bg-zinc-100 dark:bg-muted text-zinc-500 dark:text-muted-foreground' : 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400'}`}>
             {routing.mode === 'manual' ? 'Manual' : 'Auto'}
           </span>
         </div>
@@ -79,7 +79,7 @@ export const GenerationDetails = ({ metadata }: { metadata: ChatMessageMetadata 
             <ChevronDownIcon className={`size-3 transition-transform ${promptOpen ? 'rotate-180' : ''}`} />
           </button>
           {promptOpen && (
-            <p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed border-l-2 border-black/10 dark:border-white/10 pl-2">
+            <p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed border-l-2 border-black/10 dark:border-border pl-2">
               {enhancedPrompt}
             </p>
           )}

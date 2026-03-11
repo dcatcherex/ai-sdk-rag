@@ -89,7 +89,7 @@ export const ComposerActionButtons = ({
           className={`flex size-8 items-center justify-center rounded-md transition-colors ${
             voiceOpen
               ? 'bg-primary text-primary-foreground'
-              : 'text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800'
+              : 'text-muted-foreground hover:bg-zinc-100 dark:hover:bg-muted'
           }`}
         >
           <AudioLinesIcon className="size-4" />

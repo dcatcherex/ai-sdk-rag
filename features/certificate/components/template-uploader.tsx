@@ -51,7 +51,7 @@ export function TemplateUploader({ onDone, onCancel }: Props) {
 
       {/* Drop zone */}
       <div
-        className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-300 p-6 transition hover:border-indigo-400 dark:border-zinc-600"
+        className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-300 p-6 transition hover:border-indigo-400 dark:border-border"
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {

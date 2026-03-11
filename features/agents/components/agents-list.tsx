@@ -68,7 +68,7 @@ export const AgentsList = () => {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between border-b border-black/5 dark:border-white/10 px-6 py-4">
+      <div className="flex items-center justify-between border-b border-black/5 dark:border-border px-6 py-4">
         <div>
           <h2 className="text-lg font-semibold">Agents</h2>
           <p className="text-sm text-muted-foreground">
@@ -106,7 +106,7 @@ export const AgentsList = () => {
               return (
                 <div
                   key={agent.id}
-                  className="group relative flex flex-col gap-2 rounded-xl border border-black/5 dark:border-white/10 bg-muted/30 p-4 transition hover:bg-muted/50"
+                  className="group relative flex flex-col gap-2 rounded-xl border border-black/5 dark:border-border bg-muted/30 p-4 transition hover:bg-muted/50"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">

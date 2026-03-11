@@ -61,11 +61,11 @@ export const CompareGroupCard = ({ messages, messageReactions, onToggleReaction 
         return (
           <div
             key={m.id}
-            className="flex flex-col overflow-hidden rounded-xl border border-black/5 dark:border-white/10 bg-white dark:bg-zinc-900"
+            className="flex flex-col overflow-hidden rounded-xl border border-black/5 dark:border-border bg-white dark:bg-card"
           >
-            <div className="flex items-center gap-2 border-b border-black/5 dark:border-white/10 bg-zinc-50/80 dark:bg-zinc-800/50 px-3 py-1.5">
+            <div className="flex items-center gap-2 border-b border-black/5 dark:border-border bg-zinc-50/80 dark:bg-muted/50 px-3 py-1.5">
               <ModelSelectorLogo provider={modelInfo.provider as any} />
-              <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate flex-1">
+              <span className="text-xs font-medium text-zinc-700 dark:text-foreground/80 truncate flex-1">
                 {meta.compareModelName ?? meta.compareModelId}
               </span>
             </div>
@@ -76,7 +76,7 @@ export const CompareGroupCard = ({ messages, messageReactions, onToggleReaction 
                 <CompareMarkdown content={textContent} />
               ) : null}
             </div>
-            <div className="flex gap-1 border-t border-black/5 dark:border-white/10 px-3 py-1.5">
+            <div className="flex gap-1 border-t border-black/5 dark:border-border px-3 py-1.5">
               <Button
                 size="icon"
                 variant="ghost"

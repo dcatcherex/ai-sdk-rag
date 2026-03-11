@@ -74,7 +74,7 @@ export const SidebarAccount = ({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="size-9 rounded-full border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-800"
+                className="size-9 rounded-full border border-black/5 dark:border-border bg-white/80 dark:bg-muted"
               >
                 <Avatar size="sm">
                   {userProfile.image ? (

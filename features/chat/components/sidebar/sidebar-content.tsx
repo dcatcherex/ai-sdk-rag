@@ -164,7 +164,7 @@ export const SidebarContent = ({
       {/* Footer: settings + account */}
       <div
         className={cn(
-          "mt-auto border-t border-black/5 dark:border-white/10 pt-3",
+          "mt-auto border-t border-black/5 dark:border-border pt-3",
           isCollapsed ? "flex flex-col items-center gap-2" : "space-y-1",
         )}
       >

@@ -32,7 +32,7 @@ function FontPicker({
   return (
     <div className="flex flex-col items-end gap-1">
       {open && (
-        <div className="flex flex-col gap-1 rounded-xl border bg-white/95 dark:bg-zinc-900/95 backdrop-blur shadow-lg p-1 min-w-32">
+        <div className="flex flex-col gap-1 rounded-xl border bg-white/95 dark:bg-card/95 backdrop-blur shadow-lg p-1 min-w-32">
           {FONTS.map((font) => (
             <button
               key={font.label}
@@ -43,7 +43,7 @@ function FontPicker({
               className={`px-3 py-1.5 rounded-lg text-sm text-left transition-colors ${
                 font.label === current
                   ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-                  : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+                  : "hover:bg-zinc-100 dark:hover:bg-muted text-zinc-700 dark:text-foreground/80"
               }`}
             >
               {font.label}
@@ -53,10 +53,10 @@ function FontPicker({
       )}
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 rounded-full border bg-white/90 dark:bg-zinc-900/90 backdrop-blur shadow px-3 py-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+        className="flex items-center gap-1.5 rounded-full border bg-white/90 dark:bg-card/90 backdrop-blur shadow px-3 py-1.5 text-xs font-medium text-zinc-500 dark:text-muted-foreground hover:text-zinc-900 dark:hover:text-white transition-colors"
       >
-        <span className="text-zinc-400 dark:text-zinc-500">{label}</span>
-        <span className="text-zinc-800 dark:text-zinc-200">{current}</span>
+        <span className="text-zinc-400 dark:text-muted-foreground">{label}</span>
+        <span className="text-zinc-800 dark:text-foreground">{current}</span>
       </button>
     </div>
   );

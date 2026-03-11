@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useUploadDocument } from '@/lib/hooks/use-documents';
+import { useUploadDocument, type DocumentAnalysis } from '@/lib/hooks/use-documents';
+import { ProcessingNotification } from '@/components/knowledge/processing-notification';
 import { cn } from '@/lib/utils';
 
 const ACCEPTED_TYPES: Record<string, string[]> = {
@@ -17,6 +18,11 @@ const ACCEPTED_TYPES: Record<string, string[]> = {
   'text/csv': ['.csv'],
   'application/json': ['.json'],
   'application/pdf': ['.pdf'],
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png'],
+  'image/webp': ['.webp'],
+  'image/gif': ['.gif'],
+  'image/tiff': ['.tiff', '.tif'],
 };
 
 interface DocumentUploadProps {
@@ -26,6 +32,14 @@ interface DocumentUploadProps {
 }
 
 type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
+
+interface PendingDoc {
+  id: string;
+  title: string;
+  analysis: DocumentAnalysis;
+  initialMode?: string;
+  isImageBased?: boolean;
+}
 
 export function DocumentUpload({
   variant = 'full',
@@ -38,6 +52,7 @@ export function DocumentUpload({
   const [title, setTitle] = useState('');
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [pendingDoc, setPendingDoc] = useState<PendingDoc | null>(null);
 
   const upload = useUploadDocument();
 
@@ -52,8 +67,9 @@ export function DocumentUpload({
     async (data: { file?: File; url?: string; text?: string }) => {
       setUploadStatus('uploading');
       setErrorMessage('');
+      setPendingDoc(null);
       try {
-        await upload.mutateAsync({
+        const result = await upload.mutateAsync({
           ...data,
           category,
           title: title || undefined,
@@ -62,15 +78,21 @@ export function DocumentUpload({
         setUrl('');
         setText('');
         setTitle('');
-        onUploadComplete?.();
-        resetStatus();
+        // Show processing notification instead of completing immediately
+        setPendingDoc({
+          id: result.pendingDocumentId,
+          title: result.title,
+          analysis: result.analysisResult,
+          initialMode: result.processingMode as any,
+          isImageBased: result.isImageBased ?? false,
+        });
       } catch (err) {
         setUploadStatus('error');
         setErrorMessage(err instanceof Error ? err.message : 'Upload failed');
         resetStatus();
       }
     },
-    [upload, category, title, onUploadComplete]
+    [upload, category, title]
   );
 
   const onDrop = useCallback(
@@ -103,25 +125,26 @@ export function DocumentUpload({
           <input {...getInputProps()} />
           {uploadStatus === 'uploading' ? (
             <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-          ) : uploadStatus === 'success' ? (
-            <CheckCircle2Icon className="size-4 text-green-600" />
-          ) : uploadStatus === 'error' ? (
-            <XCircleIcon className="size-4 text-destructive" />
           ) : (
             <UploadCloudIcon className="size-4 text-muted-foreground" />
           )}
           <span className="text-xs text-muted-foreground">
-            {isDragActive
-              ? 'Drop file here'
-              : uploadStatus === 'uploading'
-                ? 'Uploading...'
-                : uploadStatus === 'success'
-                  ? 'Uploaded!'
-                  : 'Drop file or click to upload'}
+            {isDragActive ? 'Drop file here' : uploadStatus === 'uploading' ? 'Uploading...' : 'Drop file or click to upload'}
           </span>
         </div>
         {errorMessage && (
           <p className="text-xs text-destructive">{errorMessage}</p>
+        )}
+        {pendingDoc && (
+          <ProcessingNotification
+            pendingDocumentId={pendingDoc.id}
+            title={pendingDoc.title}
+            analysis={pendingDoc.analysis}
+            initialMode={pendingDoc.initialMode as any}
+            isImageBased={pendingDoc.isImageBased}
+            onDone={() => { setPendingDoc(null); onUploadComplete?.(); }}
+            onDismiss={() => setPendingDoc(null)}
+          />
         )}
       </div>
     );
@@ -161,7 +184,7 @@ export function DocumentUpload({
                 {isDragActive ? 'Drop file here' : 'Drag & drop a file here'}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Supports: PDF, TXT, MD, JSON, CSV
+                Supports: PDF, TXT, MD, JSON, CSV, JPG, PNG, WEBP
               </p>
             </div>
           </div>
@@ -231,18 +254,23 @@ export function DocumentUpload({
         <Progress value={undefined} className="h-1" />
       )}
 
-      {uploadStatus === 'success' && (
-        <p className="flex items-center gap-1.5 text-xs text-green-600">
-          <CheckCircle2Icon className="size-3.5" />
-          Document uploaded successfully
-        </p>
-      )}
-
       {errorMessage && (
         <p className="flex items-center gap-1.5 text-xs text-destructive">
           <XCircleIcon className="size-3.5" />
           {errorMessage}
         </p>
+      )}
+
+      {pendingDoc && (
+        <ProcessingNotification
+          pendingDocumentId={pendingDoc.id}
+          title={pendingDoc.title}
+          analysis={pendingDoc.analysis}
+          initialMode={pendingDoc.initialMode as any}
+          isImageBased={pendingDoc.isImageBased}
+          onDone={() => { setPendingDoc(null); onUploadComplete?.(); }}
+          onDismiss={() => setPendingDoc(null)}
+        />
       )}
     </div>
   );

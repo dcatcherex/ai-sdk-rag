@@ -98,7 +98,7 @@ export function FieldConfigurator({ template, onSaved }: Props) {
 
       <div className="space-y-4">
         {rows.map((row) => (
-          <div key={row._key} className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+          <div key={row._key} className="rounded-xl border border-zinc-200 p-4 dark:border-border">
             <div className="mb-3 grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-[11px]">Field ID</Label>

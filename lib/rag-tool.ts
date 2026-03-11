@@ -21,7 +21,7 @@ import { searchDocuments, searchDocumentsWithFilter, searchDocumentsByIds } from
  * AI: "Based on the company policies, remote work is allowed..."
  */
 export const searchKnowledgeTool = tool({
-  description: 'Search the knowledge base for relevant information. Use this when you need to find specific information, documentation, or answers to questions based on stored documents.',
+  description: 'Search the knowledge base for relevant information. Use this when you need to find specific information, documentation, or answers to questions based on stored documents. IMPORTANT: When results include page numbers and section names, cite them inline in your response as [filename, p.N] immediately after the relevant claim.',
   inputSchema: z.object({
     query: z.string().min(1).describe('The search query or question to find relevant information'),
     limit: z.number().optional().describe('Maximum number of results to return (default: 5)'),
@@ -67,7 +67,9 @@ export const searchKnowledgeTool = tool({
           index: index + 1,
           content: doc.content,
           relevance: `${(doc.similarity * 100).toFixed(1)}%`,
-          source: doc.metadata.source || 'Unknown',
+          source: doc.fileName || doc.metadata.title || doc.metadata.source || 'Unknown',
+          page: doc.page ?? null,
+          section: doc.section ?? '',
           ...doc.metadata,
         })),
       };
@@ -145,11 +147,11 @@ export const ragTools = {
  * Create RAG tools scoped to specific document IDs.
  * Used for grounded chat where the user selects specific documents.
  */
-export function createScopedRagTools(documentIds: string[]) {
+export function createScopedRagTools(documentIds: string[], options: { rerank?: boolean } = {}) {
   return {
     searchKnowledge: tool({
       description:
-        'Search the selected knowledge base documents for relevant information. Use this when you need to find specific information from the user-selected documents.',
+        'Search the selected knowledge base documents for relevant information. Use this when you need to find specific information from the user-selected documents. IMPORTANT: When results include page numbers and section names, cite them inline in your response as [filename, p.N] immediately after the relevant claim.',
       inputSchema: z.object({
         query: z.string().min(1).describe('The search query or question to find relevant information'),
         limit: z.number().optional().describe('Maximum number of results to return (default: 5)'),
@@ -160,7 +162,7 @@ export function createScopedRagTools(documentIds: string[]) {
         }
 
         try {
-          const results = await searchDocumentsByIds(query, documentIds, { limit });
+          const results = await searchDocumentsByIds(query, documentIds, { limit, rerank: options.rerank });
 
           if (results.length === 0) {
             return {
@@ -177,7 +179,9 @@ export function createScopedRagTools(documentIds: string[]) {
               index: index + 1,
               content: doc.content,
               relevance: `${(doc.similarity * 100).toFixed(1)}%`,
-              source: doc.metadata.source || 'Unknown',
+              source: doc.fileName || doc.metadata.title || doc.metadata.source || 'Unknown',
+              page: doc.page ?? null,
+              section: doc.section ?? '',
               ...doc.metadata,
             })),
           };
@@ -205,6 +209,7 @@ export function createScopedRagTools(documentIds: string[]) {
           const results = await searchDocumentsByIds(query, documentIds, {
             limit: 10,
             minSimilarity: minRelevance,
+            rerank: options.rerank,
           });
 
           if (results.length === 0) {

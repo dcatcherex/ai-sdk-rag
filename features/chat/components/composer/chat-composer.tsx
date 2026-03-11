@@ -160,7 +160,7 @@ export function ChatComposer({
   }, [disconnect]);
 
   return (
-    <div className="relative border-t border-black/5 dark:border-white/10 px-3 py-3 md:px-6 md:py-4">
+    <div className="relative border-t border-black/5 dark:border-border px-3 py-3 md:px-6 md:py-4">
       {voiceOpen && (
         <div className="absolute bottom-full left-0 right-0 z-10 px-3 pb-1 md:px-6">
           <VoiceMode
@@ -241,7 +241,7 @@ export function ChatComposer({
                   </ModelSelectorTrigger>
                   <ModelSelectorContent>
                     <ModelSelectorInput placeholder="Search models…" />
-                    <div className="flex items-center px-3 py-1.5 border-b border-black/5 dark:border-white/10">
+                    <div className="flex items-center px-3 py-1.5 border-b border-black/5 dark:border-border">
                       <span className="flex-1 text-[11px] font-medium text-muted-foreground">Model</span>
                       <div className="flex gap-5 pr-1 text-[11px] font-medium text-muted-foreground">
                         <span>Speed</span>

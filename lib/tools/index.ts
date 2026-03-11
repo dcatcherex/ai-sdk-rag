@@ -13,6 +13,8 @@ export type BuildToolSetOptions = {
   userId: string;
   /** When set, RAG tools are scoped to these document IDs only. */
   documentIds?: string[];
+  /** Enable Cohere cross-encoder reranking after hybrid retrieval. */
+  rerankEnabled?: boolean;
 };
 
 /**
@@ -24,7 +26,7 @@ export type BuildToolSetOptions = {
  *   'knowledge_base' → searchKnowledge + retrieveDocument
  *   'certificate'  → list_certificate_templates + generate_certificate
  */
-export function buildToolSet({ enabledToolIds, userId, documentIds }: BuildToolSetOptions): ToolSet {
+export function buildToolSet({ enabledToolIds, userId, documentIds, rerankEnabled }: BuildToolSetOptions): ToolSet {
   // null means "all tools enabled" (default for new users)
   const ids = enabledToolIds ?? ALL_TOOL_IDS;
 
@@ -34,12 +36,8 @@ export function buildToolSet({ enabledToolIds, userId, documentIds }: BuildToolS
     Object.assign(result, weatherTools);
   }
 
-  if (ids.includes('knowledge_base')) {
-    const rag =
-      documentIds && documentIds.length > 0
-        ? createScopedRagTools(documentIds)
-        : ragTools;
-    Object.assign(result, rag);
+  if (ids.includes('knowledge_base') && documentIds && documentIds.length > 0) {
+    Object.assign(result, createScopedRagTools(documentIds, { rerank: rerankEnabled ?? false }));
   }
 
   if (ids.includes('certificate')) {

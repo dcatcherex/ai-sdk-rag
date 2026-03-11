@@ -276,7 +276,7 @@ export default function Chat() {
   });
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f2f0fa,#e8e4f5_55%,#dddaf0_100%)] dark:bg-[radial-gradient(circle_at_top,#1a1b2e,#16142b_55%,#120f26_100%)] dark:font-light">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f2f0fa,#e8e4f5_55%,#dddaf0_100%)] dark:bg-[radial-gradient(circle_at_top,#1c1a2e,#181628_55%,#141220_100%)] dark:font-light">
       <div className={`mx-auto flex min-h-screen w-full gap-3 px-2 py-2 md:gap-6 md:px-4 md:py-6 transition-all duration-300 ${widenMode || (knowledgePanelOpen && outlinePanelOpen) ? 'w-full' : knowledgePanelOpen || outlinePanelOpen ? 'max-w-360' : 'max-w-6xl'}`}>
         <ChatSidebar
           activeThreadId={activeThreadId}
@@ -297,7 +297,7 @@ export default function Chat() {
           forceCollapsed={widenMode}
         />
 
-        <main className="flex h-[calc(100dvh-1rem)] flex-1 flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-white/10 bg-card/80 dark:bg-card/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur md:h-[calc(100vh-3rem)] md:rounded-3xl">
+        <main className="flex h-[calc(100dvh-1rem)] flex-1 flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-border bg-card/80 dark:bg-card/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur md:h-[calc(100vh-3rem)] md:rounded-3xl">
           {editorOpen && selectedAsset ? (
             <ImageEditor
               asset={selectedAsset}
@@ -343,7 +343,7 @@ export default function Chat() {
                 onImageClick={openEditor}
               />
               {compareMode && (
-                <div className="border-t border-black/5 dark:border-white/10 overflow-auto">
+                <div className="border-t border-black/5 dark:border-border overflow-auto">
                   <CompareGrid
                     modelIds={presetIds}
                     submittedPrompt={submittedComparePrompt}

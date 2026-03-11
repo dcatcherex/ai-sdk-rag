@@ -207,9 +207,9 @@ function SignInContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#fdf5e6,_#f6eee1_45%,_#efe6d7_100%)] dark:bg-[radial-gradient(circle_at_top,_#1a1b2e,_#111827_55%,_#0f172a_100%)] flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#fdf5e6,_#f6eee1_45%,_#efe6d7_100%)] dark:bg-[radial-gradient(circle_at_top,_#1c1a2e,_#181628_55%,_#141220_100%)] flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <div className="rounded-2xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-900/80 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.6)] backdrop-blur px-8 py-8 space-y-5">
+        <div className="rounded-2xl border border-black/5 dark:border-border bg-white/80 dark:bg-card/80 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.6)] backdrop-blur px-8 py-8 space-y-5">
 
           {/* Header */}
           <div className="text-center space-y-0.5 pb-1">

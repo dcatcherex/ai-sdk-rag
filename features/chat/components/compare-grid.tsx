@@ -131,10 +131,10 @@ const CompareStreamItem = ({
   };
 
   return (
-    <div className="flex min-h-[200px] flex-col overflow-hidden rounded-xl border border-black/5 bg-white dark:border-white/10 dark:bg-zinc-900">
-      <div className="flex items-center gap-2 border-b border-black/5 bg-zinc-50/80 px-3 py-2 dark:border-white/10 dark:bg-zinc-800/50">
+    <div className="flex min-h-[200px] flex-col overflow-hidden rounded-xl border border-black/5 bg-white dark:border-border dark:bg-card">
+      <div className="flex items-center gap-2 border-b border-black/5 bg-zinc-50/80 px-3 py-2 dark:border-border dark:bg-muted/50">
         <ModelSelectorLogo provider={modelInfo?.provider ?? 'google'} />
-        <span className="flex-1 truncate text-xs font-medium text-zinc-700 dark:text-zinc-300">
+        <span className="flex-1 truncate text-xs font-medium text-zinc-700 dark:text-foreground/80">
           {modelInfo?.name ?? modelId}
         </span>
         {isStreaming && (
@@ -153,7 +153,7 @@ const CompareStreamItem = ({
       </div>
 
       {assistantMsg && !isStreaming && (
-        <div className="flex items-center gap-1 border-t border-black/5 px-3 py-2 dark:border-white/10">
+        <div className="flex items-center gap-1 border-t border-black/5 px-3 py-2 dark:border-border">
           <Button
             size="icon"
             variant="ghost"

@@ -1,4 +1,4 @@
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { env } from "@/lib/env";
 
 const r2 = new S3Client({
@@ -41,4 +41,24 @@ export async function uploadPublicObject({
     key,
     url: `${publicBaseUrl}/${key}`,
   };
+}
+
+export async function downloadObject(key: string): Promise<Uint8Array> {
+  const response = await r2.send(
+    new GetObjectCommand({ Bucket: env.R2_BUCKET_NAME, Key: key })
+  );
+  const stream = response.Body as ReadableStream | NodeJS.ReadableStream;
+  const chunks: Uint8Array[] = [];
+  // Node.js stream (server environment)
+  for await (const chunk of stream as AsyncIterable<Uint8Array>) {
+    chunks.push(chunk instanceof Uint8Array ? chunk : Buffer.from(chunk));
+  }
+  const total = chunks.reduce((n, c) => n + c.length, 0);
+  const result = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return result;
 }

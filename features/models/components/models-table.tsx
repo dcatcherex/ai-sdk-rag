@@ -319,7 +319,7 @@ export function ModelsTable() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="border-b border-black/5 dark:border-white/10 px-6 py-4">
+      <div className="border-b border-black/5 dark:border-border px-6 py-4">
         <h2 className="text-lg font-semibold text-foreground">AI Models</h2>
         <p className="text-sm text-muted-foreground">
           {enabledModels.length} of {availableModels.length} models enabled · {new Set(availableModels.map((m) => m.provider)).size} providers
@@ -360,7 +360,7 @@ export function ModelsTable() {
 
       {/* Table */}
       <div className="flex-1 overflow-auto px-6">
-        <div className="overflow-hidden rounded-md border border-black/5 dark:border-white/10">
+        <div className="overflow-hidden rounded-md border border-black/5 dark:border-border">
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
@@ -399,7 +399,7 @@ export function ModelsTable() {
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between px-6 py-3 border-t border-black/5 dark:border-white/10">
+      <div className="flex items-center justify-between px-6 py-3 border-t border-black/5 dark:border-border">
         <p className="text-sm text-muted-foreground">
           {table.getFilteredRowModel().rows.length} model(s)
         </p>

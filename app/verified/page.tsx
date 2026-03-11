@@ -52,9 +52,9 @@ export default function VerifiedPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#fdf5e6,#f6eee1_45%,#efe6d7_100%)] dark:bg-[radial-gradient(circle_at_top,#1a1b2e,#111827_55%,#0f172a_100%)] px-4 py-12">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#fdf5e6,#f6eee1_45%,#efe6d7_100%)] dark:bg-[radial-gradient(circle_at_top,#1c1a2e,#181628_55%,#141220_100%)] px-4 py-12">
       <div className="mx-auto flex w-full max-w-xl flex-col gap-6">
-        <Card className="border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-900/80 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.6)]">
+        <Card className="border-black/5 dark:border-border bg-white/80 dark:bg-card/80 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.6)]">
           <CardHeader>
             <CardTitle className="text-lg">Verified — redirecting</CardTitle>
             <CardDescription>We’re securing your session.</CardDescription>

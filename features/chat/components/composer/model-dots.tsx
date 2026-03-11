@@ -19,7 +19,7 @@ export const Dots = ({ filled, color }: { filled: number; color: string }) => (
     {[0, 1, 2].map((i) => (
       <span
         key={i}
-        className={`size-1.5 rounded-full ${i < filled ? color : 'bg-zinc-200 dark:bg-zinc-700'}`}
+        className={`size-1.5 rounded-full ${i < filled ? color : 'bg-zinc-200 dark:bg-secondary'}`}
       />
     ))}
   </div>

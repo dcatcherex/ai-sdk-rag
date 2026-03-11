@@ -133,13 +133,13 @@ export function BatchForm({ template }: Props) {
       </div>
 
       {/* Recipients table */}
-      <div className="overflow-x-auto rounded-xl border dark:border-zinc-700">
+      <div className="overflow-x-auto rounded-xl border dark:border-border">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50">
+            <tr className="border-b bg-zinc-50 dark:border-border dark:bg-muted/50">
               <th className="w-8 px-3 py-2 text-left text-xs text-zinc-400">#</th>
               {template.fields.map((f) => (
-                <th key={f.id} className="px-3 py-2 text-left text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                <th key={f.id} className="px-3 py-2 text-left text-xs font-medium text-zinc-600 dark:text-muted-foreground">
                   {f.label}
                 </th>
               ))}
@@ -148,7 +148,7 @@ export function BatchForm({ template }: Props) {
           </thead>
           <tbody>
             {recipients.map((r, i) => (
-              <tr key={i} className="border-b last:border-0 dark:border-zinc-700">
+              <tr key={i} className="border-b last:border-0 dark:border-border">
                 <td className="px-3 py-1.5 text-xs text-zinc-400">{i + 1}</td>
                 {template.fields.map((f) => (
                   <td key={f.id} className="px-2 py-1">

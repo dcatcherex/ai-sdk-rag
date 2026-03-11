@@ -23,7 +23,7 @@ export const EditorToolbar = ({
   onClear,
 }: Props) => {
   return (
-    <div className="absolute left-4 top-1/2 z-10 flex -translate-y-1/2 flex-col items-center gap-1 rounded-2xl border border-black/5 dark:border-white/10 bg-white/95 dark:bg-zinc-900/95 p-2 shadow-xl backdrop-blur">
+    <div className="absolute left-4 top-1/2 z-10 flex -translate-y-1/2 flex-col items-center gap-1 rounded-2xl border border-black/5 dark:border-border bg-white/95 dark:bg-card/95 p-2 shadow-xl backdrop-blur">
       <Button
         variant={activeTool === 'paint' ? 'default' : 'ghost'}
         size="icon-sm"

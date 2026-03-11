@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { BrainCircuitIcon, MessageCircleQuestionIcon, ScanTextIcon, SparklesIcon } from 'lucide-react';
+import { BrainCircuitIcon, MessageCircleQuestionIcon, ScanTextIcon, SparklesIcon, LayersIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ChatSidebar } from '@/features/chat/components/chat-sidebar';
 import { useThreads, setNewChatIntent, setPendingThread } from '@/features/chat/hooks/use-threads';
@@ -59,7 +59,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f2f0fa,#e8e4f5_55%,#dddaf0_100%)] dark:bg-[radial-gradient(circle_at_top,#1a1b2e,#16142b_55%,#120f26_100%)]">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f2f0fa,#e8e4f5_55%,#dddaf0_100%)] dark:bg-[radial-gradient(circle_at_top,#1c1a2e,#181628_55%,#141220_100%)]">
       <div className="mx-auto flex min-h-screen w-full max-w-6xl gap-3 px-2 py-2 md:gap-6 md:px-4 md:py-6">
         <ChatSidebar
           activeThreadId={activeThreadId}
@@ -79,8 +79,8 @@ export default function SettingsPage() {
           onMobileOpenChange={setMobileSidebarOpen}
         />
 
-        <main className="flex h-[calc(100dvh-1rem)] flex-1 flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-white/10 bg-card/80 dark:bg-card/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur md:h-[calc(100vh-3rem)] md:rounded-3xl">
-          <div className="border-b border-black/5 dark:border-white/10 px-6 py-4">
+        <main className="flex h-[calc(100dvh-1rem)] flex-1 flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-border bg-card/80 dark:bg-card/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur md:h-[calc(100vh-3rem)] md:rounded-3xl">
+          <div className="border-b border-black/5 dark:border-border px-6 py-4">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Configuration</p>
             <h2 className="text-lg font-semibold text-foreground">Settings</h2>
           </div>
@@ -122,9 +122,18 @@ export default function SettingsPage() {
               onCheckedChange={(v) => void updatePref({ followUpSuggestionsEnabled: v })}
             />
 
+            <ToggleSection
+              id="rerank-toggle"
+              icon={LayersIcon}
+              title="Reranking"
+              description="After vector + BM25 retrieval, a Cohere cross-encoder re-scores candidates together with your query for higher precision. Adds ~300–600 ms per search. Recommended for large knowledge bases (100+ documents or 3,000+ chunks). Requires COHERE_API_KEY."
+              checked={prefs.rerankEnabled}
+              onCheckedChange={(v) => void updatePref({ rerankEnabled: v })}
+            />
+
             <ToolsSection effectiveToolIds={effectiveToolIds} onToggleTool={toggleTool} />
 
-            <section className="border-t border-black/5 dark:border-white/10 pt-6">
+            <section className="border-t border-black/5 dark:border-border pt-6">
               <Button variant="outline" size="sm" asChild>
                 <Link href="/models">
                   <BrainCircuitIcon className="mr-2 size-4" />

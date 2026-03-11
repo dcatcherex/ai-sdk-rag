@@ -23,7 +23,8 @@ export async function GET() {
       personaDetectionEnabled: true,
       promptEnhancementEnabled: true,
       followUpSuggestionsEnabled: true,
-      enabledToolIds: null, // null = all tools
+      enabledToolIds: null,
+      rerankEnabled: false,
     });
   }
 
@@ -35,6 +36,7 @@ export async function GET() {
     promptEnhancementEnabled: prefs[0].promptEnhancementEnabled,
     followUpSuggestionsEnabled: prefs[0].followUpSuggestionsEnabled,
     enabledToolIds: prefs[0].enabledToolIds ?? null,
+    rerankEnabled: prefs[0].rerankEnabled,
   });
 }
 
@@ -50,6 +52,7 @@ export async function PUT(req: Request) {
     promptEnhancementEnabled?: boolean;
     followUpSuggestionsEnabled?: boolean;
     enabledToolIds?: string[] | null;
+    rerankEnabled?: boolean;
   };
 
   // Validate tool IDs if provided
@@ -71,6 +74,7 @@ export async function PUT(req: Request) {
       promptEnhancementEnabled: body.promptEnhancementEnabled ?? true,
       followUpSuggestionsEnabled: body.followUpSuggestionsEnabled ?? true,
       enabledToolIds: body.enabledToolIds ?? null,
+      rerankEnabled: body.rerankEnabled ?? false,
     })
     .onConflictDoUpdate({
       target: userPreferences.userId,
@@ -82,6 +86,7 @@ export async function PUT(req: Request) {
         ...(body.promptEnhancementEnabled !== undefined && { promptEnhancementEnabled: body.promptEnhancementEnabled }),
         ...(body.followUpSuggestionsEnabled !== undefined && { followUpSuggestionsEnabled: body.followUpSuggestionsEnabled }),
         ...(body.enabledToolIds !== undefined && { enabledToolIds: body.enabledToolIds }),
+        ...(body.rerankEnabled !== undefined && { rerankEnabled: body.rerankEnabled }),
         updatedAt: new Date(),
       },
     });

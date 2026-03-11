@@ -54,7 +54,7 @@ export const CompareModelPicker = ({
           className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
             compareMode
               ? 'text-primary-foreground hover:bg-white/15'
-              : 'text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800'
+              : 'text-muted-foreground hover:bg-zinc-100 dark:hover:bg-muted'
           }`}
         >
           <SlidersHorizontalIcon className="size-3.5" />
@@ -67,7 +67,7 @@ export const CompareModelPicker = ({
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-black/5 dark:border-white/10 px-3 py-2.5">
+        <div className="flex items-center justify-between border-b border-black/5 dark:border-border px-3 py-2.5">
           <div>
             <p className="text-xs font-semibold text-foreground">Compare models</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -90,7 +90,7 @@ export const CompareModelPicker = ({
 
         {/* Type lock notice */}
         {typeLabel && (
-          <div className="border-b border-black/5 dark:border-white/10 bg-zinc-50/80 dark:bg-zinc-800/40 px-3 py-1.5">
+          <div className="border-b border-black/5 dark:border-border bg-zinc-50/80 dark:bg-muted/40 px-3 py-1.5">
             <span className="text-[11px] text-muted-foreground">
               Locked to <span className="font-medium text-foreground">{typeLabel}</span>
               {' '}— clear to switch type
@@ -99,7 +99,7 @@ export const CompareModelPicker = ({
         )}
 
         {/* Column header */}
-        <div className="flex items-center border-b border-black/5 dark:border-white/10 px-3 py-1.5">
+        <div className="flex items-center border-b border-black/5 dark:border-border px-3 py-1.5">
           <span className="flex-1 text-[11px] font-medium text-muted-foreground">Model</span>
           <div className="flex gap-4 text-[11px] font-medium text-muted-foreground">
             <span>Speed</span>
@@ -133,7 +133,7 @@ export const CompareModelPicker = ({
                       ? 'cursor-not-allowed opacity-30'
                       : selected
                         ? 'bg-primary/8 dark:bg-primary/15 hover:bg-primary/12 dark:hover:bg-primary/20'
-                        : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                        : 'hover:bg-zinc-100 dark:hover:bg-muted'
                   }`}
                 >
                   <Checkbox
@@ -143,7 +143,7 @@ export const CompareModelPicker = ({
                     onCheckedChange={() => {}}
                   />
                   <ModelSelectorLogo provider={model.provider} />
-                  <span className={`flex-1 truncate text-[12px] ${selected ? 'font-medium text-foreground' : 'text-zinc-700 dark:text-zinc-300'}`}>
+                  <span className={`flex-1 truncate text-[12px] ${selected ? 'font-medium text-foreground' : 'text-zinc-700 dark:text-foreground/80'}`}>
                     {model.name}
                   </span>
                   <div className="flex items-center gap-3">
@@ -157,7 +157,7 @@ export const CompareModelPicker = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-black/5 dark:border-white/10 px-3 py-2">
+        <div className="flex items-center justify-between border-t border-black/5 dark:border-border px-3 py-2">
           <span className="text-[11px] text-muted-foreground">Same model type only · max 4</span>
           {comparePresetIds.length >= 2 && (
             <span className="flex items-center gap-1 text-[11px] font-medium text-green-600 dark:text-green-400">
@@ -179,7 +179,7 @@ export const CompareModelPicker = ({
         className={`flex h-8 items-center gap-1.5 rounded-l-md px-2.5 text-[13px] font-medium transition-colors ${
           compareMode
             ? 'text-primary-foreground hover:bg-white/15'
-            : 'text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800'
+            : 'text-muted-foreground hover:bg-zinc-100 dark:hover:bg-muted'
         }`}
       >
         <Columns2Icon className="size-4" />

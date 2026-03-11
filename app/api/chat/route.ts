@@ -119,7 +119,7 @@ export async function POST(req: Request) {
     }
 
     const currentTitle = threadRows[0]!.title ?? 'New chat';
-    const userPrefs = prefsRows[0] ?? { memoryEnabled: true, memoryInjectEnabled: true, memoryExtractEnabled: true, personaDetectionEnabled: true, promptEnhancementEnabled: true, followUpSuggestionsEnabled: true, enabledToolIds: null };
+    const userPrefs = prefsRows[0] ?? { memoryEnabled: true, memoryInjectEnabled: true, memoryExtractEnabled: true, personaDetectionEnabled: true, promptEnhancementEnabled: true, followUpSuggestionsEnabled: true, enabledToolIds: null, rerankEnabled: false };
     const activeAgent = activeAgentRows[0] ?? null;
     const personaCustomMap: Record<string, string> = {};
     for (const row of personaCustomRows) personaCustomMap[row.personaKey] = row.extraInstructions;
@@ -165,6 +165,7 @@ export async function POST(req: Request) {
           enabledToolIds: activeToolIds,
           userId: session.user.id,
           documentIds: isGrounded ? effectiveDocIds : undefined,
+          rerankEnabled: userPrefs.rerankEnabled ?? false,
         });
 
     const personaExtraInstructions = !activeAgent ? (personaCustomMap[detectedPersona] ?? '') : '';

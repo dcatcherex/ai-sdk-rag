@@ -13,4 +13,5 @@ export type Preferences = {
   promptEnhancementEnabled: boolean;
   followUpSuggestionsEnabled: boolean;
   enabledToolIds: string[] | null; // null = all tools enabled
+  rerankEnabled: boolean;
 };

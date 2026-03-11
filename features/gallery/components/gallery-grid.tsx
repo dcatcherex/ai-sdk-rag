@@ -62,16 +62,16 @@ export const GalleryGrid = ({ assetGroups, activeVersions, isLoading, error, fil
             {Array.from({ length: 6 }).map((_, i) => (
               <Card
                 key={`skeleton-${i}`}
-                className="aspect-square animate-pulse rounded-lg border border-black/5 dark:border-white/10 bg-white/70 dark:bg-zinc-800/70"
+                className="aspect-square animate-pulse rounded-lg border border-black/5 dark:border-border bg-white/70 dark:bg-muted/70"
               />
             ))}
           </div>
         ) : error ? (
-          <Card className="rounded-3xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-800/80 p-8 text-sm text-muted-foreground">
+          <Card className="rounded-3xl border border-black/5 dark:border-border bg-white/80 dark:bg-muted/80 p-8 text-sm text-muted-foreground">
             Unable to load media right now. Please refresh.
           </Card>
         ) : assetGroups.length === 0 ? (
-          <Card className="rounded-3xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-800/80 p-8 text-sm text-muted-foreground">
+          <Card className="rounded-3xl border border-black/5 dark:border-border bg-white/80 dark:bg-muted/80 p-8 text-sm text-muted-foreground">
             No media yet. Generate an image in chat to see it here.
           </Card>
         ) : (

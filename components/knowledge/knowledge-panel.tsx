@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SearchIcon, ExternalLinkIcon } from 'lucide-react';
+import { SearchIcon, ExternalLinkIcon, LayersIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -10,6 +10,8 @@ import { DocumentList } from './document-list';
 import { DocumentDetail } from './document-detail';
 import { useDocumentStats, type DocumentItem } from '@/lib/hooks/use-documents';
 import Link from 'next/link';
+
+const RERANK_CHUNK_THRESHOLD = 3000;
 
 interface KnowledgePanelProps {
   selectedDocIds?: Set<string>;
@@ -30,7 +32,7 @@ export function KnowledgePanel({ selectedDocIds, onToggleSelect }: KnowledgePane
   const WIDTH = 'w-70';
 
   return (
-    <aside className={`flex h-full ${WIDTH} shrink-0 flex-col rounded-3xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-zinc-900/80 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_60px_-40px_rgba(0,0,0,0.6)] backdrop-blur`}>
+    <aside className={`flex h-full ${WIDTH} shrink-0 flex-col rounded-3xl border border-black/5 dark:border-border bg-white/70 dark:bg-card/80 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_60px_-40px_rgba(0,0,0,0.6)] backdrop-blur`}>
       {/* Header */}
       <div className="px-4 py-3.5">
         <div className="flex items-center justify-between">
@@ -92,6 +94,27 @@ export function KnowledgePanel({ selectedDocIds, onToggleSelect }: KnowledgePane
           />
         </ScrollArea>
       </div>
+
+      {/* Rerank suggestion banner — shown when KB is large enough to benefit */}
+      {stats && stats.totalChunks >= RERANK_CHUNK_THRESHOLD && (
+        <div className="mx-4 mb-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-800/50 dark:bg-blue-950/30">
+          <div className="flex items-start gap-2">
+            <LayersIcon className="mt-0.5 size-3.5 shrink-0 text-blue-600 dark:text-blue-400" />
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium text-blue-800 dark:text-blue-200">
+                Large knowledge base detected
+              </p>
+              <p className="mt-0.5 text-[10px] leading-relaxed text-blue-700/80 dark:text-blue-300/70">
+                {stats.totalChunks.toLocaleString()} chunks — enable{' '}
+                <Link href="/settings" className="underline underline-offset-2 hover:text-blue-900 dark:hover:text-blue-100">
+                  Reranking in Settings
+                </Link>{' '}
+                for better search precision.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Document detail dialog */}
       <DocumentDetail

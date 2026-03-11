@@ -191,7 +191,7 @@ export function MemorySection({ prefs, onUpdatePref }: Props) {
 
       {/* Inline add form */}
       {isAddingFact && (
-        <div className="mb-4 rounded-lg border border-black/10 dark:border-white/10 bg-black/2 dark:bg-white/3 p-3 space-y-2">
+        <div className="mb-4 rounded-lg border border-black/10 dark:border-border bg-black/2 dark:bg-white/3 p-3 space-y-2">
           <div className="flex flex-wrap gap-2">
             {CATEGORY_ORDER.map((cat) => (
               <button
@@ -213,7 +213,7 @@ export function MemorySection({ prefs, onUpdatePref }: Props) {
                     key={ex}
                     type="button"
                     onClick={() => setNewFactText(ex)}
-                    className="rounded border border-black/8 dark:border-white/10 bg-white/60 dark:bg-white/5 px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground hover:bg-white dark:hover:bg-white/10 transition-colors"
+                    className="rounded border border-black/8 dark:border-border bg-white/60 dark:bg-white/5 px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground hover:bg-white dark:hover:bg-white/10 transition-colors"
                   >
                     {ex}
                   </button>
@@ -231,7 +231,7 @@ export function MemorySection({ prefs, onUpdatePref }: Props) {
             }}
             placeholder="e.g. prefers concise answers without unnecessary preamble"
             rows={2}
-            className="w-full text-sm bg-transparent border border-black/10 dark:border-white/10 rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-black/20 dark:focus:ring-white/20 placeholder:text-muted-foreground/50"
+            className="w-full text-sm bg-transparent border border-black/10 dark:border-border rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-black/20 dark:focus:ring-white/20 placeholder:text-muted-foreground/50"
           />
           <div className="flex gap-2">
             <Button size="sm" onClick={() => void submitAddFact()} disabled={isSubmittingFact || !newFactText.trim()}>
@@ -244,7 +244,7 @@ export function MemorySection({ prefs, onUpdatePref }: Props) {
 
       {/* Memory sub-toggles */}
       <div className="space-y-2 mb-4">
-        <div className="flex items-center justify-between rounded-lg border border-black/5 dark:border-white/10 px-4 py-3">
+        <div className="flex items-center justify-between rounded-lg border border-black/5 dark:border-border px-4 py-3">
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium">Personalized Context</p>
             <p className="text-xs text-muted-foreground mt-0.5">Inject your stored facts into each conversation so the AI responds with your context in mind.</p>
@@ -256,7 +256,7 @@ export function MemorySection({ prefs, onUpdatePref }: Props) {
             className="shrink-0 ml-4"
           />
         </div>
-        <div className="flex items-center justify-between rounded-lg border border-black/5 dark:border-white/10 px-4 py-3">
+        <div className="flex items-center justify-between rounded-lg border border-black/5 dark:border-border px-4 py-3">
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium">Learn from Conversations</p>
             <p className="text-xs text-muted-foreground mt-0.5">After each response, extract new facts about you and add them to memory.</p>
@@ -278,7 +278,7 @@ export function MemorySection({ prefs, onUpdatePref }: Props) {
         <>
           <div className="space-y-3 mb-4">
             {grouped.map(({ category, facts: catFacts }) => (
-              <div key={category} className="rounded-lg border border-black/5 dark:border-white/10 overflow-hidden">
+              <div key={category} className="rounded-lg border border-black/5 dark:border-border overflow-hidden">
                 <button
                   type="button"
                   onClick={() => toggleCategory(category)}
@@ -295,7 +295,7 @@ export function MemorySection({ prefs, onUpdatePref }: Props) {
                 {!collapsed[category] && (
                   <div className="divide-y divide-black/5 dark:divide-white/5">
                     {catFacts.map((fact) => (
-                      <div key={fact.id} className="flex items-start gap-2 px-3 py-2 bg-white/50 dark:bg-zinc-800/20 group">
+                      <div key={fact.id} className="flex items-start gap-2 px-3 py-2 bg-white/50 dark:bg-muted/20 group">
                         {editingId === fact.id ? (
                           <>
                             <textarea
@@ -307,7 +307,7 @@ export function MemorySection({ prefs, onUpdatePref }: Props) {
                                 if (e.key === 'Escape') cancelEdit();
                               }}
                               rows={2}
-                              className="flex-1 text-sm bg-transparent border border-black/10 dark:border-white/10 rounded px-2 py-1 resize-none focus:outline-none focus:ring-1 focus:ring-black/20 dark:focus:ring-white/20"
+                              className="flex-1 text-sm bg-transparent border border-black/10 dark:border-border rounded px-2 py-1 resize-none focus:outline-none focus:ring-1 focus:ring-black/20 dark:focus:ring-white/20"
                             />
                             <div className="flex flex-col gap-1 shrink-0">
                               <button type="button" onClick={() => void saveFact(fact.id)} className="rounded p-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors" aria-label="Save">

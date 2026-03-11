@@ -11,6 +11,7 @@ const DEFAULT_PREFS: Preferences = {
   promptEnhancementEnabled: true,
   followUpSuggestionsEnabled: true,
   enabledToolIds: null,
+  rerankEnabled: false,
 };
 
 export function useSettingsPreferences() {

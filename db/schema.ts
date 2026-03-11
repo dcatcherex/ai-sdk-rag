@@ -296,6 +296,8 @@ export const userPreferences = pgTable("user_preferences", {
   followUpSuggestionsEnabled: boolean("follow_up_suggestions_enabled").default(true).notNull(),
   /** null = all tools enabled (default for new users). Set to array to restrict. */
   enabledToolIds: text("enabled_tool_ids").array(),
+  /** Cohere cross-encoder reranking after hybrid retrieval. Recommended for large KBs (100+ docs). */
+  rerankEnabled: boolean("rerank_enabled").default(false).notNull(),
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
 });
 
@@ -374,6 +376,12 @@ export const document = pgTable(
     id: text("id").primaryKey(),
     userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
     content: text("content").notNull(),
+    originalContent: text("original_content"),
+    processingStatus: text("processing_status").notNull().default("ready"),
+    analysisResult: jsonb("analysis_result"),
+    storageMode: text("storage_mode"),
+    processingMode: text("processing_mode"),
+    r2Key: text("r2_key"),
     metadata: jsonb("metadata").default({}).notNull(),
     embedding: vector("embedding", { dimensions: 1024 }), // mistral/mistral-embed
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -385,6 +393,8 @@ export const document = pgTable(
   (table) => [
     index("document_metadata_idx").using("gin", table.metadata),
     index("document_user_id_idx").on(table.userId),
+    // GIN index on tsvector expression for fast BM25 full-text search
+    index("document_fts_idx").using("gin", sql`to_tsvector('english', ${table.content})`),
   ],
 );
 
@@ -402,6 +412,8 @@ export const documentChunk = pgTable(
   },
   (table) => [
     index("document_chunk_document_id_idx").on(table.documentId),
+    // GIN index on tsvector expression for fast BM25 full-text search
+    index("document_chunk_fts_idx").using("gin", sql`to_tsvector('english', ${table.content})`),
   ],
 );
 

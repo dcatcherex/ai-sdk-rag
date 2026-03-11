@@ -64,7 +64,7 @@ export function CustomPersonasSection() {
       </p>
 
       {isAdding && (
-        <div className="rounded-lg border border-black/5 dark:border-white/10 p-3 mb-3 space-y-2 bg-black/1 dark:bg-white/2">
+        <div className="rounded-lg border border-black/5 dark:border-border p-3 mb-3 space-y-2 bg-black/1 dark:bg-white/2">
           <input
             type="text"
             value={newName}
@@ -99,7 +99,7 @@ export function CustomPersonasSection() {
           <p className="text-sm text-muted-foreground">No custom personas yet.</p>
         )}
         {customPersonas.map((p) => (
-          <div key={p.id} className="rounded-lg border border-black/5 dark:border-white/10 overflow-hidden">
+          <div key={p.id} className="rounded-lg border border-black/5 dark:border-border overflow-hidden">
             {editingId === p.id ? (
               <div className="px-3 py-3 space-y-2 bg-black/1 dark:bg-white/2">
                 <input

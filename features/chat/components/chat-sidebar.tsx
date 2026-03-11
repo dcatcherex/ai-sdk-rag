@@ -99,7 +99,7 @@ export const ChatSidebar = ({
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          "hidden h-[calc(100vh-3rem)] shrink-0 rounded-3xl border border-black/5 dark:border-white/10 bg-sidebar/70 dark:bg-sidebar/80 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_60px_-40px_rgba(0,0,0,0.6)] backdrop-blur transition-all md:flex md:flex-col",
+          "hidden h-[calc(100vh-3rem)] shrink-0 rounded-3xl border border-black/5 dark:border-border bg-background dark:bg-sidebar/80 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_60px_-40px_rgba(0,0,0,0.6)] backdrop-blur transition-all md:flex md:flex-col",
           effectiveCollapsed ? "w-20 p-3" : "w-72 p-5 ", 
         )}
       >
