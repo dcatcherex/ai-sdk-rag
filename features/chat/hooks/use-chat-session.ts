@@ -4,7 +4,7 @@ import { useChat } from '@ai-sdk/react';
 import type { QueryClient } from '@tanstack/react-query';
 import { getTextContentFromParts } from '../utils/message-parts';
 import { exportConversation } from '../utils/export-conversation';
-import type { ChatMessage, ChatMessagePart } from '../types';
+import type { ChatMessage, ChatMessagePart, QuizFollowUpContext } from '../types';
 import type { PromptInputMessage } from '@/components/ai-elements/prompt-input';
 
 const FOLLOW_UP_SYNC_MAX_ATTEMPTS = 15;
@@ -38,6 +38,7 @@ type UseChatSessionOptions = {
   queryClient: QueryClient;
   ensureThread: () => Promise<string>;
   followUpSuggestionsEnabled?: boolean;
+  latestQuizContextRef: React.RefObject<QuizFollowUpContext | null>;
 };
 
 export const useChatSession = ({
@@ -53,6 +54,7 @@ export const useChatSession = ({
   queryClient,
   ensureThread,
   followUpSuggestionsEnabled = true,
+  latestQuizContextRef,
 }: UseChatSessionOptions) => {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [isSyncingFollowUpSuggestions, setIsSyncingFollowUpSuggestions] = useState(false);
@@ -71,6 +73,7 @@ export const useChatSession = ({
           enabledModelIds: enabledModelIdsRef.current,
           agentId: selectedAgentIdRef.current ?? undefined,
           personaId: selectedPersonaIdRef.current ?? undefined,
+          quizContext: latestQuizContextRef.current ?? undefined,
         }),
       }),
     [
@@ -81,6 +84,7 @@ export const useChatSession = ({
       useWebSearchRef,
       selectedAgentIdRef,
       selectedPersonaIdRef,
+      latestQuizContextRef,
     ]
   );
 

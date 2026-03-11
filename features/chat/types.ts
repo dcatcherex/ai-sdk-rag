@@ -28,6 +28,27 @@ export type ChatMessageMetadata = {
   compareModelName?: string;
 };
 
+export type QuizAttemptSummary = {
+  questionId: string;
+  question: string;
+  topic: string;
+  type: 'mcq' | 'short_answer' | 'true_false';
+  userAnswer: string;
+  correctAnswer: string;
+  isCorrect: boolean | null;
+  wasRevealed: boolean;
+};
+
+export type QuizFollowUpContext = {
+  messageId: string;
+  questionCount: number;
+  answeredCount: number;
+  objectiveAnsweredCount: number;
+  correctCount: number;
+  completed: boolean;
+  attempts: QuizAttemptSummary[];
+};
+
 export type MessageReaction = 'thumbs_up' | 'thumbs_down';
 
 export type StepControlPart = {

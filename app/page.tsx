@@ -21,7 +21,7 @@ import { useAgents } from '@/features/agents/hooks/use-agents';
 import { useCustomPersonas } from '@/features/chat/hooks/use-custom-personas';
 import { useComparePreset } from '@/features/chat/hooks/use-compare-preset';
 import { CompareGrid, type ComparePrompt } from '@/features/chat/components/compare-grid';
-import type { ChatMessage, RoutingMetadata } from '@/features/chat/types';
+import type { ChatMessage, QuizFollowUpContext, RoutingMetadata } from '@/features/chat/types';
 import type { SystemPromptKey } from '@/lib/prompt';
 import type { PromptInputMessage } from '@/components/ai-elements/prompt-input';
 
@@ -61,6 +61,7 @@ export default function Chat() {
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(null);
+  const latestQuizContextRef = useRef<QuizFollowUpContext | null>(null);
   const selectedDocIdsRef = useRef(selectedDocIds);
   selectedDocIdsRef.current = selectedDocIds;
   const useWebSearchRef = useRef(useWebSearch);
@@ -132,6 +133,7 @@ export default function Chat() {
     selectedAgentIdRef,
     selectedPersonaIdRef,
     followUpSuggestionsEnabled,
+    latestQuizContextRef,
   });
 
   const { messageReactions, toggleReaction } = useMessageReactions(messages);
@@ -250,6 +252,10 @@ export default function Chat() {
     [handleSubmitMessage]
   );
 
+  const handleQuizStateChange = useCallback((context: QuizFollowUpContext) => {
+    latestQuizContextRef.current = context;
+  }, []);
+
   // Build voice history from current messages — text parts only, capped for context window
   const voiceHistory = useMemo(() => {
     return messages
@@ -341,6 +347,7 @@ export default function Chat() {
                 onToggleReaction={toggleReaction}
                 onSuggestionClick={handleSuggestionClick}
                 onImageClick={openEditor}
+                onQuizStateChange={handleQuizStateChange}
               />
               {compareMode && (
                 <div className="border-t border-black/5 dark:border-border overflow-auto">

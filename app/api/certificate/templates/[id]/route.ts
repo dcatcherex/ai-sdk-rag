@@ -6,6 +6,7 @@ import { certificateTemplate } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { uploadPublicObject } from '@/lib/r2';
 import { generateThumbnail, getImageDimensions } from '@/lib/certificate-generator';
+import { normalizePrintSheetSettings, normalizeTemplateType } from '@/lib/certificate-print';
 import type { TextFieldConfig } from '@/lib/certificate-generator';
 
 async function getSessionUserId(): Promise<string | null> {
@@ -37,7 +38,21 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  const body = await req.json() as { name?: string; description?: string; fields?: TextFieldConfig[] };
+  const body = await req.json() as {
+    name?: string;
+    description?: string;
+    fields?: TextFieldConfig[];
+    backFields?: TextFieldConfig[];
+    templateType?: string;
+    printSettings?: Record<string, unknown>;
+  };
+
+  const normalizedTemplateType = body.templateType !== undefined
+    ? normalizeTemplateType(body.templateType)
+    : undefined;
+  const normalizedPrintSettings = body.printSettings !== undefined
+    ? normalizePrintSheetSettings(body.printSettings)
+    : undefined;
 
   const [updated] = await db
     .update(certificateTemplate)
@@ -45,6 +60,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ...(body.name !== undefined && { name: body.name }),
       ...(body.description !== undefined && { description: body.description }),
       ...(body.fields !== undefined && { fields: body.fields }),
+      ...(body.backFields !== undefined && { backFields: body.backFields }),
+      ...(normalizedTemplateType !== undefined && { templateType: normalizedTemplateType }),
+      ...(normalizedPrintSettings !== undefined && { printSettings: normalizedPrintSettings }),
     })
     .where(and(eq(certificateTemplate.id, id), eq(certificateTemplate.userId, userId)))
     .returning();
@@ -60,6 +78,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   const formData = await req.formData();
   const file = formData.get('file');
+  const side = formData.get('side') === 'back' ? 'back' : 'front';
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'Missing image file' }, { status: 400 });
@@ -78,7 +97,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const buffer = Buffer.from(await file.arrayBuffer());
   const { width, height } = await getImageDimensions(buffer);
 
-  const r2Key = `certificates/templates/${id}/original.${ext}`;
+  const r2Key = side === 'back'
+    ? `certificates/templates/${id}/back.${ext}`
+    : `certificates/templates/${id}/original.${ext}`;
   const { url } = await uploadPublicObject({
     key: r2Key,
     body: buffer,
@@ -87,7 +108,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   });
 
   const thumbBuffer = await generateThumbnail(buffer);
-  const thumbnailKey = `certificates/templates/${id}/thumbnail.jpg`;
+  const thumbnailKey = side === 'back'
+    ? `certificates/templates/${id}/back-thumbnail.jpg`
+    : `certificates/templates/${id}/thumbnail.jpg`;
   const { url: thumbnailUrl } = await uploadPublicObject({
     key: thumbnailKey,
     body: thumbBuffer,
@@ -98,12 +121,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const [updated] = await db
     .update(certificateTemplate)
     .set({
-      r2Key,
-      url,
-      thumbnailKey,
-      thumbnailUrl,
-      width,
-      height,
+      ...(side === 'back'
+        ? {
+            backR2Key: r2Key,
+            backUrl: url,
+            backThumbnailKey: thumbnailKey,
+            backThumbnailUrl: thumbnailUrl,
+            backWidth: width,
+            backHeight: height,
+          }
+        : {
+            r2Key,
+            url,
+            thumbnailKey,
+            thumbnailUrl,
+            width,
+            height,
+          }),
     })
     .where(and(eq(certificateTemplate.id, id), eq(certificateTemplate.userId, userId)))
     .returning();

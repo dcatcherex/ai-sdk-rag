@@ -2,6 +2,7 @@ import type { ToolSet } from 'ai';
 import { weatherTools } from './weather';
 import { ragTools, createScopedRagTools } from './rag';
 import { createCertificateTools } from './certificate';
+import { createExamPrepTools } from './exam-prep';
 import { ALL_TOOL_IDS } from '@/lib/tool-registry';
 
 export { weatherTools, ragTools, createScopedRagTools };
@@ -15,6 +16,10 @@ export type BuildToolSetOptions = {
   documentIds?: string[];
   /** Enable Cohere cross-encoder reranking after hybrid retrieval. */
   rerankEnabled?: boolean;
+  /** Execution context for tools with side effects. */
+  source?: 'manual' | 'agent';
+  /** Optional per-tool recipient cap. */
+  certificateMaxRecipients?: number;
 };
 
 /**
@@ -24,9 +29,9 @@ export type BuildToolSetOptions = {
  * Tool groups:
  *   'weather'      → weather + convertFahrenheitToCelsius
  *   'knowledge_base' → searchKnowledge + retrieveDocument
- *   'certificate'  → list_certificate_templates + generate_certificate
+ *   'certificate'  → list_certificate_templates + generate_certificate_output
  */
-export function buildToolSet({ enabledToolIds, userId, documentIds, rerankEnabled }: BuildToolSetOptions): ToolSet {
+export function buildToolSet({ enabledToolIds, userId, documentIds, rerankEnabled, source, certificateMaxRecipients }: BuildToolSetOptions): ToolSet {
   // null means "all tools enabled" (default for new users)
   const ids = enabledToolIds ?? ALL_TOOL_IDS;
 
@@ -40,8 +45,18 @@ export function buildToolSet({ enabledToolIds, userId, documentIds, rerankEnable
     Object.assign(result, createScopedRagTools(documentIds, { rerank: rerankEnabled ?? false }));
   }
 
+  if (ids.includes('exam_prep')) {
+    Object.assign(result, createExamPrepTools({
+      documentIds,
+      rerankEnabled: rerankEnabled ?? false,
+    }));
+  }
+
   if (ids.includes('certificate')) {
-    Object.assign(result, createCertificateTools(userId));
+    Object.assign(result, createCertificateTools(userId, {
+      source,
+      maxRecipients: certificateMaxRecipients,
+    }));
   }
 
   return result;

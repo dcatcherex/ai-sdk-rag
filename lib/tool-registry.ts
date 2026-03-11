@@ -21,6 +21,12 @@ export const TOOL_REGISTRY = {
     group: 'knowledge',
     defaultEnabled: true,
   },
+  exam_prep: {
+    label: 'Exam Prep',
+    description: 'Create practice quizzes, grade answers, and build study plans from topics or documents.',
+    group: 'productivity',
+    defaultEnabled: false,
+  },
   certificate: {
     label: 'Certificate Generator',
     description: 'Generate certificate images from templates with custom name, date, and other fields.',

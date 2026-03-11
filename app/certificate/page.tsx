@@ -5,14 +5,15 @@ import { useRouter } from 'next/navigation';
 import { ChatSidebar } from '@/features/chat/components/chat-sidebar';
 import { useThreads, setNewChatIntent, setPendingThread } from '@/features/chat/hooks/use-threads';
 import { useUserProfile } from '@/features/chat/hooks/use-user-profile';
-import { useTemplates } from '@/features/certificate/hooks/use-templates';
+import { useCertificateJobsWithFilters, useTemplates } from '@/features/certificate/hooks/use-templates';
 import { TemplateSelector } from '@/features/certificate/components/template-selector';
 import { TemplateUploader } from '@/features/certificate/components/template-uploader';
 import { FieldConfigurator } from '@/features/certificate/components/field-configurator';
 import { CertificateForm } from '@/features/certificate/components/certificate-form';
 import { BatchForm } from '@/features/certificate/components/batch-form';
+import { JobHistory } from '@/features/certificate/components/job-history';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { CertificateTemplate } from '@/features/certificate/types';
+import type { CertificateJob, CertificateTemplate } from '@/features/certificate/types';
 
 type View = 'list' | 'upload' | 'configure';
 
@@ -21,6 +22,8 @@ export default function CertificatePage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<CertificateTemplate | null>(null);
   const [view, setView] = useState<View>('list');
+  const [jobSourceFilter, setJobSourceFilter] = useState<CertificateJob['source'] | 'all'>('all');
+  const [jobStatusFilter, setJobStatusFilter] = useState<CertificateJob['status'] | 'all'>('all');
 
   const {
     activeThreadId, setActiveThreadId, threads, isThreadsLoading,
@@ -29,10 +32,17 @@ export default function CertificatePage() {
 
   const { sessionData, userProfile, isSigningOut, handleSignOut } = useUserProfile();
   const { data: templates = [], isLoading: templatesLoading } = useTemplates();
+  const { data: jobs = [], isLoading: jobsLoading } = useCertificateJobsWithFilters({
+    templateId: selectedTemplate?.id,
+    source: jobSourceFilter,
+    status: jobStatusFilter,
+  });
 
   function handleSelectTemplate(t: CertificateTemplate) {
     setSelectedTemplate(t);
     setView('list');
+    setJobSourceFilter('all');
+    setJobStatusFilter('all');
   }
 
   function handleUploadDone(t: CertificateTemplate) {
@@ -128,6 +138,15 @@ export default function CertificatePage() {
                     <BatchForm template={selectedTemplate} />
                   </TabsContent>
                 </Tabs>
+
+                <JobHistory
+                  jobs={jobs}
+                  isLoading={jobsLoading}
+                  onSourceChange={setJobSourceFilter}
+                  onStatusChange={setJobStatusFilter}
+                  selectedSource={jobSourceFilter}
+                  selectedStatus={jobStatusFilter}
+                />
               </>
             )}
           </div>

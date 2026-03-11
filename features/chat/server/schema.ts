@@ -3,6 +3,27 @@ import type { UIDataTypes, UIMessagePart } from 'ai';
 import type { ChatTools } from '@/lib/tools';
 import type { ChatMessage } from '@/features/chat/types';
 
+const quizAttemptSummarySchema = z.object({
+  questionId: z.string().min(1),
+  question: z.string().min(1),
+  topic: z.string().min(1),
+  type: z.enum(['mcq', 'short_answer', 'true_false']),
+  userAnswer: z.string(),
+  correctAnswer: z.string(),
+  isCorrect: z.boolean().nullable(),
+  wasRevealed: z.boolean(),
+});
+
+const quizFollowUpContextSchema = z.object({
+  messageId: z.string().min(1),
+  questionCount: z.number().int().min(0),
+  answeredCount: z.number().int().min(0),
+  objectiveAnsweredCount: z.number().int().min(0),
+  correctCount: z.number().int().min(0),
+  completed: z.boolean(),
+  attempts: z.array(quizAttemptSummarySchema),
+});
+
 export { type ChatMessage };
 
 export const requestSchema = z.object({
@@ -14,6 +35,7 @@ export const requestSchema = z.object({
   enabledModelIds: z.array(z.string()).optional(),
   agentId: z.string().optional(),
   personaId: z.string().optional(),
+  quizContext: quizFollowUpContextSchema.optional(),
 });
 
 export type ChatRequest = z.infer<typeof requestSchema>;

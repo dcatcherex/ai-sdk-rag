@@ -8,5 +8,11 @@ export function createAgentTools(
   userId: string,
   documentIds?: string[],
 ): ToolSet {
-  return buildToolSet({ enabledToolIds: enabledTools, userId, documentIds });
+  return buildToolSet({
+    enabledToolIds: enabledTools,
+    userId,
+    documentIds,
+    source: 'agent',
+    certificateMaxRecipients: 50,
+  });
 }

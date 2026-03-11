@@ -6,6 +6,7 @@ import { certificateTemplate } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { uploadPublicObject } from '@/lib/r2';
 import { generateThumbnail, getImageDimensions } from '@/lib/certificate-generator';
+import { getDefaultPrintSheetSettingsForTemplateType, normalizePrintSheetSettings, normalizeTemplateType } from '@/lib/certificate-print';
 import { nanoid } from 'nanoid';
 import type { TextFieldConfig } from '@/lib/certificate-generator';
 
@@ -41,6 +42,8 @@ export async function POST(req: NextRequest) {
   const name = formData.get('name') as string | null;
   const description = formData.get('description') as string | null;
   const fieldsRaw = formData.get('fields') as string | null;
+  const templateTypeRaw = formData.get('templateType') as string | null;
+  const printSettingsRaw = formData.get('printSettings') as string | null;
 
   if (!file || !name) {
     return NextResponse.json({ error: 'Missing file or name' }, { status: 400 });
@@ -52,6 +55,18 @@ export async function POST(req: NextRequest) {
       fields = JSON.parse(fieldsRaw);
     } catch {
       return NextResponse.json({ error: 'Invalid fields JSON' }, { status: 400 });
+    }
+  }
+
+  const templateType = normalizeTemplateType(templateTypeRaw);
+  const defaultPrintSettings = getDefaultPrintSheetSettingsForTemplateType(templateType);
+  let printSettings = defaultPrintSettings;
+
+  if (printSettingsRaw) {
+    try {
+      printSettings = normalizePrintSheetSettings(JSON.parse(printSettingsRaw) as Record<string, unknown>);
+    } catch {
+      return NextResponse.json({ error: 'Invalid print settings JSON' }, { status: 400 });
     }
   }
 
@@ -89,6 +104,7 @@ export async function POST(req: NextRequest) {
       userId,
       name,
       description,
+      templateType,
       r2Key,
       url,
       thumbnailKey: thumbKey,
@@ -96,6 +112,8 @@ export async function POST(req: NextRequest) {
       width,
       height,
       fields,
+      backFields: [],
+      printSettings,
     })
     .returning();
 

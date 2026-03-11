@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import {
   Carousel,
@@ -54,29 +55,60 @@ export const InlineCitationCard = (props: InlineCitationCardProps) => (
 );
 
 export type InlineCitationCardTriggerProps = ComponentProps<typeof Badge> & {
+  href?: string;
   sources: string[];
 };
 
+function getSourceLabel(source: string): string {
+  try {
+    return new URL(source).hostname;
+  } catch {
+    return source;
+  }
+}
+
 export const InlineCitationCardTrigger = ({
   sources,
+  href,
   className,
+  children,
   ...props
 }: InlineCitationCardTriggerProps) => (
   <HoverCardTrigger asChild>
-    <Badge
-      className={cn("ml-1 rounded-full", className)}
-      variant="secondary"
-      {...props}
-    >
-      {sources[0] ? (
-        <>
-          {new URL(sources[0]).hostname}{" "}
-          {sources.length > 1 && `+${sources.length - 1}`}
-        </>
-      ) : (
-        "unknown"
-      )}
-    </Badge>
+    {href ? (
+      <Badge
+        asChild
+        className={cn("ml-1 rounded-full", className)}
+        variant="secondary"
+        {...props}
+      >
+        <Link href={href}>
+          {children ?? (sources[0] ? (
+            <>
+              {getSourceLabel(sources[0])}{" "}
+              {sources.length > 1 && `+${sources.length - 1}`}
+            </>
+          ) : (
+            "unknown"
+          ))}
+        </Link>
+      </Badge>
+    ) : (
+      <Badge
+        className={cn("ml-1 rounded-full", className)}
+        variant="secondary"
+        {...props}
+      >
+        {children ?? (sources[0] ? (
+          <>
+            {getSourceLabel(sources[0])}{" "}
+            {sources.length > 1 && `+${sources.length - 1}`}
+          </>
+        ) : (
+          "unknown"
+        ))}
+      </Badge>
+    )}
   </HoverCardTrigger>
 );
 

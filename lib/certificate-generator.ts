@@ -1,6 +1,7 @@
 import sharp from 'sharp';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
 import { getCertificateFontRenderConfig } from '@/lib/certificate-fonts.server';
+import type { PrintSheetSettings } from '@/lib/certificate-print';
 
 type SharpTextAlign = 'left' | 'center' | 'right';
 
@@ -11,6 +12,7 @@ export type TextAlign = 'left' | 'center' | 'right';
 export type TextFieldConfig = {
   id: string;
   label: string;
+  required?: boolean;
   /** X position as percentage of template width (0–100) */
   xPercent: number;
   /** Y position as percentage of template height (0–100) */
@@ -198,6 +200,201 @@ export async function mergePdfBuffers(pdfBuffers: Buffer[]): Promise<Buffer> {
   }
 
   const bytes = await mergedPdf.save();
+  return Buffer.from(bytes);
+}
+
+function mmToPoints(value: number): number {
+  return (value / 25.4) * 72;
+}
+
+function drawCropMarks(
+  page: import('pdf-lib').PDFPage,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  settings: PrintSheetSettings,
+) {
+  if (!settings.cropMarks) {
+    return;
+  }
+
+  const markLength = mmToPoints(settings.cropMarkLengthMm);
+  const offset = mmToPoints(settings.cropMarkOffsetMm);
+  const left = x;
+  const right = x + width;
+  const bottom = y;
+  const top = y + height;
+  const color = rgb(0.35, 0.35, 0.35);
+  const thickness = 0.5;
+
+  page.drawLine({ start: { x: left, y: top + offset }, end: { x: left, y: top + offset + markLength }, thickness, color });
+  page.drawLine({ start: { x: left - offset - markLength, y: top }, end: { x: left - offset, y: top }, thickness, color });
+  page.drawLine({ start: { x: right, y: top + offset }, end: { x: right, y: top + offset + markLength }, thickness, color });
+  page.drawLine({ start: { x: right + offset, y: top }, end: { x: right + offset + markLength, y: top }, thickness, color });
+  page.drawLine({ start: { x: left, y: bottom - offset }, end: { x: left, y: bottom - offset - markLength }, thickness, color });
+  page.drawLine({ start: { x: left - offset - markLength, y: bottom }, end: { x: left - offset, y: bottom }, thickness, color });
+  page.drawLine({ start: { x: right, y: bottom - offset }, end: { x: right, y: bottom - offset - markLength }, thickness, color });
+  page.drawLine({ start: { x: right + offset, y: bottom }, end: { x: right + offset + markLength, y: bottom }, thickness, color });
+}
+
+function reorderSheetPageImages(
+  pageImages: Buffer[],
+  backPageOrder: PrintSheetSettings['backPageOrder'],
+): Buffer[] {
+  if (backPageOrder !== 'reverse') {
+    return pageImages;
+  }
+
+  return [...pageImages].reverse();
+}
+
+async function transformSheetImage(
+  imageBuffer: Buffer,
+  options?: {
+    flipX?: boolean;
+    flipY?: boolean;
+  },
+): Promise<Buffer> {
+  if (!options?.flipX && !options?.flipY) {
+    return imageBuffer;
+  }
+
+  let pipeline = sharp(imageBuffer);
+
+  if (options.flipX) {
+    pipeline = pipeline.flop();
+  }
+
+  if (options.flipY) {
+    pipeline = pipeline.flip();
+  }
+
+  return pipeline.toBuffer();
+}
+
+async function appendSheetPages(
+  pdfDoc: PDFDocument,
+  imageBuffers: Buffer[],
+  cardWidth: number,
+  cardHeight: number,
+  settings: PrintSheetSettings,
+  options?: {
+    backPageOrder?: PrintSheetSettings['backPageOrder'];
+    offsetXMm?: number;
+    offsetYMm?: number;
+    flipX?: boolean;
+    flipY?: boolean;
+  },
+): Promise<void> {
+  const pageWidth = mmToPoints(210);
+  const pageHeight = mmToPoints(297);
+  const columns = settings.columns;
+  const rows = settings.rows;
+  const marginTop = mmToPoints(settings.marginTopMm);
+  const marginRight = mmToPoints(settings.marginRightMm);
+  const marginBottom = mmToPoints(settings.marginBottomMm);
+  const marginLeft = mmToPoints(settings.marginLeftMm);
+  const horizontalGap = mmToPoints(settings.gapXMm);
+  const verticalGap = mmToPoints(settings.gapYMm);
+  const cellWidth = (pageWidth - marginLeft - marginRight - (horizontalGap * (columns - 1))) / columns;
+  const cellHeight = (pageHeight - marginTop - marginBottom - (verticalGap * (rows - 1))) / rows;
+  const aspectRatio = cardWidth / cardHeight;
+  const cardsPerPage = columns * rows;
+  const targetDpi = 200;
+
+  for (let pageStart = 0; pageStart < imageBuffers.length; pageStart += cardsPerPage) {
+    const page = pdfDoc.addPage([pageWidth, pageHeight]);
+    const pageImages = reorderSheetPageImages(
+      imageBuffers.slice(pageStart, pageStart + cardsPerPage),
+      options?.backPageOrder ?? 'same',
+    );
+
+    for (let index = 0; index < pageImages.length; index += 1) {
+      const imageBuffer = pageImages[index];
+
+      if (!imageBuffer) {
+        continue;
+      }
+
+      const calibratedImageBuffer = await transformSheetImage(imageBuffer, {
+        flipX: options?.flipX,
+        flipY: options?.flipY,
+      });
+
+      const column = index % columns;
+      const row = Math.floor(index / columns);
+      const fittedWidth = cellWidth / cellHeight > aspectRatio ? cellHeight * aspectRatio : cellWidth;
+      const fittedHeight = fittedWidth / aspectRatio;
+      const targetWidthPx = Math.max(1, Math.round((fittedWidth / 72) * targetDpi));
+      const targetHeightPx = Math.max(1, Math.round((fittedHeight / 72) * targetDpi));
+      const optimizedImageBuffer = await sharp(calibratedImageBuffer)
+        .resize(targetWidthPx, targetHeightPx, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: 92 })
+        .toBuffer();
+      const embeddedImage = await pdfDoc.embedJpg(optimizedImageBuffer);
+      const x = marginLeft
+        + (column * (cellWidth + horizontalGap))
+        + ((cellWidth - fittedWidth) / 2)
+        + mmToPoints(options?.offsetXMm ?? 0);
+      const y = pageHeight
+        - marginTop
+        - ((row + 1) * cellHeight)
+        - (row * verticalGap)
+        + ((cellHeight - fittedHeight) / 2)
+        + mmToPoints(options?.offsetYMm ?? 0);
+
+      page.drawImage(embeddedImage, {
+        x,
+        y,
+        width: fittedWidth,
+        height: fittedHeight,
+      });
+
+      drawCropMarks(page, x, y, fittedWidth, fittedHeight, settings);
+    }
+  }
+}
+
+export async function createSheetPdf(
+  imageBuffers: Buffer[],
+  cardWidth: number,
+  cardHeight: number,
+  settings: PrintSheetSettings,
+): Promise<Buffer> {
+  const pdfDoc = await PDFDocument.create();
+  await appendSheetPages(pdfDoc, imageBuffers, cardWidth, cardHeight, settings);
+
+  const bytes = await pdfDoc.save();
+  return Buffer.from(bytes);
+}
+
+export async function createDuplexSheetPdf(
+  frontImageBuffers: Buffer[],
+  backImageBuffers: Buffer[],
+  frontCardWidth: number,
+  frontCardHeight: number,
+  backCardWidth: number,
+  backCardHeight: number,
+  settings: PrintSheetSettings,
+): Promise<Buffer> {
+  const pdfDoc = await PDFDocument.create();
+  await appendSheetPages(pdfDoc, frontImageBuffers, frontCardWidth, frontCardHeight, settings);
+
+  if (backImageBuffers.length > 0) {
+    await appendSheetPages(pdfDoc, backImageBuffers, backCardWidth, backCardHeight, settings, {
+      backPageOrder: settings.backPageOrder,
+      offsetXMm: settings.backOffsetXMm,
+      offsetYMm: settings.backOffsetYMm,
+      flipX: settings.backFlipX,
+      flipY: settings.backFlipY,
+    });
+  }
+
+  const bytes = await pdfDoc.save();
   return Buffer.from(bytes);
 }
 

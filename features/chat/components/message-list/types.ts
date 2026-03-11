@@ -1,4 +1,4 @@
-import type { ChatMessage, MessageReaction } from '@/features/chat/types';
+import type { ChatMessage, MessageReaction, QuizFollowUpContext } from '@/features/chat/types';
 import type { MediaAsset } from '@/features/gallery/types';
 
 export type ReactionMap = Record<string, MessageReaction | null>;
@@ -35,4 +35,5 @@ export type ChatMessageListProps = {
   onSuggestionClick: (suggestion: string) => void;
   onImageClick?: (asset: MediaAsset) => void;
   onDeleteMessage: (messageId: string, partnerMessageId?: string) => void;
+  onQuizStateChange?: (context: QuizFollowUpContext) => void;
 };

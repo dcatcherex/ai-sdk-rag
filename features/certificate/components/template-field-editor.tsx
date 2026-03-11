@@ -16,6 +16,7 @@ type Props = {
   selectedKey: string | null;
   onSelect: (key: string) => void;
   onUpdateField: <K extends keyof EditableFieldRow>(key: string, prop: K, value: EditableFieldRow[K]) => void;
+  imageVariant?: 'thumbnail' | 'back_thumbnail';
 };
 
 type PreviewSize = {
@@ -126,7 +127,7 @@ function getDefaultPreviewValue(field: EditableFieldRow) {
   return field.label || field.id;
 }
 
-export function TemplateFieldEditor({ template, rows, selectedKey, onSelect, onUpdateField }: Props) {
+export function TemplateFieldEditor({ template, rows, selectedKey, onSelect, onUpdateField, imageVariant = 'thumbnail' }: Props) {
   const previewRef = useRef<HTMLDivElement | null>(null);
   const [previewSize, setPreviewSize] = useState<PreviewSize>({ width: 0, height: 0 });
   const [dragState, setDragState] = useState<DragState | null>(null);
@@ -457,7 +458,7 @@ export function TemplateFieldEditor({ template, rows, selectedKey, onSelect, onU
   }
 
   const scale = previewSize.width > 0 ? previewSize.width / template.width : 1;
-  const previewUrl = `/api/certificate/files?templateId=${encodeURIComponent(template.id)}&variant=thumbnail&v=${encodeURIComponent(template.updatedAt)}`;
+  const previewUrl = `/api/certificate/files?templateId=${encodeURIComponent(template.id)}&variant=${encodeURIComponent(imageVariant)}&v=${encodeURIComponent(template.updatedAt)}`;
 
   return (
     <div className="space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-border">

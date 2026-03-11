@@ -59,7 +59,7 @@ function getFileIcon(doc: DocumentItem) {
 function StatusBadge({ doc }: { doc: DocumentItem }) {
   if (doc.processingStatus === 'pending') {
     return (
-      <span className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+      <span className="inline-flex min-w-0 max-w-full items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
         <ClockIcon className="size-3" />
         Processing
       </span>
@@ -67,7 +67,7 @@ function StatusBadge({ doc }: { doc: DocumentItem }) {
   }
   if (doc.chunkCount > 0) {
     return (
-      <span className="flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
+      <span className="inline-flex min-w-0 max-w-full items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
         <CheckCircle2Icon className="size-3" />
         {doc.chunkCount} chunks
       </span>
@@ -75,10 +75,10 @@ function StatusBadge({ doc }: { doc: DocumentItem }) {
   }
   if (doc.storageMode === 'context') {
     return (
-      <span className="text-[11px] text-blue-600 dark:text-blue-400">context</span>
+      <span className="inline-flex min-w-0 max-w-full text-[11px] text-blue-600 dark:text-blue-400">context</span>
     );
   }
-  return <span className="text-[11px] text-muted-foreground">—</span>;
+  return <span className="inline-flex min-w-0 max-w-full text-[11px] text-muted-foreground">—</span>;
 }
 
 function ModeBadge({ mode }: { mode?: string | null }) {
@@ -249,7 +249,7 @@ export function DocumentList({
               <div
                 key={doc.id}
                 className={cn(
-                  'group flex w-full items-start gap-2 rounded-xl border px-3 py-2.5 text-left transition',
+                  'group flex w-full items-start gap-2 overflow-hidden rounded-xl border px-3 py-2.5 text-left transition',
                   isSelected
                     ? 'border-primary/30 bg-primary/5'
                     : 'border-black/5 dark:border-border bg-white/60 dark:bg-muted/60 hover:bg-white dark:hover:bg-secondary/60'
@@ -264,17 +264,19 @@ export function DocumentList({
                 )}
                 <button
                   type="button"
-                  className="flex min-w-0 flex-1 items-start gap-2.5"
+                  className="flex min-w-0 flex-1 items-start gap-2.5 overflow-hidden"
                   onClick={() => onSelectDocument?.(doc)}
                 >
                   {getFileIcon(doc)}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-medium">{getDocName(doc)}</p>
-                    <div className="mt-1 flex items-center gap-1.5">
-                      <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
+                    <p className="block max-w-full truncate text-xs font-medium leading-5">{getDocName(doc)}</p>
+                    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+                      <Badge variant="secondary" className="h-4 shrink-0 px-1.5 text-[10px]">
                         {doc.metadata.category || 'general'}
                       </Badge>
-                      <StatusBadge doc={doc} />
+                      <div className="min-w-0 max-w-full">
+                        <StatusBadge doc={doc} />
+                      </div>
                     </div>
                   </div>
                 </button>

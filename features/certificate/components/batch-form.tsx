@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Download, Loader2, Plus, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -8,17 +9,31 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { getPrintPresetLabel } from '@/lib/certificate-print';
 import type { CertificateTemplate, ExportFormat, Recipient } from '../types';
 import { FORMAT_OPTIONS } from '../types';
 
 type Props = { template: CertificateTemplate };
 
-type BatchPdfExportMode = 'zip' | 'single_pdf';
+type BatchPdfExportMode = 'zip' | 'single_pdf' | 'sheet_pdf';
 
 const PDF_EXPORT_LABELS: Record<BatchPdfExportMode, string> = {
   zip: 'ZIP of PDFs',
   single_pdf: 'One PDF file',
+  sheet_pdf: 'A4 3×3 sheet PDF',
 };
+
+function getTemplateInputFields(template: CertificateTemplate): CertificateTemplate['fields'] {
+  const map = new Map<string, CertificateTemplate['fields'][number]>();
+
+  [...template.fields, ...template.backFields].forEach((field) => {
+    if (!map.has(field.id)) {
+      map.set(field.id, field);
+    }
+  });
+
+  return Array.from(map.values());
+}
 
 function emptyRecipient(fields: CertificateTemplate['fields']): Recipient {
   return { values: Object.fromEntries(fields.map((f) => [f.id, ''])) };
@@ -66,7 +81,9 @@ function parseDelimitedText(text: string, fields: CertificateTemplate['fields'])
 }
 
 export function BatchForm({ template }: Props) {
-  const [recipients, setRecipients] = useState<Recipient[]>([emptyRecipient(template.fields)]);
+  const queryClient = useQueryClient();
+  const templateInputFields = useMemo(() => getTemplateInputFields(template), [template]);
+  const [recipients, setRecipients] = useState<Recipient[]>([emptyRecipient(templateInputFields)]);
   const [format, setFormat] = useState<ExportFormat>('png');
   const [pdfExportMode, setPdfExportMode] = useState<BatchPdfExportMode>('zip');
   const [loading, setLoading] = useState(false);
@@ -82,19 +99,52 @@ export function BatchForm({ template }: Props) {
   const csvRef = useRef<HTMLInputElement>(null);
 
   const rowFields = useMemo(
-    () => template.fields.filter((field) => !globalFieldIds.includes(field.id)),
-    [globalFieldIds, template.fields],
+    () => templateInputFields.filter((field) => !globalFieldIds.includes(field.id)),
+    [globalFieldIds, templateInputFields],
   );
   const rowFieldIds = rowFields.map((field) => field.id);
+  const requiredFields = useMemo(
+    () => templateInputFields.filter((field) => field.required === true),
+    [templateInputFields],
+  );
+  const missingRequiredRows = useMemo(
+    () => recipients.flatMap((recipient, index) => {
+      const missingFieldLabels = requiredFields.flatMap((field) => {
+        const value = globalFieldIds.includes(field.id)
+          ? (globalValues[field.id] ?? '')
+          : (recipient.values[field.id] ?? '');
+
+        return value.trim().length === 0 ? [field.label || field.id] : [];
+      });
+
+      return missingFieldLabels.length > 0
+        ? [{ rowIndex: index, missingFieldLabels }]
+        : [];
+    }),
+    [globalFieldIds, globalValues, recipients, requiredFields],
+  );
+  const hasMissingRequiredValues = missingRequiredRows.length > 0;
+
+  useEffect(() => {
+    if (template.templateType === 'card' || template.templateType === 'tag') {
+      setFormat('pdf');
+      setPdfExportMode('sheet_pdf');
+    }
+  }, [template.templateType]);
 
   function handleFormatChange(value: string) {
     const nextFormat = value as ExportFormat;
     setFormat(nextFormat);
-    setPdfExportMode(nextFormat === 'pdf' ? 'single_pdf' : 'zip');
+    if (nextFormat !== 'pdf') {
+      setPdfExportMode('zip');
+      return;
+    }
+
+    setPdfExportMode(template.templateType === 'card' || template.templateType === 'tag' ? 'sheet_pdf' : 'single_pdf');
   }
 
   function addRow() {
-    setRecipients((prev) => [...prev, emptyRecipient(template.fields)]);
+    setRecipients((prev) => [...prev, emptyRecipient(templateInputFields)]);
   }
 
   function removeRow(i: number) {
@@ -165,6 +215,12 @@ export function BatchForm({ template }: Props) {
 
   async function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
+
+    if (hasMissingRequiredValues) {
+      setError('Fill all required fields before generating certificates.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setResultFileKey(null);
@@ -178,7 +234,7 @@ export function BatchForm({ template }: Props) {
           format,
           exportMode: format === 'pdf' ? pdfExportMode : 'zip',
           recipients: recipients.map((r) => ({
-            values: template.fields.map((field) => ({
+            values: templateInputFields.map((field) => ({
               fieldId: field.id,
               value: globalFieldIds.includes(field.id)
                 ? (globalValues[field.id] ?? '')
@@ -198,6 +254,7 @@ export function BatchForm({ template }: Props) {
       setResultFileName(data.fileName);
       setDownloadLabel(data.downloadLabel ?? 'Download ZIP');
       setCount(data.count);
+      void queryClient.invalidateQueries({ queryKey: ['certificate-jobs'] });
     } catch (err) {
       setError(String(err));
     } finally {
@@ -232,7 +289,7 @@ export function BatchForm({ template }: Props) {
     }
   }
 
-  if (template.fields.length === 0) {
+  if (templateInputFields.length === 0) {
     return (
       <p className="rounded-lg border border-dashed p-4 text-center text-sm text-zinc-400">
         This template has no fields. Configure fields first.
@@ -296,7 +353,7 @@ export function BatchForm({ template }: Props) {
             </p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
-            {template.fields.map((field) => {
+            {templateInputFields.map((field) => {
               const isChecked = globalFieldIds.includes(field.id);
 
               return (
@@ -308,18 +365,18 @@ export function BatchForm({ template }: Props) {
                     checked={isChecked}
                     onCheckedChange={(checked) => toggleGlobalField(field.id, checked === true)}
                   />
-                  <span>{field.label || field.id}</span>
+                  <span>{field.label || field.id}{field.required ? ' *' : ''}</span>
                 </label>
               );
             })}
           </div>
           {globalFieldIds.length > 0 && (
             <div className="grid gap-3 rounded-lg border border-dashed border-zinc-200 p-3 dark:border-border">
-              {template.fields
+              {templateInputFields
                 .filter((field) => globalFieldIds.includes(field.id))
                 .map((field) => (
                   <div key={field.id} className="space-y-1">
-                    <Label htmlFor={`global-${field.id}`}>{field.label || field.id}</Label>
+                    <Label htmlFor={`global-${field.id}`}>{field.label || field.id}{field.required ? ' *' : ''}</Label>
                     <Input
                       id={`global-${field.id}`}
                       value={globalValues[field.id] ?? ''}
@@ -345,7 +402,7 @@ export function BatchForm({ template }: Props) {
               <th className="w-8 px-3 py-2 text-left text-xs text-zinc-400">#</th>
               {rowFields.map((f) => (
                 <th key={f.id} className="px-3 py-2 text-left text-xs font-medium text-zinc-600 dark:text-muted-foreground">
-                  {f.label}
+                  {f.label}{f.required ? ' *' : ''}
                 </th>
               ))}
               <th className="w-8" />
@@ -405,15 +462,39 @@ export function BatchForm({ template }: Props) {
               <SelectContent>
                 <SelectItem value="zip">ZIP of PDFs</SelectItem>
                 <SelectItem value="single_pdf">One PDF file</SelectItem>
+                <SelectItem value="sheet_pdf">A4 3×3 sheet PDF</SelectItem>
               </SelectContent>
             </Select>
+            {pdfExportMode === 'sheet_pdf' && (
+              <p className="pt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                Uses the saved {getPrintPresetLabel(template.printSettings.preset)} preset with {template.printSettings.columns} column{template.printSettings.columns !== 1 ? 's' : ''}, {template.printSettings.rows} row{template.printSettings.rows !== 1 ? 's' : ''}, {template.printSettings.cropMarks ? 'crop marks enabled' : 'no crop marks'}, and {template.printSettings.duplexMode === 'front_back' && template.backR2Key
+                  ? `front/back pages (${template.printSettings.backPageOrder} back order, X ${template.printSettings.backOffsetXMm} mm, Y ${template.printSettings.backOffsetYMm} mm${template.printSettings.backFlipX ? ', flipped horizontally' : ''}${template.printSettings.backFlipY ? ', flipped vertically' : ''})`
+                  : 'single-sided pages'}.
+              </p>
+            )}
           </div>
         )}
-        <Button type="submit" disabled={loading} className="flex-1">
+        <Button type="submit" disabled={loading || hasMissingRequiredValues} className="flex-1">
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           {loading ? `Generating ${recipients.length} certificates…` : `Generate ${recipients.length} Certificate${recipients.length !== 1 ? 's' : ''}`}
         </Button>
       </div>
+
+      {hasMissingRequiredValues && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+          <p className="font-medium">Missing required fields</p>
+          <div className="mt-2 space-y-1 text-xs">
+            {missingRequiredRows.slice(0, 5).map((row) => (
+              <p key={row.rowIndex}>
+                Row {row.rowIndex + 1}: {row.missingFieldLabels.join(', ')}
+              </p>
+            ))}
+            {missingRequiredRows.length > 5 && (
+              <p>And {missingRequiredRows.length - 5} more row{missingRequiredRows.length - 5 !== 1 ? 's' : ''}.</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 

@@ -44,7 +44,7 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { messages, threadId, model, useWebSearch, selectedDocumentIds, enabledModelIds, agentId, personaId } =
+    const { messages, threadId, model, useWebSearch, selectedDocumentIds, enabledModelIds, agentId, personaId, quizContext } =
       requestSchema.parse(rawBody);
 
     // Determine if personaId refers to a built-in key or a custom persona DB row
@@ -166,7 +166,10 @@ export async function POST(req: Request) {
           userId: session.user.id,
           documentIds: isGrounded ? effectiveDocIds : undefined,
           rerankEnabled: userPrefs.rerankEnabled ?? false,
+          source: 'agent',
         });
+    const examPrepToolEnabled = activeToolIds === null || activeToolIds.includes('exam_prep');
+    const certificateToolEnabled = activeToolIds === null || activeToolIds.includes('certificate');
 
     const personaExtraInstructions = !activeAgent ? (personaCustomMap[detectedPersona] ?? '') : '';
     // Base system prompt: agent > custom persona > built-in persona
@@ -234,8 +237,34 @@ export async function POST(req: Request) {
 
     const supportsTools = !toolDisabledModels.has(resolvedModel);
     const activeTools = supportsTools ? groundedTools : undefined;
+    const examPrepToolInstructions = supportsTools && examPrepToolEnabled
+      ? '\nIMPORTANT: When the user asks to be quizzed, wants practice questions, asks you to grade an answer, wants a study plan, asks you to diagnose weak areas or misconceptions, or asks for flashcards or memorization cards, you MUST call the exam prep tools directly. Do NOT pretend to grade or generate a quiz freehand when the exam prep tools are available. If selected documents are attached to the chat, the exam prep tools already ground themselves in those documents automatically, so use the relevant exam prep tool directly unless you need extra document exploration beyond the tool result. Use generate_practice_quiz for quizzes and mock questions, grade_practice_answer for scoring or feedback on an answer, create_study_plan for revision schedules and topic prioritization, analyze_learning_gaps for weakness diagnosis, misconceptions, and what to study next, and generate_flashcards for revision cards and recall practice. If an exam prep tool call fails, explain the real issue briefly and ask only for the missing information.'
+      : '';
+    const certificateToolInstructions = supportsTools && certificateToolEnabled
+      ? '\nIMPORTANT: When the user wants to create, preview, or inspect certificate templates or certificate outputs, you MUST call the certificate tools directly. Do NOT describe tool calls, do NOT print JSON action blocks, and do NOT say you are about to call a tool. If you need template information, call list_certificate_templates. If you need to validate inputs, call preview_certificate_generation. If you need to create the output, call generate_certificate_output or generate_certificate. If a certificate tool call fails, explain the actual tool error briefly and ask the user only for the missing information or corrective action. Do NOT fabricate a generic technical issue message and do NOT emit another pseudo tool-call block as text.'
+      : '';
+    const quizContextBlock = quizContext
+      ? `\n\n<interactive_quiz_context>
+Latest quiz state from the client UI:
+- Quiz message ID: ${quizContext.messageId}
+- Questions completed: ${quizContext.answeredCount}/${quizContext.questionCount}
+- Objective questions scored: ${quizContext.correctCount}/${quizContext.objectiveAnsweredCount}
+- Quiz completed: ${quizContext.completed ? 'yes' : 'no'}
+${quizContext.attempts.length > 0 ? `- Attempts:\n${quizContext.attempts.map((attempt, index) => [
+  `${index + 1}. ${attempt.question}`,
+  `   Topic: ${attempt.topic}`,
+  `   Type: ${attempt.type}`,
+  `   User answer: ${attempt.userAnswer || '(blank)'}`,
+  `   Correct answer: ${attempt.correctAnswer}`,
+  `   Revealed: ${attempt.wasRevealed ? 'yes' : 'no'}`,
+  `   Result: ${attempt.isCorrect === null ? 'not auto-graded' : attempt.isCorrect ? 'correct' : 'incorrect'}`,
+].join('\n')).join('\n')}` : ''}
+</interactive_quiz_context>
+
+IMPORTANT: This quiz context reflects the learner's actual progress in the interactive quiz UI. If the user asks what to do next, what they got wrong, what to review, or asks for a diagnosis after completing the quiz, rely on this context instead of claiming the quiz is unfinished. If the quiz is completed and the user asks for next-step guidance, prefer using analyze_learning_gaps with the completed attempts when exam prep tools are available.`
+      : '';
     const systemPrompt = supportsTools
-      ? groundedSystemPrompt
+      ? groundedSystemPrompt + examPrepToolInstructions + certificateToolInstructions + quizContextBlock
       : baseSystemPrompt + (memoryContext ? `\n\n${memoryContext}` : '');
 
     // ── Prompt enhancement ───────────────────────────────────────────────────

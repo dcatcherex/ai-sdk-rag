@@ -33,6 +33,7 @@ export const ChatMessageList = ({
   onSuggestionClick,
   onImageClick,
   onDeleteMessage,
+  onQuizStateChange,
 }: ChatMessageListProps) => {
   const lastAssistantIdx = messages.reduce((acc, m, i) => (m.role === 'assistant' ? i : acc), -1);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -124,6 +125,7 @@ export const ChatMessageList = ({
                     onToggleReaction={onToggleReaction}
                     onSuggestionClick={onSuggestionClick}
                     onImageClick={onImageClick}
+                    onQuizStateChange={onQuizStateChange}
                     onRequestDelete={setPendingDelete}
                     onHoverDeleteEnter={setHoveredDeleteIds}
                     onHoverDeleteLeave={() => setHoveredDeleteIds(new Set())}

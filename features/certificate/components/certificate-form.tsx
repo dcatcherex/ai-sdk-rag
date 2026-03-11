@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +13,7 @@ import { FORMAT_OPTIONS } from '../types';
 type Props = { template: CertificateTemplate };
 
 export function CertificateForm({ template }: Props) {
+  const queryClient = useQueryClient();
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(template.fields.map((f) => [f.id, ''])),
   );
@@ -72,6 +74,7 @@ export function CertificateForm({ template }: Props) {
       setResultUrl(data.url);
       setResultKey(data.r2Key);
       setResultFilename(data.filename);
+      void queryClient.invalidateQueries({ queryKey: ['certificate-jobs'] });
     } catch (err) {
       setError(String(err));
     } finally {
@@ -92,12 +95,13 @@ export function CertificateForm({ template }: Props) {
       <div className="grid gap-3 sm:grid-cols-2">
         {template.fields.map((field) => (
           <div key={field.id} className="space-y-1.5">
-            <Label htmlFor={`field-${field.id}`}>{field.label}</Label>
+            <Label htmlFor={`field-${field.id}`}>{field.label}{field.required ? ' *' : ''}</Label>
             <Input
               id={`field-${field.id}`}
               value={values[field.id] ?? ''}
               onChange={(e) => setValues((prev) => ({ ...prev, [field.id]: e.target.value }))}
               placeholder={field.label}
+              required={field.required === true}
             />
           </div>
         ))}

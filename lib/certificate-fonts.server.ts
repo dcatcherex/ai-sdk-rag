@@ -47,7 +47,7 @@ export async function getCertificateFontRenderConfig(fontFamily: string, fontWei
   const fontFilePath = await resolveFontFilePath(fileName);
 
   return {
-    resolvedFontFamily: option.value,
+    resolvedFontFamily: fontFilePath ? option.value : 'Arial',
     fontFilePath,
   };
 }

@@ -49,7 +49,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
 
-    if (variant === 'thumbnail') {
+    if (variant === 'back_thumbnail') {
+      key = template.backThumbnailKey ?? template.backR2Key;
+      filename = template.backThumbnailKey
+        ? `${sanitizeFilename(template.name)}-back-thumbnail.jpg`
+        : `${sanitizeFilename(template.name)}-back.png`;
+    } else if (variant === 'back') {
+      key = template.backR2Key;
+      filename = `${sanitizeFilename(template.name)}-back.png`;
+    } else if (variant === 'thumbnail') {
       key = template.thumbnailKey ?? template.r2Key;
       filename = template.thumbnailKey
         ? `${sanitizeFilename(template.name)}-thumbnail.jpg`

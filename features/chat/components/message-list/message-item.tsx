@@ -25,11 +25,38 @@ import {
 } from '@/components/ui/tooltip';
 import { MessagePartRenderer } from '@/components/message-renderer';
 import { filterRenderableMessageParts, getTextContentFromParts } from '@/features/chat/utils/message-parts';
-import type { ChatMessage, ChatMessageMetadata, ChatMessagePart, MessageReaction } from '@/features/chat/types';
+import type { ChatMessage, ChatMessageMetadata, ChatMessagePart, MessageReaction, QuizFollowUpContext } from '@/features/chat/types';
 import type { MediaAsset } from '@/features/gallery/types';
 import { EnhancedPromptChip, GenerationDetails } from './generation-details';
 import { FollowUpChips } from './follow-up-chips';
 import type { ReactionMap, PendingDelete } from './types';
+
+function hasSuccessfulInteractiveQuizTool(parts: ChatMessagePart[]): boolean {
+  return parts.some((part) => {
+    if (typeof part !== 'object' || part === null || typeof part.type !== 'string') {
+      return false;
+    }
+
+    if (!part.type.startsWith('tool-')) {
+      return false;
+    }
+
+    const record = part as Record<string, unknown>;
+    const rawToolName = typeof record.toolName === 'string' ? record.toolName : part.type;
+    const toolName = rawToolName.startsWith('tool-') ? rawToolName.slice(5) : rawToolName;
+    const output = record.output;
+
+    return (
+      toolName === 'generate_practice_quiz'
+      || toolName === 'create_study_plan'
+      || toolName === 'analyze_learning_gaps'
+      || toolName === 'generate_flashcards'
+    )
+      && typeof output === 'object'
+      && output !== null
+      && (output as Record<string, unknown>).success === true;
+  });
+}
 
 type MessageItemProps = {
   message: ChatMessage;
@@ -48,6 +75,7 @@ type MessageItemProps = {
   onToggleReaction: (id: string, reaction: MessageReaction) => void;
   onSuggestionClick: (suggestion: string) => void;
   onImageClick?: (asset: MediaAsset) => void;
+  onQuizStateChange?: (context: QuizFollowUpContext) => void;
   onRequestDelete: (pending: PendingDelete) => void;
   onHoverDeleteEnter: (ids: Set<string>) => void;
   onHoverDeleteLeave: () => void;
@@ -87,12 +115,16 @@ export const MessageItem = ({
   onToggleReaction,
   onSuggestionClick,
   onImageClick,
+  onQuizStateChange,
   onRequestDelete,
   onHoverDeleteEnter,
   onHoverDeleteLeave,
   onToggleInfo,
 }: MessageItemProps) => {
-  const contentParts = filterRenderableMessageParts(message.parts as ChatMessagePart[]);
+  const rawContentParts = filterRenderableMessageParts(message.parts as ChatMessagePart[]);
+  const contentParts = message.role === 'assistant' && hasSuccessfulInteractiveQuizTool(rawContentParts)
+    ? rawContentParts.filter((part) => part.type !== 'text')
+    : rawContentParts;
   if (contentParts.length === 0) return null;
 
   const textContent = getTextContentFromParts(contentParts);
@@ -138,6 +170,7 @@ export const MessageItem = ({
               threadId={threadId}
               index={index}
               onImageClick={onImageClick}
+              onQuizStateChange={onQuizStateChange}
             />
           ))}
           {enhancedPrompt && <EnhancedPromptChip text={enhancedPrompt} />}

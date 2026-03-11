@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { CheckCircle2, Trash2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { getPrintPresetLabel } from '@/lib/certificate-print';
 import { cn } from '@/lib/utils';
 import type { CertificateTemplate } from '../types';
 import { useDeleteTemplate } from '../hooks/use-templates';
@@ -64,6 +65,9 @@ export function TemplateSelector({ templates, selectedId, onSelect, onUploadClic
 
             <div className="px-2 py-1.5">
               <p className="truncate text-xs font-medium text-zinc-700 dark:text-foreground/80">{t.name}</p>
+              <p className="text-[10px] text-zinc-400">
+                {t.templateType} · {getPrintPresetLabel(t.printSettings.preset)}
+              </p>
               <p className="text-[10px] text-zinc-400">
                 {t.width}×{t.height}px · {t.fields.length} field{t.fields.length !== 1 ? 's' : ''}
               </p>

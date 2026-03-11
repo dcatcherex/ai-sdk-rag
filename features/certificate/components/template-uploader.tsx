@@ -5,8 +5,10 @@ import { Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getDefaultPrintSheetSettingsForTemplateType, TEMPLATE_TYPE_OPTIONS } from '@/lib/certificate-print';
 import { useUploadTemplate } from '../hooks/use-templates';
-import type { CertificateTemplate } from '../types';
+import type { CertificateTemplate, CertificateTemplateType } from '../types';
 
 type Props = {
   onDone: (template: CertificateTemplate) => void;
@@ -17,6 +19,7 @@ export function TemplateUploader({ onDone, onCancel }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [templateType, setTemplateType] = useState<CertificateTemplateType>('certificate');
   const [preview, setPreview] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadMutation = useUploadTemplate();
@@ -36,6 +39,8 @@ export function TemplateUploader({ onDone, onCancel }: Props) {
     fd.append('name', name.trim());
     if (description.trim()) fd.append('description', description.trim());
     fd.append('fields', '[]');
+    fd.append('templateType', templateType);
+    fd.append('printSettings', JSON.stringify(getDefaultPrintSheetSettingsForTemplateType(templateType)));
     const template = await uploadMutation.mutateAsync(fd);
     onDone(template);
   }
@@ -86,6 +91,20 @@ export function TemplateUploader({ onDone, onCancel }: Props) {
       <div className="space-y-2">
         <Label htmlFor="tpl-desc">Description (optional)</Label>
         <Input id="tpl-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="..." />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Template type</Label>
+        <Select value={templateType} onValueChange={(value) => setTemplateType(value as CertificateTemplateType)}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TEMPLATE_TYPE_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="flex gap-2">
