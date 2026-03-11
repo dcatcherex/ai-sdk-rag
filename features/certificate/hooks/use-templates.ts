@@ -45,6 +45,21 @@ export function useUpdateTemplate() {
   });
 }
 
+export function useReplaceTemplateImage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, formData }: { id: string; formData: FormData }) => {
+      const res = await fetch(`/api/certificate/templates/${id}`, {
+        method: 'PATCH',
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Image replace failed');
+      return (await res.json()).template as CertificateTemplate;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
+  });
+}
+
 export function useDeleteTemplate() {
   const qc = useQueryClient();
   return useMutation({

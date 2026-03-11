@@ -80,7 +80,11 @@ export default function CertificatePage() {
               </div>
             ) : view === 'configure' && selectedTemplate ? (
               <div className="rounded-2xl border border-zinc-200 p-4 dark:border-border md:p-6">
-                <FieldConfigurator template={selectedTemplate} onSaved={handleFieldsSaved} />
+                <FieldConfigurator
+                  template={selectedTemplate}
+                  onSaved={handleFieldsSaved}
+                  onTemplateUpdated={setSelectedTemplate}
+                />
               </div>
             ) : (
               <div className="rounded-2xl border border-zinc-200 p-4 dark:border-border md:p-6">

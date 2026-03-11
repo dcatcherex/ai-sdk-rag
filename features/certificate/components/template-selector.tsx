@@ -44,10 +44,10 @@ export function TemplateSelector({ templates, selectedId, onSelect, onUploadClic
             )}
             onClick={() => onSelect(t)}
           >
-            <div className="relative aspect-[4/3] w-full bg-zinc-100 dark:bg-muted">
+            <div className="relative aspect-4/3 w-full bg-zinc-100 dark:bg-muted">
               {t.thumbnailKey || t.r2Key ? (
                 <Image
-                  src={`/api/certificate/files?templateId=${encodeURIComponent(t.id)}&variant=thumbnail`}
+                  src={`/api/certificate/files?templateId=${encodeURIComponent(t.id)}&variant=thumbnail&v=${encodeURIComponent(t.updatedAt)}`}
                   alt={t.name}
                   fill
                   className="object-cover"

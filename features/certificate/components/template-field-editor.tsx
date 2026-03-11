@@ -457,7 +457,7 @@ export function TemplateFieldEditor({ template, rows, selectedKey, onSelect, onU
   }
 
   const scale = previewSize.width > 0 ? previewSize.width / template.width : 1;
-  const previewUrl = `/api/certificate/files?templateId=${encodeURIComponent(template.id)}&variant=thumbnail`;
+  const previewUrl = `/api/certificate/files?templateId=${encodeURIComponent(template.id)}&variant=thumbnail&v=${encodeURIComponent(template.updatedAt)}`;
 
   return (
     <div className="space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-border">

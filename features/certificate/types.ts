@@ -52,7 +52,7 @@ export const DEFAULT_FIELD: Omit<TextFieldConfig, 'id' | 'label'> = {
   fontSize: 48,
   minFontSize: 18,
   maxWidthPercent: 70,
-  fontFamily: 'Arial, sans-serif',
+  fontFamily: 'Arial',
   color: '#1a1a1a',
   fontWeight: 'bold',
   align: 'center',

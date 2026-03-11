@@ -1,5 +1,8 @@
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
+import { getCertificateFontRenderConfig } from '@/lib/certificate-fonts.server';
+
+type SharpTextAlign = 'left' | 'center' | 'right';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -61,48 +64,82 @@ function calcFontSize(text: string, maxWidthPx: number, baseFontSize: number, mi
   return Math.max(scaled, minFontSize);
 }
 
-function textAnchor(align: TextAlign): string {
-  if (align === 'center') return 'middle';
-  if (align === 'right') return 'end';
-  return 'start';
+function textAnchor(align: TextAlign): SharpTextAlign {
+  if (align === 'center') return 'center';
+  if (align === 'right') return 'right';
+  return 'left';
 }
 
 /**
  * Build SVG overlay with all text fields rendered at correct positions.
  */
-function buildSvgOverlay(
+async function buildSvgOverlay(
   width: number,
   height: number,
   fields: TextFieldConfig[],
   values: CertificateField[],
-): string {
+) {
   const valueMap = new Map(values.map((v) => [v.fieldId, v.value]));
-
-  const textElements = fields.map((field) => {
+  const textElements = await Promise.all(fields.map(async (field) => {
     const text = valueMap.get(field.id) ?? '';
-    if (!text) return '';
+    if (!text) return null;
 
     const xPx = Math.round((field.xPercent / 100) * width);
     const yPx = Math.round((field.yPercent / 100) * height);
     const maxWidthPx = Math.round((field.maxWidthPercent / 100) * width);
-    const fontSize = calcFontSize(text, maxWidthPx, field.fontSize, field.minFontSize);
+    const { resolvedFontFamily, fontFilePath } = await getCertificateFontRenderConfig(field.fontFamily, field.fontWeight);
     const anchor = textAnchor(field.align);
 
-    return `<text
-      x="${xPx}"
-      y="${yPx}"
-      font-size="${fontSize}"
-      font-family="${escapeXml(field.fontFamily)}"
-      font-weight="${field.fontWeight}"
-      fill="${escapeXml(field.color)}"
-      text-anchor="${anchor}"
-      dominant-baseline="middle"
-    >${escapeXml(text)}</text>`;
-  });
+    let currentFontSize = calcFontSize(text, maxWidthPx, field.fontSize, field.minFontSize);
+    let overlayBuffer: Buffer | null = null;
+    let overlayWidth = 0;
+    let overlayHeight = 0;
 
-  return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-${textElements.join('\n')}
-</svg>`;
+    while (currentFontSize >= field.minFontSize) {
+      const candidateBuffer = await sharp({
+        text: {
+          text: `<span foreground="${field.color}">${escapeXml(text)}</span>`,
+          font: `${resolvedFontFamily} ${currentFontSize}`,
+          fontfile: fontFilePath ?? undefined,
+          rgba: true,
+          dpi: 72,
+          align: anchor,
+        },
+      })
+        .png()
+        .toBuffer();
+
+      const metadata = await sharp(candidateBuffer).metadata();
+      overlayWidth = metadata.width ?? 0;
+      overlayHeight = metadata.height ?? 0;
+      overlayBuffer = candidateBuffer;
+
+      if (overlayWidth <= maxWidthPx || currentFontSize === field.minFontSize) {
+        break;
+      }
+
+      currentFontSize -= 1;
+    }
+
+    if (!overlayBuffer) {
+      return null;
+    }
+
+    const left = field.align === 'center'
+      ? Math.round(xPx - overlayWidth / 2)
+      : field.align === 'right'
+        ? Math.round(xPx - overlayWidth)
+        : xPx;
+    const top = Math.round(yPx - overlayHeight / 2);
+
+    return {
+      input: overlayBuffer,
+      left: Math.max(0, left),
+      top: Math.max(0, top),
+    };
+  }));
+
+  return textElements.filter((overlay): overlay is { input: Buffer; left: number; top: number } => overlay !== null);
 }
 
 // ─── Core generation ──────────────────────────────────────────────────────────
@@ -111,12 +148,11 @@ ${textElements.join('\n')}
 export async function generateCertificate(options: GenerateOptions): Promise<Buffer> {
   const { templateBuffer, templateWidth, templateHeight, fields, values, format } = options;
 
-  const svg = buildSvgOverlay(templateWidth, templateHeight, fields, values);
-  const svgBuffer = Buffer.from(svg);
+  const textOverlays = await buildSvgOverlay(templateWidth, templateHeight, fields, values);
 
   const pngBuffer = await sharp(templateBuffer)
     .resize(templateWidth, templateHeight, { fit: 'fill' })
-    .composite([{ input: svgBuffer, top: 0, left: 0 }])
+    .composite(textOverlays)
     .png()
     .toBuffer();
 

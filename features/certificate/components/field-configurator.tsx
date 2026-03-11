@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Plus, Trash2, Save } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ImageUp, Plus, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { nanoid } from 'nanoid';
-import { useUpdateTemplate } from '../hooks/use-templates';
+import { CERTIFICATE_FONT_OPTIONS, getSupportedCertificateFontValue, isSupportedCertificateFont } from '@/lib/certificate-fonts';
+import { useReplaceTemplateImage, useUpdateTemplate } from '../hooks/use-templates';
 import type { CertificateTemplate, TextFieldConfig } from '../types';
 import { DEFAULT_FIELD } from '../types';
 import { TemplateFieldEditor } from './template-field-editor';
@@ -15,6 +16,7 @@ import { TemplateFieldEditor } from './template-field-editor';
 type Props = {
   template: CertificateTemplate;
   onSaved: (template: CertificateTemplate) => void;
+  onTemplateUpdated: (template: CertificateTemplate) => void;
 };
 
 type FieldRow = TextFieldConfig & { _key: string };
@@ -23,16 +25,28 @@ function toRows(fields: TextFieldConfig[]): FieldRow[] {
   return fields.map((f) => ({ ...f, _key: f.id }));
 }
 
-export function FieldConfigurator({ template, onSaved }: Props) {
+export function FieldConfigurator({ template, onSaved, onTemplateUpdated }: Props) {
   const [rows, setRows] = useState<FieldRow[]>(() => toRows(template.fields));
   const [selectedKey, setSelectedKey] = useState<string | null>(() => template.fields[0]?.id ?? null);
+  const replaceImageInputRef = useRef<HTMLInputElement>(null);
   const updateMutation = useUpdateTemplate();
+  const replaceImageMutation = useReplaceTemplateImage();
 
   useEffect(() => {
     const nextRows = toRows(template.fields);
-    setRows(nextRows);
-    setSelectedKey(nextRows[0]?._key ?? null);
-  }, [template]);
+    const nextSerialized = JSON.stringify(template.fields);
+
+    setRows((prev) => {
+      const currentSerialized = JSON.stringify(prev.map(({ _key: _ignored, ...rest }) => rest));
+      return currentSerialized === nextSerialized ? prev : nextRows;
+    });
+
+    setSelectedKey((prevSelected) => {
+      if (nextRows.length === 0) return null;
+      if (prevSelected && nextRows.some((row) => row._key === prevSelected)) return prevSelected;
+      return nextRows[0]?._key ?? null;
+    });
+  }, [template.fields]);
 
   useEffect(() => {
     if (rows.length === 0) {
@@ -77,6 +91,13 @@ export function FieldConfigurator({ template, onSaved }: Props) {
     onSaved(updated);
   }
 
+  async function handleReplaceImage(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const updated = await replaceImageMutation.mutateAsync({ id: template.id, formData });
+    onTemplateUpdated(updated);
+  }
+
   const numInput = (
     key: string,
     prop: keyof FieldRow,
@@ -109,6 +130,10 @@ export function FieldConfigurator({ template, onSaved }: Props) {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => replaceImageInputRef.current?.click()} disabled={replaceImageMutation.isPending}>
+            <ImageUp className="mr-1 h-3.5 w-3.5" />
+            {replaceImageMutation.isPending ? 'Replacing…' : 'Replace image'}
+          </Button>
           <Button size="sm" variant="outline" onClick={addField}>
             <Plus className="mr-1 h-3.5 w-3.5" /> Add field
           </Button>
@@ -118,6 +143,20 @@ export function FieldConfigurator({ template, onSaved }: Props) {
           </Button>
         </div>
       </div>
+
+      <input
+        ref={replaceImageInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) {
+            void handleReplaceImage(file);
+          }
+          event.currentTarget.value = '';
+        }}
+      />
 
       {rows.length === 0 && (
         <p className="rounded-lg border border-dashed p-4 text-center text-sm text-zinc-400">
@@ -212,12 +251,20 @@ export function FieldConfigurator({ template, onSaved }: Props) {
               </div>
               <div className="space-y-1">
                 <Label className="text-[11px]">Font family</Label>
-                <Input
-                  value={row.fontFamily}
-                  onChange={(e) => updateField(row._key, 'fontFamily', e.target.value)}
-                  className="h-8 text-xs"
-                  placeholder="Arial, sans-serif"
-                />
+                <Select
+                  value={getSupportedCertificateFontValue(row.fontFamily)}
+                  onValueChange={(value) => updateField(row._key, 'fontFamily', value)}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {!isSupportedCertificateFont(row.fontFamily) && (
+                      <SelectItem value={row.fontFamily}>{row.fontFamily}</SelectItem>
+                    )}
+                    {CERTIFICATE_FONT_OPTIONS.map((option) => (
+                      <SelectItem key={option.key} value={option.value}>{option.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
