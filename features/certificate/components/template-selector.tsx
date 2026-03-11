@@ -45,8 +45,14 @@ export function TemplateSelector({ templates, selectedId, onSelect, onUploadClic
             onClick={() => onSelect(t)}
           >
             <div className="relative aspect-[4/3] w-full bg-zinc-100 dark:bg-muted">
-              {t.thumbnailUrl ? (
-                <Image src={t.thumbnailUrl} alt={t.name} fill className="object-cover" unoptimized />
+              {t.thumbnailKey || t.r2Key ? (
+                <Image
+                  src={`/api/certificate/files?templateId=${encodeURIComponent(t.id)}&variant=thumbnail`}
+                  alt={t.name}
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
               ) : (
                 <div className="flex h-full items-center justify-center text-xs text-zinc-400">No preview</div>
               )}

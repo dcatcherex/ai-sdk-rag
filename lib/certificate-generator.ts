@@ -148,6 +148,23 @@ async function imageToPdf(pngBuffer: Buffer, width: number, height: number): Pro
   return Buffer.from(bytes);
 }
 
+export async function mergePdfBuffers(pdfBuffers: Buffer[]): Promise<Buffer> {
+  const mergedPdf = await PDFDocument.create();
+
+  for (const pdfBuffer of pdfBuffers) {
+    const sourcePdf = await PDFDocument.load(pdfBuffer);
+    const pageIndices = sourcePdf.getPageIndices();
+    const copiedPages = await mergedPdf.copyPages(sourcePdf, pageIndices);
+
+    for (const page of copiedPages) {
+      mergedPdf.addPage(page);
+    }
+  }
+
+  const bytes = await mergedPdf.save();
+  return Buffer.from(bytes);
+}
+
 /** Generate thumbnail (320px wide) from template buffer */
 export async function generateThumbnail(templateBuffer: Buffer): Promise<Buffer> {
   return sharp(templateBuffer).resize(320, undefined, { fit: 'inside' }).jpeg({ quality: 80 }).toBuffer();

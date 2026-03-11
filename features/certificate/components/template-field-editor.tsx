@@ -25,6 +25,11 @@ type PreviewSize = {
 
 type DragState = {
   key: string;
+  startClientX: number;
+  startClientY: number;
+  anchorOffsetXPercent: number;
+  anchorOffsetYPercent: number;
+  hasMoved: boolean;
 };
 
 type ResizeState = {
@@ -44,6 +49,7 @@ const MIN_WIDTH_PERCENT = 10;
 const MAX_ZOOM = 200;
 const MIN_ZOOM = 50;
 const ZOOM_STEP = 10;
+const DRAG_START_THRESHOLD_PX = 4;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -57,6 +63,18 @@ function getFieldTransform(align: TextFieldConfig['align']) {
   if (align === 'center') return 'translate(-50%, -50%)';
   if (align === 'right') return 'translate(-100%, -50%)';
   return 'translate(0, -50%)';
+}
+
+function getAnchorOffsetXPercent(field: EditableFieldRow, pointerPercent: number) {
+  if (field.align === 'center') {
+    return pointerPercent - field.xPercent + field.maxWidthPercent / 2;
+  }
+
+  if (field.align === 'right') {
+    return pointerPercent - (field.xPercent - field.maxWidthPercent);
+  }
+
+  return pointerPercent - field.xPercent;
 }
 
 function getFieldWidthLimit(field: EditableFieldRow) {
@@ -170,9 +188,31 @@ export function TemplateFieldEditor({ template, rows, selectedKey, onSelect, onU
     if (!dragState) return;
 
     const activeKey = dragState.key;
+    const { startClientX, startClientY, anchorOffsetXPercent, anchorOffsetYPercent, hasMoved } = dragState;
 
     function handlePointerMove(event: PointerEvent) {
-      updatePositionFromPoint(activeKey, event.clientX, event.clientY);
+      const deltaX = event.clientX - startClientX;
+      const deltaY = event.clientY - startClientY;
+      const nextHasMoved = hasMoved || Math.hypot(deltaX, deltaY) >= DRAG_START_THRESHOLD_PX;
+
+      if (!nextHasMoved) {
+        return;
+      }
+
+      updatePositionFromPoint(
+        activeKey,
+        event.clientX,
+        event.clientY,
+        anchorOffsetXPercent,
+        anchorOffsetYPercent,
+      );
+
+      if (!hasMoved) {
+        setDragState((prev) => {
+          if (!prev || prev.key !== activeKey) return prev;
+          return { ...prev, hasMoved: true };
+        });
+      }
     }
 
     function handlePointerUp() {
@@ -211,21 +251,57 @@ export function TemplateFieldEditor({ template, rows, selectedKey, onSelect, onU
     };
   }, [resizeState, rows]);
 
-  function updatePositionFromPoint(key: string, clientX: number, clientY: number) {
+  function updatePositionFromPoint(
+    key: string,
+    clientX: number,
+    clientY: number,
+    anchorOffsetXPercent?: number,
+    anchorOffsetYPercent?: number,
+  ) {
     const preview = previewRef.current;
-    if (!preview) return;
+    const field = rows.find((row) => row._key === key);
+    if (!preview || !field) return;
 
     const rect = preview.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
 
-    const rawX = clamp(((clientX - rect.left) / rect.width) * 100, 0, 100);
-    const rawY = clamp(((clientY - rect.top) / rect.height) * 100, 0, 100);
+    const pointerXPercent = clamp(((clientX - rect.left) / rect.width) * 100, 0, 100);
+    const pointerYPercent = clamp(((clientY - rect.top) / rect.height) * 100, 0, 100);
+
+    const effectiveAnchorXPercent = anchorOffsetXPercent ?? field.maxWidthPercent / 2;
+    const effectiveAnchorYPercent = anchorOffsetYPercent ?? 0;
+
+    let rawX = pointerXPercent;
+
+    if (field.align === 'center') {
+      rawX = pointerXPercent - effectiveAnchorXPercent + field.maxWidthPercent / 2;
+    } else if (field.align === 'right') {
+      rawX = pointerXPercent - effectiveAnchorXPercent + field.maxWidthPercent;
+    } else {
+      rawX = pointerXPercent - effectiveAnchorXPercent;
+    }
+
+    const rawY = pointerYPercent - effectiveAnchorYPercent;
+
+    const minX = field.align === 'center'
+      ? field.maxWidthPercent / 2
+      : field.align === 'right'
+        ? field.maxWidthPercent
+        : 0;
+    const maxX = field.align === 'center'
+      ? 100 - field.maxWidthPercent / 2
+      : field.align === 'right'
+        ? 100
+        : 100 - field.maxWidthPercent;
+
+    rawX = clamp(rawX, minX, maxX);
+    const clampedY = clamp(rawY, 0, 100);
 
     const xCandidates = [50, ...rows.filter((row) => row._key !== key).map((row) => row.xPercent)];
     const yCandidates = [50, ...rows.filter((row) => row._key !== key).map((row) => row.yPercent)];
 
     let snappedX = rawX;
-    let snappedY = rawY;
+    let snappedY = clampedY;
     let guideX: number | null = null;
     let guideY: number | null = null;
 
@@ -291,8 +367,30 @@ export function TemplateFieldEditor({ template, rows, selectedKey, onSelect, onU
     onSelect(key);
     previewRef.current?.focus();
     setResizeState(null);
-    setDragState({ key });
-    updatePositionFromPoint(key, event.clientX, event.clientY);
+
+    const preview = previewRef.current;
+    const field = rows.find((row) => row._key === key);
+    let anchorOffsetXPercent = 0;
+    let anchorOffsetYPercent = 0;
+
+    if (preview && field) {
+      const rect = preview.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        const pointerXPercent = clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100);
+        const pointerYPercent = clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100);
+        anchorOffsetXPercent = getAnchorOffsetXPercent(field, pointerXPercent);
+        anchorOffsetYPercent = pointerYPercent - field.yPercent;
+      }
+    }
+
+    setDragState({
+      key,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      anchorOffsetXPercent,
+      anchorOffsetYPercent,
+      hasMoved: false,
+    });
   }
 
   function handleResizePointerDown(key: string, event: ReactPointerEvent<HTMLButtonElement>) {
@@ -359,7 +457,7 @@ export function TemplateFieldEditor({ template, rows, selectedKey, onSelect, onU
   }
 
   const scale = previewSize.width > 0 ? previewSize.width / template.width : 1;
-  const previewUrl = template.thumbnailUrl ?? template.url;
+  const previewUrl = `/api/certificate/files?templateId=${encodeURIComponent(template.id)}&variant=thumbnail`;
 
   return (
     <div className="space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-border">
@@ -511,7 +609,7 @@ export function TemplateFieldEditor({ template, rows, selectedKey, onSelect, onU
                           color: row.color,
                           fontFamily: row.fontFamily,
                           fontWeight: row.fontWeight,
-                          fontSize: `${Math.max(12, previewFontSize)}px`,
+                          fontSize: `${Math.max(1, previewFontSize)}px`,
                           lineHeight: 1.1,
                           touchAction: 'none',
                           opacity: isPlaceholder ? 0.5 : 1,

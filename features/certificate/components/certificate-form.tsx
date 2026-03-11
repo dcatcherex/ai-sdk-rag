@@ -17,14 +17,46 @@ export function CertificateForm({ template }: Props) {
   );
   const [format, setFormat] = useState<ExportFormat>('png');
   const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
+  const [resultKey, setResultKey] = useState<string | null>(null);
+  const [resultFilename, setResultFilename] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function handleDownload() {
+    if (!resultKey) return;
+
+    setDownloading(true);
+    setError(null);
+
+    try {
+      const fileUrl = `/api/certificate/files?key=${encodeURIComponent(resultKey)}&download=1${resultFilename ? `&filename=${encodeURIComponent(resultFilename)}` : ''}`;
+      const response = await fetch(fileUrl);
+      if (!response.ok) throw new Error('Download failed');
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = resultFilename ?? `${template.name || 'certificate'}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Download failed');
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   async function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setResultUrl(null);
+    setResultKey(null);
+    setResultFilename(null);
     try {
       const res = await fetch('/api/certificate/generate', {
         method: 'POST',
@@ -36,8 +68,10 @@ export function CertificateForm({ template }: Props) {
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? 'Generation failed');
-      const data = await res.json();
+      const data = await res.json() as { url: string; r2Key: string; filename: string };
       setResultUrl(data.url);
+      setResultKey(data.r2Key);
+      setResultFilename(data.filename);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -92,11 +126,9 @@ export function CertificateForm({ template }: Props) {
       {resultUrl && (
         <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950/30">
           <p className="flex-1 text-sm font-medium text-green-700 dark:text-green-400">Certificate generated!</p>
-          <a href={resultUrl} download target="_blank" rel="noopener noreferrer">
-            <Button size="sm" variant="outline">
-              <Download className="mr-1 h-3.5 w-3.5" /> Download
-            </Button>
-          </a>
+          <Button size="sm" variant="outline" type="button" onClick={handleDownload} disabled={downloading}>
+            <Download className="mr-1 h-3.5 w-3.5" /> {downloading ? 'Downloading…' : 'Download'}
+          </Button>
         </div>
       )}
     </form>

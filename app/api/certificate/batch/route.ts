@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { certificateTemplate, certificateJob } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
-import { generateCertificate } from '@/lib/certificate-generator';
+import { generateCertificate, mergePdfBuffers } from '@/lib/certificate-generator';
 import { uploadPublicObject } from '@/lib/r2';
 import { nanoid } from 'nanoid';
 import JSZip from 'jszip';
@@ -28,7 +28,7 @@ const MIME: Record<string, string> = {
  *   format: 'png'|'jpg'|'pdf',
  *   recipients: Array<{ values: { fieldId, value }[] }>
  * }
- * Returns: { jobId, zipUrl, count }
+ * Returns: { jobId, zipKey, count }
  */
 export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
@@ -37,10 +37,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json() as {
     templateId: string;
     format?: 'png' | 'jpg' | 'pdf';
+    exportMode?: 'zip' | 'single_pdf';
     recipients: Array<{ values: CertificateField[] }>;
   };
 
-  const { templateId, recipients, format = 'png' } = body;
+  const { templateId, recipients, format = 'png', exportMode = 'zip' } = body;
 
   if (!templateId || !recipients?.length) {
     return NextResponse.json({ error: 'Missing templateId or recipients' }, { status: 400 });
@@ -71,15 +72,15 @@ export async function POST(req: NextRequest) {
   });
 
   try {
-    // Fetch template image once
     const imageRes = await fetch(template.url);
     if (!imageRes.ok) throw new Error('Failed to fetch template image');
     const templateBuffer = Buffer.from(await imageRes.arrayBuffer());
     const fields = template.fields as TextFieldConfig[];
 
-    // Generate all certificates and zip them
     const zip = new JSZip();
     const usedNames = new Map<string, number>();
+    const pdfBuffers: Buffer[] = [];
+    const mergedPdfRequested = format === 'pdf' && exportMode === 'single_pdf';
 
     for (let i = 0; i < recipients.length; i++) {
       const { values } = recipients[i];
@@ -100,25 +101,61 @@ export async function POST(req: NextRequest) {
       usedNames.set(safeName, count + 1);
       const filename = count === 0 ? `${safeName}.${format}` : `${safeName}_${count}.${format}`;
 
-      zip.file(filename, certBuffer);
+      if (mergedPdfRequested) {
+        pdfBuffers.push(certBuffer);
+      } else {
+        zip.file(filename, certBuffer);
+      }
+    }
+
+    if (mergedPdfRequested) {
+      const mergedPdfBuffer = await mergePdfBuffers(pdfBuffers);
+      const safeTemplateName = template.name.replace(/[^a-z0-9_\-]/gi, '_').slice(0, 50) || 'certificates';
+      const fileName = `${safeTemplateName}_batch.pdf`;
+      const fileKey = `certificates/output/${userId}/${jobId}/${fileName}`;
+      const { url: fileUrl } = await uploadPublicObject({
+        key: fileKey,
+        body: mergedPdfBuffer,
+        contentType: 'application/pdf',
+        cacheControl: 'public, max-age=86400',
+      });
+
+      await db
+        .update(certificateJob)
+        .set({ status: 'completed', processedCount: recipients.length, zipKey: fileKey, zipUrl: fileUrl, completedAt: new Date() })
+        .where(eq(certificateJob.id, jobId));
+
+      return NextResponse.json({
+        jobId,
+        fileKey,
+        fileName,
+        count: recipients.length,
+        downloadLabel: 'Download PDF',
+      });
     }
 
     const zipBuffer = Buffer.from(await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }));
-    const zipKey = `certificates/zips/${userId}/${jobId}.zip`;
-    const { url: zipUrl } = await uploadPublicObject({
-      key: zipKey,
+    const fileName = `${template.name.replace(/[^a-z0-9_\-]/gi, '_').slice(0, 50) || 'certificates'}.zip`;
+    const fileKey = `certificates/zips/${userId}/${jobId}.zip`;
+    const { url: fileUrl } = await uploadPublicObject({
+      key: fileKey,
       body: zipBuffer,
       contentType: 'application/zip',
       cacheControl: 'public, max-age=86400',
     });
 
-    // Update job as completed
     await db
       .update(certificateJob)
-      .set({ status: 'completed', processedCount: recipients.length, zipKey, zipUrl, completedAt: new Date() })
+      .set({ status: 'completed', processedCount: recipients.length, zipKey: fileKey, zipUrl: fileUrl, completedAt: new Date() })
       .where(eq(certificateJob.id, jobId));
 
-    return NextResponse.json({ jobId, zipUrl, count: recipients.length });
+    return NextResponse.json({
+      jobId,
+      fileKey,
+      fileName,
+      count: recipients.length,
+      downloadLabel: 'Download ZIP',
+    });
   } catch (error) {
     await db
       .update(certificateJob)
