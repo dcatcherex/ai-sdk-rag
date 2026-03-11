@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Trash2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { nanoid } from 'nanoid';
 import { useUpdateTemplate } from '../hooks/use-templates';
 import type { CertificateTemplate, TextFieldConfig } from '../types';
 import { DEFAULT_FIELD } from '../types';
+import { TemplateFieldEditor } from './template-field-editor';
 
 type Props = {
   template: CertificateTemplate;
@@ -24,7 +25,27 @@ function toRows(fields: TextFieldConfig[]): FieldRow[] {
 
 export function FieldConfigurator({ template, onSaved }: Props) {
   const [rows, setRows] = useState<FieldRow[]>(() => toRows(template.fields));
+  const [selectedKey, setSelectedKey] = useState<string | null>(() => template.fields[0]?.id ?? null);
   const updateMutation = useUpdateTemplate();
+
+  useEffect(() => {
+    const nextRows = toRows(template.fields);
+    setRows(nextRows);
+    setSelectedKey(nextRows[0]?._key ?? null);
+  }, [template]);
+
+  useEffect(() => {
+    if (rows.length === 0) {
+      if (selectedKey !== null) {
+        setSelectedKey(null);
+      }
+      return;
+    }
+
+    if (!selectedKey || !rows.some((row) => row._key === selectedKey)) {
+      setSelectedKey(rows[0]._key);
+    }
+  }, [rows, selectedKey]);
 
   function addField() {
     const id = nanoid(8);
@@ -32,10 +53,18 @@ export function FieldConfigurator({ template, onSaved }: Props) {
       ...prev,
       { ...DEFAULT_FIELD, id, label: 'New Field', _key: id },
     ]);
+    setSelectedKey(id);
   }
 
   function removeField(key: string) {
     setRows((prev) => prev.filter((r) => r._key !== key));
+    if (selectedKey === key) {
+      setSelectedKey((prevSelected) => {
+        if (prevSelected !== key) return prevSelected;
+        const nextRow = rows.find((row) => row._key !== key);
+        return nextRow?._key ?? null;
+      });
+    }
   }
 
   function updateField<K extends keyof FieldRow>(key: string, prop: K, value: FieldRow[K]) {
@@ -96,15 +125,29 @@ export function FieldConfigurator({ template, onSaved }: Props) {
         </p>
       )}
 
+      {rows.length > 0 && (
+        <TemplateFieldEditor
+          template={template}
+          rows={rows}
+          selectedKey={selectedKey}
+          onSelect={setSelectedKey}
+          onUpdateField={updateField}
+        />
+      )}
+
       <div className="space-y-4">
         {rows.map((row) => (
-          <div key={row._key} className="rounded-xl border border-zinc-200 p-4 dark:border-border">
+          <div
+            key={row._key}
+            className={`rounded-xl border p-4 dark:border-border ${selectedKey === row._key ? 'border-indigo-300 bg-indigo-50/40 dark:border-indigo-500/60 dark:bg-indigo-950/20' : 'border-zinc-200'}`}
+          >
             <div className="mb-3 grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-[11px]">Field ID</Label>
                 <Input
                   value={row.id}
                   onChange={(e) => updateField(row._key, 'id', e.target.value)}
+                  onFocus={() => setSelectedKey(row._key)}
                   placeholder="name"
                   className="h-8 font-mono text-xs"
                 />
@@ -114,6 +157,7 @@ export function FieldConfigurator({ template, onSaved }: Props) {
                 <Input
                   value={row.label}
                   onChange={(e) => updateField(row._key, 'label', e.target.value)}
+                  onFocus={() => setSelectedKey(row._key)}
                   placeholder="Recipient Name"
                   className="h-8 text-xs"
                 />
