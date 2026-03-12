@@ -56,8 +56,7 @@ export function KnowledgePanel({ selectedDocIds, onToggleSelect }: KnowledgePane
             href="/knowledge"
             className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground transition hover:text-foreground"
           >
-            Manage
-            <ExternalLinkIcon className="size-3" />
+            <ExternalLinkIcon className="size-4" />
           </Link>
         </div>
       </div>
@@ -83,7 +82,7 @@ export function KnowledgePanel({ selectedDocIds, onToggleSelect }: KnowledgePane
       </div>
 
       {/* Document list */}
-      <div className="min-h-0 flex-1 px-4 pt-3 pb-4">
+      <div className="min-h-0 flex-1 pt-3 pb-4">
         <ScrollArea className="h-full">
           <DocumentList
             variant="compact"
