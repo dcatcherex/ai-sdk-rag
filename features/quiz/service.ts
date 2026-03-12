@@ -5,7 +5,9 @@
  */
 
 import { generateText, Output } from 'ai';
+import { nanoid } from 'nanoid';
 import { searchDocumentsByIds, type SearchResult } from '@/lib/vector-store';
+import type { ToolExecutionResult } from '@/features/tools/registry/types';
 import {
   type GeneratePracticeQuizInput,
   type GradePracticeAnswerInput,
@@ -300,5 +302,84 @@ export async function runGenerateFlashcards(
     groundedFromKnowledgeBase: grounding.sources.length > 0,
     groundingReferences: grounding.references,
     sources: grounding.sources,
+  };
+}
+
+// ── Normalized action wrappers ────────────────────────────────────────────────
+// These wrap the raw service functions in the ToolExecutionResult envelope.
+// Use these from API routes and sidebar — use raw functions inside agent adapters.
+
+export async function generatePracticeQuizAction(
+  input: GeneratePracticeQuizInput,
+  options?: QuizServiceOptions,
+): Promise<ToolExecutionResult> {
+  const data = await runGeneratePracticeQuiz(input, options);
+  return {
+    tool: 'exam_prep',
+    runId: nanoid(),
+    title: `Quiz: ${input.topic}`,
+    summary: `${data.quiz.length} ${input.format ?? 'mixed'} questions · ${input.difficulty ?? 'medium'} difficulty`,
+    data,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+export async function gradePracticeAnswerAction(
+  input: GradePracticeAnswerInput,
+  options?: QuizServiceOptions,
+): Promise<ToolExecutionResult> {
+  const data = await runGradePracticeAnswer(input, options);
+  return {
+    tool: 'exam_prep',
+    runId: nanoid(),
+    title: `Grading: ${input.question.slice(0, 60)}${input.question.length > 60 ? '\u2026' : ''}`,
+    summary: `Score ${data.score}/${data.maxScore} — ${data.verdict}`,
+    data,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+export async function createStudyPlanAction(
+  input: CreateStudyPlanInput,
+  options?: QuizServiceOptions,
+): Promise<ToolExecutionResult> {
+  const data = await runCreateStudyPlan(input, options);
+  return {
+    tool: 'exam_prep',
+    runId: nanoid(),
+    title: `Study plan: ${input.topics.slice(0, 3).join(', ')}`,
+    summary: `${data.daysRemaining} days remaining · ${data.plan.length} day plan`,
+    data,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+export async function analyzeLearningGapsAction(
+  input: AnalyzeLearningGapsInput,
+  options?: QuizServiceOptions,
+): Promise<ToolExecutionResult> {
+  const data = await runAnalyzeLearningGaps(input, options);
+  return {
+    tool: 'exam_prep',
+    runId: nanoid(),
+    title: `Learning gaps: ${input.topic}`,
+    summary: `${data.weakAreas.length} weak areas identified`,
+    data,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+export async function generateFlashcardsAction(
+  input: GenerateFlashcardsInput,
+  options?: QuizServiceOptions,
+): Promise<ToolExecutionResult> {
+  const data = await runGenerateFlashcards(input, options);
+  return {
+    tool: 'exam_prep',
+    runId: nanoid(),
+    title: data.deckTitle,
+    summary: `${data.flashcards.length} cards`,
+    data,
+    createdAt: new Date().toISOString(),
   };
 }

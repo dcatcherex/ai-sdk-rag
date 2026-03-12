@@ -152,19 +152,20 @@ Agent   → agent.ts (thin wrapper)  → service.ts
 ### 3. Adding a New Tool — Checklist
 
 ```
-1. features/<toolName>/manifest.ts   ← id, slug, title, icon, category, professions
-2. features/<toolName>/schema.ts     ← Zod input/output schemas
-3. features/<toolName>/service.ts    ← canonical business logic
-4. features/<toolName>/agent.ts      ← thin tool() wrappers calling service
-5. features/<toolName>/types.ts      ← exported TypeScript types
-6. Register in features/tools/registry/client.ts  (import manifest)
-7. Register in features/tools/registry/server.ts  (import agent factory)
-8. Add case to app/tools/[toolSlug]/page.tsx
+1. features/<toolName>/manifest.ts        ← id, slug, title, icon, category, defaultEnabled
+2. features/<toolName>/schema.ts          ← Zod input/output schemas
+3. features/<toolName>/service.ts         ← canonical business logic
+                                             runXxx()      ← raw (used by agent adapter)
+                                             xxxAction()   ← returns ToolExecutionResult (API/sidebar)
+4. features/<toolName>/agent.ts           ← thin tool() wrappers calling runXxx()
+5. features/<toolName>/types.ts           ← exported TypeScript types
+6. Register in features/tools/registry/client.ts      (import manifest → TOOL_MANIFESTS)
+7. Register in features/tools/registry/server.ts      (import agent factory → SERVER_REGISTRY)
+8. Register in features/tools/registry/page-loaders.ts (add slug → dynamic import)
 9. Create features/<toolName>/components/<tool>-tool-page.tsx
 ```
 
-Sidebar, settings toggles, and agent tool builder auto-update from the registry.
-No other files need to change.
+`app/tools/[toolSlug]/page.tsx`, `lib/tools/index.ts`, and `lib/tool-registry.ts` never need to change when adding a tool — they all derive from the registry automatically.
 
 ### 4. Database Changes
 

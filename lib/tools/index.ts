@@ -2,14 +2,13 @@ import type { ToolSet } from 'ai';
 import { weatherTools } from './weather';
 import { ragTools, createScopedRagTools } from './rag';
 import { ALL_TOOL_IDS } from '@/lib/tool-registry';
-// Registry-managed tools — logic lives in features/<tool>/service.ts
-import { createQuizAgentTools } from '@/features/quiz/agent';
-import { createCertificateAgentTools } from '@/features/certificate/agent';
+import { buildRegistryAgentTools } from '@/features/tools/registry/server';
+import type { AgentToolContext } from '@/features/tools/registry/types';
 
 export { weatherTools, ragTools, createScopedRagTools };
 
 export type BuildToolSetOptions = {
-  /** Which tool groups to include. Pass null/undefined to include all defaults. */
+  /** Which tool IDs to include. Pass null to include all. */
   enabledToolIds: string[] | null;
   /** The user ID — needed for user-scoped tools (certificate). */
   userId: string;
@@ -19,26 +18,40 @@ export type BuildToolSetOptions = {
   rerankEnabled?: boolean;
   /** Execution context for tools with side effects. */
   source?: 'manual' | 'agent';
-  /** Optional per-tool recipient cap. */
+  /** Optional per-tool recipient cap (certificate). */
   certificateMaxRecipients?: number;
 };
 
 /**
- * Assemble a ToolSet from enabled tool groups.
- * This is the single place that maps group IDs → actual tool objects.
+ * Assemble a ToolSet from enabled tool IDs.
  *
- * Tool groups:
- *   'weather'        → weather + convertFahrenheitToCelsius
- *   'knowledge_base' → searchKnowledge + retrieveDocument
- *   'exam_prep'      → quiz/exam-prep tools (features/quiz/agent.ts → features/quiz/service.ts)
- *   'certificate'    → certificate tools (features/certificate/agent.ts → features/certificate/service.ts)
+ * Two categories of tools:
+ *
+ *   Special / global tools (hardcoded here, no manifest):
+ *     'weather'        → weather + convertFahrenheitToCelsius
+ *     'knowledge_base' → searchKnowledge + retrieveDocument
+ *
+ *   Registry-managed tools (delegated to features/tools/registry/server.ts):
+ *     'exam_prep'   → quiz tools  (features/quiz/agent.ts → service.ts)
+ *     'certificate' → cert tools  (features/certificate/agent.ts → service.ts)
+ *     …any future tool registered in SERVER_REGISTRY
+ *
+ * To add a new registry tool, register it in features/tools/registry/server.ts.
+ * No changes to this file are needed.
  */
-export function buildToolSet({ enabledToolIds, userId, documentIds, rerankEnabled, source, certificateMaxRecipients }: BuildToolSetOptions): ToolSet {
-  // null means "all tools enabled" (default for new users)
+export function buildToolSet({
+  enabledToolIds,
+  userId,
+  documentIds,
+  rerankEnabled,
+  source,
+  certificateMaxRecipients,
+}: BuildToolSetOptions): ToolSet {
   const ids = enabledToolIds ?? ALL_TOOL_IDS;
 
   const result: ToolSet = {};
 
+  // ── Special / global tools ─────────────────────────────────────────────────
   if (ids.includes('weather')) {
     Object.assign(result, weatherTools);
   }
@@ -47,17 +60,19 @@ export function buildToolSet({ enabledToolIds, userId, documentIds, rerankEnable
     Object.assign(result, createScopedRagTools(documentIds, { rerank: rerankEnabled ?? false }));
   }
 
-  if (ids.includes('exam_prep')) {
-    Object.assign(result, createQuizAgentTools({ documentIds, rerankEnabled }));
-  }
+  // ── Registry-managed tools (single delegation point) ──────────────────────
+  const ctx: AgentToolContext = {
+    userId,
+    documentIds,
+    rerankEnabled,
+    source,
+    toolOptions: {
+      certificateMaxRecipients,
+    },
+  };
 
-  if (ids.includes('certificate')) {
-    Object.assign(result, createCertificateAgentTools({
-      userId,
-      source,
-      maxRecipients: certificateMaxRecipients,
-    }));
-  }
+  const registryTools = buildRegistryAgentTools(ids, ctx);
+  Object.assign(result, registryTools);
 
   return result;
 }

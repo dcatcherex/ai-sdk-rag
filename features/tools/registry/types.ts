@@ -29,6 +29,8 @@ export type ToolManifest = {
   supportsAgent: boolean;
   supportsSidebar: boolean;
   supportsExport: boolean;
+  /** Whether this tool is enabled by default for new users (drives DEFAULT_TOOL_IDS) */
+  defaultEnabled: boolean;
   access: {
     requiresAuth: boolean;
     roles?: Array<'user' | 'admin'>;
@@ -51,6 +53,10 @@ export type AgentToolContext = {
   documentIds?: string[];
   rerankEnabled?: boolean;
   source?: 'manual' | 'agent';
+  /** Per-tool options forwarded from buildToolSet callers */
+  toolOptions?: {
+    certificateMaxRecipients?: number;
+  };
 };
 
 /**

@@ -27,6 +27,7 @@ const SERVER_REGISTRY: RegisteredTool[] = [
       createCertificateAgentTools({
         userId: ctx.userId,
         source: ctx.source,
+        maxRecipients: ctx.toolOptions?.certificateMaxRecipients,
       }),
     getSidebarPageHref: () => `/tools/${certificateManifest.slug}`,
   },

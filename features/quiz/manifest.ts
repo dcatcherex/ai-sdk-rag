@@ -12,6 +12,7 @@ export const quizManifest: ToolManifest = {
   supportsAgent: true,
   supportsSidebar: true,
   supportsExport: true,
+  defaultEnabled: false,
   access: {
     requiresAuth: true,
     enabled: true,

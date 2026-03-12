@@ -437,9 +437,11 @@ Tools are AI capabilities that work in two contexts:
 #### 4-Layer Architecture Per Tool
 
 ```
-manifest.ts   → discovery metadata (id, slug, title, icon, category)
+manifest.ts   → discovery metadata (id, slug, title, icon, category, defaultEnabled)
 schema.ts     → Zod input/output validation (shared by UI and agent)
 service.ts    → canonical business logic (THE ONLY PLACE work happens)
+              → raw functions (used by agent adapters)
+              → *Action() wrappers (return ToolExecutionResult — used by API/sidebar)
 agent.ts      → thin AI SDK tool() adapter (calls service, no logic)
 ```
 
@@ -448,7 +450,8 @@ agent.ts      → thin AI SDK tool() adapter (calls service, no logic)
 | File | Imports | Used by |
 |------|---------|---------|
 | `features/tools/registry/client.ts` | manifests only | Sidebar, settings, client components |
-| `features/tools/registry/server.ts` | manifests + agent adapters | API routes, chat route tool builder |
+| `features/tools/registry/server.ts` | manifests + agent adapters | API routes, chat route — `buildRegistryAgentTools()` |
+| `features/tools/registry/page-loaders.ts` | page components (dynamic) | `app/tools/[toolSlug]/page.tsx` only |
 
 #### Current Registered Tools
 
@@ -468,7 +471,7 @@ agent.ts      → thin AI SDK tool() adapter (calls service, no logic)
 
 #### buildToolSet()
 
-`lib/tools/index.ts` — called by the chat API route to assemble the active tool set:
+`lib/tools/index.ts` — called by the chat API route. Internally delegates registry-managed tools to `buildRegistryAgentTools()` in the server registry, keeping special tools (weather, knowledge_base) hardcoded:
 
 ```typescript
 buildToolSet({
@@ -480,6 +483,8 @@ buildToolSet({
   certificateMaxRecipients: 100,
 })
 ```
+
+Adding a new registry-managed tool never requires changing `buildToolSet()`. Only `features/tools/registry/server.ts` needs updating.
 
 ---
 
@@ -666,6 +671,7 @@ export const myToolManifest: ToolManifest = {
   supportsAgent: true,
   supportsSidebar: true,
   supportsExport: false,
+  defaultEnabled: false,   // true = on for new users by default
   access: {
     requiresAuth: true,
     enabled: true,
@@ -689,17 +695,38 @@ export type MyToolInput = z.infer<typeof myToolInputSchema>;
 
 ### Step 3 — Write the service (all logic goes here)
 
+The service has two levels:
+- **Raw functions** (`runXxx`) — called by agent adapters; return domain data
+- **Action wrappers** (`xxxAction`) — called by API routes and sidebar; return `ToolExecutionResult`
+
 ```typescript
 // features/<toolName>/service.ts
-import { myToolInputSchema, type MyToolInput } from './schema';
+import { nanoid } from 'nanoid';
+import type { ToolExecutionResult } from '@/features/tools/registry/types';
+import type { MyToolInput } from './schema';
 
-export type MyToolOptions = {
-  userId: string;
-};
+export type MyToolOptions = { userId: string };
 
+// Raw function — agent adapter calls this
 export async function runMyTool(input: MyToolInput, options: MyToolOptions) {
   // all business logic here
   return { result: '...' };
+}
+
+// Normalized wrapper — API route / sidebar calls this
+export async function myToolAction(
+  input: MyToolInput,
+  options: MyToolOptions,
+): Promise<ToolExecutionResult> {
+  const data = await runMyTool(input, options);
+  return {
+    tool: 'my_tool',
+    runId: nanoid(),
+    title: `My Tool: ${input.topic}`,
+    summary: 'Brief description of result',
+    data,
+    createdAt: new Date().toISOString(),
+  };
 }
 ```
 
@@ -794,15 +821,20 @@ export function MyToolPage({ manifest }: { manifest: ToolManifest }) {
 }
 ```
 
-### Step 10 — Add route case
+### Step 10 — Register the page loader
 
 ```typescript
-// app/tools/[toolSlug]/page.tsx — add case:
-case 'my-tool': {
-  const { MyToolPage } = await import('@/features/<toolName>/components/<toolName>-tool-page');
-  return <MyToolPage manifest={manifest} />;
-}
+// features/tools/registry/page-loaders.ts — add one entry:
+export const TOOL_PAGE_LOADERS: Record<string, ToolPageLoader> = {
+  // ...existing entries...
+  'my-tool': async () => {
+    const { MyToolPage } = await import('@/features/my-tool/components/my-tool-page');
+    return MyToolPage;
+  },
+};
 ```
+
+`app/tools/[toolSlug]/page.tsx` picks it up automatically — **no changes needed there**.
 
 **Done.** The tool now:
 - Appears in the settings tools toggle list
