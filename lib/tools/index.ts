@@ -1,9 +1,10 @@
 import type { ToolSet } from 'ai';
 import { weatherTools } from './weather';
 import { ragTools, createScopedRagTools } from './rag';
-import { createCertificateTools } from './certificate';
-import { createExamPrepTools } from './exam-prep';
 import { ALL_TOOL_IDS } from '@/lib/tool-registry';
+// Registry-managed tools — logic lives in features/<tool>/service.ts
+import { createQuizAgentTools } from '@/features/quiz/agent';
+import { createCertificateAgentTools } from '@/features/certificate/agent';
 
 export { weatherTools, ragTools, createScopedRagTools };
 
@@ -27,9 +28,10 @@ export type BuildToolSetOptions = {
  * This is the single place that maps group IDs → actual tool objects.
  *
  * Tool groups:
- *   'weather'      → weather + convertFahrenheitToCelsius
+ *   'weather'        → weather + convertFahrenheitToCelsius
  *   'knowledge_base' → searchKnowledge + retrieveDocument
- *   'certificate'  → list_certificate_templates + generate_certificate_output
+ *   'exam_prep'      → quiz/exam-prep tools (features/quiz/agent.ts → features/quiz/service.ts)
+ *   'certificate'    → certificate tools (features/certificate/agent.ts → features/certificate/service.ts)
  */
 export function buildToolSet({ enabledToolIds, userId, documentIds, rerankEnabled, source, certificateMaxRecipients }: BuildToolSetOptions): ToolSet {
   // null means "all tools enabled" (default for new users)
@@ -46,14 +48,12 @@ export function buildToolSet({ enabledToolIds, userId, documentIds, rerankEnable
   }
 
   if (ids.includes('exam_prep')) {
-    Object.assign(result, createExamPrepTools({
-      documentIds,
-      rerankEnabled: rerankEnabled ?? false,
-    }));
+    Object.assign(result, createQuizAgentTools({ documentIds, rerankEnabled }));
   }
 
   if (ids.includes('certificate')) {
-    Object.assign(result, createCertificateTools(userId, {
+    Object.assign(result, createCertificateAgentTools({
+      userId,
       source,
       maxRecipients: certificateMaxRecipients,
     }));

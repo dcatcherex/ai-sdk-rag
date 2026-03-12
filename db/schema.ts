@@ -538,3 +538,49 @@ export const agentShareRelations = relations(agentShare, ({ one }) => ({
   agent: one(agent, { fields: [agentShare.agentId], references: [agent.id] }),
   sharedWithUser: one(user, { fields: [agentShare.sharedWithUserId], references: [user.id] }),
 }));
+
+// ── Tool Run / Artifact (unified tool execution persistence) ──────────────────
+
+export const toolRun = pgTable('tool_run', {
+  id: text('id').primaryKey(),
+  toolSlug: text('tool_slug').notNull(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  threadId: text('thread_id').references(() => chatThread.id, { onDelete: 'set null' }),
+  /** Execution source: 'sidebar' | 'agent' | 'api' */
+  source: text('source').notNull(),
+  inputJson: jsonb('input_json').notNull(),
+  outputJson: jsonb('output_json'),
+  /** 'pending' | 'success' | 'error' */
+  status: text('status').notNull().default('pending'),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  completedAt: timestamp('completed_at'),
+}, (table) => [
+  index('tool_run_userId_idx').on(table.userId),
+  index('tool_run_toolSlug_idx').on(table.toolSlug),
+  index('tool_run_threadId_idx').on(table.threadId),
+]);
+
+export const toolArtifact = pgTable('tool_artifact', {
+  id: text('id').primaryKey(),
+  toolRunId: text('tool_run_id').notNull().references(() => toolRun.id, { onDelete: 'cascade' }),
+  /** Semantic kind: 'quiz' | 'certificate' | 'flashcards' | 'study_plan' | ... */
+  kind: text('kind').notNull(),
+  /** Storage format: 'json' | 'html' | 'pdf' | 'csv' */
+  format: text('format').notNull(),
+  storageUrl: text('storage_url'),
+  payloadJson: jsonb('payload_json'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  index('tool_artifact_runId_idx').on(table.toolRunId),
+]);
+
+export const toolRunRelations = relations(toolRun, ({ one, many }) => ({
+  user: one(user, { fields: [toolRun.userId], references: [user.id] }),
+  thread: one(chatThread, { fields: [toolRun.threadId], references: [chatThread.id] }),
+  artifacts: many(toolArtifact),
+}));
+
+export const toolArtifactRelations = relations(toolArtifact, ({ one }) => ({
+  toolRun: one(toolRun, { fields: [toolArtifact.toolRunId], references: [toolRun.id] }),
+}));
