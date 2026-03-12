@@ -71,6 +71,7 @@ export const MessagePartRenderer = memo(
             toolName={toolName}
             output={toolOutput}
             messageId={messageId}
+            threadId={threadId}
             onQuizStateChange={onQuizStateChange}
           />
         );

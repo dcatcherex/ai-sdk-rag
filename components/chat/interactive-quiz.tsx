@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ExternalLinkIcon, PrinterIcon } from "lucide-react";
 import { CitationBadge } from "@/components/chat/citation-badge";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,7 @@ type InteractiveQuizProps = {
   messageId: string;
   onQuizStateChange?: (context: QuizFollowUpContext) => void;
   questions: QuizQuestion[];
+  threadId?: string;
 };
 
 type RevealState = Record<string, boolean>;
@@ -78,7 +80,7 @@ const resolveReferences = (
     .filter((reference): reference is ResolvedReference => Boolean(reference));
 };
 
-export function InteractiveQuiz({ groundingReferences, instructions, messageId, onQuizStateChange, questions }: InteractiveQuizProps) {
+export function InteractiveQuiz({ groundingReferences, instructions, messageId, onQuizStateChange, questions, threadId }: InteractiveQuizProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedChoices, setSelectedChoices] = useState<ChoiceState>({});
   const [shortAnswers, setShortAnswers] = useState<ShortAnswerState>({});
@@ -163,6 +165,15 @@ export function InteractiveQuiz({ groundingReferences, instructions, messageId, 
     : false;
   const progressValue = questions.length > 0 ? (revealedCount / questions.length) * 100 : 0;
   const resolvedReferences = resolveReferences(currentQuestion.references, groundingReferences);
+  const printBaseHref = threadId ? `/quiz/print/${threadId}/${messageId}` : null;
+
+  const openPrintView = (mode: "worksheet" | "answer-key" | "both") => {
+    if (!printBaseHref || typeof window === "undefined") {
+      return;
+    }
+
+    window.open(`${printBaseHref}?mode=${mode}`, "_blank", "noopener,noreferrer");
+  };
 
   return (
     <div className="space-y-4">
@@ -176,9 +187,27 @@ export function InteractiveQuiz({ groundingReferences, instructions, messageId, 
                 {scoredCount > 0 ? ` · ${correctCount}/${scoredCount} correct` : ""}
               </CardDescription>
             </div>
-            <Badge variant="secondary">
-              Question {currentQuestionIndex + 1} of {questions.length}
-            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">
+                Question {currentQuestionIndex + 1} of {questions.length}
+              </Badge>
+              {printBaseHref ? (
+                <>
+                  <Button type="button" size="sm" variant="outline" onClick={() => openPrintView("worksheet")}>
+                    <ExternalLinkIcon className="size-4" />
+                    Worksheet
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => openPrintView("answer-key")}>
+                    <ExternalLinkIcon className="size-4" />
+                    Answer key
+                  </Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => openPrintView("both")}>
+                    <PrinterIcon className="size-4" />
+                    Print both
+                  </Button>
+                </>
+              ) : null}
+            </div>
           </div>
           <Progress value={progressValue} />
           {instructions ? (

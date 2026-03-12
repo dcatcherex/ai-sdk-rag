@@ -9,6 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { CitationBadge } from "@/components/chat/citation-badge";
+import { InteractiveFlashcards } from "@/components/chat/interactive-flashcards";
 import { InteractiveQuiz } from "@/components/chat/interactive-quiz";
 import type { QuizFollowUpContext } from "@/features/chat/types";
 import type { ExamPrepToolOutput, ToolLikePart } from "../types";
@@ -82,15 +83,18 @@ function GroundingBadges({
 function ExamPrepQuizBody({
   output,
   messageId,
+  threadId,
   onQuizStateChange,
 }: {
   output: ExamPrepToolOutput;
   messageId: string;
+  threadId?: string;
   onQuizStateChange?: (context: QuizFollowUpContext) => void;
 }) {
   return (
     <InteractiveQuiz
       messageId={messageId}
+      threadId={threadId}
       questions={output.quiz ?? []}
       instructions={output.instructions}
       groundingReferences={output.groundingReferences ?? []}
@@ -272,37 +276,13 @@ function ExamPrepLearningGapsBody({ output }: { output: ExamPrepToolOutput }) {
 }
 
 function ExamPrepFlashcardsBody({ output }: { output: ExamPrepToolOutput }) {
-  const groundingReferences = output.groundingReferences ?? [];
-
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg border bg-background/70 p-4 space-y-2">
-        {output.deckTitle ? <p className="text-base font-semibold">{output.deckTitle}</p> : null}
-        {output.studyTip ? <p className="text-sm text-muted-foreground">{output.studyTip}</p> : null}
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2">
-        {(output.flashcards ?? []).map((card, i) => (
-          <div key={card.id} className="rounded-lg border bg-background/70 p-4 space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">Card {i + 1}</Badge>
-              <Badge variant="outline">{card.topic}</Badge>
-            </div>
-            <div className="space-y-3">
-              <div className="rounded-md border bg-blue-500/5 p-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Front</p>
-                <p className="mt-1 text-sm leading-relaxed">{card.front}</p>
-              </div>
-              <div className="rounded-md border bg-emerald-500/5 p-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Back</p>
-                <p className="mt-1 text-sm leading-relaxed">{card.back}</p>
-              </div>
-            </div>
-            <GroundingBadges referenceIds={card.references} groundingReferences={groundingReferences} />
-          </div>
-        ))}
-      </div>
-    </div>
+    <InteractiveFlashcards
+      deckTitle={output.deckTitle}
+      studyTip={output.studyTip}
+      flashcards={output.flashcards ?? []}
+      groundingReferences={output.groundingReferences ?? []}
+    />
   );
 }
 
@@ -312,15 +292,17 @@ function ExamPrepBody({
   toolName,
   output,
   messageId,
+  threadId,
   onQuizStateChange,
 }: {
   toolName: string;
   output: ExamPrepToolOutput;
   messageId: string;
+  threadId?: string;
   onQuizStateChange?: (context: QuizFollowUpContext) => void;
 }) {
   if (toolName === "generate_practice_quiz")
-    return <ExamPrepQuizBody output={output} messageId={messageId} onQuizStateChange={onQuizStateChange} />;
+    return <ExamPrepQuizBody output={output} messageId={messageId} threadId={threadId} onQuizStateChange={onQuizStateChange} />;
   if (toolName === "grade_practice_answer") return <ExamPrepGradeBody output={output} />;
   if (toolName === "create_study_plan") return <ExamPrepStudyPlanBody output={output} />;
   if (toolName === "analyze_learning_gaps") return <ExamPrepLearningGapsBody output={output} />;
@@ -335,6 +317,7 @@ type ExamPrepToolPartProps = {
   toolName: string;
   output: ExamPrepToolOutput;
   messageId: string;
+  threadId?: string;
   partKey: string;
   onQuizStateChange?: (context: QuizFollowUpContext) => void;
 };
@@ -344,6 +327,7 @@ export function ExamPrepToolPart({
   toolName,
   output,
   messageId,
+  threadId,
   partKey,
   onQuizStateChange,
 }: ExamPrepToolPartProps) {
@@ -388,6 +372,7 @@ export function ExamPrepToolPart({
             toolName={toolName}
             output={output}
             messageId={messageId}
+            threadId={threadId}
             onQuizStateChange={onQuizStateChange}
           />
         </div>
@@ -408,6 +393,7 @@ export function ExamPrepToolPart({
             toolName={toolName}
             output={output}
             messageId={messageId}
+            threadId={threadId}
             onQuizStateChange={onQuizStateChange}
           />
           <ToolInput input={toolPart.input} />
