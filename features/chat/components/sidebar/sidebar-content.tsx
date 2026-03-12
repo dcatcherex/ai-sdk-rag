@@ -10,6 +10,7 @@ import {
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   PanelRightOpenIcon,
+  EllipsisVerticalIcon,
   SearchIcon,
   SettingsIcon,
   SunIcon,
@@ -17,7 +18,6 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -40,6 +40,7 @@ import { cn } from "@/lib/utils";
 import type { ThreadItem } from "../../types";
 import type { SessionData, UserProfileData } from "./types";
 import { SidebarAccount } from "./sidebar-account";
+import { SidebarOptionalItemsMenu } from "./sidebar-optional-items-menu";
 import {
   OPTIONAL_NAV_ITEMS,
   SidebarNav,
@@ -66,8 +67,10 @@ type Props = {
   currentPath: string;
   isCollapsed?: boolean;
   visibleItemIds: SidebarNavItemId[];
+  orderedItemIds: SidebarNavItemId[];
   onToggleCollapse?: () => void;
   onToggleItemVisibility: (itemId: SidebarNavItemId, checked: boolean) => void;
+  onReorderItems: (orderedItemIds: SidebarNavItemId[]) => void;
 };
 
 export const SidebarContent = ({
@@ -87,9 +90,17 @@ export const SidebarContent = ({
   currentPath,
   isCollapsed = false,
   visibleItemIds,
+  orderedItemIds,
   onToggleCollapse,
   onToggleItemVisibility,
+  onReorderItems,
 }: Props) => {
+  const orderedItems = orderedItemIds
+    .map((itemId) => OPTIONAL_NAV_ITEMS.find((item) => item.id === itemId))
+    .filter(
+      (item): item is (typeof OPTIONAL_NAV_ITEMS)[number] => item !== undefined,
+    );
+
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const { theme, setTheme } = useTheme();
@@ -119,7 +130,7 @@ export const SidebarContent = ({
             <h1 className="text-lg font-semibold text-foreground">Vaja</h1>
           </div>
         )}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center">
           {!isCollapsed ? (
             <>
               <TooltipProvider>
@@ -129,11 +140,11 @@ export const SidebarContent = ({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="size-8 shrink-0"
+                      className="size-8 shrink-0 hover:opacity-100 opacity-50 hover:cursor-pointer"
                       onClick={() => setSearchOpen(true)}
                       aria-label="Search chats"
                     >
-                      <SearchIcon className="size-4" />
+                      <SearchIcon className="size-4 " />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">Search chats</TooltipContent>
@@ -147,37 +158,27 @@ export const SidebarContent = ({
                       <DropdownMenuTrigger asChild>
                         <Button
                           type="button"
-                          variant={
-                            OPTIONAL_NAV_ITEMS.some(({ matchFn }) => matchFn(currentPath))
-                              ? "secondary"
-                              : "ghost"
-                          }
+                          variant="ghost"
                           size="icon"
-                          className="size-8 shrink-0"
+                          className="size-8 shrink-0 hover:opacity-100 opacity-50 hover:cursor-pointer"
                           aria-label="Open more menu"
                         >
-                          <PanelRightOpenIcon className="size-4" />
+                          <EllipsisVerticalIcon className="size-4" />
                         </Button>
                       </DropdownMenuTrigger>
                     </TooltipTrigger>
                     <TooltipContent side="bottom">More</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-                <DropdownMenuContent side="bottom" align="end" className="w-56">
+                <DropdownMenuContent side="bottom" align="end" className="w-64">
                   <DropdownMenuLabel>More</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {OPTIONAL_NAV_ITEMS.map(({ id, label, icon }) => (
-                    <DropdownMenuCheckboxItem
-                      key={id}
-                      checked={visibleItemIds.includes(id)}
-                      onCheckedChange={(checked) =>
-                        onToggleItemVisibility(id, checked === true)
-                      }
-                    >
-                      {icon}
-                      <span className="flex-1">{label}</span>
-                    </DropdownMenuCheckboxItem>
-                  ))}
+                  <SidebarOptionalItemsMenu
+                    items={orderedItems}
+                    visibleItemIds={visibleItemIds}
+                    onToggleItemVisibility={onToggleItemVisibility}
+                    onReorderItems={onReorderItems}
+                  />
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
@@ -191,7 +192,7 @@ export const SidebarContent = ({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-8 shrink-0"
+                    className="size-8 shrink-0 hover:opacity-100 opacity-50 hover:cursor-pointer"
                     onClick={onToggleCollapse}
                     aria-label={
                       isCollapsed ? "Expand sidebar" : "Collapse sidebar"
@@ -220,9 +221,11 @@ export const SidebarContent = ({
         isCollapsed={isCollapsed}
         isCreatingThread={isCreatingThread}
         visibleItemIds={visibleItemIds}
+        orderedItemIds={orderedItemIds}
         onCreateThread={onCreateThread}
         onSearchOpen={() => setSearchOpen(true)}
         onToggleItemVisibility={onToggleItemVisibility}
+        onReorderItems={onReorderItems}
       />
 
       {/* Thread list */}
@@ -247,77 +250,12 @@ export const SidebarContent = ({
           isCollapsed ? "flex flex-col items-center gap-2" : "space-y-1",
         )}
       >
-        <DropdownMenu>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant={
-                      currentPath.startsWith("/settings") ||
-                      currentPath.startsWith("/models")
-                        ? "secondary"
-                        : "ghost"
-                    }
-                    size={isCollapsed ? "icon" : "sm"}
-                    className={cn(
-                      isCollapsed ? "size-9" : "justify-start gap-2 w-full",
-                    )}
-                  >
-                    <SettingsIcon className="size-4" />
-                    {!isCollapsed ? "Settings & help" : null}
-                  </Button>
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              {isCollapsed ? (
-                <TooltipContent side="right">Settings & help</TooltipContent>
-              ) : null}
-            </Tooltip>
-          </TooltipProvider>
-          <DropdownMenuContent side="top" align="start" className="w-48">
-            <DropdownMenuItem asChild>
-              <Link href="/models">
-                <BrainCircuitIcon className="size-4" />
-                AI Models
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <PaletteIcon className="size-4" />
-                Theme
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <DropdownMenuRadioGroup
-                  value={theme}
-                  onValueChange={(v) => setTheme(v as "light" | "dark" | "system")}
-                >
-                  <DropdownMenuRadioItem value="light">
-                    <SunIcon className="size-4" />
-                    Light
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="dark">
-                    <MoonIcon className="size-4" />
-                    Dark
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="system">
-                    <MonitorIcon className="size-4" />
-                    System
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/settings">
-                <SettingsIcon className="size-4" />
-                Settings
-              </Link>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <div className={cn("flex items-center", !isCollapsed && "gap-2")}>
+        <div
+          className={cn(
+            "flex items-center justify-between",
+            !isCollapsed ? "flex-row" : "flex-col",
+          )}
+        >
           <SidebarAccount
             sessionData={sessionData}
             userProfile={userProfile}
@@ -325,7 +263,82 @@ export const SidebarContent = ({
             onSignOut={onSignOut}
             isCollapsed={isCollapsed}
           />
-          {!isCollapsed && <CreditBalanceDisplay />}
+          <DropdownMenu>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant={
+                        currentPath.startsWith("/settings") ||
+                        currentPath.startsWith("/models")
+                          ? "secondary"
+                          : "ghost"
+                      }
+                      size={isCollapsed ? "icon" : "sm"}
+                      className={cn(
+                        isCollapsed ? "size-9" : "justify-start gap-2",
+                      )}
+                    >
+                      <SettingsIcon className="size-4" />
+                      {!isCollapsed ? "" : null}
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                {isCollapsed ? (
+                  <TooltipContent side="right">Settings & help</TooltipContent>
+                ) : null}
+              </Tooltip>
+            </TooltipProvider>
+            <DropdownMenuContent side="top" align="start" className="w-48">
+              <DropdownMenuItem asChild>
+                <div>
+                  <CreditBalanceDisplay />
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/models">
+                  <BrainCircuitIcon className="size-4" />
+                  AI Models
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <PaletteIcon className="size-4" />
+                  Theme
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuRadioGroup
+                    value={theme}
+                    onValueChange={(v) =>
+                      setTheme(v as "light" | "dark" | "system")
+                    }
+                  >
+                    <DropdownMenuRadioItem value="light">
+                      <SunIcon className="size-4" />
+                      Light
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="dark">
+                      <MoonIcon className="size-4" />
+                      Dark
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="system">
+                      <MonitorIcon className="size-4" />
+                      System
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/settings">
+                  <SettingsIcon className="size-4" />
+                  Settings
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

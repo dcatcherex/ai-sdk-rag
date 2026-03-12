@@ -80,9 +80,9 @@ export const SidebarThreadList = ({
 
   return (
     <>
-      <ScrollArea className="h-70 w-full mt-4 flex-1 overflow-y-auto">
+      <ScrollArea className="max-h-[70%] w-full overflow-y-auto mt-8 flex-1">
         {isLoading ? (
-          <p className="px-3 text-xs text-muted-foreground">
+          <p className=" px-3 text-xs text-muted-foreground">
             Loading threads…
           </p>
         ) : threads.length === 0 ? (
@@ -91,27 +91,28 @@ export const SidebarThreadList = ({
           </p>
         ) : (
           <div>
-            <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
               Chats
             </p>
-            {[...pinnedThreads, ...recentThreads].map((thread) => (
-              <SidebarThreadRow
-                key={thread.id}
-                ref={thread.id === activeThreadId ? activeRowRef : null}
-                thread={thread}
-                isActive={thread.id === activeThreadId}
-                onSelect={() => {
-                  clickedIdRef.current = thread.id;
-                  onSelectThread(thread.id);
-                }}
-                onTogglePin={() => onTogglePin(thread.id, !thread.pinned)}
-                onRenameRequest={() => {
-                  setRenameTarget(thread);
-                  setRenameTitle(thread.title);
-                }}
-                onDelete={() => setDeleteTarget(thread)}
-              />
-            ))}
+               {[...pinnedThreads, ...recentThreads].map((thread) => (
+                 <SidebarThreadRow
+                   key={thread.id}
+                   ref={thread.id === activeThreadId ? activeRowRef : null}
+                   thread={thread}
+                   isActive={thread.id === activeThreadId}
+                   onSelect={() => {
+                     clickedIdRef.current = thread.id;
+                     onSelectThread(thread.id);
+                   }}
+                   onTogglePin={() => onTogglePin(thread.id, !thread.pinned)}
+                   onRenameRequest={() => {
+                     setRenameTarget(thread);
+                     setRenameTitle(thread.title);
+                   }}
+                   onDelete={() => setDeleteTarget(thread)}
+                 />
+               ))}
+            
           </div>
         )}
       </ScrollArea>

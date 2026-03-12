@@ -12,6 +12,7 @@ import {
 } from "./sidebar/sidebar-nav";
 import type { SessionData, UserProfileData } from "./sidebar/types";
 import {
+  SIDEBAR_ITEM_ORDER_STORAGE_KEY,
   SIDEBAR_COLLAPSED_STORAGE_KEY,
   SIDEBAR_VISIBLE_ITEMS_STORAGE_KEY,
 } from "./sidebar/types";
@@ -20,6 +21,7 @@ import {
 // Initialized lazily on first client render from localStorage.
 let collapsedCache: boolean | null = null;
 let visibleItemsCache: SidebarNavItemId[] | null = null;
+let orderedItemsCache: SidebarNavItemId[] | null = null;
 
 function readCollapsed(): boolean {
   if (collapsedCache !== null) return collapsedCache;
@@ -50,6 +52,30 @@ function readVisibleItems(): SidebarNavItemId[] {
   } catch {
     visibleItemsCache = DEFAULT_VISIBLE_SIDEBAR_ITEM_IDS;
     return visibleItemsCache;
+  }
+}
+
+function readOrderedItems(): SidebarNavItemId[] {
+  if (orderedItemsCache !== null) return orderedItemsCache;
+  if (typeof window === "undefined") return DEFAULT_VISIBLE_SIDEBAR_ITEM_IDS;
+
+  try {
+    const stored = window.localStorage.getItem(SIDEBAR_ITEM_ORDER_STORAGE_KEY);
+    if (!stored) {
+      orderedItemsCache = DEFAULT_VISIBLE_SIDEBAR_ITEM_IDS;
+      return orderedItemsCache;
+    }
+
+    const parsed = JSON.parse(stored) as SidebarNavItemId[];
+    const next = DEFAULT_VISIBLE_SIDEBAR_ITEM_IDS.filter((itemId) =>
+      parsed.includes(itemId),
+    );
+
+    orderedItemsCache = next.length > 0 ? next : DEFAULT_VISIBLE_SIDEBAR_ITEM_IDS;
+    return orderedItemsCache;
+  } catch {
+    orderedItemsCache = DEFAULT_VISIBLE_SIDEBAR_ITEM_IDS;
+    return orderedItemsCache;
   }
 }
 
@@ -94,6 +120,7 @@ export const ChatSidebar = ({
   // Reads from module cache — no effect needed, no flash on remount
   const [isCollapsed, setIsCollapsed] = useState(readCollapsed);
   const [visibleItemIds, setVisibleItemIds] = useState(readVisibleItems);
+  const [orderedItemIds, setOrderedItemIds] = useState(readOrderedItems);
   const effectiveCollapsed = forceCollapsed || isCollapsed;
 
   const handleToggleCollapse = () => {
@@ -103,6 +130,15 @@ export const ChatSidebar = ({
       window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(next));
       return next;
     });
+  };
+
+  const handleReorderItems = (nextOrderedItemIds: SidebarNavItemId[]) => {
+    orderedItemsCache = nextOrderedItemIds;
+    setOrderedItemIds(nextOrderedItemIds);
+    window.localStorage.setItem(
+      SIDEBAR_ITEM_ORDER_STORAGE_KEY,
+      JSON.stringify(nextOrderedItemIds),
+    );
   };
 
   const handleSelectThread = (threadId: string) => {
@@ -149,7 +185,9 @@ export const ChatSidebar = ({
     onSignOut,
     currentPath: pathname,
     visibleItemIds,
+    orderedItemIds,
     onToggleItemVisibility: handleToggleItemVisibility,
+    onReorderItems: handleReorderItems,
   };
 
   return (

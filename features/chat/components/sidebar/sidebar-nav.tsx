@@ -9,7 +9,6 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -22,6 +21,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { SidebarOptionalItemsMenu } from "./sidebar-optional-items-menu";
 
 type NavItem = {
   id: SidebarNavItemId;
@@ -66,9 +66,11 @@ type Props = {
   isCollapsed: boolean;
   isCreatingThread: boolean;
   visibleItemIds: SidebarNavItemId[];
+  orderedItemIds: SidebarNavItemId[];
   onCreateThread: () => void;
   onSearchOpen: () => void;
   onToggleItemVisibility: (itemId: SidebarNavItemId, checked: boolean) => void;
+  onReorderItems: (orderedItemIds: SidebarNavItemId[]) => void;
 };
 
 const NavButton = ({
@@ -96,15 +98,18 @@ export const SidebarNav = ({
   isCollapsed,
   isCreatingThread,
   visibleItemIds,
+  orderedItemIds,
   onCreateThread,
   onSearchOpen,
   onToggleItemVisibility,
+  onReorderItems,
 }: Props) => {
   const fullWidthButtonClass = "justify-start gap-2 w-full font-normal";
   const iconButtonClass = "size-9 shrink-0";
-  const visibleItems = OPTIONAL_NAV_ITEMS.filter((item) =>
-    visibleItemIds.includes(item.id),
-  );
+  const orderedItems = orderedItemIds
+    .map((itemId) => OPTIONAL_NAV_ITEMS.find((item) => item.id === itemId))
+    .filter((item): item is NavItem => item !== undefined);
+  const visibleItems = orderedItems.filter((item) => visibleItemIds.includes(item.id));
 
   return (
     <div
@@ -171,18 +176,12 @@ export const SidebarNav = ({
             <DropdownMenuContent side="right" align="start" className="w-56">
               <DropdownMenuLabel>More</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {OPTIONAL_NAV_ITEMS.map(({ id, label, icon }) => (
-                <DropdownMenuCheckboxItem
-                  key={id}
-                  checked={visibleItemIds.includes(id)}
-                  onCheckedChange={(checked) =>
-                    onToggleItemVisibility(id, checked === true)
-                  }
-                >
-                  {icon}
-                  <span className="flex-1">{label}</span>
-                </DropdownMenuCheckboxItem>
-              ))}
+              <SidebarOptionalItemsMenu
+                items={orderedItems}
+                visibleItemIds={visibleItemIds}
+                onToggleItemVisibility={onToggleItemVisibility}
+                onReorderItems={onReorderItems}
+              />
             </DropdownMenuContent>
           </DropdownMenu>
         </>

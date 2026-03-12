@@ -38,12 +38,12 @@ export const SidebarThreadRow = forwardRef<HTMLDivElement, Props>(({
     ref={ref}
     className={`group flex w-59 cursor-pointer items-center rounded-lg text-sm transition  ${
       isActive
-        ? "bg-muted font-medium text-foreground"
-        : "text-foreground/80 hover:bg-muted/50"
+        ? "bg-secondary font-medium text-foreground"
+        : "text-foreground/80 hover:bg-accent"
     }`}
   >
     <button
-      className="min-w-0 flex-1 px-3 py-2 text-left hover:cursor-pointer"
+      className="min-w-0 flex-1 px-3 py-1.5 text-left hover:cursor-pointer"
       onClick={onSelect}
       type="button"
     >
