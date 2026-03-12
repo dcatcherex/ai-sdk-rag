@@ -9,14 +9,18 @@ import {
   PaletteIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
+  PanelRightOpenIcon,
+  SearchIcon,
   SettingsIcon,
   SunIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -36,7 +40,11 @@ import { cn } from "@/lib/utils";
 import type { ThreadItem } from "../../types";
 import type { SessionData, UserProfileData } from "./types";
 import { SidebarAccount } from "./sidebar-account";
-import { SidebarNav } from "./sidebar-nav";
+import {
+  OPTIONAL_NAV_ITEMS,
+  SidebarNav,
+  type SidebarNavItemId,
+} from "./sidebar-nav";
 import { SidebarSearch } from "./sidebar-search";
 import { SidebarThreadList } from "./sidebar-thread-list";
 import { CreditBalanceDisplay } from "@/components/credit-balance-display";
@@ -57,7 +65,9 @@ type Props = {
   onSignOut: () => void;
   currentPath: string;
   isCollapsed?: boolean;
+  visibleItemIds: SidebarNavItemId[];
   onToggleCollapse?: () => void;
+  onToggleItemVisibility: (itemId: SidebarNavItemId, checked: boolean) => void;
 };
 
 export const SidebarContent = ({
@@ -76,7 +86,9 @@ export const SidebarContent = ({
   onSignOut,
   currentPath,
   isCollapsed = false,
+  visibleItemIds,
   onToggleCollapse,
+  onToggleItemVisibility,
 }: Props) => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -107,33 +119,98 @@ export const SidebarContent = ({
             <h1 className="text-lg font-semibold text-foreground">Vaja</h1>
           </div>
         )}
-        {onToggleCollapse ? (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 shrink-0"
-                  onClick={onToggleCollapse}
-                  aria-label={
-                    isCollapsed ? "Expand sidebar" : "Collapse sidebar"
-                  }
-                >
-                  {isCollapsed ? (
-                    <PanelLeftOpenIcon className="size-4" />
-                  ) : (
-                    <PanelLeftCloseIcon className="size-4" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">
-                {isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ) : null}
+        <div className="flex items-center gap-1">
+          {!isCollapsed ? (
+            <>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 shrink-0"
+                      onClick={() => setSearchOpen(true)}
+                      aria-label="Search chats"
+                    >
+                      <SearchIcon className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Search chats</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <DropdownMenu>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant={
+                            OPTIONAL_NAV_ITEMS.some(({ matchFn }) => matchFn(currentPath))
+                              ? "secondary"
+                              : "ghost"
+                          }
+                          size="icon"
+                          className="size-8 shrink-0"
+                          aria-label="Open more menu"
+                        >
+                          <PanelRightOpenIcon className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">More</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <DropdownMenuContent side="bottom" align="end" className="w-56">
+                  <DropdownMenuLabel>More</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {OPTIONAL_NAV_ITEMS.map(({ id, label, icon }) => (
+                    <DropdownMenuCheckboxItem
+                      key={id}
+                      checked={visibleItemIds.includes(id)}
+                      onCheckedChange={(checked) =>
+                        onToggleItemVisibility(id, checked === true)
+                      }
+                    >
+                      {icon}
+                      <span className="flex-1">{label}</span>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          ) : null}
+
+          {onToggleCollapse ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 shrink-0"
+                    onClick={onToggleCollapse}
+                    aria-label={
+                      isCollapsed ? "Expand sidebar" : "Collapse sidebar"
+                    }
+                  >
+                    {isCollapsed ? (
+                      <PanelLeftOpenIcon className="size-4" />
+                    ) : (
+                      <PanelLeftCloseIcon className="size-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  {isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : null}
+        </div>
       </div>
 
       {/* Nav */}
@@ -142,8 +219,10 @@ export const SidebarContent = ({
         activeThreadId={activeThreadId}
         isCollapsed={isCollapsed}
         isCreatingThread={isCreatingThread}
+        visibleItemIds={visibleItemIds}
         onCreateThread={onCreateThread}
         onSearchOpen={() => setSearchOpen(true)}
+        onToggleItemVisibility={onToggleItemVisibility}
       />
 
       {/* Thread list */}

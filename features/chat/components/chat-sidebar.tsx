@@ -6,12 +6,20 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import type { ThreadItem } from "../types";
 import { SidebarContent } from "./sidebar/sidebar-content";
+import {
+  DEFAULT_VISIBLE_SIDEBAR_ITEM_IDS,
+  type SidebarNavItemId,
+} from "./sidebar/sidebar-nav";
 import type { SessionData, UserProfileData } from "./sidebar/types";
-import { SIDEBAR_COLLAPSED_STORAGE_KEY } from "./sidebar/types";
+import {
+  SIDEBAR_COLLAPSED_STORAGE_KEY,
+  SIDEBAR_VISIBLE_ITEMS_STORAGE_KEY,
+} from "./sidebar/types";
 
 // Module-level cache — survives component remounts on navigation.
 // Initialized lazily on first client render from localStorage.
 let collapsedCache: boolean | null = null;
+let visibleItemsCache: SidebarNavItemId[] | null = null;
 
 function readCollapsed(): boolean {
   if (collapsedCache !== null) return collapsedCache;
@@ -19,6 +27,30 @@ function readCollapsed(): boolean {
   const stored = window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY);
   collapsedCache = stored !== null ? stored === "true" : true;
   return collapsedCache;
+}
+
+function readVisibleItems(): SidebarNavItemId[] {
+  if (visibleItemsCache !== null) return visibleItemsCache;
+  if (typeof window === "undefined") return DEFAULT_VISIBLE_SIDEBAR_ITEM_IDS;
+
+  try {
+    const stored = window.localStorage.getItem(SIDEBAR_VISIBLE_ITEMS_STORAGE_KEY);
+    if (!stored) {
+      visibleItemsCache = DEFAULT_VISIBLE_SIDEBAR_ITEM_IDS;
+      return visibleItemsCache;
+    }
+
+    const parsed = JSON.parse(stored) as SidebarNavItemId[];
+    const next = DEFAULT_VISIBLE_SIDEBAR_ITEM_IDS.filter((itemId) =>
+      parsed.includes(itemId),
+    );
+
+    visibleItemsCache = next.length > 0 ? next : DEFAULT_VISIBLE_SIDEBAR_ITEM_IDS;
+    return visibleItemsCache;
+  } catch {
+    visibleItemsCache = DEFAULT_VISIBLE_SIDEBAR_ITEM_IDS;
+    return visibleItemsCache;
+  }
 }
 
 export type ChatSidebarProps = {
@@ -61,6 +93,7 @@ export const ChatSidebar = ({
   const pathname = usePathname();
   // Reads from module cache — no effect needed, no flash on remount
   const [isCollapsed, setIsCollapsed] = useState(readCollapsed);
+  const [visibleItemIds, setVisibleItemIds] = useState(readVisibleItems);
   const effectiveCollapsed = forceCollapsed || isCollapsed;
 
   const handleToggleCollapse = () => {
@@ -75,6 +108,29 @@ export const ChatSidebar = ({
   const handleSelectThread = (threadId: string) => {
     onSelectThread(threadId);
     onMobileOpenChange?.(false);
+  };
+
+  const handleToggleItemVisibility = (
+    itemId: SidebarNavItemId,
+    checked: boolean,
+  ) => {
+    setVisibleItemIds((prev) => {
+      const next = checked
+        ? prev.includes(itemId)
+          ? prev
+          : DEFAULT_VISIBLE_SIDEBAR_ITEM_IDS.filter(
+              (defaultItemId) =>
+                defaultItemId === itemId || prev.includes(defaultItemId),
+            )
+        : prev.filter((id) => id !== itemId);
+
+      visibleItemsCache = next;
+      window.localStorage.setItem(
+        SIDEBAR_VISIBLE_ITEMS_STORAGE_KEY,
+        JSON.stringify(next),
+      );
+      return next;
+    });
   };
 
   const sharedProps = {
@@ -92,6 +148,8 @@ export const ChatSidebar = ({
     isSigningOut,
     onSignOut,
     currentPath: pathname,
+    visibleItemIds,
+    onToggleItemVisibility: handleToggleItemVisibility,
   };
 
   return (

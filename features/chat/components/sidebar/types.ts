@@ -14,3 +14,4 @@ export type SessionData = {
 } | null;
 
 export const SIDEBAR_COLLAPSED_STORAGE_KEY = "chat-sidebar-collapsed";
+export const SIDEBAR_VISIBLE_ITEMS_STORAGE_KEY = "chat-sidebar-visible-items";
