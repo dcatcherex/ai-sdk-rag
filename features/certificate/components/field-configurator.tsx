@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ImageUp, Plus, Save, Trash2 } from 'lucide-react';
+import { ChevronDown, ImageUp, Plus, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -13,6 +14,7 @@ import {
   CERTIFICATE_FONT_OPTIONS,
   CERTIFICATE_FONT_WEIGHT_OPTIONS,
   getCertificateFontAvailableWeights,
+  getCertificateFontCssWeight,
   getSupportedCertificateFontValue,
   isSupportedCertificateFont,
   resolveCertificateFontWeight,
@@ -50,6 +52,7 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated }: Prop
   const [frontRows, setFrontRows] = useState<FieldRow[]>(() => toRows(template.fields));
   const [backRows, setBackRows] = useState<FieldRow[]>(() => toRows(template.backFields));
   const [selectedKey, setSelectedKey] = useState<string | null>(() => template.fields[0]?.id ?? null);
+  const [isPrintSettingsOpen, setIsPrintSettingsOpen] = useState(false);
   const [templateType, setTemplateType] = useState<CertificateTemplateType>(template.templateType);
   const [printSettings, setPrintSettings] = useState<PrintSheetSettings>(template.printSettings);
   const replaceImageInputRef = useRef<HTMLInputElement>(null);
@@ -108,6 +111,33 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated }: Prop
         height: template.backHeight,
       }
     : template;
+
+  function renderFieldSummary(row: FieldRow) {
+    const fontWeight = resolveCertificateFontWeight(row.fontFamily, row.fontWeight);
+    const displayLabel = row.label.trim() || row.id.trim() || 'Untitled field';
+
+    return (
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{displayLabel}</span>
+          {row.required === true && (
+            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+              Required
+            </span>
+          )}
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
+          <span className="font-mono">{row.id || 'no-id'}</span>
+          <span>•</span>
+          <span>{Math.round(row.xPercent * 10) / 10}%, {Math.round(row.yPercent * 10) / 10}%</span>
+          <span>•</span>
+          <span>{row.fontSize}px</span>
+          <span>•</span>
+          <span>{row.align}</span>
+        </div>
+      </div>
+    );
+  }
 
   function addField() {
     const id = nanoid(8);
@@ -310,373 +340,435 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated }: Prop
         />
       )}
 
-      <div className="rounded-xl border border-zinc-200 p-4 dark:border-border">
-        <div className="mb-4 space-y-1">
-          <h4 className="text-sm font-semibold">Print settings</h4>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Save reusable layout settings for card/tag sheet exports.
-          </p>
+      <Collapsible open={isPrintSettingsOpen} onOpenChange={setIsPrintSettingsOpen} className="rounded-xl border border-zinc-200 p-4 dark:border-border">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <h4 className="text-sm font-semibold">Print settings</h4>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Save reusable layout settings for card/tag sheet exports.
+            </p>
+            <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
+              {templateType} • {PRINT_SHEET_PRESETS.find((preset) => preset.key === printSettings.preset)?.label ?? printSettings.preset} • {printSettings.duplexMode === 'front_back' ? 'Front / back' : 'Single-sided'}
+            </p>
+          </div>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="-mr-2 h-8 gap-1.5 px-2 text-xs text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100">
+              {isPrintSettingsOpen ? 'Hide' : 'Show'}
+              <ChevronDown className={`h-4 w-4 transition-transform ${isPrintSettingsOpen ? 'rotate-180' : ''}`} />
+            </Button>
+          </CollapsibleTrigger>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="space-y-1">
-            <Label className="text-[11px]">Template type</Label>
-            <Select value={templateType} onValueChange={handleTemplateTypeChange}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {TEMPLATE_TYPE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <CollapsibleContent className="pt-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="space-y-1">
+              <Label className="text-[11px]">Template type</Label>
+              <Select value={templateType} onValueChange={handleTemplateTypeChange}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {TEMPLATE_TYPE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px]">Back X offset (mm)</Label>
+              <Input
+                type="number"
+                min={-20}
+                max={20}
+                step={0.5}
+                value={String(printSettings.backOffsetXMm)}
+                onChange={(event) => updatePrintSetting('backOffsetXMm', Number(event.target.value))}
+                className="h-8 text-xs"
+                disabled={printSettings.duplexMode !== 'front_back'}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px]">Back Y offset (mm)</Label>
+              <Input
+                type="number"
+                min={-20}
+                max={20}
+                step={0.5}
+                value={String(printSettings.backOffsetYMm)}
+                onChange={(event) => updatePrintSetting('backOffsetYMm', Number(event.target.value))}
+                className="h-8 text-xs"
+                disabled={printSettings.duplexMode !== 'front_back'}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px]">Sheet preset</Label>
+              <Select value={printSettings.preset} onValueChange={handlePresetChange}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PRINT_SHEET_PRESETS.map((preset) => (
+                    <SelectItem key={preset.key} value={preset.key}>{preset.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px]">Sheet mode</Label>
+              <Select
+                value={printSettings.duplexMode}
+                onValueChange={(value) => updatePrintSetting('duplexMode', value as PrintSheetSettings['duplexMode'])}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="single_sided">Single-sided</SelectItem>
+                  <SelectItem value="front_back">Front / back</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px]">Back page order</Label>
+              <Select
+                value={printSettings.backPageOrder}
+                onValueChange={(value) => updatePrintSetting('backPageOrder', value as PrintSheetSettings['backPageOrder'])}
+                disabled={printSettings.duplexMode !== 'front_back'}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="same">Same order</SelectItem>
+                  <SelectItem value="reverse">Reverse order</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px]">Columns</Label>
+              <Input
+                type="number"
+                min={1}
+                max={10}
+                step={1}
+                value={String(printSettings.columns)}
+                onChange={(event) => updatePrintSetting('columns', Number(event.target.value))}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px]">Rows</Label>
+              <Input
+                type="number"
+                min={1}
+                max={10}
+                step={1}
+                value={String(printSettings.rows)}
+                onChange={(event) => updatePrintSetting('rows', Number(event.target.value))}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px]">Top margin (mm)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={50}
+                step={0.5}
+                value={String(printSettings.marginTopMm)}
+                onChange={(event) => updatePrintSetting('marginTopMm', Number(event.target.value))}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px]">Right margin (mm)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={50}
+                step={0.5}
+                value={String(printSettings.marginRightMm)}
+                onChange={(event) => updatePrintSetting('marginRightMm', Number(event.target.value))}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px]">Bottom margin (mm)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={50}
+                step={0.5}
+                value={String(printSettings.marginBottomMm)}
+                onChange={(event) => updatePrintSetting('marginBottomMm', Number(event.target.value))}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px]">Left margin (mm)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={50}
+                step={0.5}
+                value={String(printSettings.marginLeftMm)}
+                onChange={(event) => updatePrintSetting('marginLeftMm', Number(event.target.value))}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px]">Horizontal gap (mm)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={30}
+                step={0.5}
+                value={String(printSettings.gapXMm)}
+                onChange={(event) => updatePrintSetting('gapXMm', Number(event.target.value))}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px]">Vertical gap (mm)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={30}
+                step={0.5}
+                value={String(printSettings.gapYMm)}
+                onChange={(event) => updatePrintSetting('gapYMm', Number(event.target.value))}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px]">Crop mark length (mm)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={20}
+                step={0.5}
+                value={String(printSettings.cropMarkLengthMm)}
+                onChange={(event) => updatePrintSetting('cropMarkLengthMm', Number(event.target.value))}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px]">Crop mark offset (mm)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={10}
+                step={0.5}
+                value={String(printSettings.cropMarkOffsetMm)}
+                onChange={(event) => updatePrintSetting('cropMarkOffsetMm', Number(event.target.value))}
+                className="h-8 text-xs"
+              />
+            </div>
           </div>
 
-          <div className="space-y-1">
-            <Label className="text-[11px]">Back X offset (mm)</Label>
-            <Input
-              type="number"
-              min={-20}
-              max={20}
-              step={0.5}
-              value={String(printSettings.backOffsetXMm)}
-              onChange={(event) => updatePrintSetting('backOffsetXMm', Number(event.target.value))}
-              className="h-8 text-xs"
-              disabled={printSettings.duplexMode !== 'front_back'}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-[11px]">Back Y offset (mm)</Label>
-            <Input
-              type="number"
-              min={-20}
-              max={20}
-              step={0.5}
-              value={String(printSettings.backOffsetYMm)}
-              onChange={(event) => updatePrintSetting('backOffsetYMm', Number(event.target.value))}
-              className="h-8 text-xs"
-              disabled={printSettings.duplexMode !== 'front_back'}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-[11px]">Sheet preset</Label>
-            <Select value={printSettings.preset} onValueChange={handlePresetChange}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {PRINT_SHEET_PRESETS.map((preset) => (
-                  <SelectItem key={preset.key} value={preset.key}>{preset.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-[11px]">Sheet mode</Label>
-            <Select
-              value={printSettings.duplexMode}
-              onValueChange={(value) => updatePrintSetting('duplexMode', value as PrintSheetSettings['duplexMode'])}
-            >
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="single_sided">Single-sided</SelectItem>
-                <SelectItem value="front_back">Front / back</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-[11px]">Back page order</Label>
-            <Select
-              value={printSettings.backPageOrder}
-              onValueChange={(value) => updatePrintSetting('backPageOrder', value as PrintSheetSettings['backPageOrder'])}
-              disabled={printSettings.duplexMode !== 'front_back'}
-            >
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="same">Same order</SelectItem>
-                <SelectItem value="reverse">Reverse order</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-[11px]">Columns</Label>
-            <Input
-              type="number"
-              min={1}
-              max={10}
-              step={1}
-              value={String(printSettings.columns)}
-              onChange={(event) => updatePrintSetting('columns', Number(event.target.value))}
-              className="h-8 text-xs"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-[11px]">Rows</Label>
-            <Input
-              type="number"
-              min={1}
-              max={10}
-              step={1}
-              value={String(printSettings.rows)}
-              onChange={(event) => updatePrintSetting('rows', Number(event.target.value))}
-              className="h-8 text-xs"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-[11px]">Top margin (mm)</Label>
-            <Input
-              type="number"
-              min={0}
-              max={50}
-              step={0.5}
-              value={String(printSettings.marginTopMm)}
-              onChange={(event) => updatePrintSetting('marginTopMm', Number(event.target.value))}
-              className="h-8 text-xs"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-[11px]">Right margin (mm)</Label>
-            <Input
-              type="number"
-              min={0}
-              max={50}
-              step={0.5}
-              value={String(printSettings.marginRightMm)}
-              onChange={(event) => updatePrintSetting('marginRightMm', Number(event.target.value))}
-              className="h-8 text-xs"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-[11px]">Bottom margin (mm)</Label>
-            <Input
-              type="number"
-              min={0}
-              max={50}
-              step={0.5}
-              value={String(printSettings.marginBottomMm)}
-              onChange={(event) => updatePrintSetting('marginBottomMm', Number(event.target.value))}
-              className="h-8 text-xs"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-[11px]">Left margin (mm)</Label>
-            <Input
-              type="number"
-              min={0}
-              max={50}
-              step={0.5}
-              value={String(printSettings.marginLeftMm)}
-              onChange={(event) => updatePrintSetting('marginLeftMm', Number(event.target.value))}
-              className="h-8 text-xs"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-[11px]">Horizontal gap (mm)</Label>
-            <Input
-              type="number"
-              min={0}
-              max={30}
-              step={0.5}
-              value={String(printSettings.gapXMm)}
-              onChange={(event) => updatePrintSetting('gapXMm', Number(event.target.value))}
-              className="h-8 text-xs"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-[11px]">Vertical gap (mm)</Label>
-            <Input
-              type="number"
-              min={0}
-              max={30}
-              step={0.5}
-              value={String(printSettings.gapYMm)}
-              onChange={(event) => updatePrintSetting('gapYMm', Number(event.target.value))}
-              className="h-8 text-xs"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-[11px]">Crop mark length (mm)</Label>
-            <Input
-              type="number"
-              min={1}
-              max={20}
-              step={0.5}
-              value={String(printSettings.cropMarkLengthMm)}
-              onChange={(event) => updatePrintSetting('cropMarkLengthMm', Number(event.target.value))}
-              className="h-8 text-xs"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-[11px]">Crop mark offset (mm)</Label>
-            <Input
-              type="number"
-              min={0}
-              max={10}
-              step={0.5}
-              value={String(printSettings.cropMarkOffsetMm)}
-              onChange={(event) => updatePrintSetting('cropMarkOffsetMm', Number(event.target.value))}
-              className="h-8 text-xs"
-            />
-          </div>
-        </div>
-
-        <label className="mt-4 flex items-center gap-2 text-sm">
-          <Checkbox
-            checked={printSettings.cropMarks}
-            onCheckedChange={(checked) => updatePrintSetting('cropMarks', checked === true)}
-          />
-          <span>Show crop marks on sheet PDFs</span>
-        </label>
-
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          <label className="flex items-center gap-2 text-sm">
+          <label className="mt-4 flex items-center gap-2 text-sm">
             <Checkbox
-              checked={printSettings.backFlipX}
-              onCheckedChange={(checked) => updatePrintSetting('backFlipX', checked === true)}
-              disabled={printSettings.duplexMode !== 'front_back'}
+              checked={printSettings.cropMarks}
+              onCheckedChange={(checked) => updatePrintSetting('cropMarks', checked === true)}
             />
-            <span>Flip back side horizontally</span>
+            <span>Show crop marks on sheet PDFs</span>
           </label>
 
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={printSettings.backFlipY}
-              onCheckedChange={(checked) => updatePrintSetting('backFlipY', checked === true)}
-              disabled={printSettings.duplexMode !== 'front_back'}
-            />
-            <span>Flip back side vertically</span>
-          </label>
-        </div>
-      </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={printSettings.backFlipX}
+                onCheckedChange={(checked) => updatePrintSetting('backFlipX', checked === true)}
+                disabled={printSettings.duplexMode !== 'front_back'}
+              />
+              <span>Flip back side horizontally</span>
+            </label>
 
-      <div className="space-y-4">
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={printSettings.backFlipY}
+                onCheckedChange={(checked) => updatePrintSetting('backFlipY', checked === true)}
+                disabled={printSettings.duplexMode !== 'front_back'}
+              />
+              <span>Flip back side vertically</span>
+            </label>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+
+      <div className="space-y-3">
         {rows.map((row) => {
           const availableWeights = getCertificateFontAvailableWeights(row.fontFamily);
           const selectedFontWeight = availableWeights.includes(row.fontWeight)
             ? row.fontWeight
             : (availableWeights[0] ?? 'normal');
+          const isExpanded = selectedKey === row._key;
 
           return (
             <div
               key={row._key}
-              className={`rounded-xl border p-4 dark:border-border ${selectedKey === row._key ? 'border-indigo-300 bg-indigo-50/40 dark:border-indigo-500/60 dark:bg-indigo-950/20' : 'border-zinc-200'}`}
+              className={`overflow-hidden rounded-xl border dark:border-border ${isExpanded ? 'border-indigo-300 bg-indigo-50/40 dark:border-indigo-500/60 dark:bg-indigo-950/20' : 'border-zinc-200 bg-white dark:bg-transparent'}`}
             >
-            <div className="mb-3 grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-[11px]">Field ID</Label>
-                <Input
-                  value={row.id}
-                  onChange={(e) => updateField(row._key, 'id', e.target.value)}
-                  onFocus={() => setSelectedKey(row._key)}
-                  placeholder="name"
-                  className="h-8 font-mono text-xs"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[11px]">Label (shown to user)</Label>
-                <Input
-                  value={row.label}
-                  onChange={(e) => updateField(row._key, 'label', e.target.value)}
-                  onFocus={() => setSelectedKey(row._key)}
-                  placeholder="Recipient Name"
-                  className="h-8 text-xs"
-                />
-              </div>
-            </div>
-
-            <label className="mb-3 flex items-center gap-2 text-xs">
-              <Checkbox
-                checked={row.required === true}
-                onCheckedChange={(checked) => updateField(row._key, 'required', checked === true)}
-              />
-              <span>Required field</span>
-            </label>
-
-            <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {numInput(row._key, 'xPercent', 'X (%)', 0, 100, 0.5)}
-              {numInput(row._key, 'yPercent', 'Y (%)', 0, 100, 0.5)}
-              {numInput(row._key, 'maxWidthPercent', 'Max width (%)', 10, 100)}
-              {numInput(row._key, 'fontSize', 'Font size (px)', 8, 300)}
-              {numInput(row._key, 'minFontSize', 'Min size (px)', 6, 200)}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="space-y-1">
-                <Label className="text-[11px]">Align</Label>
-                <Select value={row.align} onValueChange={(v) => updateField(row._key, 'align', v as TextFieldConfig['align'])}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="left">Left</SelectItem>
-                    <SelectItem value="center">Center</SelectItem>
-                    <SelectItem value="right">Right</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[11px]">Weight</Label>
-                <Select value={selectedFontWeight} onValueChange={(v) => updateField(row._key, 'fontWeight', v as TextFieldConfig['fontWeight'])}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {CERTIFICATE_FONT_WEIGHT_OPTIONS.filter((option) => availableWeights.includes(option.value)).map((option) => (
-                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[11px]">Color</Label>
-                <div className="flex gap-1">
-                  <input
-                    type="color"
-                    value={row.color}
-                    onChange={(e) => updateField(row._key, 'color', e.target.value)}
-                    className="h-8 w-10 cursor-pointer rounded border"
-                  />
-                  <Input
-                    value={row.color}
-                    onChange={(e) => updateField(row._key, 'color', e.target.value)}
-                    className="h-8 flex-1 font-mono text-xs"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[11px]">Font family</Label>
-                <Select
-                  value={getSupportedCertificateFontValue(row.fontFamily)}
-                  onValueChange={(value) => updateFontFamily(row._key, value)}
-                >
-                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {!isSupportedCertificateFont(row.fontFamily) && (
-                      <SelectItem value={row.fontFamily}>{row.fontFamily}</SelectItem>
-                    )}
-                    {CERTIFICATE_FONT_OPTIONS.map((option) => (
-                      <SelectItem key={option.key} value={option.value}>{option.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="mt-3 flex justify-end">
               <button
-                onClick={() => removeField(row._key)}
-                className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600"
+                type="button"
+                onClick={() => setSelectedKey(row._key)}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left"
               >
-                <Trash2 className="h-3.5 w-3.5" /> Remove field
+                <div
+                  className="min-w-[92px] max-w-[140px] truncate text-lg"
+                  style={{
+                    fontFamily: row.fontFamily,
+                    fontWeight: getCertificateFontCssWeight(selectedFontWeight),
+                    color: row.color,
+                  }}
+                >
+                  {row.label || row.id || 'Aa'}
+                </div>
+                {renderFieldSummary(row)}
+                <div className="hidden shrink-0 items-center gap-1.5 md:flex">
+                  <span className="rounded-full border border-zinc-200 px-2 py-1 text-[11px] text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">
+                    {row.fontFamily}
+                  </span>
+                  <span className="rounded-full border border-zinc-200 px-2 py-1 text-[11px] uppercase text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">
+                    {selectedFontWeight}
+                  </span>
+                </div>
+                <ChevronDown className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
               </button>
-            </div>
+
+              {isExpanded && (
+                <div className="border-t border-zinc-200/80 p-4 dark:border-zinc-800/80">
+                  <div className="mb-3 grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Field ID</Label>
+                      <Input
+                        value={row.id}
+                        onChange={(e) => updateField(row._key, 'id', e.target.value)}
+                        onFocus={() => setSelectedKey(row._key)}
+                        placeholder="name"
+                        className="h-8 font-mono text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Label (shown to user)</Label>
+                      <Input
+                        value={row.label}
+                        onChange={(e) => updateField(row._key, 'label', e.target.value)}
+                        onFocus={() => setSelectedKey(row._key)}
+                        placeholder="Recipient Name"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <label className="mb-3 flex items-center gap-2 text-xs">
+                    <Checkbox
+                      checked={row.required === true}
+                      onCheckedChange={(checked) => updateField(row._key, 'required', checked === true)}
+                    />
+                    <span>Required field</span>
+                  </label>
+
+                  <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {numInput(row._key, 'xPercent', 'X (%)', 0, 100, 0.5)}
+                    {numInput(row._key, 'yPercent', 'Y (%)', 0, 100, 0.5)}
+                    {numInput(row._key, 'maxWidthPercent', 'Max width (%)', 10, 100)}
+                    {numInput(row._key, 'fontSize', 'Font size (px)', 8, 300)}
+                    {numInput(row._key, 'minFontSize', 'Min size (px)', 6, 200)}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Align</Label>
+                      <Select value={row.align} onValueChange={(v) => updateField(row._key, 'align', v as TextFieldConfig['align'])}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="left">Left</SelectItem>
+                          <SelectItem value="center">Center</SelectItem>
+                          <SelectItem value="right">Right</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Weight</Label>
+                      <Select value={selectedFontWeight} onValueChange={(v) => updateField(row._key, 'fontWeight', v as TextFieldConfig['fontWeight'])}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {CERTIFICATE_FONT_WEIGHT_OPTIONS.filter((option) => availableWeights.includes(option.value)).map((option) => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Color</Label>
+                      <div className="flex gap-1">
+                        <input
+                          type="color"
+                          value={row.color}
+                          onChange={(e) => updateField(row._key, 'color', e.target.value)}
+                          className="h-8 w-10 cursor-pointer rounded border"
+                        />
+                        <Input
+                          value={row.color}
+                          onChange={(e) => updateField(row._key, 'color', e.target.value)}
+                          className="h-8 flex-1 font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Font family</Label>
+                      <Select
+                        value={getSupportedCertificateFontValue(row.fontFamily)}
+                        onValueChange={(value) => updateFontFamily(row._key, value)}
+                      >
+                        <SelectTrigger
+                          className="h-8 text-xs"
+                          style={{
+                            fontFamily: row.fontFamily,
+                            fontWeight: getCertificateFontCssWeight(selectedFontWeight),
+                          }}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-80">
+                          {!isSupportedCertificateFont(row.fontFamily) && (
+                            <SelectItem value={row.fontFamily}>{row.fontFamily}</SelectItem>
+                          )}
+                          {CERTIFICATE_FONT_OPTIONS.map((option) => (
+                            <SelectItem
+                              key={option.key}
+                              value={option.value}
+                              style={{
+                                fontFamily: option.value,
+                                fontWeight: getCertificateFontCssWeight(resolveCertificateFontWeight(option.value, selectedFontWeight)),
+                              }}
+                            >
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      onClick={() => removeField(row._key)}
+                      className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Remove field
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
