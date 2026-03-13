@@ -67,6 +67,12 @@ function getFieldTransform(align: TextFieldConfig['align']) {
   return 'translate(0, -50%)';
 }
 
+function getPreviewTextAlign(align: TextFieldConfig['align']) {
+  if (align === 'center') return 'center';
+  if (align === 'right') return 'right';
+  return 'left';
+}
+
 function getAnchorOffsetXPercent(field: EditableFieldRow, pointerPercent: number) {
   if (field.align === 'center') {
     return pointerPercent - field.xPercent + field.maxWidthPercent / 2;
@@ -603,7 +609,7 @@ export function TemplateFieldEditor({ template, rows, selectedKey, onSelect, onU
                         onClick={() => onSelect(row._key)}
                         onPointerDown={(event) => handleFieldPointerDown(row._key, event)}
                         className={cn(
-                          'w-full cursor-move rounded-md border px-2 py-1 text-center shadow-sm transition focus:outline-none',
+                          'w-full cursor-move rounded-md border px-0 py-1 shadow-sm transition focus:outline-none',
                           isSelected
                             ? 'border-indigo-500 bg-indigo-500/12 ring-2 ring-indigo-400/60'
                             : 'border-white/80 bg-black/35 hover:bg-black/45',
@@ -614,6 +620,7 @@ export function TemplateFieldEditor({ template, rows, selectedKey, onSelect, onU
                           fontWeight: getCertificateFontCssWeight(resolvedFontWeight),
                           fontSize: `${Math.max(1, previewFontSize)}px`,
                           lineHeight: 1.1,
+                          textAlign: getPreviewTextAlign(row.align),
                           touchAction: 'none',
                           opacity: isPlaceholder ? 0.5 : 1,
                         }}
