@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { generateCertificateOutput } from '@/lib/certificate-service';
 import type { CertificateField } from '@/lib/certificate-generator';
+import type { PdfQuality } from '@/features/certificate/types';
 
 async function getSessionUserId(): Promise<string | null> {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -17,10 +18,11 @@ export async function POST(req: NextRequest) {
     templateId: string;
     format?: 'png' | 'jpg' | 'pdf';
     exportMode?: 'zip' | 'single_pdf' | 'sheet_pdf';
+    pdfQuality?: PdfQuality;
     recipients: Array<{ values: CertificateField[] }>;
   };
 
-  const { templateId, recipients, format = 'png', exportMode = 'zip' } = body;
+  const { templateId, recipients, format = 'png', exportMode = 'zip', pdfQuality = 'standard' } = body;
 
   if (!templateId || !recipients?.length) {
     return NextResponse.json({ error: 'Missing templateId or recipients' }, { status: 400 });
@@ -33,6 +35,7 @@ export async function POST(req: NextRequest) {
       recipients,
       format,
       outputMode: exportMode,
+      pdfQuality,
       source: 'manual',
     });
 

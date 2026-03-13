@@ -35,6 +35,8 @@ export type CertificateField = {
   value: string;
 };
 
+export type CertificatePdfQuality = 'standard' | 'high';
+
 export type GenerateOptions = {
   templateBuffer: Buffer;
   templateWidth: number;
@@ -42,6 +44,7 @@ export type GenerateOptions = {
   fields: TextFieldConfig[];
   values: CertificateField[];
   format: 'png' | 'jpg' | 'pdf';
+  pdfQuality?: CertificatePdfQuality;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -81,6 +84,7 @@ async function buildSvgOverlay(
   height: number,
   fields: TextFieldConfig[],
   values: CertificateField[],
+  renderScale = 1,
 ) {
   const valueMap = new Map(values.map((v) => [v.fieldId, v.value]));
   const textElements = await Promise.all(fields.map(async (field) => {
@@ -93,12 +97,14 @@ async function buildSvgOverlay(
     const { resolvedFontFamily, fontFilePath } = await getCertificateFontRenderConfig(field.fontFamily, field.fontWeight);
     const anchor = textAnchor(field.align);
 
-    let currentFontSize = calcFontSize(text, maxWidthPx, field.fontSize, field.minFontSize);
+    const baseFontSize = Math.max(1, Math.round(field.fontSize * renderScale));
+    const minFontSize = Math.max(1, Math.round(field.minFontSize * renderScale));
+    let currentFontSize = calcFontSize(text, maxWidthPx, baseFontSize, minFontSize);
     let overlayBuffer: Buffer | null = null;
     let overlayWidth = 0;
     let overlayHeight = 0;
 
-    while (currentFontSize >= field.minFontSize) {
+    while (currentFontSize >= minFontSize) {
       const candidateBuffer = await sharp({
         text: {
           text: `<span foreground="${field.color}">${escapeXml(text)}</span>`,
@@ -117,7 +123,7 @@ async function buildSvgOverlay(
       overlayHeight = metadata.height ?? 0;
       overlayBuffer = candidateBuffer;
 
-      if (overlayWidth <= maxWidthPx || currentFontSize === field.minFontSize) {
+      if (overlayWidth <= maxWidthPx || currentFontSize === minFontSize) {
         break;
       }
 
@@ -149,12 +155,15 @@ async function buildSvgOverlay(
 
 /** Generate a single certificate image as a Buffer */
 export async function generateCertificate(options: GenerateOptions): Promise<Buffer> {
-  const { templateBuffer, templateWidth, templateHeight, fields, values, format } = options;
+  const { templateBuffer, templateWidth, templateHeight, fields, values, format, pdfQuality = 'standard' } = options;
+  const renderScale = format === 'pdf' && pdfQuality === 'high' ? 2 : 1;
+  const renderWidth = templateWidth * renderScale;
+  const renderHeight = templateHeight * renderScale;
 
-  const textOverlays = await buildSvgOverlay(templateWidth, templateHeight, fields, values);
+  const textOverlays = await buildSvgOverlay(renderWidth, renderHeight, fields, values, renderScale);
 
   const pngBuffer = await sharp(templateBuffer)
-    .resize(templateWidth, templateHeight, { fit: 'fill' })
+    .resize(renderWidth, renderHeight, { fit: 'fill' })
     .composite(textOverlays)
     .png()
     .toBuffer();
@@ -286,6 +295,7 @@ async function appendSheetPages(
     offsetYMm?: number;
     flipX?: boolean;
     flipY?: boolean;
+    pdfQuality?: CertificatePdfQuality;
   },
 ): Promise<void> {
   const pageWidth = mmToPoints(210);
@@ -302,7 +312,7 @@ async function appendSheetPages(
   const cellHeight = (pageHeight - marginTop - marginBottom - (verticalGap * (rows - 1))) / rows;
   const aspectRatio = cardWidth / cardHeight;
   const cardsPerPage = columns * rows;
-  const targetDpi = 200;
+  const targetDpi = options?.pdfQuality === 'high' ? 300 : 200;
 
   for (let pageStart = 0; pageStart < imageBuffers.length; pageStart += cardsPerPage) {
     const page = pdfDoc.addPage([pageWidth, pageHeight]);
@@ -329,14 +339,17 @@ async function appendSheetPages(
       const fittedHeight = fittedWidth / aspectRatio;
       const targetWidthPx = Math.max(1, Math.round((fittedWidth / 72) * targetDpi));
       const targetHeightPx = Math.max(1, Math.round((fittedHeight / 72) * targetDpi));
-      const optimizedImageBuffer = await sharp(calibratedImageBuffer)
+      const resizedImage = sharp(calibratedImageBuffer)
         .resize(targetWidthPx, targetHeightPx, {
           fit: 'inside',
           withoutEnlargement: true,
-        })
-        .jpeg({ quality: 92 })
-        .toBuffer();
-      const embeddedImage = await pdfDoc.embedJpg(optimizedImageBuffer);
+        });
+      const optimizedImageBuffer = options?.pdfQuality === 'high'
+        ? await resizedImage.png().toBuffer()
+        : await resizedImage.jpeg({ quality: 92 }).toBuffer();
+      const embeddedImage = options?.pdfQuality === 'high'
+        ? await pdfDoc.embedPng(optimizedImageBuffer)
+        : await pdfDoc.embedJpg(optimizedImageBuffer);
       const x = marginLeft
         + (column * (cellWidth + horizontalGap))
         + ((cellWidth - fittedWidth) / 2)
@@ -365,9 +378,10 @@ export async function createSheetPdf(
   cardWidth: number,
   cardHeight: number,
   settings: PrintSheetSettings,
+  pdfQuality: CertificatePdfQuality = 'standard',
 ): Promise<Buffer> {
   const pdfDoc = await PDFDocument.create();
-  await appendSheetPages(pdfDoc, imageBuffers, cardWidth, cardHeight, settings);
+  await appendSheetPages(pdfDoc, imageBuffers, cardWidth, cardHeight, settings, { pdfQuality });
 
   const bytes = await pdfDoc.save();
   return Buffer.from(bytes);
@@ -381,9 +395,10 @@ export async function createDuplexSheetPdf(
   backCardWidth: number,
   backCardHeight: number,
   settings: PrintSheetSettings,
+  pdfQuality: CertificatePdfQuality = 'standard',
 ): Promise<Buffer> {
   const pdfDoc = await PDFDocument.create();
-  await appendSheetPages(pdfDoc, frontImageBuffers, frontCardWidth, frontCardHeight, settings);
+  await appendSheetPages(pdfDoc, frontImageBuffers, frontCardWidth, frontCardHeight, settings, { pdfQuality });
 
   if (backImageBuffers.length > 0) {
     await appendSheetPages(pdfDoc, backImageBuffers, backCardWidth, backCardHeight, settings, {
@@ -392,6 +407,7 @@ export async function createDuplexSheetPdf(
       offsetYMm: settings.backOffsetYMm,
       flipX: settings.backFlipX,
       flipY: settings.backFlipY,
+      pdfQuality,
     });
   }
 

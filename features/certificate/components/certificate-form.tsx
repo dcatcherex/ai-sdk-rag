@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { CertificateTemplate, ExportFormat } from '../types';
-import { FORMAT_OPTIONS } from '../types';
+import type { CertificateTemplate, ExportFormat, PdfQuality } from '../types';
+import { FORMAT_OPTIONS, PDF_QUALITY_OPTIONS } from '../types';
 
 type Props = { template: CertificateTemplate };
 
@@ -18,6 +18,7 @@ export function CertificateForm({ template }: Props) {
     Object.fromEntries(template.fields.map((f) => [f.id, ''])),
   );
   const [format, setFormat] = useState<ExportFormat>('png');
+  const [pdfQuality, setPdfQuality] = useState<PdfQuality>('standard');
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
@@ -66,6 +67,7 @@ export function CertificateForm({ template }: Props) {
         body: JSON.stringify({
           templateId: template.id,
           format,
+          pdfQuality: format === 'pdf' ? pdfQuality : undefined,
           values: Object.entries(values).map(([fieldId, value]) => ({ fieldId, value })),
         }),
       });
@@ -119,6 +121,19 @@ export function CertificateForm({ template }: Props) {
             </SelectContent>
           </Select>
         </div>
+        {format === 'pdf' && (
+          <div className="space-y-1.5">
+            <Label>PDF quality</Label>
+            <Select value={pdfQuality} onValueChange={(value) => setPdfQuality(value as PdfQuality)}>
+              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {PDF_QUALITY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <Button type="submit" disabled={loading} className="flex-1">
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           {loading ? 'Generating…' : 'Generate Certificate'}

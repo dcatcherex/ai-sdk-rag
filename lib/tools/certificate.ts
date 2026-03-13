@@ -49,14 +49,19 @@ export function createCertificateTools(
           .enum(['zip', 'single_pdf', 'sheet_pdf'])
           .optional()
           .describe('Batch output mode. Omit for single-recipient generation.'),
+        pdfQuality: z
+          .enum(['standard', 'high'])
+          .optional()
+          .describe('PDF quality preset when format is pdf'),
       }),
-      async execute({ templateId, recipients, format, outputMode }) {
+      async execute({ templateId, recipients, format, outputMode, pdfQuality }) {
         const preview = await previewCertificateGeneration({
           userId,
           templateId,
           recipients,
           format,
           outputMode,
+          pdfQuality,
         });
 
         return {
@@ -84,14 +89,19 @@ export function createCertificateTools(
           .enum(['zip', 'single_pdf', 'sheet_pdf'])
           .optional()
           .describe('Batch output mode. Omit for single-recipient generation.'),
+        pdfQuality: z
+          .enum(['standard', 'high'])
+          .optional()
+          .describe('PDF quality preset when format is pdf'),
       }),
-      async execute({ templateId, recipients, format, outputMode }) {
+      async execute({ templateId, recipients, format, outputMode, pdfQuality }) {
         const result = await generateCertificateOutput({
           userId,
           templateId,
           recipients,
           format,
           outputMode,
+          pdfQuality,
           source: options?.source ?? 'manual',
           maxRecipients: options?.maxRecipients,
         });
@@ -117,13 +127,18 @@ export function createCertificateTools(
           .optional()
           .default('png')
           .describe('Output format'),
+        pdfQuality: z
+          .enum(['standard', 'high'])
+          .optional()
+          .describe('PDF quality preset when format is pdf'),
       }),
-      async execute({ templateId, values, format }) {
+      async execute({ templateId, values, format, pdfQuality }) {
         const result = await generateCertificateOutput({
           userId,
           templateId,
           recipients: [{ values: values as CertificateField[] }],
           format,
+          pdfQuality,
           source: options?.source ?? 'manual',
           maxRecipients: options?.maxRecipients,
         });

@@ -9,6 +9,7 @@ import {
   generateCertificate,
   mergePdfBuffers,
   type CertificateField,
+  type CertificatePdfQuality,
   type TextFieldConfig,
 } from '@/lib/certificate-generator';
 import { getDefaultPrintSheetSettingsForTemplateType, normalizePrintSheetSettings } from '@/lib/certificate-print';
@@ -17,6 +18,7 @@ import { uploadPublicObject } from '@/lib/r2';
 export type CertificateOutputFormat = 'png' | 'jpg' | 'pdf';
 export type CertificateOutputMode = 'single_file' | 'zip' | 'single_pdf' | 'sheet_pdf';
 export type CertificateJobSource = 'manual' | 'agent';
+export type { CertificatePdfQuality };
 export type CertificateRecipientInput = {
   values: Record<string, string> | CertificateField[];
 };
@@ -24,6 +26,7 @@ export type CertificateRecipientInput = {
 export type CertificateJobRequestPayload = {
   fieldIds: string[];
   hasBackSide: boolean;
+  pdfQuality?: CertificatePdfQuality;
   recipientCount: number;
   recipientPreview: string[];
   requiredFieldIds: string[];
@@ -335,6 +338,7 @@ export async function listCertificateJobs(userId: string, options?: {
 export async function previewCertificateGeneration(options: {
   format?: CertificateOutputFormat;
   outputMode?: Exclude<CertificateOutputMode, 'single_file'>;
+  pdfQuality?: CertificatePdfQuality;
   recipients: CertificateRecipientInput[];
   templateId: string;
   userId: string;
@@ -370,12 +374,14 @@ export async function generateCertificateOutput(options: {
   format?: CertificateOutputFormat;
   maxRecipients?: number;
   outputMode?: Exclude<CertificateOutputMode, 'single_file'>;
+  pdfQuality?: CertificatePdfQuality;
   recipients: CertificateRecipientInput[];
   source?: CertificateJobSource;
   templateId: string;
   userId: string;
 }): Promise<CertificateGenerationResult> {
   const format = options.format ?? 'png';
+  const pdfQuality = options.pdfQuality ?? 'standard';
   const maxRecipients = options.maxRecipients ?? 500;
   const recipients = options.recipients.map((recipient) => ({
     values: normalizeRecipientValues(recipient.values),
@@ -400,6 +406,7 @@ export async function generateCertificateOutput(options: {
   const requestPayload: CertificateJobRequestPayload = {
     fieldIds: [...fields, ...backFields].map((field) => field.id),
     hasBackSide: Boolean(template.backR2Key),
+    ...(format === 'pdf' ? { pdfQuality } : {}),
     recipientCount: recipients.length,
     recipientPreview: normalizedRecipientValues.slice(0, 5).map((values, index) => getRecipientDisplayName(values, `certificate_${index + 1}`)),
     requiredFieldIds: [...fields, ...backFields].filter((field) => field.required === true).map((field) => field.id),
@@ -463,6 +470,7 @@ export async function generateCertificateOutput(options: {
         fields,
         values: recipientValues,
         format,
+        pdfQuality,
       });
       const upload = await uploadPublicObject({
         key: fileKey,
@@ -500,6 +508,7 @@ export async function generateCertificateOutput(options: {
         fields,
         values,
         format: outputMode === 'sheet_pdf' ? 'png' : format,
+        pdfQuality,
       });
       const baseName = getRecipientDisplayName(values, `certificate_${index + 1}`);
       const duplicateCount = usedNames.get(baseName) ?? 0;
@@ -517,6 +526,7 @@ export async function generateCertificateOutput(options: {
             fields: backFields,
             values,
             format: 'png',
+            pdfQuality,
           });
 
           backSheetImageBuffers.push(backBuffer);
@@ -538,8 +548,9 @@ export async function generateCertificateOutput(options: {
             template.backWidth,
             template.backHeight,
             printSettings,
+            pdfQuality,
           )
-        : await createSheetPdf(sheetImageBuffers, template.width, template.height, printSettings);
+        : await createSheetPdf(sheetImageBuffers, template.width, template.height, printSettings, pdfQuality);
       const fileName = `${sanitizeFileStem(template.name)}_${printSettings.preset}_sheet.pdf`;
       const fileKey = `certificates/output/${options.userId}/${jobId}/${fileName}`;
       const upload = await uploadPublicObject({

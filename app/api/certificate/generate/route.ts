@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { generateCertificateOutput } from '@/lib/certificate-service';
 import type { CertificateField } from '@/lib/certificate-generator';
+import type { PdfQuality } from '@/features/certificate/types';
 
 async function getSessionUserId(): Promise<string | null> {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -17,9 +18,10 @@ export async function POST(req: NextRequest) {
     templateId: string;
     values: CertificateField[];
     format?: 'png' | 'jpg' | 'pdf';
+    pdfQuality?: PdfQuality;
   };
 
-  const { templateId, values, format = 'png' } = body;
+  const { templateId, values, format = 'png', pdfQuality = 'standard' } = body;
   if (!templateId || !values?.length) {
     return NextResponse.json({ error: 'Missing templateId or values' }, { status: 400 });
   }
@@ -30,6 +32,7 @@ export async function POST(req: NextRequest) {
       templateId,
       recipients: [{ values }],
       format,
+      pdfQuality,
       source: 'manual',
     });
 

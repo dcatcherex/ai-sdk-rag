@@ -10,8 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { getPrintPresetLabel } from '@/lib/certificate-print';
-import type { CertificateTemplate, ExportFormat, Recipient } from '../types';
-import { FORMAT_OPTIONS } from '../types';
+import type { CertificateTemplate, ExportFormat, PdfQuality, Recipient } from '../types';
+import { FORMAT_OPTIONS, PDF_QUALITY_OPTIONS } from '../types';
 
 type Props = { template: CertificateTemplate };
 
@@ -86,6 +86,7 @@ export function BatchForm({ template }: Props) {
   const [recipients, setRecipients] = useState<Recipient[]>([emptyRecipient(templateInputFields)]);
   const [format, setFormat] = useState<ExportFormat>('png');
   const [pdfExportMode, setPdfExportMode] = useState<BatchPdfExportMode>('zip');
+  const [pdfQuality, setPdfQuality] = useState<PdfQuality>('standard');
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [pasteValue, setPasteValue] = useState('');
@@ -233,6 +234,7 @@ export function BatchForm({ template }: Props) {
           templateId: template.id,
           format,
           exportMode: format === 'pdf' ? pdfExportMode : 'zip',
+          pdfQuality: format === 'pdf' ? pdfQuality : undefined,
           recipients: recipients.map((r) => ({
             values: templateInputFields.map((field) => ({
               fieldId: field.id,
@@ -472,6 +474,19 @@ export function BatchForm({ template }: Props) {
                   : 'single-sided pages'}.
               </p>
             )}
+          </div>
+        )}
+        {format === 'pdf' && (
+          <div className="space-y-1.5">
+            <Label>PDF quality</Label>
+            <Select value={pdfQuality} onValueChange={(value) => setPdfQuality(value as PdfQuality)}>
+              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {PDF_QUALITY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
         <Button type="submit" disabled={loading || hasMissingRequiredValues} className="flex-1">

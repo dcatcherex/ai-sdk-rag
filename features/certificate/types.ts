@@ -77,6 +77,12 @@ export const FORMAT_OPTIONS = [
 ] as const;
 
 export type ExportFormat = 'png' | 'jpg' | 'pdf';
+export type PdfQuality = 'standard' | 'high';
+
+export const PDF_QUALITY_OPTIONS = [
+  { value: 'standard', label: 'Standard' },
+  { value: 'high', label: 'High quality' },
+] as const;
 
 export const DEFAULT_FIELD: Omit<TextFieldConfig, 'id' | 'label'> = {
   required: false,
