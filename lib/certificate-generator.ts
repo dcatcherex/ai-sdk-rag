@@ -1,5 +1,6 @@
 import sharp from 'sharp';
 import { PDFDocument, rgb } from 'pdf-lib';
+import type { CertificateFontWeight } from '@/lib/certificate-fonts';
 import { getCertificateFontRenderConfig } from '@/lib/certificate-fonts.server';
 import type { PrintSheetSettings } from '@/lib/certificate-print';
 
@@ -25,7 +26,7 @@ export type TextFieldConfig = {
   maxWidthPercent: number;
   fontFamily: string;
   color: string;
-  fontWeight: 'normal' | 'bold';
+  fontWeight: CertificateFontWeight;
   align: TextAlign;
 };
 

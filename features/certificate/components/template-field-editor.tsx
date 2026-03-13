@@ -5,6 +5,7 @@ import type { KeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { Crosshair, Magnet, Maximize2, Minus, MoveDiagonal, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { getCertificateFontCssWeight, resolveCertificateFontWeight } from '@/lib/certificate-fonts';
 import { cn } from '@/lib/utils';
 import type { CertificateTemplate, TextFieldConfig } from '../types';
 
@@ -584,6 +585,7 @@ export function TemplateFieldEditor({ template, rows, selectedKey, onSelect, onU
                   const previewFontSize = fittedFontSize * scale;
                   const handlePosition = getResizeHandlePosition(row);
                   const isPlaceholder = !previewText.trim();
+                  const resolvedFontWeight = resolveCertificateFontWeight(row.fontFamily, row.fontWeight);
 
                   return (
                     <div
@@ -609,7 +611,7 @@ export function TemplateFieldEditor({ template, rows, selectedKey, onSelect, onU
                         style={{
                           color: row.color,
                           fontFamily: row.fontFamily,
-                          fontWeight: row.fontWeight,
+                          fontWeight: getCertificateFontCssWeight(resolvedFontWeight),
                           fontSize: `${Math.max(1, previewFontSize)}px`,
                           lineHeight: 1.1,
                           touchAction: 'none',

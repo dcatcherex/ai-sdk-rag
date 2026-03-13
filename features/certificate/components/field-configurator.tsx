@@ -9,7 +9,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { nanoid } from 'nanoid';
-import { CERTIFICATE_FONT_OPTIONS, getSupportedCertificateFontValue, isSupportedCertificateFont } from '@/lib/certificate-fonts';
+import {
+  CERTIFICATE_FONT_OPTIONS,
+  CERTIFICATE_FONT_WEIGHT_OPTIONS,
+  getCertificateFontAvailableWeights,
+  getSupportedCertificateFontValue,
+  isSupportedCertificateFont,
+  resolveCertificateFontWeight,
+} from '@/lib/certificate-fonts';
 import {
   getDefaultPrintSheetSettings,
   getDefaultPrintSheetSettingsForTemplateType,
@@ -31,7 +38,11 @@ type FieldRow = TextFieldConfig & { _key: string };
 type TemplateSide = 'front' | 'back';
 
 function toRows(fields: TextFieldConfig[]): FieldRow[] {
-  return fields.map((f) => ({ ...f, _key: f.id }));
+  return fields.map((field) => ({
+    ...field,
+    fontWeight: resolveCertificateFontWeight(field.fontFamily, field.fontWeight),
+    _key: field.id,
+  }));
 }
 
 export function FieldConfigurator({ template, onSaved, onTemplateUpdated }: Props) {
@@ -131,6 +142,33 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated }: Prop
     }
 
     setBackRows((prev) => prev.map((r) => (r._key === key ? { ...r, [prop]: value } : r)));
+  }
+
+  function updateFontFamily(key: string, fontFamily: string) {
+    const availableWeights = getCertificateFontAvailableWeights(fontFamily);
+
+    const syncRowFont = (row: FieldRow) => {
+      if (row._key !== key) {
+        return row;
+      }
+
+      const nextFontWeight = availableWeights.includes(row.fontWeight)
+        ? row.fontWeight
+        : (availableWeights[0] ?? 'normal');
+
+      return {
+        ...row,
+        fontFamily,
+        fontWeight: nextFontWeight,
+      };
+    };
+
+    if (activeSide === 'front') {
+      setFrontRows((prev) => prev.map(syncRowFont));
+      return;
+    }
+
+    setBackRows((prev) => prev.map(syncRowFont));
   }
 
   function updatePrintSetting<K extends keyof PrintSheetSettings>(key: K, value: PrintSheetSettings[K]) {
@@ -523,11 +561,17 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated }: Prop
       </div>
 
       <div className="space-y-4">
-        {rows.map((row) => (
-          <div
-            key={row._key}
-            className={`rounded-xl border p-4 dark:border-border ${selectedKey === row._key ? 'border-indigo-300 bg-indigo-50/40 dark:border-indigo-500/60 dark:bg-indigo-950/20' : 'border-zinc-200'}`}
-          >
+        {rows.map((row) => {
+          const availableWeights = getCertificateFontAvailableWeights(row.fontFamily);
+          const selectedFontWeight = availableWeights.includes(row.fontWeight)
+            ? row.fontWeight
+            : (availableWeights[0] ?? 'normal');
+
+          return (
+            <div
+              key={row._key}
+              className={`rounded-xl border p-4 dark:border-border ${selectedKey === row._key ? 'border-indigo-300 bg-indigo-50/40 dark:border-indigo-500/60 dark:bg-indigo-950/20' : 'border-zinc-200'}`}
+            >
             <div className="mb-3 grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-[11px]">Field ID</Label>
@@ -581,11 +625,12 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated }: Prop
               </div>
               <div className="space-y-1">
                 <Label className="text-[11px]">Weight</Label>
-                <Select value={row.fontWeight} onValueChange={(v) => updateField(row._key, 'fontWeight', v as TextFieldConfig['fontWeight'])}>
+                <Select value={selectedFontWeight} onValueChange={(v) => updateField(row._key, 'fontWeight', v as TextFieldConfig['fontWeight'])}>
                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="normal">Normal</SelectItem>
-                    <SelectItem value="bold">Bold</SelectItem>
+                    {CERTIFICATE_FONT_WEIGHT_OPTIONS.filter((option) => availableWeights.includes(option.value)).map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -609,7 +654,7 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated }: Prop
                 <Label className="text-[11px]">Font family</Label>
                 <Select
                   value={getSupportedCertificateFontValue(row.fontFamily)}
-                  onValueChange={(value) => updateField(row._key, 'fontFamily', value)}
+                  onValueChange={(value) => updateFontFamily(row._key, value)}
                 >
                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -632,8 +677,9 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated }: Prop
                 <Trash2 className="h-3.5 w-3.5" /> Remove field
               </button>
             </div>
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
 
       {updateMutation.isSuccess && (

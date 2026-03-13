@@ -1,7 +1,7 @@
 import 'server-only';
 import { access } from 'node:fs/promises';
 import path from 'node:path';
-import { findCertificateFontOption, type CertificateFontWeight } from '@/lib/certificate-fonts';
+import { findCertificateFontOption, resolveCertificateFontWeight, type CertificateFontWeight } from '@/lib/certificate-fonts';
 
 const fontPathCache = new Map<string, Promise<string | null>>();
 
@@ -35,7 +35,12 @@ export async function getCertificateFontRenderConfig(fontFamily: string, fontWei
     };
   }
 
-  const fileName = fontWeight === 'bold' ? (option.boldFile ?? option.regularFile) : option.regularFile;
+  const resolvedWeight = resolveCertificateFontWeight(fontFamily, fontWeight);
+  const fileName = resolvedWeight === 'bold'
+    ? (option.boldFile ?? option.mediumFile ?? option.regularFile)
+    : resolvedWeight === 'medium'
+      ? (option.mediumFile ?? option.regularFile ?? option.boldFile)
+      : (option.regularFile ?? option.mediumFile ?? option.boldFile);
 
   if (!fileName) {
     return {
