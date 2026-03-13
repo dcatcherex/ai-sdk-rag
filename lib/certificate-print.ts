@@ -1,6 +1,6 @@
 export type CertificateTemplateType = 'certificate' | 'card' | 'tag';
 
-export type PrintSheetPresetKey = 'a4_3x3' | 'a4_2x4' | 'a4_2x5';
+export type PrintSheetPresetKey = 'a4_maximize' | 'a4_3x3' | 'a4_2x4' | 'a4_2x5';
 
 export type PrintSheetDuplexMode = 'single_sided' | 'front_back';
 
@@ -26,6 +26,8 @@ export type PrintSheetSettings = {
   backOffsetYMm: number;
   backFlipX: boolean;
   backFlipY: boolean;
+  itemWidthMm?: number;
+  itemHeightMm?: number;
 };
 
 export type PartialPrintSheetSettings = Partial<PrintSheetSettings>;
@@ -43,6 +45,30 @@ export const TEMPLATE_TYPE_OPTIONS: Array<{ value: CertificateTemplateType; labe
 ];
 
 export const PRINT_SHEET_PRESETS: PrintSheetPreset[] = [
+  {
+    key: 'a4_maximize',
+    label: 'A4 Maximize',
+    settings: {
+      pageSize: 'A4',
+      columns: 1,
+      rows: 1,
+      marginTopMm: 4,
+      marginRightMm: 4,
+      marginBottomMm: 4,
+      marginLeftMm: 4,
+      gapXMm: 4,
+      gapYMm: 4,
+      cropMarks: true,
+      cropMarkLengthMm: 2,
+      cropMarkOffsetMm: 1,
+      duplexMode: 'single_sided',
+      backPageOrder: 'same',
+      backOffsetXMm: 0,
+      backOffsetYMm: 0,
+      backFlipX: false,
+      backFlipY: false,
+    },
+  },
   {
     key: 'a4_3x3',
     label: 'A4 3×3',
@@ -121,18 +147,154 @@ export function getPrintSheetPreset(preset: PrintSheetPresetKey): PrintSheetPres
   return PRINT_SHEET_PRESETS.find((option) => option.key === preset) ?? PRINT_SHEET_PRESETS[0]!;
 }
 
-export function getDefaultPrintSheetSettings(preset: PrintSheetPresetKey = 'a4_3x3'): PrintSheetSettings {
+const A4_WIDTH_MM = 210;
+const A4_HEIGHT_MM = 297;
+const DEFAULT_ESTIMATED_DPI = 300;
+const AUTO_LAYOUT_MARGIN_MM = 4;
+const AUTO_LAYOUT_GAP_MM = 4;
+const AUTO_CROP_MARK_LENGTH_MM = 2;
+const AUTO_CROP_MARK_OFFSET_MM = 1;
+
+function roundToTenth(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+function normalizeOptionalItemSize(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? roundToTenth(value)
+    : null;
+}
+
+export function estimatePhysicalSizeMmFromPixels(widthPx: number, heightPx: number, densityDpi = DEFAULT_ESTIMATED_DPI): {
+  widthMm: number;
+  heightMm: number;
+} {
+  const safeDensity = Number.isFinite(densityDpi) && densityDpi > 0 ? densityDpi : DEFAULT_ESTIMATED_DPI;
+
+  return {
+    widthMm: roundToTenth((widthPx / safeDensity) * 25.4),
+    heightMm: roundToTenth((heightPx / safeDensity) * 25.4),
+  };
+}
+
+export function getEstimatedTemplateItemSizeMm(widthPx: number, heightPx: number): {
+  itemWidthMm: number;
+  itemHeightMm: number;
+} {
+  const { widthMm, heightMm } = estimatePhysicalSizeMmFromPixels(widthPx, heightPx);
+
+  return {
+    itemWidthMm: widthMm,
+    itemHeightMm: heightMm,
+  };
+}
+
+function getMaximizePrintSheetSettings(options?: {
+  itemWidthMm?: number | null;
+  itemHeightMm?: number | null;
+  duplexMode?: PrintSheetDuplexMode;
+  backPageOrder?: PrintSheetBackPageOrder;
+}): PrintSheetSettings {
+  const itemWidthMm = normalizeOptionalItemSize(options?.itemWidthMm);
+  const itemHeightMm = normalizeOptionalItemSize(options?.itemHeightMm);
+  const duplexMode = options?.duplexMode ?? 'single_sided';
+  const backPageOrder = options?.backPageOrder ?? 'same';
+
+  if (!itemWidthMm || !itemHeightMm) {
+    return {
+      preset: 'a4_maximize',
+      pageSize: 'A4',
+      columns: 3,
+      rows: 3,
+      marginTopMm: 12,
+      marginRightMm: 12,
+      marginBottomMm: 12,
+      marginLeftMm: 12,
+      gapXMm: AUTO_LAYOUT_GAP_MM,
+      gapYMm: AUTO_LAYOUT_GAP_MM,
+      cropMarks: true,
+      cropMarkLengthMm: AUTO_CROP_MARK_LENGTH_MM,
+      cropMarkOffsetMm: AUTO_CROP_MARK_OFFSET_MM,
+      duplexMode,
+      backPageOrder,
+      backOffsetXMm: 0,
+      backOffsetYMm: 0,
+      backFlipX: false,
+      backFlipY: false,
+    };
+  }
+
+  const columns = Math.max(1, Math.floor((A4_WIDTH_MM - (AUTO_LAYOUT_MARGIN_MM * 2) + AUTO_LAYOUT_GAP_MM) / (itemWidthMm + AUTO_LAYOUT_GAP_MM)));
+  const rows = Math.max(1, Math.floor((A4_HEIGHT_MM - (AUTO_LAYOUT_MARGIN_MM * 2) + AUTO_LAYOUT_GAP_MM) / (itemHeightMm + AUTO_LAYOUT_GAP_MM)));
+  const usedWidth = (columns * itemWidthMm) + ((columns - 1) * AUTO_LAYOUT_GAP_MM);
+  const usedHeight = (rows * itemHeightMm) + ((rows - 1) * AUTO_LAYOUT_GAP_MM);
+  const horizontalSlack = Math.max(0, A4_WIDTH_MM - usedWidth);
+  const verticalSlack = Math.max(0, A4_HEIGHT_MM - usedHeight);
+  const marginLeftMm = roundToTenth(horizontalSlack / 2);
+  const marginRightMm = roundToTenth(horizontalSlack - marginLeftMm);
+  const marginTopMm = roundToTenth(verticalSlack / 2);
+  const marginBottomMm = roundToTenth(verticalSlack - marginTopMm);
+
+  return {
+    preset: 'a4_maximize',
+    pageSize: 'A4',
+    columns,
+    rows,
+    marginTopMm,
+    marginRightMm,
+    marginBottomMm,
+    marginLeftMm,
+    gapXMm: AUTO_LAYOUT_GAP_MM,
+    gapYMm: AUTO_LAYOUT_GAP_MM,
+    cropMarks: true,
+    cropMarkLengthMm: AUTO_CROP_MARK_LENGTH_MM,
+    cropMarkOffsetMm: AUTO_CROP_MARK_OFFSET_MM,
+    duplexMode,
+    backPageOrder,
+    backOffsetXMm: 0,
+    backOffsetYMm: 0,
+    backFlipX: false,
+    backFlipY: false,
+    itemWidthMm,
+    itemHeightMm,
+  };
+}
+
+export function getDefaultPrintSheetSettings(
+  preset: PrintSheetPresetKey = 'a4_3x3',
+  options?: {
+    itemWidthMm?: number | null;
+    itemHeightMm?: number | null;
+    duplexMode?: PrintSheetDuplexMode;
+    backPageOrder?: PrintSheetBackPageOrder;
+  },
+): PrintSheetSettings {
+  if (preset === 'a4_maximize') {
+    return getMaximizePrintSheetSettings(options);
+  }
+
   const presetOption = getPrintSheetPreset(preset);
   return {
     preset: presetOption.key,
     ...presetOption.settings,
+    itemWidthMm: normalizeOptionalItemSize(options?.itemWidthMm) ?? undefined,
+    itemHeightMm: normalizeOptionalItemSize(options?.itemHeightMm) ?? undefined,
   };
 }
 
-export function getDefaultPrintSheetSettingsForTemplateType(templateType: CertificateTemplateType): PrintSheetSettings {
+export function getDefaultPrintSheetSettingsForTemplateType(
+  templateType: CertificateTemplateType,
+  options?: {
+    itemWidthMm?: number | null;
+    itemHeightMm?: number | null;
+  },
+): PrintSheetSettings {
   if (templateType === 'tag') {
     return {
-      ...getDefaultPrintSheetSettings('a4_2x5'),
+      ...getDefaultPrintSheetSettings('a4_maximize', {
+        itemWidthMm: options?.itemWidthMm,
+        itemHeightMm: options?.itemHeightMm,
+      }),
       duplexMode: 'front_back',
       backPageOrder: 'reverse',
     };
@@ -140,13 +302,19 @@ export function getDefaultPrintSheetSettingsForTemplateType(templateType: Certif
 
   if (templateType === 'card') {
     return {
-      ...getDefaultPrintSheetSettings('a4_3x3'),
+      ...getDefaultPrintSheetSettings('a4_maximize', {
+        itemWidthMm: options?.itemWidthMm,
+        itemHeightMm: options?.itemHeightMm,
+      }),
       duplexMode: 'front_back',
       backPageOrder: 'reverse',
     };
   }
 
-  return getDefaultPrintSheetSettings('a4_3x3');
+  return getDefaultPrintSheetSettings('a4_3x3', {
+    itemWidthMm: options?.itemWidthMm,
+    itemHeightMm: options?.itemHeightMm,
+  });
 }
 
 function clampNumber(value: number, fallback: number, minimum: number, maximum: number): number {
@@ -165,13 +333,28 @@ export function normalizeTemplateType(value: string | null | undefined): Certifi
   return 'certificate';
 }
 
-export function normalizePrintSheetSettings(input?: PartialPrintSheetSettings | null): PrintSheetSettings {
+export function normalizePrintSheetSettings(
+  input?: PartialPrintSheetSettings | null,
+  options?: {
+    fallbackItemWidthMm?: number | null;
+    fallbackItemHeightMm?: number | null;
+  },
+): PrintSheetSettings {
   const preset = input?.preset && PRINT_SHEET_PRESETS.some((option) => option.key === input.preset)
     ? input.preset
     : 'a4_3x3';
-  const defaults = getDefaultPrintSheetSettings(preset);
-  const duplexMode = input?.duplexMode === 'front_back' ? 'front_back' : defaults.duplexMode;
   const backPageOrder = input?.backPageOrder === 'reverse' ? 'reverse' : 'same';
+  const explicitItemWidthMm = normalizeOptionalItemSize(input?.itemWidthMm);
+  const explicitItemHeightMm = normalizeOptionalItemSize(input?.itemHeightMm);
+  const itemWidthMm = explicitItemWidthMm ?? normalizeOptionalItemSize(options?.fallbackItemWidthMm);
+  const itemHeightMm = explicitItemHeightMm ?? normalizeOptionalItemSize(options?.fallbackItemHeightMm);
+  const defaults = getDefaultPrintSheetSettings(preset, {
+    itemWidthMm,
+    itemHeightMm,
+    duplexMode: input?.duplexMode === 'front_back' ? 'front_back' : undefined,
+    backPageOrder,
+  });
+  const duplexMode = input?.duplexMode === 'front_back' ? 'front_back' : defaults.duplexMode;
 
   return {
     preset,
@@ -193,6 +376,8 @@ export function normalizePrintSheetSettings(input?: PartialPrintSheetSettings | 
     backOffsetYMm: clampNumber(input?.backOffsetYMm ?? defaults.backOffsetYMm, defaults.backOffsetYMm, -20, 20),
     backFlipX: input?.backFlipX ?? defaults.backFlipX,
     backFlipY: input?.backFlipY ?? defaults.backFlipY,
+    itemWidthMm: explicitItemWidthMm ?? undefined,
+    itemHeightMm: explicitItemHeightMm ?? undefined,
   };
 }
 

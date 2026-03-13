@@ -22,6 +22,7 @@ import {
 import {
   getDefaultPrintSheetSettings,
   getDefaultPrintSheetSettingsForTemplateType,
+  getEstimatedTemplateItemSizeMm,
   PRINT_SHEET_PRESETS,
   TEMPLATE_TYPE_OPTIONS,
 } from '@/lib/certificate-print';
@@ -39,6 +40,26 @@ type Props = {
 
 type FieldRow = TextFieldConfig & { _key: string };
 type TemplateSide = 'front' | 'back';
+
+function parseOptionalCentimeters(value: string): number | undefined {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed * 10 : undefined;
+}
+
+function formatOptionalMillimetersAsCentimeters(value: number | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return '';
+  }
+
+  const centimeters = value / 10;
+  return Number.isInteger(centimeters) ? String(centimeters) : String(Math.round(centimeters * 10) / 10);
+}
 
 function toRows(fields: TextFieldConfig[]): FieldRow[] {
   return fields.map((field) => ({
@@ -128,6 +149,7 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated, onCanc
   }, []);
 
   const rows = activeSide === 'front' ? frontRows : backRows;
+  const estimatedFrontItemSize = getEstimatedTemplateItemSizeMm(template.width, template.height);
   const canEditBackSide = templateType === 'card' || templateType === 'tag' || template.backR2Key !== null;
   const activeTemplate = activeSide === 'back' && template.backWidth && template.backHeight
     ? {
@@ -307,14 +329,28 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated, onCanc
 
   function handleTemplateTypeChange(value: string) {
     const nextType = value as CertificateTemplateType;
+    const explicitItemWidthMm = printSettings.itemWidthMm;
+    const explicitItemHeightMm = printSettings.itemHeightMm;
     setTemplateType(nextType);
-    setPrintSettings(getDefaultPrintSheetSettingsForTemplateType(nextType));
+    setPrintSettings({
+      ...getDefaultPrintSheetSettingsForTemplateType(nextType, {
+        itemWidthMm: explicitItemWidthMm ?? estimatedFrontItemSize.itemWidthMm,
+        itemHeightMm: explicitItemHeightMm ?? estimatedFrontItemSize.itemHeightMm,
+      }),
+      itemWidthMm: explicitItemWidthMm,
+      itemHeightMm: explicitItemHeightMm,
+    });
   }
 
   function handlePresetChange(value: string) {
     const preset = value as PrintSheetSettings['preset'];
     setPrintSettings((prev) => ({
-      ...getDefaultPrintSheetSettings(preset),
+      ...getDefaultPrintSheetSettings(preset, {
+        itemWidthMm: prev.itemWidthMm ?? estimatedFrontItemSize.itemWidthMm,
+        itemHeightMm: prev.itemHeightMm ?? estimatedFrontItemSize.itemHeightMm,
+        duplexMode: prev.duplexMode,
+        backPageOrder: prev.backPageOrder,
+      }),
       cropMarks: prev.cropMarks,
       cropMarkLengthMm: prev.cropMarkLengthMm,
       cropMarkOffsetMm: prev.cropMarkOffsetMm,
@@ -325,6 +361,43 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated, onCanc
       backFlipX: prev.backFlipX,
       backFlipY: prev.backFlipY,
     }));
+  }
+
+  function updatePhysicalSize(dimension: 'width' | 'height', value: string) {
+    const nextValueMm = parseOptionalCentimeters(value);
+
+    setPrintSettings((prev) => {
+      const explicitItemWidthMm = dimension === 'width' ? nextValueMm : prev.itemWidthMm;
+      const explicitItemHeightMm = dimension === 'height' ? nextValueMm : prev.itemHeightMm;
+
+      if (prev.preset !== 'a4_maximize') {
+        return {
+          ...prev,
+          itemWidthMm: explicitItemWidthMm,
+          itemHeightMm: explicitItemHeightMm,
+        };
+      }
+
+      return {
+        ...getDefaultPrintSheetSettings(prev.preset, {
+          itemWidthMm: explicitItemWidthMm ?? estimatedFrontItemSize.itemWidthMm,
+          itemHeightMm: explicitItemHeightMm ?? estimatedFrontItemSize.itemHeightMm,
+          duplexMode: prev.duplexMode,
+          backPageOrder: prev.backPageOrder,
+        }),
+        cropMarks: prev.cropMarks,
+        cropMarkLengthMm: prev.cropMarkLengthMm,
+        cropMarkOffsetMm: prev.cropMarkOffsetMm,
+        duplexMode: prev.duplexMode,
+        backPageOrder: prev.backPageOrder,
+        backOffsetXMm: prev.backOffsetXMm,
+        backOffsetYMm: prev.backOffsetYMm,
+        backFlipX: prev.backFlipX,
+        backFlipY: prev.backFlipY,
+        itemWidthMm: explicitItemWidthMm,
+        itemHeightMm: explicitItemHeightMm,
+      };
+    });
   }
 
   async function handleSave() {
@@ -566,6 +639,38 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated, onCanc
                 </SelectContent>
               </Select>
             </div>
+
+            {templateType !== 'certificate' && (
+              <>
+                <div className="space-y-1">
+                  <Label className="text-[11px]">Physical width (cm)</Label>
+                  <Input
+                    type="number"
+                    min={0.1}
+                    max={100}
+                    step={0.1}
+                    value={formatOptionalMillimetersAsCentimeters(printSettings.itemWidthMm)}
+                    onChange={(event) => updatePhysicalSize('width', event.target.value)}
+                    placeholder={formatOptionalMillimetersAsCentimeters(estimatedFrontItemSize.itemWidthMm)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px]">Physical height (cm)</Label>
+                  <Input
+                    type="number"
+                    min={0.1}
+                    max={100}
+                    step={0.1}
+                    value={formatOptionalMillimetersAsCentimeters(printSettings.itemHeightMm)}
+                    onChange={(event) => updatePhysicalSize('height', event.target.value)}
+                    placeholder={formatOptionalMillimetersAsCentimeters(estimatedFrontItemSize.itemHeightMm)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </>
+            )}
 
             <div className="space-y-1">
               <Label className="text-[11px]">Columns</Label>

@@ -6,7 +6,12 @@ import { certificateTemplate } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { uploadPublicObject } from '@/lib/r2';
 import { generateThumbnail, getImageDimensions } from '@/lib/certificate-generator';
-import { getDefaultPrintSheetSettingsForTemplateType, normalizePrintSheetSettings, normalizeTemplateType } from '@/lib/certificate-print';
+import {
+  getDefaultPrintSheetSettingsForTemplateType,
+  getEstimatedTemplateItemSizeMm,
+  normalizePrintSheetSettings,
+  normalizeTemplateType,
+} from '@/lib/certificate-print';
 import { nanoid } from 'nanoid';
 import type { TextFieldConfig } from '@/lib/certificate-generator';
 
@@ -59,17 +64,6 @@ export async function POST(req: NextRequest) {
   }
 
   const templateType = normalizeTemplateType(templateTypeRaw);
-  const defaultPrintSettings = getDefaultPrintSheetSettingsForTemplateType(templateType);
-  let printSettings = defaultPrintSettings;
-
-  if (printSettingsRaw) {
-    try {
-      printSettings = normalizePrintSheetSettings(JSON.parse(printSettingsRaw) as Record<string, unknown>);
-    } catch {
-      return NextResponse.json({ error: 'Invalid print settings JSON' }, { status: 400 });
-    }
-  }
-
   const id = nanoid();
   const ext = file.name.split('.').pop()?.toLowerCase() ?? 'png';
   const arrayBuffer = await file.arrayBuffer();
@@ -77,6 +71,20 @@ export async function POST(req: NextRequest) {
 
   // Get dimensions
   const { width, height } = await getImageDimensions(buffer);
+  const estimatedItemSize = getEstimatedTemplateItemSizeMm(width, height);
+  const defaultPrintSettings = getDefaultPrintSheetSettingsForTemplateType(templateType, estimatedItemSize);
+  let printSettings = defaultPrintSettings;
+
+  if (printSettingsRaw) {
+    try {
+      printSettings = normalizePrintSheetSettings(JSON.parse(printSettingsRaw) as Record<string, unknown>, {
+        fallbackItemWidthMm: estimatedItemSize.itemWidthMm,
+        fallbackItemHeightMm: estimatedItemSize.itemHeightMm,
+      });
+    } catch {
+      return NextResponse.json({ error: 'Invalid print settings JSON' }, { status: 400 });
+    }
+  }
 
   // Upload original
   const r2Key = `certificates/templates/${id}/original.${ext}`;

@@ -119,6 +119,10 @@ function calcFittedFontSize(text: string, maxWidthPx: number, baseFontSize: numb
 function getDefaultPreviewValue(field: EditableFieldRow) {
   const fieldName = `${field.id} ${field.label}`.toLowerCase();
 
+  if (fieldName.includes('nickname') || fieldName.includes('nick name')) {
+    return 'Jone';
+  }
+
   if (fieldName.includes('name')) {
     return 'Thirathat Thongkaew';
   }
@@ -144,7 +148,9 @@ export function TemplateFieldEditor({ template, rows, selectedKey, onSelect, onU
   const [previewValues, setPreviewValues] = useState<Record<string, string>>(() => {
     return Object.fromEntries(rows.map((row) => [row._key, getDefaultPreviewValue(row)]));
   });
+  const [isPreviewValuesHydrated, setIsPreviewValuesHydrated] = useState(false);
   const [zoom, setZoom] = useState(100);
+  const previewStorageKey = `certificate-preview-values:${template.id}:${imageVariant}`;
 
   const selectedField = useMemo(
     () => rows.find((row) => row._key === selectedKey) ?? null,
@@ -179,6 +185,42 @@ export function TemplateFieldEditor({ template, rows, selectedKey, onSelect, onU
 
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const storedValue = window.localStorage.getItem(previewStorageKey);
+    if (!storedValue) {
+      setPreviewValues(Object.fromEntries(rows.map((row) => [row._key, getDefaultPreviewValue(row)])));
+      setIsPreviewValuesHydrated(true);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(storedValue) as Record<string, string>;
+      const nextValues: Record<string, string> = {};
+
+      for (const row of rows) {
+        nextValues[row._key] = parsed[row._key] ?? getDefaultPreviewValue(row);
+      }
+
+      setPreviewValues(nextValues);
+      setIsPreviewValuesHydrated(true);
+    } catch {
+      setPreviewValues(Object.fromEntries(rows.map((row) => [row._key, getDefaultPreviewValue(row)])));
+      setIsPreviewValuesHydrated(true);
+    }
+  }, [previewStorageKey, rows]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isPreviewValuesHydrated) {
+      return;
+    }
+
+    window.localStorage.setItem(previewStorageKey, JSON.stringify(previewValues));
+  }, [isPreviewValuesHydrated, previewStorageKey, previewValues]);
 
   useEffect(() => {
     setPreviewValues((prev) => {

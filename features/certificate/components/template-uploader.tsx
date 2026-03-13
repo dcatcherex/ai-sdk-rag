@@ -20,9 +20,22 @@ export function TemplateUploader({ onDone, onCancel }: Props) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [templateType, setTemplateType] = useState<CertificateTemplateType>('certificate');
+  const [itemWidthCm, setItemWidthCm] = useState('');
+  const [itemHeightCm, setItemHeightCm] = useState('');
   const [preview, setPreview] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadMutation = useUploadTemplate();
+
+  function parseOptionalCentimeters(value: string): number | undefined {
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+      return undefined;
+    }
+
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed * 10 : undefined;
+  }
 
   function handleFile(f: File) {
     setFile(f);
@@ -34,13 +47,15 @@ export function TemplateUploader({ onDone, onCancel }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file || !name.trim()) return;
+    const itemWidthMm = parseOptionalCentimeters(itemWidthCm);
+    const itemHeightMm = parseOptionalCentimeters(itemHeightCm);
     const fd = new FormData();
     fd.append('file', file);
     fd.append('name', name.trim());
     if (description.trim()) fd.append('description', description.trim());
     fd.append('fields', '[]');
     fd.append('templateType', templateType);
-    fd.append('printSettings', JSON.stringify(getDefaultPrintSheetSettingsForTemplateType(templateType)));
+    fd.append('printSettings', JSON.stringify(getDefaultPrintSheetSettingsForTemplateType(templateType, { itemWidthMm, itemHeightMm })));
     const template = await uploadMutation.mutateAsync(fd);
     onDone(template);
   }
@@ -106,6 +121,43 @@ export function TemplateUploader({ onDone, onCancel }: Props) {
           </SelectContent>
         </Select>
       </div>
+
+      {templateType !== 'certificate' && (
+        <div className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-border dark:bg-zinc-900/40">
+          <div>
+            <p className="text-sm font-medium">Physical size (optional)</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Leave blank to estimate from image pixels at 300 DPI.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="tpl-width-cm">Width (cm)</Label>
+              <Input
+                id="tpl-width-cm"
+                type="number"
+                min={0.1}
+                step={0.1}
+                value={itemWidthCm}
+                onChange={(event) => setItemWidthCm(event.target.value)}
+                placeholder="5.4"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tpl-height-cm">Height (cm)</Label>
+              <Input
+                id="tpl-height-cm"
+                type="number"
+                min={0.1}
+                step={0.1}
+                value={itemHeightCm}
+                onChange={(event) => setItemHeightCm(event.target.value)}
+                placeholder="8.5"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-2">
         <Button type="submit" disabled={!file || !name.trim() || uploadMutation.isPending} className="flex-1">

@@ -6,7 +6,12 @@ import { certificateTemplate } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { uploadPublicObject } from '@/lib/r2';
 import { generateThumbnail, getImageDimensions } from '@/lib/certificate-generator';
-import { normalizePrintSheetSettings, normalizeTemplateType } from '@/lib/certificate-print';
+import {
+  getDefaultPrintSheetSettingsForTemplateType,
+  getEstimatedTemplateItemSizeMm,
+  normalizePrintSheetSettings,
+  normalizeTemplateType,
+} from '@/lib/certificate-print';
 import type { TextFieldConfig } from '@/lib/certificate-generator';
 
 async function getSessionUserId(): Promise<string | null> {
@@ -50,8 +55,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const normalizedTemplateType = body.templateType !== undefined
     ? normalizeTemplateType(body.templateType)
     : undefined;
+  const [existing] = await db
+    .select()
+    .from(certificateTemplate)
+    .where(and(eq(certificateTemplate.id, id), eq(certificateTemplate.userId, userId)));
+
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  const estimatedItemSize = getEstimatedTemplateItemSizeMm(existing.width, existing.height);
   const normalizedPrintSettings = body.printSettings !== undefined
-    ? normalizePrintSheetSettings(body.printSettings)
+    ? normalizePrintSheetSettings(body.printSettings, {
+        fallbackItemWidthMm: estimatedItemSize.itemWidthMm,
+        fallbackItemHeightMm: estimatedItemSize.itemHeightMm,
+      })
     : undefined;
 
   const [updated] = await db
@@ -118,6 +134,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     cacheControl: 'public, max-age=31536000, immutable',
   });
 
+  const nextPrintSettings = side === 'front'
+    ? normalizePrintSheetSettings(existing.printSettings as Record<string, unknown>, {
+        fallbackItemWidthMm: getEstimatedTemplateItemSizeMm(width, height).itemWidthMm,
+        fallbackItemHeightMm: getEstimatedTemplateItemSizeMm(width, height).itemHeightMm,
+      })
+    : normalizePrintSheetSettings(existing.printSettings as Record<string, unknown>, {
+        fallbackItemWidthMm: getEstimatedTemplateItemSizeMm(existing.width, existing.height).itemWidthMm,
+        fallbackItemHeightMm: getEstimatedTemplateItemSizeMm(existing.width, existing.height).itemHeightMm,
+      });
   const [updated] = await db
     .update(certificateTemplate)
     .set({
@@ -137,6 +162,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             thumbnailUrl,
             width,
             height,
+            printSettings: nextPrintSettings,
           }),
     })
     .where(and(eq(certificateTemplate.id, id), eq(certificateTemplate.userId, userId)))

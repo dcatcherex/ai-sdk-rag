@@ -12,7 +12,11 @@ import {
   type CertificatePdfQuality,
   type TextFieldConfig,
 } from '@/lib/certificate-generator';
-import { getDefaultPrintSheetSettingsForTemplateType, normalizePrintSheetSettings } from '@/lib/certificate-print';
+import {
+  getEstimatedTemplateItemSizeMm,
+  getDefaultPrintSheetSettingsForTemplateType,
+  normalizePrintSheetSettings,
+} from '@/lib/certificate-print';
 import { uploadPublicObject } from '@/lib/r2';
 
 export type CertificateOutputFormat = 'png' | 'jpg' | 'pdf';
@@ -261,9 +265,13 @@ export async function listUserCertificateTemplates(userId: string) {
   return templates.map((template) => {
     const fields = template.fields as TextFieldConfig[];
     const backFields = template.backFields as TextFieldConfig[];
+    const estimatedItemSize = getEstimatedTemplateItemSizeMm(template.width, template.height);
     const printSettings = template.printSettings
-      ? normalizePrintSheetSettings(template.printSettings as Record<string, unknown>)
-      : getDefaultPrintSheetSettingsForTemplateType(template.templateType);
+      ? normalizePrintSheetSettings(template.printSettings as Record<string, unknown>, {
+          fallbackItemWidthMm: estimatedItemSize.itemWidthMm,
+          fallbackItemHeightMm: estimatedItemSize.itemHeightMm,
+        })
+      : getDefaultPrintSheetSettingsForTemplateType(template.templateType, estimatedItemSize);
     const hasBackSide = Boolean(template.backR2Key && template.backWidth && template.backHeight);
 
     return {
@@ -435,9 +443,13 @@ export async function generateCertificateOutput(options: {
     }
 
     const templateBuffer = Buffer.from(await imageRes.arrayBuffer());
+    const estimatedItemSize = getEstimatedTemplateItemSizeMm(template.width, template.height);
     const printSettings = template.printSettings
-      ? normalizePrintSheetSettings(template.printSettings as Record<string, unknown>)
-      : getDefaultPrintSheetSettingsForTemplateType(template.templateType);
+      ? normalizePrintSheetSettings(template.printSettings as Record<string, unknown>, {
+          fallbackItemWidthMm: estimatedItemSize.itemWidthMm,
+          fallbackItemHeightMm: estimatedItemSize.itemHeightMm,
+        })
+      : getDefaultPrintSheetSettingsForTemplateType(template.templateType, estimatedItemSize);
     const canGenerateDuplexSheet = Boolean(
       format === 'pdf'
       && outputMode === 'sheet_pdf'
