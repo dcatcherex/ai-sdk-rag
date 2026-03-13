@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ImageUp, Plus, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ImageUp, Plus, Save, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -34,6 +34,7 @@ type Props = {
   template: CertificateTemplate;
   onSaved: (template: CertificateTemplate) => void;
   onTemplateUpdated: (template: CertificateTemplate) => void;
+  onCancel: () => void;
 };
 
 type FieldRow = TextFieldConfig & { _key: string };
@@ -47,12 +48,13 @@ function toRows(fields: TextFieldConfig[]): FieldRow[] {
   }));
 }
 
-export function FieldConfigurator({ template, onSaved, onTemplateUpdated }: Props) {
+export function FieldConfigurator({ template, onSaved, onTemplateUpdated, onCancel }: Props) {
   const [activeSide, setActiveSide] = useState<TemplateSide>('front');
   const [frontRows, setFrontRows] = useState<FieldRow[]>(() => toRows(template.fields));
   const [backRows, setBackRows] = useState<FieldRow[]>(() => toRows(template.backFields));
   const [selectedKey, setSelectedKey] = useState<string | null>(() => template.fields[0]?.id ?? null);
   const [isPrintSettingsOpen, setIsPrintSettingsOpen] = useState(false);
+  const [isReplaceDragActive, setIsReplaceDragActive] = useState(false);
   const [templateType, setTemplateType] = useState<CertificateTemplateType>(template.templateType);
   const [printSettings, setPrintSettings] = useState<PrintSheetSettings>(template.printSettings);
   const replaceImageInputRef = useRef<HTMLInputElement>(null);
@@ -102,6 +104,29 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated }: Prop
     }
   }, [activeSide, template.backR2Key, templateType]);
 
+  useEffect(() => {
+    function preventWindowDrop(event: DragEvent) {
+      const target = event.target;
+
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      const dropZone = document.querySelector('[data-certificate-image-dropzone="true"]');
+      if (dropZone instanceof Node && dropZone.contains(target)) {
+        event.preventDefault();
+      }
+    }
+
+    window.addEventListener('dragover', preventWindowDrop);
+    window.addEventListener('drop', preventWindowDrop);
+
+    return () => {
+      window.removeEventListener('dragover', preventWindowDrop);
+      window.removeEventListener('drop', preventWindowDrop);
+    };
+  }, []);
+
   const rows = activeSide === 'front' ? frontRows : backRows;
   const canEditBackSide = templateType === 'card' || templateType === 'tag' || template.backR2Key !== null;
   const activeTemplate = activeSide === 'back' && template.backWidth && template.backHeight
@@ -111,6 +136,78 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated }: Prop
         height: template.backHeight,
       }
     : template;
+  const serializedTemplateState = JSON.stringify({
+    fields: template.fields,
+    backFields: template.backFields,
+    templateType: template.templateType,
+    printSettings: template.printSettings,
+  });
+  const serializedDraftState = JSON.stringify({
+    fields: frontRows.map(({ _key: _ignored, ...rest }) => rest),
+    backFields: backRows.map(({ _key: _ignored, ...rest }) => rest),
+    templateType,
+    printSettings,
+  });
+  const isDirty = serializedDraftState !== serializedTemplateState;
+
+  function resetDraftState() {
+    setFrontRows(toRows(template.fields));
+    setBackRows(toRows(template.backFields));
+    setTemplateType(template.templateType);
+    setPrintSettings(template.printSettings);
+    setSelectedKey(template.fields[0]?.id ?? template.backFields[0]?.id ?? null);
+    setActiveSide('front');
+    setIsPrintSettingsOpen(false);
+  }
+
+  function handleCancel() {
+    if (isDirty) {
+      const shouldDiscard = window.confirm('Discard your unsaved certificate editor changes?');
+      if (!shouldDiscard) {
+        return;
+      }
+    }
+
+    resetDraftState();
+    onCancel();
+  }
+
+  function getDraggedImageFile(dataTransfer: DataTransfer) {
+    const file = Array.from(dataTransfer.files).find((candidate) => candidate.type.startsWith('image/'));
+    return file ?? null;
+  }
+
+  function handleReplaceDragOver(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault();
+    if (!replaceImageMutation.isPending) {
+      setIsReplaceDragActive(true);
+    }
+  }
+
+  function handleReplaceDragLeave(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault();
+
+    const nextTarget = event.relatedTarget;
+    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
+      return;
+    }
+
+    setIsReplaceDragActive(false);
+  }
+
+  function handleReplaceDrop(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault();
+    setIsReplaceDragActive(false);
+
+    if (replaceImageMutation.isPending) {
+      return;
+    }
+
+    const file = getDraggedImageFile(event.dataTransfer);
+    if (file) {
+      void handleReplaceImage(file);
+    }
+  }
 
   function renderFieldSummary(row: FieldRow) {
     const fontWeight = resolveCertificateFontWeight(row.fontFamily, row.fontWeight);
@@ -281,18 +378,46 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated }: Prop
             Positions are % of template dimensions. Template: {activeTemplate.width}×{activeTemplate.height}px
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => replaceImageInputRef.current?.click()} disabled={replaceImageMutation.isPending}>
-            <ImageUp className="mr-1 h-3.5 w-3.5" />
-            {replaceImageMutation.isPending ? 'Replacing…' : `Replace ${activeSide} image`}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button size="sm" variant="ghost" onClick={handleCancel}>
+            <ArrowLeft className="mr-1 h-3.5 w-3.5" />
+            {isDirty ? 'Cancel' : 'Back'}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => replaceImageInputRef.current?.click()}
+            disabled={replaceImageMutation.isPending}
+            className={isReplaceDragActive ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-300' : ''}
+          >
+            {isReplaceDragActive ? <Upload className="mr-1 h-3.5 w-3.5" /> : <ImageUp className="mr-1 h-3.5 w-3.5" />}
+            {replaceImageMutation.isPending ? 'Replacing…' : isReplaceDragActive ? `Drop ${activeSide} image` : `Replace ${activeSide} image`}
           </Button>
           <Button size="sm" variant="outline" onClick={addField}>
             <Plus className="mr-1 h-3.5 w-3.5" /> Add field
           </Button>
-          <Button size="sm" onClick={handleSave} disabled={updateMutation.isPending}>
+          <Button size="sm" onClick={handleSave} disabled={updateMutation.isPending || !isDirty}>
             <Save className="mr-1 h-3.5 w-3.5" />
             {updateMutation.isPending ? 'Saving…' : 'Save'}
           </Button>
+        </div>
+      </div>
+
+      <div
+        data-certificate-image-dropzone="true"
+        onDragOver={handleReplaceDragOver}
+        onDragLeave={handleReplaceDragLeave}
+        onDrop={handleReplaceDrop}
+        onClick={() => replaceImageInputRef.current?.click()}
+        className={`cursor-pointer rounded-xl border border-dashed px-4 py-3 text-xs transition-colors ${isReplaceDragActive ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-300' : 'border-zinc-200 text-zinc-500 dark:border-border dark:text-zinc-400'}`}
+      >
+        <div className="flex items-center gap-2">
+          {isReplaceDragActive ? <Upload className="h-4 w-4" /> : <ImageUp className="h-4 w-4" />}
+          <span>
+            {isReplaceDragActive
+              ? `Drop a PNG, JPG, or WebP to replace the ${activeSide} image`
+              : <>Drag and drop a PNG, JPG, or WebP here to replace the <span className="font-medium text-zinc-700 dark:text-zinc-200">{activeSide}</span> image, or click to browse.</>}
+          </span>
         </div>
       </div>
 

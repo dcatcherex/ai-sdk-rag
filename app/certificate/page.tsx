@@ -94,6 +94,7 @@ export default function CertificatePage() {
                   template={selectedTemplate}
                   onSaved={handleFieldsSaved}
                   onTemplateUpdated={setSelectedTemplate}
+                  onCancel={() => setView('list')}
                 />
               </div>
             ) : (
