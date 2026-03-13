@@ -1,10 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import {
   BookOpenIcon,
   DownloadIcon,
   FileTextIcon,
+  HeadsetIcon,
   Maximize2Icon,
   MenuIcon,
   Minimize2Icon,
@@ -210,6 +212,15 @@ export const ChatHeader = ({
             </Tooltip>
           </TooltipProvider>
           <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuItem asChild>
+              <Link href="/support">
+                <HeadsetIcon className="mr-2 size-4" />
+                Support Inbox
+              </Link>
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+
             {/* Font size */}
             <DropdownMenuItem
               onClick={() => onChangeFontSize(FONT_SIZES[Math.max(0, fontSizeIndex - 1)])}

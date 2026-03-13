@@ -99,7 +99,7 @@ export const AgentsList = () => {
             </Button>
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
             {agents.map((agent) => {
               const isOwner = agent.userId === currentUserId;
               const withSharing = agent as AgentWithSharing;
