@@ -26,6 +26,7 @@ export type PrintSheetSettings = {
   backOffsetYMm: number;
   backFlipX: boolean;
   backFlipY: boolean;
+  noGap: boolean;
   itemWidthMm?: number;
   itemHeightMm?: number;
 };
@@ -67,6 +68,7 @@ export const PRINT_SHEET_PRESETS: PrintSheetPreset[] = [
       backOffsetYMm: 0,
       backFlipX: false,
       backFlipY: false,
+      noGap: false,
     },
   },
   {
@@ -91,6 +93,7 @@ export const PRINT_SHEET_PRESETS: PrintSheetPreset[] = [
       backOffsetYMm: 0,
       backFlipX: false,
       backFlipY: false,
+      noGap: false,
     },
   },
   {
@@ -115,6 +118,7 @@ export const PRINT_SHEET_PRESETS: PrintSheetPreset[] = [
       backOffsetYMm: 0,
       backFlipX: false,
       backFlipY: false,
+      noGap: false,
     },
   },
   {
@@ -139,6 +143,7 @@ export const PRINT_SHEET_PRESETS: PrintSheetPreset[] = [
       backOffsetYMm: 0,
       backFlipX: false,
       backFlipY: false,
+      noGap: false,
     },
   },
 ];
@@ -194,11 +199,14 @@ function getMaximizePrintSheetSettings(options?: {
   itemHeightMm?: number | null;
   duplexMode?: PrintSheetDuplexMode;
   backPageOrder?: PrintSheetBackPageOrder;
+  noGap?: boolean;
 }): PrintSheetSettings {
   const itemWidthMm = normalizeOptionalItemSize(options?.itemWidthMm);
   const itemHeightMm = normalizeOptionalItemSize(options?.itemHeightMm);
   const duplexMode = options?.duplexMode ?? 'single_sided';
   const backPageOrder = options?.backPageOrder ?? 'same';
+  const noGap = options?.noGap === true;
+  const layoutGapMm = noGap ? 0 : AUTO_LAYOUT_GAP_MM;
 
   if (!itemWidthMm || !itemHeightMm) {
     return {
@@ -210,8 +218,8 @@ function getMaximizePrintSheetSettings(options?: {
       marginRightMm: 12,
       marginBottomMm: 12,
       marginLeftMm: 12,
-      gapXMm: AUTO_LAYOUT_GAP_MM,
-      gapYMm: AUTO_LAYOUT_GAP_MM,
+      gapXMm: layoutGapMm,
+      gapYMm: layoutGapMm,
       cropMarks: true,
       cropMarkLengthMm: AUTO_CROP_MARK_LENGTH_MM,
       cropMarkOffsetMm: AUTO_CROP_MARK_OFFSET_MM,
@@ -221,13 +229,14 @@ function getMaximizePrintSheetSettings(options?: {
       backOffsetYMm: 0,
       backFlipX: false,
       backFlipY: false,
+      noGap,
     };
   }
 
-  const columns = Math.max(1, Math.floor((A4_WIDTH_MM - (AUTO_LAYOUT_MARGIN_MM * 2) + AUTO_LAYOUT_GAP_MM) / (itemWidthMm + AUTO_LAYOUT_GAP_MM)));
-  const rows = Math.max(1, Math.floor((A4_HEIGHT_MM - (AUTO_LAYOUT_MARGIN_MM * 2) + AUTO_LAYOUT_GAP_MM) / (itemHeightMm + AUTO_LAYOUT_GAP_MM)));
-  const usedWidth = (columns * itemWidthMm) + ((columns - 1) * AUTO_LAYOUT_GAP_MM);
-  const usedHeight = (rows * itemHeightMm) + ((rows - 1) * AUTO_LAYOUT_GAP_MM);
+  const columns = Math.max(1, Math.floor((A4_WIDTH_MM - (AUTO_LAYOUT_MARGIN_MM * 2) + layoutGapMm) / (itemWidthMm + layoutGapMm)));
+  const rows = Math.max(1, Math.floor((A4_HEIGHT_MM - (AUTO_LAYOUT_MARGIN_MM * 2) + layoutGapMm) / (itemHeightMm + layoutGapMm)));
+  const usedWidth = (columns * itemWidthMm) + ((columns - 1) * layoutGapMm);
+  const usedHeight = (rows * itemHeightMm) + ((rows - 1) * layoutGapMm);
   const horizontalSlack = Math.max(0, A4_WIDTH_MM - usedWidth);
   const verticalSlack = Math.max(0, A4_HEIGHT_MM - usedHeight);
   const marginLeftMm = roundToTenth(horizontalSlack / 2);
@@ -244,8 +253,8 @@ function getMaximizePrintSheetSettings(options?: {
     marginRightMm,
     marginBottomMm,
     marginLeftMm,
-    gapXMm: AUTO_LAYOUT_GAP_MM,
-    gapYMm: AUTO_LAYOUT_GAP_MM,
+    gapXMm: layoutGapMm,
+    gapYMm: layoutGapMm,
     cropMarks: true,
     cropMarkLengthMm: AUTO_CROP_MARK_LENGTH_MM,
     cropMarkOffsetMm: AUTO_CROP_MARK_OFFSET_MM,
@@ -255,6 +264,7 @@ function getMaximizePrintSheetSettings(options?: {
     backOffsetYMm: 0,
     backFlipX: false,
     backFlipY: false,
+    noGap,
     itemWidthMm,
     itemHeightMm,
   };
@@ -267,6 +277,7 @@ export function getDefaultPrintSheetSettings(
     itemHeightMm?: number | null;
     duplexMode?: PrintSheetDuplexMode;
     backPageOrder?: PrintSheetBackPageOrder;
+    noGap?: boolean;
   },
 ): PrintSheetSettings {
   if (preset === 'a4_maximize') {
@@ -274,9 +285,13 @@ export function getDefaultPrintSheetSettings(
   }
 
   const presetOption = getPrintSheetPreset(preset);
+  const noGap = options?.noGap === true;
   return {
     preset: presetOption.key,
     ...presetOption.settings,
+    gapXMm: noGap ? 0 : presetOption.settings.gapXMm,
+    gapYMm: noGap ? 0 : presetOption.settings.gapYMm,
+    noGap,
     itemWidthMm: normalizeOptionalItemSize(options?.itemWidthMm) ?? undefined,
     itemHeightMm: normalizeOptionalItemSize(options?.itemHeightMm) ?? undefined,
   };
@@ -287,6 +302,7 @@ export function getDefaultPrintSheetSettingsForTemplateType(
   options?: {
     itemWidthMm?: number | null;
     itemHeightMm?: number | null;
+    noGap?: boolean;
   },
 ): PrintSheetSettings {
   if (templateType === 'tag') {
@@ -294,6 +310,7 @@ export function getDefaultPrintSheetSettingsForTemplateType(
       ...getDefaultPrintSheetSettings('a4_maximize', {
         itemWidthMm: options?.itemWidthMm,
         itemHeightMm: options?.itemHeightMm,
+        noGap: options?.noGap,
       }),
       duplexMode: 'front_back',
       backPageOrder: 'reverse',
@@ -305,6 +322,7 @@ export function getDefaultPrintSheetSettingsForTemplateType(
       ...getDefaultPrintSheetSettings('a4_maximize', {
         itemWidthMm: options?.itemWidthMm,
         itemHeightMm: options?.itemHeightMm,
+        noGap: options?.noGap,
       }),
       duplexMode: 'front_back',
       backPageOrder: 'reverse',
@@ -314,6 +332,7 @@ export function getDefaultPrintSheetSettingsForTemplateType(
   return getDefaultPrintSheetSettings('a4_3x3', {
     itemWidthMm: options?.itemWidthMm,
     itemHeightMm: options?.itemHeightMm,
+    noGap: options?.noGap,
   });
 }
 
@@ -344,6 +363,7 @@ export function normalizePrintSheetSettings(
     ? input.preset
     : 'a4_3x3';
   const backPageOrder = input?.backPageOrder === 'reverse' ? 'reverse' : 'same';
+  const noGap = input?.noGap === true;
   const explicitItemWidthMm = normalizeOptionalItemSize(input?.itemWidthMm);
   const explicitItemHeightMm = normalizeOptionalItemSize(input?.itemHeightMm);
   const itemWidthMm = explicitItemWidthMm ?? normalizeOptionalItemSize(options?.fallbackItemWidthMm);
@@ -353,6 +373,7 @@ export function normalizePrintSheetSettings(
     itemHeightMm,
     duplexMode: input?.duplexMode === 'front_back' ? 'front_back' : undefined,
     backPageOrder,
+    noGap,
   });
   const duplexMode = input?.duplexMode === 'front_back' ? 'front_back' : defaults.duplexMode;
 
@@ -376,6 +397,7 @@ export function normalizePrintSheetSettings(
     backOffsetYMm: clampNumber(input?.backOffsetYMm ?? defaults.backOffsetYMm, defaults.backOffsetYMm, -20, 20),
     backFlipX: input?.backFlipX ?? defaults.backFlipX,
     backFlipY: input?.backFlipY ?? defaults.backFlipY,
+    noGap,
     itemWidthMm: explicitItemWidthMm ?? undefined,
     itemHeightMm: explicitItemHeightMm ?? undefined,
   };

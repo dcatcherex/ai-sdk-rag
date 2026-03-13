@@ -1,6 +1,7 @@
+import { readFile } from 'node:fs/promises';
 import sharp from 'sharp';
 import { PDFDocument, rgb } from 'pdf-lib';
-import type { CertificateFontWeight } from '@/lib/certificate-fonts';
+import { getCertificateFontCssWeight, type CertificateFontWeight } from '@/lib/certificate-fonts';
 import { getCertificateFontRenderConfig } from '@/lib/certificate-fonts.server';
 import type { PrintSheetSettings } from '@/lib/certificate-print';
 
@@ -76,6 +77,28 @@ function textAnchor(align: TextAlign): SharpTextAlign {
   return 'left';
 }
 
+const svgFontFaceCache = new Map<string, Promise<{ css: string; familyName: string }>>();
+
+async function getSvgEmbeddedFontFace(fontFilePath: string) {
+  if (!svgFontFaceCache.has(fontFilePath)) {
+    svgFontFaceCache.set(
+      fontFilePath,
+      (async () => {
+        const fontBuffer = await readFile(fontFilePath);
+        const fontData = fontBuffer.toString('base64');
+        const familyName = `CertificateFont_${Buffer.from(fontFilePath).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(-24)}`;
+
+        return {
+          familyName,
+          css: `@font-face { font-family: '${familyName}'; src: url(data:font/ttf;base64,${fontData}) format('truetype'); font-style: normal; }`,
+        };
+      })(),
+    );
+  }
+
+  return svgFontFaceCache.get(fontFilePath)!;
+}
+
 /**
  * Build SVG overlay with all text fields rendered at correct positions.
  */
@@ -94,61 +117,53 @@ async function buildSvgOverlay(
     const xPx = Math.round((field.xPercent / 100) * width);
     const yPx = Math.round((field.yPercent / 100) * height);
     const maxWidthPx = Math.round((field.maxWidthPercent / 100) * width);
-    const { resolvedFontFamily, fontFilePath } = await getCertificateFontRenderConfig(field.fontFamily, field.fontWeight);
+    const { resolvedFontFamily, resolvedWeight, fontFilePath } = await getCertificateFontRenderConfig(field.fontFamily, field.fontWeight);
     const anchor = textAnchor(field.align);
+    const fontWeight = getCertificateFontCssWeight(resolvedWeight);
 
     const baseFontSize = Math.max(1, Math.round(field.fontSize * renderScale));
     const minFontSize = Math.max(1, Math.round(field.minFontSize * renderScale));
-    let currentFontSize = calcFontSize(text, maxWidthPx, baseFontSize, minFontSize);
-    let overlayBuffer: Buffer | null = null;
-    let overlayWidth = 0;
-    let overlayHeight = 0;
-
-    while (currentFontSize >= minFontSize) {
-      const candidateBuffer = await sharp({
-        text: {
-          text: `<span foreground="${field.color}">${escapeXml(text)}</span>`,
-          font: `${resolvedFontFamily} ${currentFontSize}`,
-          fontfile: fontFilePath ?? undefined,
-          rgba: true,
-          dpi: 72,
-          align: anchor,
-        },
-      })
-        .png()
-        .toBuffer();
-
-      const metadata = await sharp(candidateBuffer).metadata();
-      overlayWidth = metadata.width ?? 0;
-      overlayHeight = metadata.height ?? 0;
-      overlayBuffer = candidateBuffer;
-
-      if (overlayWidth <= maxWidthPx || currentFontSize === minFontSize) {
-        break;
-      }
-
-      currentFontSize -= 1;
-    }
-
-    if (!overlayBuffer) {
-      return null;
-    }
-
-    const left = field.align === 'center'
-      ? Math.round(xPx - overlayWidth / 2)
-      : field.align === 'right'
-        ? Math.round(xPx - overlayWidth)
-        : xPx;
-    const top = Math.round(yPx - overlayHeight / 2);
+    const currentFontSize = calcFontSize(text, maxWidthPx, baseFontSize, minFontSize);
+    const textLength = text.length * currentFontSize * 0.55;
+    const svgFont = fontFilePath
+      ? await getSvgEmbeddedFontFace(fontFilePath)
+      : null;
+    const fontFamily = svgFont?.familyName ?? resolvedFontFamily;
+    const textAnchorValue = anchor === 'center'
+      ? 'middle'
+      : anchor === 'right'
+        ? 'end'
+        : 'start';
 
     return {
-      input: overlayBuffer,
-      left: Math.max(0, left),
-      top: Math.max(0, top),
+      css: svgFont?.css ?? null,
+      markup: `<text x="${xPx}" y="${yPx}" fill="${field.color}" font-family="${escapeXml(fontFamily)}" font-size="${currentFontSize}" font-weight="${fontWeight}" text-anchor="${textAnchorValue}" dominant-baseline="central" lengthAdjust="spacingAndGlyphs"${textLength > maxWidthPx ? ` textLength="${maxWidthPx}"` : ''}>${escapeXml(text)}</text>`,
     };
   }));
 
-  return textElements.filter((overlay): overlay is { input: Buffer; left: number; top: number } => overlay !== null);
+  const overlays = textElements.filter((overlay): overlay is { css: string | null; markup: string } => overlay !== null);
+
+  if (overlays.length === 0) {
+    return [];
+  }
+
+  const fontCss = Array.from(new Set(overlays.map((overlay) => overlay.css).filter((css): css is string => Boolean(css))));
+  const svg = [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
+    fontCss.length > 0
+      ? `<defs><style>${fontCss.join(' ')}</style></defs>`
+      : '',
+    overlays.map((overlay) => overlay.markup).join(''),
+    '</svg>',
+  ].join('');
+
+  return [
+    {
+      input: Buffer.from(svg),
+      left: 0,
+      top: 0,
+    }
+  ];
 }
 
 // ─── Core generation ──────────────────────────────────────────────────────────
@@ -339,17 +354,14 @@ async function appendSheetPages(
       const fittedHeight = fittedWidth / aspectRatio;
       const targetWidthPx = Math.max(1, Math.round((fittedWidth / 72) * targetDpi));
       const targetHeightPx = Math.max(1, Math.round((fittedHeight / 72) * targetDpi));
-      const resizedImage = sharp(calibratedImageBuffer)
+      const resizedImageBuffer = await sharp(calibratedImageBuffer)
         .resize(targetWidthPx, targetHeightPx, {
           fit: 'inside',
           withoutEnlargement: true,
-        });
-      const optimizedImageBuffer = options?.pdfQuality === 'high'
-        ? await resizedImage.png().toBuffer()
-        : await resizedImage.jpeg({ quality: 92 }).toBuffer();
-      const embeddedImage = options?.pdfQuality === 'high'
-        ? await pdfDoc.embedPng(optimizedImageBuffer)
-        : await pdfDoc.embedJpg(optimizedImageBuffer);
+        })
+        .png()
+        .toBuffer();
+      const embeddedImage = await pdfDoc.embedPng(resizedImageBuffer);
       const x = marginLeft
         + (column * (cellWidth + horizontalGap))
         + ((cellWidth - fittedWidth) / 2)

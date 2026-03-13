@@ -331,11 +331,13 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated, onCanc
     const nextType = value as CertificateTemplateType;
     const explicitItemWidthMm = printSettings.itemWidthMm;
     const explicitItemHeightMm = printSettings.itemHeightMm;
+    const noGap = printSettings.noGap;
     setTemplateType(nextType);
     setPrintSettings({
       ...getDefaultPrintSheetSettingsForTemplateType(nextType, {
         itemWidthMm: explicitItemWidthMm ?? estimatedFrontItemSize.itemWidthMm,
         itemHeightMm: explicitItemHeightMm ?? estimatedFrontItemSize.itemHeightMm,
+        noGap,
       }),
       itemWidthMm: explicitItemWidthMm,
       itemHeightMm: explicitItemHeightMm,
@@ -350,6 +352,7 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated, onCanc
         itemHeightMm: prev.itemHeightMm ?? estimatedFrontItemSize.itemHeightMm,
         duplexMode: prev.duplexMode,
         backPageOrder: prev.backPageOrder,
+        noGap: prev.noGap,
       }),
       cropMarks: prev.cropMarks,
       cropMarkLengthMm: prev.cropMarkLengthMm,
@@ -384,6 +387,7 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated, onCanc
           itemHeightMm: explicitItemHeightMm ?? estimatedFrontItemSize.itemHeightMm,
           duplexMode: prev.duplexMode,
           backPageOrder: prev.backPageOrder,
+          noGap: prev.noGap,
         }),
         cropMarks: prev.cropMarks,
         cropMarkLengthMm: prev.cropMarkLengthMm,
@@ -396,6 +400,57 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated, onCanc
         backFlipY: prev.backFlipY,
         itemWidthMm: explicitItemWidthMm,
         itemHeightMm: explicitItemHeightMm,
+      };
+    });
+  }
+
+  function updateNoGapSetting(enabled: boolean) {
+    setPrintSettings((prev) => {
+      if (prev.preset === 'a4_maximize') {
+        return {
+          ...getDefaultPrintSheetSettings(prev.preset, {
+            itemWidthMm: prev.itemWidthMm ?? estimatedFrontItemSize.itemWidthMm,
+            itemHeightMm: prev.itemHeightMm ?? estimatedFrontItemSize.itemHeightMm,
+            duplexMode: prev.duplexMode,
+            backPageOrder: prev.backPageOrder,
+            noGap: enabled,
+          }),
+          cropMarks: prev.cropMarks,
+          cropMarkLengthMm: prev.cropMarkLengthMm,
+          cropMarkOffsetMm: prev.cropMarkOffsetMm,
+          duplexMode: prev.duplexMode,
+          backPageOrder: prev.backPageOrder,
+          backOffsetXMm: prev.backOffsetXMm,
+          backOffsetYMm: prev.backOffsetYMm,
+          backFlipX: prev.backFlipX,
+          backFlipY: prev.backFlipY,
+          itemWidthMm: prev.itemWidthMm,
+          itemHeightMm: prev.itemHeightMm,
+        };
+      }
+
+      if (enabled) {
+        return {
+          ...prev,
+          noGap: true,
+          gapXMm: 0,
+          gapYMm: 0,
+        };
+      }
+
+      const presetDefaults = getDefaultPrintSheetSettings(prev.preset, {
+        itemWidthMm: prev.itemWidthMm ?? estimatedFrontItemSize.itemWidthMm,
+        itemHeightMm: prev.itemHeightMm ?? estimatedFrontItemSize.itemHeightMm,
+        duplexMode: prev.duplexMode,
+        backPageOrder: prev.backPageOrder,
+        noGap: false,
+      });
+
+      return {
+        ...prev,
+        noGap: false,
+        gapXMm: presetDefaults.gapXMm,
+        gapYMm: presetDefaults.gapYMm,
       };
     });
   }
@@ -672,6 +727,19 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated, onCanc
               </>
             )}
 
+            {(templateType === 'card' || templateType === 'tag') && (
+              <div className="space-y-1">
+                <Label className="text-[11px]">Cut-board layout</Label>
+                <label className="flex h-8 items-center gap-2 rounded-md border border-zinc-200 px-3 text-xs dark:border-border">
+                  <Checkbox
+                    checked={printSettings.noGap}
+                    onCheckedChange={(checked) => updateNoGapSetting(checked === true)}
+                  />
+                  <span>No gap between items</span>
+                </label>
+              </div>
+            )}
+
             <div className="space-y-1">
               <Label className="text-[11px]">Columns</Label>
               <Input
@@ -760,6 +828,7 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated, onCanc
                 value={String(printSettings.gapXMm)}
                 onChange={(event) => updatePrintSetting('gapXMm', Number(event.target.value))}
                 className="h-8 text-xs"
+                disabled={printSettings.noGap}
               />
             </div>
 
@@ -773,6 +842,7 @@ export function FieldConfigurator({ template, onSaved, onTemplateUpdated, onCanc
                 value={String(printSettings.gapYMm)}
                 onChange={(event) => updatePrintSetting('gapYMm', Number(event.target.value))}
                 className="h-8 text-xs"
+                disabled={printSettings.noGap}
               />
             </div>
 

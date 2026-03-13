@@ -27,15 +27,16 @@ async function resolveFontFilePath(fileName: string) {
 
 export async function getCertificateFontRenderConfig(fontFamily: string, fontWeight: CertificateFontWeight) {
   const option = findCertificateFontOption(fontFamily);
+  const resolvedWeight = resolveCertificateFontWeight(fontFamily, fontWeight);
 
   if (!option) {
     return {
       resolvedFontFamily: fontFamily,
+      resolvedWeight,
       fontFilePath: null,
     };
   }
 
-  const resolvedWeight = resolveCertificateFontWeight(fontFamily, fontWeight);
   const fileName = resolvedWeight === 'bold'
     ? (option.boldFile ?? option.mediumFile ?? option.regularFile)
     : resolvedWeight === 'medium'
@@ -45,6 +46,7 @@ export async function getCertificateFontRenderConfig(fontFamily: string, fontWei
   if (!fileName) {
     return {
       resolvedFontFamily: option.value,
+      resolvedWeight,
       fontFilePath: null,
     };
   }
@@ -53,6 +55,7 @@ export async function getCertificateFontRenderConfig(fontFamily: string, fontWei
 
   return {
     resolvedFontFamily: fontFilePath ? option.value : 'Arial',
+    resolvedWeight,
     fontFilePath,
   };
 }
