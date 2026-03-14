@@ -98,7 +98,7 @@ export default function CertificatePage() {
                 />
               </div>
             ) : (
-              <div className="rounded-2xl border border-zinc-200 p-4 dark:border-border md:p-6">
+              <div className=" border-zinc-200 dark:border-border ">
                 {templatesLoading ? (
                   <p className="text-sm text-zinc-400">Loading templates…</p>
                 ) : (
