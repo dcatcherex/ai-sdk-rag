@@ -599,9 +599,8 @@ export const brand = pgTable('brand', {
   brandValues: text('brand_values').array().notNull().default(sql`'{}'::text[]`),
   visualAesthetics: text('visual_aesthetics').array().notNull().default(sql`'{}'::text[]`),
   fonts: text('fonts').array().notNull().default(sql`'{}'::text[]`),
-  colorPrimary: text('color_primary'),
-  colorSecondary: text('color_secondary'),
-  colorAccent: text('color_accent'),
+  /** [{ hex: string, label: string }] — flexible palette, typically 3–5 colors */
+  colors: jsonb('colors').notNull().default(sql`'[]'::jsonb`),
   writingDos: text('writing_dos'),
   writingDonts: text('writing_donts'),
   isDefault: boolean('is_default').notNull().default(false),

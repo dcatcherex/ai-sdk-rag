@@ -41,9 +41,7 @@ export async function createBrand(userId: string, data: BrandInput): Promise<Bra
       brandValues: data.brandValues ?? [],
       visualAesthetics: data.visualAesthetics ?? [],
       fonts: data.fonts ?? [],
-      colorPrimary: data.colorPrimary ?? null,
-      colorSecondary: data.colorSecondary ?? null,
-      colorAccent: data.colorAccent ?? null,
+      colors: data.colors ?? [],
       writingDos: data.writingDos ?? null,
       writingDonts: data.writingDonts ?? null,
       isDefault: data.isDefault ?? false,
@@ -132,6 +130,9 @@ export function buildBrandBlock(b: Brand): string {
     b.toneOfVoice.length ? `Tone of Voice: ${b.toneOfVoice.join(', ')}` : '',
     b.brandValues.length ? `Brand Values: ${b.brandValues.join(', ')}` : '',
     b.visualAesthetics.length ? `Visual Style: ${b.visualAesthetics.join(', ')}` : '',
+    b.colors.length
+      ? `Brand Colors: ${b.colors.filter((c) => c.hex).map((c) => `${c.label} ${c.hex}`).join(', ')}`
+      : '',
     b.writingDos ? `Writing guidelines (do): ${b.writingDos}` : '',
     b.writingDonts ? `Writing guidelines (don't): ${b.writingDonts}` : '',
   ].filter(Boolean);

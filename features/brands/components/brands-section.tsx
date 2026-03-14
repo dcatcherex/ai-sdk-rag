@@ -1,63 +1,60 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   Building2Icon,
+  CheckIcon,
   DownloadIcon,
   PencilIcon,
   PlusIcon,
-  StarIcon,
   Trash2Icon,
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { Brand, BrandImportJson } from '../types';
+import {
+  brandKeys,
+  useBrands,
+  useDeleteBrand,
+  useImportBrand,
+  useSetDefaultBrand,
+} from '../hooks/use-brands';
 import { BrandEditorSheet } from './brand-editor-sheet';
+import { BrandPreview } from './brand-preview';
 
 export function BrandsSection() {
-  const [brands, setBrands] = useState<Brand[]>([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+  const { data: brands = [], isLoading } = useBrands();
+  const deleteMutation = useDeleteBrand();
+  const setDefaultMutation = useSetDefaultBrand();
+  const importMutation = useImportBrand();
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState('');
-  const [isImporting, setIsImporting] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/brands');
-      if (res.ok) setBrands((await res.json()) as Brand[]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const resolvedSelectedId =
+    selectedId ?? brands.find((b) => b.isDefault)?.id ?? brands[0]?.id ?? null;
+  const selectedBrand = brands.find((b) => b.id === resolvedSelectedId) ?? null;
 
-  useEffect(() => { void load(); }, [load]);
-
-  const handleDelete = async (id: string) => {
-    setDeletingId(id);
-    try {
-      await fetch(`/api/brands/${id}`, { method: 'DELETE' });
-      setBrands((prev) => prev.filter((b) => b.id !== id));
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const handleSetDefault = async (id: string) => {
-    await fetch(`/api/brands/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ _action: 'setDefault' }),
+  const handleDelete = (id: string) => {
+    deleteMutation.mutate(id, {
+      onSuccess: () => {
+        if (resolvedSelectedId === id) {
+          setSelectedId(brands.find((b) => b.id !== id)?.id ?? null);
+        }
+        setConfirmDeleteId(null);
+      },
     });
-    setBrands((prev) => prev.map((b) => ({ ...b, isDefault: b.id === id })));
   };
 
-  const handleImport = async () => {
+  const handleImport = () => {
     setImportError('');
     let json: BrandImportJson;
     try {
@@ -66,45 +63,27 @@ export function BrandsSection() {
       setImportError('Invalid JSON — check the format and try again.');
       return;
     }
-    setIsImporting(true);
-    try {
-      const res = await fetch('/api/brands/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(json),
-      });
-      if (res.ok) {
-        const created = (await res.json()) as Brand;
-        setBrands((prev) => [created, ...prev]);
+    importMutation.mutate(json, {
+      onSuccess: (created) => {
+        setSelectedId(created.id);
         setShowImport(false);
         setImportText('');
-        // Open editor so user can review and continue
         setEditingBrand(created);
-      } else {
-        setImportError('Import failed. Please try again.');
-      }
-    } finally {
-      setIsImporting(false);
-    }
+      },
+      onError: () => setImportError('Import failed. Please try again.'),
+    });
   };
 
   const onSaved = (saved: Brand) => {
-    setBrands((prev) => {
-      const idx = prev.findIndex((b) => b.id === saved.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = saved;
-        return next;
-      }
-      return [saved, ...prev];
-    });
+    setSelectedId(saved.id);
     setIsCreating(false);
     setEditingBrand(null);
+    void qc.invalidateQueries({ queryKey: brandKeys.all });
   };
 
   return (
     <section>
-      {/* Section header */}
+      {/* Header */}
       <div className="mb-1 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Building2Icon className="size-5 text-muted-foreground" />
@@ -124,18 +103,14 @@ export function BrandsSection() {
           </Button>
         </div>
       </div>
-      <p className="mb-4 text-sm text-muted-foreground">
-        Define brand identity, tone, and assets. Activate a brand in any chat or agent to keep
-        all outputs on-brand.
-      </p>
 
-      {/* JSON Import area */}
+      {/* JSON Import */}
       {showImport && (
-        <div className="mb-4 space-y-3 rounded-lg border border-black/10 dark:border-border bg-black/2 dark:bg-white/3 p-4">
+        <div className="mb-5 space-y-3 rounded-xl border border-black/10 dark:border-border bg-black/2 dark:bg-white/3 p-4">
           <div>
             <p className="text-sm font-medium">Paste Brand JSON</p>
             <p className="text-xs text-muted-foreground">
-              Accepts any JSON with fields like{' '}
+              Accepts fields like{' '}
               <code className="rounded bg-black/5 dark:bg-white/8 px-1 text-[11px]">
                 name, overview, toneOfVoice, brandValues, visualAesthetics, fonts
               </code>
@@ -145,17 +120,17 @@ export function BrandsSection() {
             value={importText}
             onChange={(e) => setImportText(e.target.value)}
             placeholder={'{ "name": "My Brand", "toneOfVoice": ["Professional"], ... }'}
-            rows={6}
-            className="w-full resize-y rounded border border-black/10 dark:border-border bg-transparent px-2 py-1.5 font-mono text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-black/20 dark:focus:ring-white/20"
+            rows={5}
+            className="w-full resize-y rounded-lg border border-black/10 dark:border-border bg-transparent px-3 py-2 font-mono text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-black/20 dark:focus:ring-white/20"
           />
           {importError && <p className="text-xs text-destructive">{importError}</p>}
           <div className="flex gap-2">
             <Button
               size="sm"
-              onClick={() => void handleImport()}
-              disabled={isImporting || !importText.trim()}
+              onClick={handleImport}
+              disabled={importMutation.isPending || !importText.trim()}
             >
-              {isImporting ? 'Importing…' : 'Import & Edit'}
+              {importMutation.isPending ? 'Importing…' : 'Import & Edit'}
             </Button>
             <Button
               size="sm"
@@ -172,8 +147,8 @@ export function BrandsSection() {
         </div>
       )}
 
-      {/* Brand list */}
-      {loading ? (
+      {/* Body */}
+      {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : brands.length === 0 ? (
         <div className="rounded-xl border border-dashed border-black/10 dark:border-border px-6 py-12 text-center">
@@ -183,107 +158,124 @@ export function BrandsSection() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {brands.map((b) => (
-            <div
-              key={b.id}
-              className="relative rounded-xl border border-black/8 dark:border-border bg-white/60 dark:bg-white/3 p-4 transition-colors hover:bg-white/80 dark:hover:bg-white/5"
-            >
-              <div className="flex items-start gap-3">
-                {/* Color swatch / icon */}
-                <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-                  style={{ background: b.colorPrimary ?? 'hsl(var(--muted))' }}
-                >
-                  <Building2Icon className="size-5 text-white drop-shadow-sm" />
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="truncate text-sm font-semibold">{b.name}</p>
-                    {b.isDefault && (
-                      <Badge variant="secondary" className="px-1.5 text-[10px]">
-                        Default
-                      </Badge>
+        <div className="flex items-start gap-4">
+          {/* Brand list */}
+          <div className="flex w-52 shrink-0 flex-col space-y-1">
+            {brands.map((b) => (
+              <div
+                key={b.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelectedId(b.id)}
+                onKeyDown={(e) => e.key === 'Enter' && setSelectedId(b.id)}
+                className={`group relative cursor-pointer rounded-xl border px-3 py-2.5 transition-colors ${
+                  resolvedSelectedId === b.id
+                    ? 'border-primary/25 bg-primary/5 dark:bg-primary/8'
+                    : 'border-black/5 dark:border-border hover:border-black/10 hover:bg-black/2 dark:hover:bg-white/3'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 pr-10">
+                  <div
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
+                    style={{ background: b.colors[0]?.hex ?? 'hsl(var(--muted))' }}
+                  >
+                    <Building2Icon className="size-3.5 text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium leading-tight">{b.name}</p>
+                    {b.industry && (
+                      <p className="truncate text-[11px] text-muted-foreground">{b.industry}</p>
                     )}
                   </div>
-                  {b.industry && (
-                    <p className="text-xs text-muted-foreground">{b.industry}</p>
-                  )}
-                  {b.toneOfVoice.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {b.toneOfVoice.slice(0, 3).map((t) => (
-                        <span
-                          key={t}
-                          className="rounded-full bg-black/5 dark:bg-white/8 px-1.5 py-0.5 text-[10px] text-muted-foreground"
-                        >
-                          {t}
-                        </span>
-                      ))}
-                      {b.toneOfVoice.length > 3 && (
-                        <span className="text-[10px] text-muted-foreground">
-                          +{b.toneOfVoice.length - 3}
-                        </span>
-                      )}
-                    </div>
+                  {b.isDefault && <CheckIcon className="size-3 shrink-0 text-primary" />}
+                </div>
+
+                {/* Hover: edit + delete */}
+                <div className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 group-hover:flex">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingBrand(b);
+                    }}
+                    className="rounded p-1 text-muted-foreground transition-colors hover:bg-black/8 dark:hover:bg-white/10 hover:text-foreground"
+                    aria-label="Edit brand"
+                  >
+                    <PencilIcon className="size-3" />
+                  </button>
+                  {confirmDeleteId === b.id ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(b.id);
+                      }}
+                      disabled={deleteMutation.isPending}
+                      className="rounded p-1 text-destructive transition-colors hover:bg-destructive/10"
+                      aria-label="Confirm delete"
+                    >
+                      <CheckIcon className="size-3" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDeleteId(b.id);
+                        setTimeout(() => setConfirmDeleteId(null), 3000);
+                      }}
+                      className="rounded p-1 text-muted-foreground transition-colors hover:bg-black/8 dark:hover:bg-white/10 hover:text-destructive"
+                      aria-label="Delete brand"
+                    >
+                      <Trash2Icon className="size-3" />
+                    </button>
                   )}
                 </div>
               </div>
+            ))}
+          </div>
 
-              {/* Card actions */}
-              <div className="mt-3 flex items-center gap-1 border-t border-black/5 dark:border-border pt-3">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => setEditingBrand(b)}
-                >
-                  <PencilIcon className="mr-1 size-3" />
-                  Edit
-                </Button>
-                {!b.isDefault && (
+          {/* Preview */}
+          {selectedBrand && (
+            <div className="min-w-0 flex-1">
+              <div className="mb-3 flex items-center gap-2">
+                {selectedBrand.isDefault ? (
+                  <Badge variant="secondary" className="text-xs">
+                    Default brand
+                  </Badge>
+                ) : (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-7 text-xs"
-                    onClick={() => void handleSetDefault(b.id)}
+                    onClick={() => setDefaultMutation.mutate(selectedBrand.id)}
                   >
-                    <StarIcon className="mr-1 size-3" />
-                    Set default
+                    Set as default
                   </Button>
                 )}
-                <div className="ml-auto">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs text-destructive hover:text-destructive"
-                    onClick={() => void handleDelete(b.id)}
-                    disabled={deletingId === b.id}
-                  >
-                    <Trash2Icon className="mr-1 size-3" />
-                    {deletingId === b.id ? 'Deleting…' : 'Delete'}
-                  </Button>
-                </div>
               </div>
+              <BrandPreview brand={selectedBrand} />
             </div>
-          ))}
+          )}
         </div>
       )}
 
-      {/* Create sheet */}
+      {/* Sheets */}
       <BrandEditorSheet
         brand={null}
         open={isCreating}
-        onOpenChange={(open) => { if (!open) setIsCreating(false); }}
+        onOpenChange={(open) => {
+          if (!open) setIsCreating(false);
+        }}
         onSaved={onSaved}
       />
-
-      {/* Edit sheet */}
       {editingBrand && (
         <BrandEditorSheet
           brand={editingBrand}
           open={!!editingBrand}
-          onOpenChange={(open) => { if (!open) setEditingBrand(null); }}
+          onOpenChange={(open) => {
+            if (!open) setEditingBrand(null);
+          }}
           onSaved={onSaved}
         />
       )}

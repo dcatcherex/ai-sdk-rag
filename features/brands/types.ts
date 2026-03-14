@@ -1,5 +1,10 @@
 export type BrandAssetKind = 'logo' | 'product' | 'creative' | 'document' | 'font' | 'other';
 
+export type BrandColor = {
+  hex: string;
+  label: string;
+};
+
 export type Brand = {
   id: string;
   userId: string;
@@ -12,9 +17,8 @@ export type Brand = {
   brandValues: string[];
   visualAesthetics: string[];
   fonts: string[];
-  colorPrimary: string | null;
-  colorSecondary: string | null;
-  colorAccent: string | null;
+  /** Flexible color palette — typically 3–5 entries with semantic labels */
+  colors: BrandColor[];
   writingDos: string | null;
   writingDonts: string | null;
   isDefault: boolean;
@@ -48,6 +52,9 @@ export const BRAND_ASSET_KINDS: BrandAssetKind[] = [
   'other',
 ];
 
+/** Standard 5-slot palette labels — suggested when creating a new brand */
+export const SUGGESTED_COLOR_LABELS = ['Primary', 'Secondary', 'Accent', 'Background', 'Text'] as const;
+
 /** Subset accepted from a pasted JSON import (EdLab-compatible shape) */
 export type BrandImportJson = {
   name?: string;
@@ -59,6 +66,7 @@ export type BrandImportJson = {
   brandValues?: string[];
   visualAesthetics?: string[];
   fonts?: string[];
+  colors?: BrandColor[];
   campaigns?: {
     creatives?: {
       title?: string;
