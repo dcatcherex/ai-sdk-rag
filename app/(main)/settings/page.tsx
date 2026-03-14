@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
 import {
   BrainCircuitIcon,
@@ -11,7 +10,7 @@ import {
   WrenchIcon,
   ZapIcon,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ModelsTable } from '@/features/models/components/models-table';
 import { useSettingsPreferences } from '@/features/settings/hooks/use-settings-preferences';
 import { MemorySection } from '@/features/settings/components/memory-section';
 import { PersonaInstructionsSection } from '@/features/settings/components/persona-instructions-section';
@@ -20,7 +19,7 @@ import { ToolsSection } from '@/features/settings/components/tools-section';
 import { ToggleSection } from '@/features/settings/components/toggle-section';
 import { ALL_TOOL_IDS, type ToolId } from '@/lib/tool-registry';
 
-type TabId = 'general' | 'ai-behavior' | 'memory' | 'tools';
+type TabId = 'general' | 'ai-behavior' | 'memory' | 'tools' | 'models';
 
 const TABS: { id: TabId; label: string; icon: React.ElementType; description: string }[] = [
   {
@@ -46,6 +45,12 @@ const TABS: { id: TabId; label: string; icon: React.ElementType; description: st
     label: 'Tools',
     icon: WrenchIcon,
     description: 'AI tool access and retrieval',
+  },
+  {
+    id: 'models',
+    label: 'Models',
+    icon: BrainCircuitIcon,
+    description: 'Enable or disable AI models',
   },
 ];
 
@@ -196,15 +201,9 @@ export default function SettingsPage() {
             </>
           )}
 
-          {/* Models link — shown at bottom of every tab */}
-          <div className="border-t border-black/5 dark:border-border pt-6">
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/models">
-                <BrainCircuitIcon className="mr-2 size-4" />
-                Manage enabled models →
-              </Link>
-            </Button>
-          </div>
+          {activeTab === 'models' && (
+            <ModelsTable />
+          )}
         </div>
       </div>
     </div>

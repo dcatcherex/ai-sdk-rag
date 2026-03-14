@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  BrainCircuitIcon,
   MonitorIcon,
   MoonIcon,
   PaletteIcon,
@@ -281,12 +280,6 @@ export const SidebarContent = ({
                 <div>
                   <CreditBalanceDisplay />
                 </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/models">
-                  <BrainCircuitIcon className="size-4" />
-                  AI Models
-                </Link>
               </DropdownMenuItem>
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
