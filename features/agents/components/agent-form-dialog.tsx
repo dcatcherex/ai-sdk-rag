@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { XIcon } from 'lucide-react';
+import { Building2Icon, SparklesIcon, XIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -27,6 +27,9 @@ import { TOOL_REGISTRY } from '@/lib/tool-registry';
 import { useUserDocuments } from '../hooks/use-agent-documents';
 import { useUserSearch } from '../hooks/use-user-search';
 import type { Agent, AgentWithSharing, CreateAgentInput, SharedUser } from '../types';
+import type { Brand } from '@/features/brands/types';
+import { useSkills } from '@/features/skills/hooks/use-skills';
+import type { Skill } from '@/features/skills/types';
 
 type AgentFormDialogProps = {
   open: boolean;
@@ -49,13 +52,24 @@ export const AgentFormDialog = ({
   const [modelId, setModelId] = useState<string>('auto');
   const [enabledTools, setEnabledTools] = useState<string[]>([]);
   const [documentIds, setDocumentIds] = useState<string[]>([]);
+  const [brandId, setBrandId] = useState<string>('none');
   const [docSearch, setDocSearch] = useState('');
   const [isPublic, setIsPublic] = useState(false);
   const [sharedWith, setSharedWith] = useState<SharedUser[]>([]);
   const [shareSearch, setShareSearch] = useState('');
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [skillIds, setSkillIds] = useState<string[]>([]);
 
   const { data: userDocuments = [], isLoading: docsLoading } = useUserDocuments();
   const { data: searchResults = [] } = useUserSearch(shareSearch);
+  const { data: userSkills = [] } = useSkills();
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch('/api/brands');
+      if (res.ok) setBrands((await res.json()) as Brand[]);
+    })();
+  }, []);
 
   const filteredDocuments = docSearch.trim()
     ? userDocuments.filter((d) => {
@@ -72,8 +86,10 @@ export const AgentFormDialog = ({
       setModelId(agent.modelId ?? 'auto');
       setEnabledTools(agent.enabledTools ?? []);
       setDocumentIds(agent.documentIds ?? []);
+      setBrandId(agent.brandId ?? 'none');
       setIsPublic(agent.isPublic ?? false);
       setSharedWith((agent as AgentWithSharing).sharedWith ?? []);
+      setSkillIds(agent.skillIds ?? []);
     } else {
       setName('');
       setDescription('');
@@ -81,8 +97,10 @@ export const AgentFormDialog = ({
       setModelId('auto');
       setEnabledTools([]);
       setDocumentIds([]);
+      setBrandId('none');
       setIsPublic(false);
       setSharedWith([]);
+      setSkillIds([]);
     }
     setDocSearch('');
     setShareSearch('');
@@ -97,6 +115,8 @@ export const AgentFormDialog = ({
       modelId: modelId === 'auto' ? null : modelId,
       enabledTools,
       documentIds,
+      skillIds,
+      brandId: brandId === 'none' ? null : brandId,
       isPublic,
       sharedUserIds: sharedWith.map((u) => u.id),
     });
@@ -181,6 +201,39 @@ export const AgentFormDialog = ({
             </Select>
           </div>
 
+          {brands.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Brand</Label>
+              <Select value={brandId} onValueChange={setBrandId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="No brand" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <Building2Icon className="size-3.5" />
+                      No brand
+                    </span>
+                  </SelectItem>
+                  {brands.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="inline-block size-3 rounded-full shrink-0"
+                          style={{ background: b.colors[0]?.hex ?? 'hsl(var(--muted))' }}
+                        />
+                        {b.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Brand context is automatically injected into this agent&apos;s system prompt.
+              </p>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label>Tools</Label>
             {Object.entries(TOOL_REGISTRY).map(([id, meta]) => (
@@ -201,6 +254,64 @@ export const AgentFormDialog = ({
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Skills */}
+          <div className="space-y-2">
+            <Label>Skills</Label>
+            <p className="text-xs text-muted-foreground">
+              Skills extend this agent with reusable prompt behaviors triggered by slash commands or keywords.
+            </p>
+            {userSkills.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic">
+                No skills yet. Create skills in the Skills section.
+              </p>
+            ) : (
+              <div className="max-h-40 overflow-y-auto rounded-md border border-black/5 dark:border-border p-1 space-y-0.5">
+                {userSkills.filter((s: Skill) => s.userId === s.userId).map((skill: Skill) => {
+                  const checked = skillIds.includes(skill.id);
+                  const triggerLabel =
+                    skill.triggerType === 'always'
+                      ? 'always'
+                      : skill.trigger
+                        ? `${skill.triggerType === 'slash' ? '' : ''}${skill.trigger}`
+                        : skill.triggerType;
+                  return (
+                    <div key={skill.id} className="flex items-start gap-2 rounded px-2 py-1.5 hover:bg-muted/50">
+                      <input
+                        type="checkbox"
+                        id={`skill-${skill.id}`}
+                        checked={checked}
+                        onChange={() =>
+                          setSkillIds((prev) =>
+                            checked ? prev.filter((id) => id !== skill.id) : [...prev, skill.id]
+                          )
+                        }
+                        className="mt-0.5 size-3.5 rounded border accent-primary cursor-pointer"
+                      />
+                      <div className="min-w-0 space-y-0.5">
+                        <label
+                          htmlFor={`skill-${skill.id}`}
+                          className="flex items-center gap-1.5 text-xs font-medium leading-none cursor-pointer"
+                        >
+                          <SparklesIcon className="size-3 shrink-0 text-primary" />
+                          {skill.name}
+                          <span className="text-muted-foreground font-normal">· {triggerLabel}</span>
+                        </label>
+                        {skill.description && (
+                          <p className="text-xs text-muted-foreground truncate">{skill.description}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {skillIds.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {skillIds.length} skill{skillIds.length !== 1 ? 's' : ''} attached
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">

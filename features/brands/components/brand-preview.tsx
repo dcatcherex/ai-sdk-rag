@@ -1,8 +1,8 @@
 'use client';
 
-import { ExternalLinkIcon } from 'lucide-react';
+import { ExternalLinkIcon, MessageSquareIcon } from 'lucide-react';
 import type { Brand } from '../types';
-import { useBrandAssets } from '../hooks/use-brands';
+import { useBrandAssets, useBrandStats } from '../hooks/use-brands';
 
 function ColorSwatch({ hex, label }: { hex: string; label: string }) {
   return (
@@ -38,6 +38,7 @@ function ChipGroup({ items, label }: { items: string[]; label: string }) {
 
 export function BrandPreview({ brand }: { brand: Brand }) {
   const { data: assets = [] } = useBrandAssets(brand.id);
+  const { data: stats } = useBrandStats(brand.id);
 
   const logoAsset = assets.find((a) => a.kind === 'logo');
   const imageAssets = assets.filter((a) => a.mimeType.startsWith('image/') && a.kind !== 'logo');
@@ -171,6 +172,32 @@ export function BrandPreview({ brand }: { brand: Brand }) {
               />
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Usage */}
+      {stats !== undefined && (
+        <div className="rounded-xl border border-black/5 dark:border-border p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <MessageSquareIcon className="size-4 text-muted-foreground" />
+            <p className="text-sm font-semibold">
+              {stats.threadCount === 0
+                ? 'No conversations yet'
+                : `${stats.threadCount} conversation${stats.threadCount !== 1 ? 's' : ''}`}
+            </p>
+          </div>
+          {stats.recentThreads.length > 0 && (
+            <ul className="space-y-1">
+              {stats.recentThreads.map((t) => (
+                <li key={t.id} className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 hover:bg-black/3 dark:hover:bg-white/5">
+                  <span className="truncate text-sm text-muted-foreground">{t.title}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground/60">
+                    {new Date(t.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>

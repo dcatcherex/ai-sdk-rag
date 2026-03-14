@@ -5,6 +5,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { getTextContentFromParts } from '../utils/message-parts';
 import { exportConversation } from '../utils/export-conversation';
 import type { ChatMessage, ChatMessagePart, QuizFollowUpContext } from '../types';
+import { getActiveBrandId } from '@/features/brands/components/brand-picker-button';
 import type { PromptInputMessage } from '@/components/ai-elements/prompt-input';
 
 const FOLLOW_UP_SYNC_MAX_ATTEMPTS = 15;
@@ -73,6 +74,7 @@ export const useChatSession = ({
           enabledModelIds: enabledModelIdsRef.current,
           agentId: selectedAgentIdRef.current ?? undefined,
           personaId: selectedPersonaIdRef.current ?? undefined,
+          brandId: getActiveBrandId() ?? undefined,
           quizContext: latestQuizContextRef.current ?? undefined,
         }),
       }),

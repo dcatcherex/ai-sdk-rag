@@ -7,6 +7,8 @@ export type Agent = {
   modelId: string | null;
   enabledTools: string[];
   documentIds: string[];
+  skillIds: string[];
+  brandId: string | null;
   isPublic: boolean;
   createdAt: string | Date;
   updatedAt: string | Date;
@@ -19,6 +21,8 @@ export type CreateAgentInput = {
   modelId?: string | null;
   enabledTools?: string[];
   documentIds?: string[];
+  skillIds?: string[];
+  brandId?: string | null;
   isPublic?: boolean;
   sharedUserIds?: string[];
 };

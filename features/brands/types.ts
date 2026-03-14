@@ -5,6 +5,13 @@ export type BrandColor = {
   label: string;
 };
 
+export type BrandSharedUser = {
+  id: string;
+  name: string;
+  email: string;
+  image?: string | null;
+};
+
 export type Brand = {
   id: string;
   userId: string;
@@ -24,6 +31,10 @@ export type Brand = {
   isDefault: boolean;
   createdAt: Date;
   updatedAt: Date;
+  /** Populated by GET /api/brands — true when current user owns this brand */
+  isOwner?: boolean;
+  /** Populated for owned brands — list of users this brand is shared with */
+  sharedWith?: BrandSharedUser[];
 };
 
 export type BrandAsset = {

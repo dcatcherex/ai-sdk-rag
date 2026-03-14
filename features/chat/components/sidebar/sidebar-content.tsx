@@ -43,6 +43,7 @@ import { SidebarNav, type NavItemId } from "./sidebar-nav";
 import { SidebarSearch } from "./sidebar-search";
 import { SidebarThreadList } from "./sidebar-thread-list";
 import { CreditBalanceDisplay } from "@/components/credit-balance-display";
+import { BrandPickerButton } from "@/features/brands/components/brand-picker-button";
 
 type Props = {
   activeThreadId: string;
@@ -247,6 +248,8 @@ export const SidebarContent = ({
             onSignOut={onSignOut}
             isCollapsed={isCollapsed}
           />
+          <div className={cn("flex items-center", isCollapsed ? "flex-col gap-2" : "gap-0.5")}>
+            <BrandPickerButton isCollapsed={isCollapsed} />
           <DropdownMenu>
             <TooltipProvider>
               <Tooltip>
@@ -317,6 +320,7 @@ export const SidebarContent = ({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </div>
       </div>
 

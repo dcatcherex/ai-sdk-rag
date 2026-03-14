@@ -1,25 +1,99 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, or, exists } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 
 import { db } from '@/lib/db';
-import { brand, brandAsset } from '@/db/schema';
-import type { Brand, BrandAsset, BrandAssetKind, BrandImportJson } from './types';
+import { brand, brandAsset, brandShare, user as userTable } from '@/db/schema';
+import type { Brand, BrandAsset, BrandAssetKind, BrandImportJson, BrandSharedUser } from './types';
 
 // ── Brand CRUD ────────────────────────────────────────────────────────────────
 
 export async function getBrands(userId: string): Promise<Brand[]> {
-  return db
+  // 1. Own brands
+  const ownBrands = await db
     .select()
     .from(brand)
     .where(eq(brand.userId, userId))
-    .orderBy(desc(brand.isDefault), brand.createdAt) as Promise<Brand[]>;
+    .orderBy(desc(brand.isDefault), brand.createdAt);
+
+  // 2. Share lists for own brands
+  const ownIds = ownBrands.map((b) => b.id);
+  const shares = ownIds.length > 0
+    ? await db
+        .select({
+          brandId: brandShare.brandId,
+          userId: userTable.id,
+          name: userTable.name,
+          email: userTable.email,
+          image: userTable.image,
+        })
+        .from(brandShare)
+        .innerJoin(userTable, eq(brandShare.sharedWithUserId, userTable.id))
+        .where(inArray(brandShare.brandId, ownIds))
+    : [];
+  const shareMap = shares.reduce<Record<string, BrandSharedUser[]>>((acc, s) => {
+    (acc[s.brandId] ??= []).push({ id: s.userId, name: s.name, email: s.email, image: s.image });
+    return acc;
+  }, {});
+
+  const ownOut = ownBrands.map((b) => ({
+    ...(b as Brand),
+    isOwner: true,
+    sharedWith: shareMap[b.id] ?? [],
+  }));
+
+  // 3. Brands shared with this user (from other owners)
+  const sharedBrands = await db
+    .select({
+      id: brand.id,
+      userId: brand.userId,
+      name: brand.name,
+      overview: brand.overview,
+      websiteUrl: brand.websiteUrl,
+      industry: brand.industry,
+      targetAudience: brand.targetAudience,
+      toneOfVoice: brand.toneOfVoice,
+      brandValues: brand.brandValues,
+      visualAesthetics: brand.visualAesthetics,
+      fonts: brand.fonts,
+      colors: brand.colors,
+      writingDos: brand.writingDos,
+      writingDonts: brand.writingDonts,
+      isDefault: brand.isDefault,
+      createdAt: brand.createdAt,
+      updatedAt: brand.updatedAt,
+    })
+    .from(brandShare)
+    .innerJoin(brand, eq(brandShare.brandId, brand.id))
+    .where(and(eq(brandShare.sharedWithUserId, userId), ne(brand.userId, userId)))
+    .orderBy(brand.createdAt);
+
+  const sharedOut = sharedBrands.map((b) => ({
+    ...(b as Brand),
+    isOwner: false,
+    sharedWith: [],
+  }));
+
+  return [...ownOut, ...sharedOut];
 }
 
 export async function getBrand(userId: string, brandId: string): Promise<Brand | null> {
+  // Accessible if owner OR has a share record
   const [row] = await db
     .select()
     .from(brand)
-    .where(and(eq(brand.id, brandId), eq(brand.userId, userId)))
+    .where(
+      and(
+        eq(brand.id, brandId),
+        or(
+          eq(brand.userId, userId),
+          exists(
+            db.select({ id: brandShare.id })
+              .from(brandShare)
+              .where(and(eq(brandShare.brandId, brandId), eq(brandShare.sharedWithUserId, userId))),
+          ),
+        ),
+      ),
+    )
     .limit(1);
   return (row as Brand) ?? null;
 }
@@ -101,6 +175,61 @@ export async function deleteBrandAsset(brandId: string, assetId: string): Promis
     .where(and(eq(brandAsset.id, assetId), eq(brandAsset.brandId, brandId)));
 }
 
+// ── Brand Sharing ─────────────────────────────────────────────────────────────
+
+export async function getBrandShareList(ownerId: string, brandId: string): Promise<BrandSharedUser[]> {
+  const rows = await db
+    .select({
+      id: userTable.id,
+      name: userTable.name,
+      email: userTable.email,
+      image: userTable.image,
+    })
+    .from(brandShare)
+    .innerJoin(userTable, eq(brandShare.sharedWithUserId, userTable.id))
+    .where(
+      and(
+        eq(brandShare.brandId, brandId),
+        // Only the owner can list shares — verify via join
+        exists(
+          db.select({ id: brand.id }).from(brand)
+            .where(and(eq(brand.id, brandId), eq(brand.userId, ownerId))),
+        ),
+      ),
+    );
+  return rows;
+}
+
+export async function addBrandShare(
+  ownerId: string,
+  brandId: string,
+  targetUserId: string,
+): Promise<void> {
+  // Verify ownership
+  const [b] = await db.select({ id: brand.id }).from(brand)
+    .where(and(eq(brand.id, brandId), eq(brand.userId, ownerId))).limit(1);
+  if (!b) throw new Error('Brand not found');
+  if (targetUserId === ownerId) throw new Error('Cannot share with yourself');
+
+  await db.insert(brandShare)
+    .values({ id: nanoid(), brandId, sharedWithUserId: targetUserId })
+    .onConflictDoNothing();
+}
+
+export async function removeBrandShare(
+  ownerId: string,
+  brandId: string,
+  targetUserId: string,
+): Promise<void> {
+  // Verify ownership
+  const [b] = await db.select({ id: brand.id }).from(brand)
+    .where(and(eq(brand.id, brandId), eq(brand.userId, ownerId))).limit(1);
+  if (!b) throw new Error('Brand not found');
+
+  await db.delete(brandShare)
+    .where(and(eq(brandShare.brandId, brandId), eq(brandShare.sharedWithUserId, targetUserId)));
+}
+
 // ── JSON Import ───────────────────────────────────────────────────────────────
 
 export async function importBrandFromJson(
@@ -138,6 +267,22 @@ export function buildBrandBlock(b: Brand): string {
   ].filter(Boolean);
 
   return `<brand_context>\n${lines.join('\n')}\n</brand_context>`;
+}
+
+/**
+ * Concise style suffix appended to image generation prompts when a brand is active.
+ * Keeps the prompt short so it doesn't overwhelm the user's original intent.
+ */
+export function buildImageBrandSuffix(b: Brand): string {
+  const parts: string[] = [];
+  if (b.visualAesthetics.length) {
+    parts.push(`Visual style: ${b.visualAesthetics.join(', ')}`);
+  }
+  const colors = b.colors.filter((c) => c.hex).slice(0, 3);
+  if (colors.length) {
+    parts.push(`Brand colors: ${colors.map((c) => `${c.hex} (${c.label})`).join(', ')}`);
+  }
+  return parts.length ? `. ${parts.join('. ')}` : '';
 }
 
 // BRAND_ASSET_KINDS is in types.ts (client-safe)

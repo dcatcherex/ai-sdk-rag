@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { XIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,7 +14,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { type Brand, type BrandColor } from '../types';
-import { useSaveBrand } from '../hooks/use-brands';
+import { useAddBrandShare, useBrandShareSearch, useRemoveBrandShare, useSaveBrand } from '../hooks/use-brands';
 import { AssetsTab } from './assets-tab';
 import { ChipInput } from './chip-input';
 import { ColorPaletteEditor } from './color-palette-editor';
@@ -50,6 +51,98 @@ function toForm(b: Brand | null): FormState {
     writingDos: b?.writingDos ?? '',
     writingDonts: b?.writingDonts ?? '',
   };
+}
+
+// ── Sharing Tab ───────────────────────────────────────────────────────────────
+
+function SharingTab({ brand }: { brand: Brand }) {
+  const [search, setSearch] = useState('');
+  const { data: searchResults = [] } = useBrandShareSearch(search);
+  const addMutation = useAddBrandShare(brand.id);
+  const removeMutation = useRemoveBrandShare(brand.id);
+
+  const currentIds = new Set((brand.sharedWith ?? []).map((u) => u.id));
+  const unaddedResults = searchResults.filter((u) => !currentIds.has(u.id));
+  const showNoResults = search.trim().length >= 2 && searchResults.length === 0;
+
+  const handleAdd = (userId: string) => {
+    addMutation.mutate(userId, { onSuccess: () => setSearch('') });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-sm font-medium">Share with people</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Team members you add can use this brand in chat but cannot edit or delete it.
+        </p>
+      </div>
+
+      {/* Current shared users */}
+      {(brand.sharedWith ?? []).length > 0 && (
+        <div className="space-y-1.5">
+          {(brand.sharedWith ?? []).map((u) => (
+            <div
+              key={u.id}
+              className="flex items-center justify-between rounded-lg border border-black/5 dark:border-border bg-muted/30 px-3 py-2"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{u.name}</p>
+                <p className="truncate text-xs text-muted-foreground">{u.email}</p>
+              </div>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+                onClick={() => removeMutation.mutate(u.id)}
+                disabled={removeMutation.isPending}
+              >
+                <XIcon className="size-3.5" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Search to add */}
+      <div className="space-y-1.5">
+        <Input
+          placeholder="Search by name or email…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="h-8 text-sm"
+        />
+        {unaddedResults.length > 0 && (
+          <div className="rounded-lg border border-black/5 dark:border-border p-1 space-y-0.5 max-h-40 overflow-y-auto">
+            {unaddedResults.map((u) => (
+              <button
+                key={u.id}
+                type="button"
+                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-muted/60 text-left"
+                onClick={() => handleAdd(u.id)}
+                disabled={addMutation.isPending}
+              >
+                <span className="text-sm font-medium">{u.name}</span>
+                <span className="text-xs text-muted-foreground">{u.email}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {showNoResults && (
+          <p className="text-xs text-muted-foreground px-1">
+            No registered users found for &ldquo;{search.trim()}&rdquo;.
+          </p>
+        )}
+      </div>
+
+      {(brand.sharedWith ?? []).length === 0 && search.trim().length < 2 && (
+        <p className="text-xs text-muted-foreground italic">
+          No one has access yet. Search above to invite a team member.
+        </p>
+      )}
+    </div>
+  );
 }
 
 // ── Sheet ─────────────────────────────────────────────────────────────────────
@@ -108,7 +201,11 @@ export function BrandEditorSheet({ brand, open, onOpenChange, onSaved }: Props) 
     );
   };
 
-  const tabs = brand ? [...BASE_TABS, { value: 'assets', label: 'Assets' }] : BASE_TABS;
+  const tabs = brand?.isOwner !== false
+    ? brand
+      ? [...BASE_TABS, { value: 'assets', label: 'Assets' }, { value: 'sharing', label: 'Sharing' }]
+      : BASE_TABS
+    : BASE_TABS;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -253,6 +350,12 @@ export function BrandEditorSheet({ brand, open, onOpenChange, onSaved }: Props) 
             {brand && (
               <TabsContent value="assets" className="mt-0">
                 <AssetsTab brandId={brand.id} />
+              </TabsContent>
+            )}
+
+            {brand && brand.isOwner !== false && (
+              <TabsContent value="sharing" className="mt-0">
+                <SharingTab brand={brand} />
               </TabsContent>
             )}
           </div>

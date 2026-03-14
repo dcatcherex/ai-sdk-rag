@@ -16,10 +16,11 @@ type PersistChatResultOptions = {
   resolvedModel: string;
   creditCost: number;
   tokenUsageData?: TokenUsageSnapshot | null;
+  brandId?: string | null;
 };
 
 export const persistChatResult = async (options: PersistChatResultOptions): Promise<void> => {
-  const { updatedMessages, threadId, userId, currentTitle, resolvedModel, creditCost, tokenUsageData } =
+  const { updatedMessages, threadId, userId, currentTitle, resolvedModel, creditCost, tokenUsageData, brandId } =
     options;
 
   // Assign stable IDs and upload any inline data-URL images to R2
@@ -105,6 +106,11 @@ export const persistChatResult = async (options: PersistChatResultOptions): Prom
 
   await db
     .update(chatThread)
-    .set({ preview, title: nextTitle, updatedAt: new Date() })
+    .set({
+      preview,
+      title: nextTitle,
+      updatedAt: new Date(),
+      ...(brandId !== undefined ? { brandId: brandId ?? null } : {}),
+    })
     .where(eq(chatThread.id, threadId));
 };

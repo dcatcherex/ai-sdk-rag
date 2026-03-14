@@ -35,6 +35,7 @@ export const requestSchema = z.object({
   enabledModelIds: z.array(z.string()).optional(),
   agentId: z.string().optional(),
   personaId: z.string().optional(),
+  brandId: z.string().optional(),
   quizContext: quizFollowUpContextSchema.optional(),
 });
 

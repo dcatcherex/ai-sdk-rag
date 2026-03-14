@@ -1,11 +1,12 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Brand, BrandAsset, BrandImportJson } from '../types';
+import type { Brand, BrandAsset, BrandImportJson, BrandSharedUser } from '../types';
 
 export const brandKeys = {
   all: ['brands'] as const,
   assets: (brandId: string) => ['brands', brandId, 'assets'] as const,
+  stats: (brandId: string) => ['brands', brandId, 'stats'] as const,
 };
 
 export function useBrands() {
@@ -105,6 +106,68 @@ export function useUploadBrandAsset(brandId: string) {
       return res.json() as Promise<BrandAsset>;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: brandKeys.assets(brandId) }),
+  });
+}
+
+export type BrandStats = {
+  threadCount: number;
+  recentThreads: { id: string; title: string; updatedAt: string }[];
+};
+
+export function useBrandStats(brandId: string) {
+  return useQuery({
+    queryKey: brandKeys.stats(brandId),
+    queryFn: async () => {
+      const res = await fetch(`/api/brands/${brandId}/stats`);
+      if (!res.ok) throw new Error('Failed to fetch stats');
+      return res.json() as Promise<BrandStats>;
+    },
+  });
+}
+
+export function useAddBrandShare(brandId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await fetch(`/api/brands/${brandId}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) {
+        const { error } = await res.json() as { error: string };
+        throw new Error(error ?? 'Failed to share');
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: brandKeys.all }),
+  });
+}
+
+export function useRemoveBrandShare(brandId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await fetch(`/api/brands/${brandId}/share`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) throw new Error('Failed to remove share');
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: brandKeys.all }),
+  });
+}
+
+export function useBrandShareSearch(query: string) {
+  return useQuery({
+    queryKey: ['users', 'search', query],
+    queryFn: async () => {
+      if (query.trim().length < 2) return [] as BrandSharedUser[];
+      const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`);
+      if (!res.ok) return [] as BrandSharedUser[];
+      return res.json() as Promise<BrandSharedUser[]>;
+    },
+    enabled: query.trim().length >= 2,
   });
 }
 

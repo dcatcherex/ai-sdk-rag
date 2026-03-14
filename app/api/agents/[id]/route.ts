@@ -14,6 +14,8 @@ const updateSchema = z.object({
   modelId: z.string().optional().nullable(),
   enabledTools: z.array(z.string()).optional(),
   documentIds: z.array(z.string()).optional(),
+  skillIds: z.array(z.string()).optional(),
+  brandId: z.string().optional().nullable(),
   isPublic: z.boolean().optional(),
   sharedUserIds: z.array(z.string()).optional(),
 });

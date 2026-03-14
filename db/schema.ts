@@ -117,6 +117,7 @@ export const chatThread = pgTable(
     title: text("title").notNull(),
     preview: text("preview").notNull(),
     pinned: boolean("pinned").default(false).notNull(),
+    brandId: text("brand_id").references(() => brand.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -512,6 +513,8 @@ export const agent = pgTable('agent', {
   modelId: text('model_id'),
   enabledTools: text('enabled_tools').array().notNull().default(sql`'{}'::text[]`),
   documentIds: text('document_ids').array().notNull().default(sql`'{}'::text[]`),
+  skillIds: text('skill_ids').array().notNull().default(sql`'{}'::text[]`),
+  brandId: text('brand_id').references(() => brand.id, { onDelete: 'set null' }),
   isPublic: boolean('is_public').notNull().default(false),
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull(),
@@ -537,6 +540,32 @@ export const agentShare = pgTable('agent_share', {
 export const agentShareRelations = relations(agentShare, ({ one }) => ({
   agent: one(agent, { fields: [agentShare.agentId], references: [agent.id] }),
   sharedWithUser: one(user, { fields: [agentShare.sharedWithUserId], references: [user.id] }),
+}));
+
+// ── Agent Skills ──────────────────────────────────────────────────────────────
+
+export const agentSkill = pgTable('agent_skill', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  /** 'slash' | 'keyword' | 'always' */
+  triggerType: text('trigger_type').notNull().default('keyword'),
+  /** The slash command (e.g. '/email') or keyword to match. Null for 'always'. */
+  trigger: text('trigger'),
+  /** Injected into the agent's system prompt when this skill is triggered */
+  promptFragment: text('prompt_fragment').notNull(),
+  /** Additional tool IDs unlocked when this skill is active */
+  enabledTools: text('enabled_tools').array().notNull().default(sql`'{}'::text[]`),
+  /** Source URL (GitHub raw URL) if imported from the internet */
+  sourceUrl: text('source_url'),
+  isPublic: boolean('is_public').notNull().default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [index('agent_skill_userId_idx').on(table.userId)]);
+
+export const agentSkillRelations = relations(agentSkill, ({ one }) => ({
+  user: one(user, { fields: [agentSkill.userId], references: [user.id] }),
 }));
 
 // ── Tool Run / Artifact (unified tool execution persistence) ──────────────────
@@ -628,11 +657,28 @@ export const brandAsset = pgTable('brand_asset', {
   index('brand_asset_kind_idx').on(table.kind),
 ]);
 
+export const brandShare = pgTable('brand_share', {
+  id: text('id').primaryKey(),
+  brandId: text('brand_id').notNull().references(() => brand.id, { onDelete: 'cascade' }),
+  sharedWithUserId: text('shared_with_user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('brand_share_unique_idx').on(table.brandId, table.sharedWithUserId),
+  index('brand_share_brandId_idx').on(table.brandId),
+  index('brand_share_userId_idx').on(table.sharedWithUserId),
+]);
+
 export const brandRelations = relations(brand, ({ one, many }) => ({
   user: one(user, { fields: [brand.userId], references: [user.id] }),
   assets: many(brandAsset),
+  shares: many(brandShare),
 }));
 
 export const brandAssetRelations = relations(brandAsset, ({ one }) => ({
   brand: one(brand, { fields: [brandAsset.brandId], references: [brand.id] }),
+}));
+
+export const brandShareRelations = relations(brandShare, ({ one }) => ({
+  brand: one(brand, { fields: [brandShare.brandId], references: [brand.id] }),
+  sharedWithUser: one(user, { fields: [brandShare.sharedWithUserId], references: [user.id] }),
 }));

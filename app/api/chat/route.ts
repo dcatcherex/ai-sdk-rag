@@ -10,7 +10,7 @@ import { headers } from 'next/headers';
 import { and, eq, exists, or } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { agent, agentShare, chatThread, customPersona, personaCustomization, user as userTable, userPreferences } from '@/db/schema';
+import { agent, agentShare, brand, brandShare, chatThread, customPersona, personaCustomization, user as userTable, userPreferences } from '@/db/schema';
 import { VALID_PERSONA_KEYS } from '@/lib/persona-detection';
 import { availableModels, maxSteps } from '@/lib/ai';
 import { getSystemPrompt } from '@/lib/prompt';
@@ -24,6 +24,10 @@ import { buildToolSet } from '@/lib/tools';
 import { createAgentTools } from '@/lib/agent-tools';
 import { getCreditCost, getUserBalance } from '@/lib/credits';
 import { requestSchema } from '@/features/chat/server/schema';
+import { buildBrandBlock, buildImageBrandSuffix } from '@/features/brands/service';
+import type { Brand } from '@/features/brands/types';
+import { detectTriggeredSkills, getSkillsByIds } from '@/features/skills/service';
+import type { Skill } from '@/features/skills/types';
 import { getLastUserPrompt } from '@/features/chat/server/thread-utils';
 import { toolDisabledModels, isImageOnlyModel, getModelByIntent } from '@/features/chat/server/routing';
 import { persistChatResult } from '@/features/chat/server/persistence';
@@ -44,7 +48,7 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { messages, threadId, model, useWebSearch, selectedDocumentIds, enabledModelIds, agentId, personaId, quizContext } =
+    const { messages, threadId, model, useWebSearch, selectedDocumentIds, enabledModelIds, agentId, personaId, brandId, quizContext } =
       requestSchema.parse(rawBody);
 
     // Determine if personaId refers to a built-in key or a custom persona DB row
@@ -125,10 +129,23 @@ export async function POST(req: Request) {
     for (const row of personaCustomRows) personaCustomMap[row.personaKey] = row.extraInstructions;
     const lastUserPrompt = getLastUserPrompt(messages);
 
+    // Load skills attached to the active agent
+    const agentSkillRows: Skill[] =
+      activeAgent?.skillIds?.length
+        ? await getSkillsByIds(activeAgent.skillIds)
+        : [];
+    const triggeredSkills = agentSkillRows.length > 0 && lastUserPrompt
+      ? detectTriggeredSkills(agentSkillRows, lastUserPrompt)
+      : [];
+    // Tool IDs unlocked by triggered skills (needed before activeToolIds calculation)
+    const skillToolIds = [...new Set(triggeredSkills.flatMap((s) => s.enabledTools))];
+
     const customPersonaRow = customPersonaRows[0] ?? null;
 
-    // ── Stage 3: memory + persona detection in parallel ─────────────────────
-    const [memoryContext, detectedPersona] = await Promise.all([
+    // ── Stage 3: memory + persona detection + brand in parallel ─────────────
+    // Agent's brand takes priority over user's active brand.
+    const effectiveBrandId = activeAgent?.brandId ?? brandId ?? null;
+    const [memoryContext, detectedPersona, brandRows] = await Promise.all([
       (userPrefs.memoryEnabled && userPrefs.memoryInjectEnabled)
         ? getUserMemoryContext(session.user.id)
         : Promise.resolve(''),
@@ -140,7 +157,31 @@ export async function POST(req: Request) {
           : (userPrefs.personaDetectionEnabled ?? true) && lastUserPrompt
             ? detectPersona(lastUserPrompt)
             : Promise.resolve('general_assistant' as SystemPromptKey),
+      effectiveBrandId
+        ? db
+            .select()
+            .from(brand)
+            .where(
+              and(
+                eq(brand.id, effectiveBrandId),
+                or(
+                  eq(brand.userId, session.user.id),
+                  exists(
+                    db.select({ id: brandShare.id })
+                      .from(brandShare)
+                      .where(and(
+                        eq(brandShare.brandId, effectiveBrandId),
+                        eq(brandShare.sharedWithUserId, session.user.id),
+                      )),
+                  ),
+                ),
+              ),
+            )
+            .limit(1)
+        : Promise.resolve([]),
     ]);
+
+    const activeBrand = (brandRows[0] ?? null) as Brand | null;
 
     // Merge agent pre-associated docs + user-selected docs (union, deduplicated)
     const agentDocIds = activeAgent?.documentIds ?? [];
@@ -155,9 +196,13 @@ export async function POST(req: Request) {
     // Determine which tool group IDs are active for this request:
     //   1. Agent has its own explicit list (overrides everything)
     //   2. Otherwise use the user's saved preferences (null = all tools)
-    const activeToolIds = activeAgent
+    const baseToolIds = activeAgent
       ? activeAgent.enabledTools
       : (userPrefs.enabledToolIds ?? null);
+    // Merge in tool IDs unlocked by triggered skills (deduplicated)
+    const activeToolIds = skillToolIds.length > 0
+      ? [...new Set([...(baseToolIds ?? []), ...skillToolIds])]
+      : baseToolIds;
 
     const groundedTools = activeAgent
       ? createAgentTools(activeAgent.enabledTools, session.user.id, effectiveDocIds)
@@ -179,20 +224,37 @@ export async function POST(req: Request) {
         ? customPersonaRow.systemPrompt
         : getSystemPrompt(detectedPersona);
 
+    const brandBlock = activeBrand ? `\n\n${buildBrandBlock(activeBrand)}` : '';
+
+    // Build skill injection block from triggered skills
+    const skillBlock = triggeredSkills.length > 0
+      ? '\n\n<active_skills>\n' +
+        triggeredSkills
+          .map((s) => `## Skill: ${s.name}\n${s.promptFragment}`)
+          .join('\n\n') +
+        '\n</active_skills>'
+      : '';
+
     const groundedSystemPrompt = activeAgent
       ? activeAgent.systemPrompt +
         (isGrounded
           ? '\nIMPORTANT: The user has selected specific documents. You MUST use the searchKnowledge tool to find information before answering. Only respond using information from tool results. If no relevant information is found, say so.'
           : '') +
-        (memoryContext ? `\n\n${memoryContext}` : '')
+        (memoryContext ? `\n\n${memoryContext}` : '') +
+        brandBlock +
+        skillBlock
       : isGrounded
         ? baseSystemPrompt +
           (personaExtraInstructions ? `\n\n<user_instructions>\n${personaExtraInstructions}\n</user_instructions>` : '') +
           '\nIMPORTANT: The user has selected specific documents. You MUST use the searchKnowledge tool to find information before answering. Only respond using information from tool results. If no relevant information is found, say so.' +
-          (memoryContext ? `\n\n${memoryContext}` : '')
+          (memoryContext ? `\n\n${memoryContext}` : '') +
+          brandBlock +
+          skillBlock
         : baseSystemPrompt +
           (personaExtraInstructions ? `\n\n<user_instructions>\n${personaExtraInstructions}\n</user_instructions>` : '') +
-          (memoryContext ? `\n\n${memoryContext}` : '');
+          (memoryContext ? `\n\n${memoryContext}` : '') +
+          brandBlock +
+          skillBlock;
 
     // ── Model routing ────────────────────────────────────────────────────────
     const enabledIds =
@@ -240,8 +302,17 @@ export async function POST(req: Request) {
     const examPrepToolInstructions = supportsTools && examPrepToolEnabled
       ? '\nIMPORTANT: When the user asks to be quizzed, wants practice questions, asks you to grade an answer, wants a study plan, asks you to diagnose weak areas or misconceptions, or asks for flashcards or memorization cards, you MUST call the exam prep tools directly. Do NOT pretend to grade or generate a quiz freehand when the exam prep tools are available. If selected documents are attached to the chat, the exam prep tools already ground themselves in those documents automatically, so use the relevant exam prep tool directly unless you need extra document exploration beyond the tool result. Use generate_practice_quiz for quizzes and mock questions, grade_practice_answer for scoring or feedback on an answer, create_study_plan for revision schedules and topic prioritization, analyze_learning_gaps for weakness diagnosis, misconceptions, and what to study next, and generate_flashcards for revision cards and recall practice. If an exam prep tool call fails, explain the real issue briefly and ask only for the missing information.'
       : '';
+    const certificateBrandHint = activeBrand
+      ? (() => {
+          const hints: string[] = [`The user's active brand is "${activeBrand.name}".`];
+          const primaryColor = activeBrand.colors.find((c) => c.label.toLowerCase() === 'primary') ?? activeBrand.colors[0];
+          if (primaryColor?.hex) hints.push(`Primary brand color: ${primaryColor.hex}.`);
+          if (activeBrand.fonts.length) hints.push(`Brand fonts: ${activeBrand.fonts.join(', ')}.`);
+          return ` ${hints.join(' ')} Prefer these values when filling certificate fields unless the user specifies otherwise.`;
+        })()
+      : '';
     const certificateToolInstructions = supportsTools && certificateToolEnabled
-      ? '\nIMPORTANT: When the user wants to create, preview, or inspect certificate templates or certificate outputs, you MUST call the certificate tools directly. Do NOT describe tool calls, do NOT print JSON action blocks, and do NOT say you are about to call a tool. If you need template information, call list_certificate_templates. If you need to validate inputs, call preview_certificate_generation. If you need to create the output, call generate_certificate_output or generate_certificate. If a certificate tool call fails, explain the actual tool error briefly and ask the user only for the missing information or corrective action. Do NOT fabricate a generic technical issue message and do NOT emit another pseudo tool-call block as text.'
+      ? `\nIMPORTANT: When the user wants to create, preview, or inspect certificate templates or certificate outputs, you MUST call the certificate tools directly. Do NOT describe tool calls, do NOT print JSON action blocks, and do NOT say you are about to call a tool. If you need template information, call list_certificate_templates. If you need to validate inputs, call preview_certificate_generation. If you need to create the output, call generate_certificate_output or generate_certificate. If a certificate tool call fails, explain the actual tool error briefly and ask the user only for the missing information or corrective action. Do NOT fabricate a generic technical issue message and do NOT emit another pseudo tool-call block as text.${certificateBrandHint}`
       : '';
     const quizContextBlock = quizContext
       ? `\n\n<interactive_quiz_context>
@@ -304,10 +375,13 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
 
     // ── Image generation path ────────────────────────────────────────────────
     if (isImageOnlyModel(resolvedModel)) {
-      const imagePrompt = enhancedPrompt ?? lastUserPrompt;
-      if (!imagePrompt) {
+      const baseImagePrompt = enhancedPrompt ?? lastUserPrompt;
+      if (!baseImagePrompt) {
         return Response.json({ error: 'Image generation requires a text prompt.' }, { status: 400 });
       }
+      const imagePrompt = activeBrand
+        ? baseImagePrompt + buildImageBrandSuffix(activeBrand)
+        : baseImagePrompt;
 
       const imageResult = await generateImage({ model: resolvedModel, prompt: imagePrompt });
       const generatedImage = imageResult.image;
@@ -327,6 +401,7 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
         currentTitle,
         resolvedModel,
         creditCost,
+        brandId: activeBrand?.id ?? null,
         tokenUsageData: {
           promptTokens: imageResult.usage.inputTokens,
           completionTokens: imageResult.usage.outputTokens,
@@ -401,6 +476,7 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
           currentTitle,
           resolvedModel,
           creditCost,
+          brandId: activeBrand?.id ?? null,
           tokenUsageData: usage,
         });
 

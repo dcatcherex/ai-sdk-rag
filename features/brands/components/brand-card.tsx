@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckIcon, PencilIcon, Trash2Icon } from 'lucide-react';
+import { CheckIcon, PencilIcon, Trash2Icon, UsersIcon } from 'lucide-react';
 import type { Brand } from '../types';
 import { useBrandAssets } from '../hooks/use-brands';
 
@@ -69,42 +69,50 @@ export function BrandCard({
       {/* Name */}
       <div className="px-2.5 pb-2.5 pt-2">
         <p className="truncate text-xs font-medium leading-tight">{brand.name}</p>
-        {brand.isDefault && (
+        {brand.isDefault && brand.isOwner !== false && (
           <p className="mt-0.5 text-[10px] text-primary">Default</p>
+        )}
+        {brand.isOwner === false && (
+          <p className="mt-0.5 flex items-center gap-0.5 text-[10px] text-muted-foreground">
+            <UsersIcon className="size-2.5" />
+            Shared
+          </p>
         )}
       </div>
 
-      {/* Hover: edit + delete overlay */}
-      <div className="absolute right-1 top-1 hidden items-center gap-0.5 group-hover:flex">
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onEdit(); }}
-          className="rounded bg-black/30 p-1 text-white transition-colors hover:bg-black/50"
-          aria-label="Edit brand"
-        >
-          <PencilIcon className="size-3" />
-        </button>
-        {confirmDelete ? (
+      {/* Hover: edit + delete overlay — only for owners */}
+      {brand.isOwner !== false && (
+        <div className="absolute right-1 top-1 hidden items-center gap-0.5 group-hover:flex">
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            disabled={isDeleting}
-            className="rounded bg-destructive/80 p-1 text-white transition-colors hover:bg-destructive"
-            aria-label="Confirm delete"
+            onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            className="rounded bg-black/30 p-1 text-white transition-colors hover:bg-black/50"
+            aria-label="Edit brand"
           >
-            <CheckIcon className="size-3" />
+            <PencilIcon className="size-3" />
           </button>
-        ) : (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onRequestDelete(); }}
-            className="rounded bg-black/30 p-1 text-white transition-colors hover:bg-destructive/80"
-            aria-label="Delete brand"
-          >
-            <Trash2Icon className="size-3" />
-          </button>
-        )}
-      </div>
+          {confirmDelete ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              disabled={isDeleting}
+              className="rounded bg-destructive/80 p-1 text-white transition-colors hover:bg-destructive"
+              aria-label="Confirm delete"
+            >
+              <CheckIcon className="size-3" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onRequestDelete(); }}
+              className="rounded bg-black/30 p-1 text-white transition-colors hover:bg-destructive/80"
+              aria-label="Delete brand"
+            >
+              <Trash2Icon className="size-3" />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
