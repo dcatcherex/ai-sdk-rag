@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { BotIcon, GlobeIcon, PencilIcon, PlusIcon, Trash2Icon, UsersIcon } from 'lucide-react';
+import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -68,18 +69,16 @@ export const AgentsList = () => {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between border-b border-black/5 dark:border-border px-6 py-4">
-        <div>
-          <h2 className="text-lg font-semibold">Agents</h2>
-          <p className="text-sm text-muted-foreground">
-            Custom AI agents with tailored system prompts and tools
-          </p>
-        </div>
-        <Button onClick={openCreate} size="sm" className="gap-1.5">
-          <PlusIcon className="size-4" />
-          New agent
-        </Button>
-      </div>
+      <PageHeader
+        title="Agents"
+        description="Custom AI agents with tailored system prompts and tools"
+        action={
+          <Button onClick={openCreate} size="sm" className="gap-1.5">
+            <PlusIcon className="size-4" />
+            New agent
+          </Button>
+        }
+      />
 
       <div className="flex-1 overflow-y-auto p-6">
         {isLoading ? (

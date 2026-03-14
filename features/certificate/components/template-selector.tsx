@@ -1,8 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { CheckCircle2, Trash2, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { CheckCircle2, Trash2 } from "lucide-react";
 import { getPrintPresetLabel } from "@/lib/certificate-print";
 import { cn } from "@/lib/utils";
 import type { CertificateTemplate } from "../types";
@@ -12,27 +11,20 @@ type Props = {
   templates: CertificateTemplate[];
   selectedId: string | null;
   onSelect: (template: CertificateTemplate) => void;
-  onUploadClick: () => void;
 };
 
 export function TemplateSelector({
   templates,
   selectedId,
   onSelect,
-  onUploadClick,
 }: Props) {
   const deleteMutation = useDeleteTemplate();
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-700 dark:text-foreground/80">
-          Templates
-        </h2>
-        <Button size="sm" variant="outline" onClick={onUploadClick}>
-          <Plus className="mr-1 h-3.5 w-3.5" /> Add template
-        </Button>
-      </div>
+      <h2 className="text-sm font-semibold text-zinc-700 dark:text-foreground/80">
+        Templates
+      </h2>
 
       {templates.length === 0 && (
         <p className="rounded-lg border border-dashed p-6 text-center text-sm text-zinc-400">

@@ -5,15 +5,13 @@ import { useRouter } from 'next/navigation';
 import { ChatSidebar } from '@/features/chat/components/chat-sidebar';
 import { useThreads, setNewChatIntent, setPendingThread } from '@/features/chat/hooks/use-threads';
 import { useUserProfile } from '@/features/chat/hooks/use-user-profile';
-import { AgentsList } from '@/features/agents/components/agents-list';
 
-export default function AgentsPage() {
+export default function MainLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const {
     activeThreadId,
-    setActiveThreadId,
     threads,
     isThreadsLoading,
     createThreadMutation,
@@ -46,7 +44,7 @@ export default function AgentsPage() {
         />
 
         <main className="flex h-[calc(100dvh-1rem)] flex-1 flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-border bg-card/80 dark:bg-card/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur md:h-[calc(100vh-3rem)] md:rounded-3xl">
-          <AgentsList />
+          {children}
         </main>
       </div>
     </div>

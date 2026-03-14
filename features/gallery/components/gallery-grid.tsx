@@ -2,6 +2,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ImageIcon } from 'lucide-react';
+import { PageHeader } from '@/components/page-header';
 import { GalleryCard } from './gallery-card';
 import type { AssetGroup } from '../hooks/use-gallery-assets';
 import type { MediaAsset } from '../types';
@@ -20,22 +21,14 @@ const GRID_CLASS = 'grid gap-4 sm:grid-cols-2 xl:grid-cols-4 md:gap-2';
 
 export const GalleryGrid = ({ assetGroups, activeVersions, isLoading, error, filter, onFilterChange, onEdit }: Props) => {
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-5 md:px-6 md:py-6">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-            Media Library
-          </p>
-          <h1 className="mt-2 text-2xl font-semibold text-foreground sm:text-3xl">
-            Your generated gallery
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Browse every image you have created, optimized with WebP thumbnails.
-          </p>
-        </div>
-      </header>
+    <div className="flex flex-col flex-1 overflow-hidden">
+      <PageHeader
+        title="Media Library"
+        description="Browse every image you have created, optimized with WebP thumbnails."
+      />
 
-      <section className="mt-5 flex flex-wrap items-center gap-3">
+      <div className="flex-1 overflow-y-auto px-4 py-5 md:px-6 md:py-6">
+      <section className="flex flex-wrap items-center gap-3">
         <Button
           size="sm"
           variant={filter === 'image' ? 'default' : 'outline'}
@@ -92,6 +85,7 @@ export const GalleryGrid = ({ assetGroups, activeVersions, isLoading, error, fil
             })}
           </div>
         )}
+      </div>
       </div>
     </div>
   );
