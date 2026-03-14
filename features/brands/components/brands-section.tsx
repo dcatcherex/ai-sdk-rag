@@ -84,13 +84,11 @@ export function BrandsSection() {
   return (
     <section>
       {/* Header */}
-      <div className="mb-1 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Building2Icon className="size-5 text-muted-foreground" />
           <h3 className="text-base font-semibold">Brands</h3>
-          <Badge variant="secondary" className="text-xs">
-            {brands.length}
-          </Badge>
+          <Badge variant="secondary" className="text-xs">{brands.length}</Badge>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => setShowImport((v) => !v)}>
@@ -104,7 +102,7 @@ export function BrandsSection() {
         </div>
       </div>
 
-      {/* JSON Import */}
+      {/* JSON Import panel */}
       {showImport && (
         <div className="mb-5 space-y-3 rounded-xl border border-black/10 dark:border-border bg-black/2 dark:bg-white/3 p-4">
           <div>
@@ -135,11 +133,7 @@ export function BrandsSection() {
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => {
-                setShowImport(false);
-                setImportText('');
-                setImportError('');
-              }}
+              onClick={() => { setShowImport(false); setImportText(''); setImportError(''); }}
             >
               Cancel
             </Button>
@@ -158,91 +152,95 @@ export function BrandsSection() {
           </p>
         </div>
       ) : (
-        <div className="flex items-start gap-4">
-          {/* Brand list */}
-          <div className="flex w-52 shrink-0 flex-col space-y-1">
-            {brands.map((b) => (
-              <div
-                key={b.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => setSelectedId(b.id)}
-                onKeyDown={(e) => e.key === 'Enter' && setSelectedId(b.id)}
-                className={`group relative cursor-pointer rounded-xl border px-3 py-2.5 transition-colors ${
-                  resolvedSelectedId === b.id
-                    ? 'border-primary/25 bg-primary/5 dark:bg-primary/8'
-                    : 'border-black/5 dark:border-border hover:border-black/10 hover:bg-black/2 dark:hover:bg-white/3'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 pr-10">
+        <div className="space-y-5">
+          {/* Brand card grid */}
+          <div className="flex flex-wrap gap-3">
+            {brands.map((b) => {
+              const initials = b.name
+                .split(' ')
+                .map((w) => w[0])
+                .join('')
+                .slice(0, 2)
+                .toUpperCase();
+              const isSelected = resolvedSelectedId === b.id;
+
+              return (
+                <div
+                  key={b.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedId(b.id)}
+                  onKeyDown={(e) => e.key === 'Enter' && setSelectedId(b.id)}
+                  className={`group relative w-28 cursor-pointer overflow-hidden rounded-xl border transition-all ${
+                    isSelected
+                      ? 'border-primary/30 ring-2 ring-primary/20'
+                      : 'border-black/8 dark:border-border hover:border-black/15 dark:hover:border-white/20'
+                  }`}
+                >
+                  {/* Color block */}
                   <div
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
+                    className="flex h-20 items-center justify-center"
                     style={{ background: b.colors[0]?.hex ?? 'hsl(var(--muted))' }}
                   >
-                    <Building2Icon className="size-3.5 text-white" />
+                    <span className="select-none text-2xl font-bold text-white/80 drop-shadow">
+                      {initials}
+                    </span>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium leading-tight">{b.name}</p>
-                    {b.industry && (
-                      <p className="truncate text-[11px] text-muted-foreground">{b.industry}</p>
+
+                  {/* Name */}
+                  <div className="px-2.5 pb-2.5 pt-2">
+                    <p className="truncate text-xs font-medium leading-tight">{b.name}</p>
+                    {b.isDefault && (
+                      <p className="mt-0.5 text-[10px] text-primary">Default</p>
                     )}
                   </div>
-                  {b.isDefault && <CheckIcon className="size-3 shrink-0 text-primary" />}
-                </div>
 
-                {/* Hover: edit + delete */}
-                <div className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 group-hover:flex">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingBrand(b);
-                    }}
-                    className="rounded p-1 text-muted-foreground transition-colors hover:bg-black/8 dark:hover:bg-white/10 hover:text-foreground"
-                    aria-label="Edit brand"
-                  >
-                    <PencilIcon className="size-3" />
-                  </button>
-                  {confirmDeleteId === b.id ? (
+                  {/* Hover: edit + delete (overlay on color block) */}
+                  <div className="absolute right-1 top-1 hidden items-center gap-0.5 group-hover:flex">
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(b.id);
-                      }}
-                      disabled={deleteMutation.isPending}
-                      className="rounded p-1 text-destructive transition-colors hover:bg-destructive/10"
-                      aria-label="Confirm delete"
+                      onClick={(e) => { e.stopPropagation(); setEditingBrand(b); }}
+                      className="rounded bg-black/30 p-1 text-white transition-colors hover:bg-black/50"
+                      aria-label="Edit brand"
                     >
-                      <CheckIcon className="size-3" />
+                      <PencilIcon className="size-3" />
                     </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setConfirmDeleteId(b.id);
-                        setTimeout(() => setConfirmDeleteId(null), 3000);
-                      }}
-                      className="rounded p-1 text-muted-foreground transition-colors hover:bg-black/8 dark:hover:bg-white/10 hover:text-destructive"
-                      aria-label="Delete brand"
-                    >
-                      <Trash2Icon className="size-3" />
-                    </button>
-                  )}
+                    {confirmDeleteId === b.id ? (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleDelete(b.id); }}
+                        disabled={deleteMutation.isPending}
+                        className="rounded bg-destructive/80 p-1 text-white transition-colors hover:bg-destructive"
+                        aria-label="Confirm delete"
+                      >
+                        <CheckIcon className="size-3" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmDeleteId(b.id);
+                          setTimeout(() => setConfirmDeleteId(null), 3000);
+                        }}
+                        className="rounded bg-black/30 p-1 text-white transition-colors hover:bg-destructive/80"
+                        aria-label="Delete brand"
+                      >
+                        <Trash2Icon className="size-3" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {/* Preview */}
+          {/* Selected brand preview */}
           {selectedBrand && (
-            <div className="min-w-0 flex-1">
+            <div>
               <div className="mb-3 flex items-center gap-2">
                 {selectedBrand.isDefault ? (
-                  <Badge variant="secondary" className="text-xs">
-                    Default brand
-                  </Badge>
+                  <Badge variant="secondary" className="text-xs">Default brand</Badge>
                 ) : (
                   <Button
                     variant="ghost"
@@ -264,18 +262,14 @@ export function BrandsSection() {
       <BrandEditorSheet
         brand={null}
         open={isCreating}
-        onOpenChange={(open) => {
-          if (!open) setIsCreating(false);
-        }}
+        onOpenChange={(open) => { if (!open) setIsCreating(false); }}
         onSaved={onSaved}
       />
       {editingBrand && (
         <BrandEditorSheet
           brand={editingBrand}
           open={!!editingBrand}
-          onOpenChange={(open) => {
-            if (!open) setEditingBrand(null);
-          }}
+          onOpenChange={(open) => { if (!open) setEditingBrand(null); }}
           onSaved={onSaved}
         />
       )}
