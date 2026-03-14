@@ -31,7 +31,7 @@ type NavItem = {
   matchFn: (path: string) => boolean;
 };
 
-export type SidebarNavItemId = "gallery" | "agents" | "certificate";
+export type SidebarNavItemId = "gallery" | "agents" | "certificate" | "knowledge" | "support";
 
 export const OPTIONAL_NAV_ITEMS: NavItem[] = [
   {
@@ -54,6 +54,20 @@ export const OPTIONAL_NAV_ITEMS: NavItem[] = [
     label: "Certificates",
     icon: <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6" /><path d="m15.477 12.89 1.515 8.595L12 18l-4.992 3.485 1.515-8.596" /></svg>,
     matchFn: (p) => p.startsWith("/certificate"),
+  },
+  {
+    id: "knowledge",
+    href: "/knowledge",
+    label: "Knowledge Base",
+    icon: <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>,
+    matchFn: (p) => p.startsWith("/knowledge"),
+  },
+  {
+    id: "support",
+    href: "/support",
+    label: "Support Inbox",
+    icon: <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>,
+    matchFn: (p) => p.startsWith("/support"),
   },
 ];
 
