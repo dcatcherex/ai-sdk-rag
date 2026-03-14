@@ -4,13 +4,17 @@ import { useState } from 'react';
 import {
   BrainCircuitIcon,
   Building2Icon,
+  DownloadIcon,
   LayersIcon,
   MessageCircleQuestionIcon,
+  PlusIcon,
   ScanTextIcon,
   SparklesIcon,
   WrenchIcon,
   ZapIcon,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/page-header';
 import { ModelsTable } from '@/features/models/components/models-table';
 import { useSettingsPreferences } from '@/features/settings/hooks/use-settings-preferences';
 import { MemorySection } from '@/features/settings/components/memory-section';
@@ -64,6 +68,8 @@ const TABS: { id: TabId; label: string; icon: React.ElementType; description: st
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>('general');
+  const [isCreatingBrand, setIsCreatingBrand] = useState(false);
+  const [showBrandImport, setShowBrandImport] = useState(false);
   const { prefs, updatePref, personaInstructions, setPersonaInstructions } = useSettingsPreferences();
 
   const effectiveToolIds = prefs.enabledToolIds ?? ALL_TOOL_IDS;
@@ -140,11 +146,22 @@ export default function SettingsPage() {
 
       {/* Content */}
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
-        {/* Section header */}
-        <div className="shrink-0 border-b border-black/5 dark:border-border px-6 py-4">
-          <h2 className="text-lg font-semibold">{activeTabMeta.label}</h2>
-          <p className="text-sm text-muted-foreground">{activeTabMeta.description}</p>
-        </div>
+        <PageHeader
+          title={activeTabMeta.label}
+          description={activeTabMeta.description}
+          action={activeTab === 'brands' ? (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowBrandImport((v) => !v)}>
+                <DownloadIcon className="mr-1.5 size-3.5" />
+                Import JSON
+              </Button>
+              <Button size="sm" onClick={() => setIsCreatingBrand(true)}>
+                <PlusIcon className="mr-1.5 size-3.5" />
+                New Brand
+              </Button>
+            </div>
+          ) : undefined}
+        />
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
@@ -214,7 +231,12 @@ export default function SettingsPage() {
           )}
 
           {activeTab === 'brands' && (
-            <BrandsSection />
+            <BrandsSection
+              isCreating={isCreatingBrand}
+              onCreatingChange={setIsCreatingBrand}
+              showImport={showBrandImport}
+              onShowImportChange={setShowBrandImport}
+            />
           )}
         </div>
       </div>

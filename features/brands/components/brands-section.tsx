@@ -1,14 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  Building2Icon,
-  CheckIcon,
-  DownloadIcon,
-  PencilIcon,
-  PlusIcon,
-  Trash2Icon,
-} from 'lucide-react';
+import { Building2Icon } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { Badge } from '@/components/ui/badge';
@@ -21,10 +14,18 @@ import {
   useImportBrand,
   useSetDefaultBrand,
 } from '../hooks/use-brands';
+import { BrandCard } from './brand-card';
 import { BrandEditorSheet } from './brand-editor-sheet';
 import { BrandPreview } from './brand-preview';
 
-export function BrandsSection() {
+type Props = {
+  isCreating: boolean;
+  onCreatingChange: (v: boolean) => void;
+  showImport: boolean;
+  onShowImportChange: (v: boolean) => void;
+};
+
+export function BrandsSection({ isCreating, onCreatingChange, showImport, onShowImportChange }: Props) {
   const qc = useQueryClient();
   const { data: brands = [], isLoading } = useBrands();
   const deleteMutation = useDeleteBrand();
@@ -33,8 +34,6 @@ export function BrandsSection() {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-  const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -66,7 +65,7 @@ export function BrandsSection() {
     importMutation.mutate(json, {
       onSuccess: (created) => {
         setSelectedId(created.id);
-        setShowImport(false);
+        onShowImportChange(false);
         setImportText('');
         setEditingBrand(created);
       },
@@ -76,32 +75,13 @@ export function BrandsSection() {
 
   const onSaved = (saved: Brand) => {
     setSelectedId(saved.id);
-    setIsCreating(false);
+    onCreatingChange(false);
     setEditingBrand(null);
     void qc.invalidateQueries({ queryKey: brandKeys.all });
   };
 
   return (
     <section>
-      {/* Header */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Building2Icon className="size-5 text-muted-foreground" />
-          <h3 className="text-base font-semibold">Brands</h3>
-          <Badge variant="secondary" className="text-xs">{brands.length}</Badge>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowImport((v) => !v)}>
-            <DownloadIcon className="mr-1.5 size-3.5" />
-            Import JSON
-          </Button>
-          <Button size="sm" onClick={() => setIsCreating(true)}>
-            <PlusIcon className="mr-1.5 size-3.5" />
-            New Brand
-          </Button>
-        </div>
-      </div>
-
       {/* JSON Import panel */}
       {showImport && (
         <div className="mb-5 space-y-3 rounded-xl border border-black/10 dark:border-border bg-black/2 dark:bg-white/3 p-4">
@@ -133,13 +113,20 @@ export function BrandsSection() {
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => { setShowImport(false); setImportText(''); setImportError(''); }}
+              onClick={() => { onShowImportChange(false); setImportText(''); setImportError(''); }}
             >
               Cancel
             </Button>
           </div>
         </div>
       )}
+
+      {/* Brands count row */}
+      <div className="mb-4 flex items-center gap-2">
+        <Building2Icon className="size-4 text-muted-foreground" />
+        <span className="text-sm font-medium">Brands</span>
+        <Badge variant="secondary" className="text-xs">{brands.length}</Badge>
+      </div>
 
       {/* Body */}
       {isLoading ? (
@@ -155,84 +142,22 @@ export function BrandsSection() {
         <div className="space-y-5">
           {/* Brand card grid */}
           <div className="flex flex-wrap gap-3">
-            {brands.map((b) => {
-              const initials = b.name
-                .split(' ')
-                .map((w) => w[0])
-                .join('')
-                .slice(0, 2)
-                .toUpperCase();
-              const isSelected = resolvedSelectedId === b.id;
-
-              return (
-                <div
-                  key={b.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setSelectedId(b.id)}
-                  onKeyDown={(e) => e.key === 'Enter' && setSelectedId(b.id)}
-                  className={`group relative w-28 cursor-pointer overflow-hidden rounded-xl border transition-all ${
-                    isSelected
-                      ? 'border-primary/30 ring-2 ring-primary/20'
-                      : 'border-black/8 dark:border-border hover:border-black/15 dark:hover:border-white/20'
-                  }`}
-                >
-                  {/* Color block */}
-                  <div
-                    className="flex h-20 items-center justify-center"
-                    style={{ background: b.colors[0]?.hex ?? 'hsl(var(--muted))' }}
-                  >
-                    <span className="select-none text-2xl font-bold text-white/80 drop-shadow">
-                      {initials}
-                    </span>
-                  </div>
-
-                  {/* Name */}
-                  <div className="px-2.5 pb-2.5 pt-2">
-                    <p className="truncate text-xs font-medium leading-tight">{b.name}</p>
-                    {b.isDefault && (
-                      <p className="mt-0.5 text-[10px] text-primary">Default</p>
-                    )}
-                  </div>
-
-                  {/* Hover: edit + delete (overlay on color block) */}
-                  <div className="absolute right-1 top-1 hidden items-center gap-0.5 group-hover:flex">
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); setEditingBrand(b); }}
-                      className="rounded bg-black/30 p-1 text-white transition-colors hover:bg-black/50"
-                      aria-label="Edit brand"
-                    >
-                      <PencilIcon className="size-3" />
-                    </button>
-                    {confirmDeleteId === b.id ? (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); handleDelete(b.id); }}
-                        disabled={deleteMutation.isPending}
-                        className="rounded bg-destructive/80 p-1 text-white transition-colors hover:bg-destructive"
-                        aria-label="Confirm delete"
-                      >
-                        <CheckIcon className="size-3" />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setConfirmDeleteId(b.id);
-                          setTimeout(() => setConfirmDeleteId(null), 3000);
-                        }}
-                        className="rounded bg-black/30 p-1 text-white transition-colors hover:bg-destructive/80"
-                        aria-label="Delete brand"
-                      >
-                        <Trash2Icon className="size-3" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {brands.map((b) => (
+              <BrandCard
+                key={b.id}
+                brand={b}
+                isSelected={resolvedSelectedId === b.id}
+                confirmDelete={confirmDeleteId === b.id}
+                isDeleting={deleteMutation.isPending}
+                onSelect={() => setSelectedId(b.id)}
+                onEdit={() => setEditingBrand(b)}
+                onDelete={() => handleDelete(b.id)}
+                onRequestDelete={() => {
+                  setConfirmDeleteId(b.id);
+                  setTimeout(() => setConfirmDeleteId(null), 3000);
+                }}
+              />
+            ))}
           </div>
 
           {/* Selected brand preview */}
@@ -262,7 +187,7 @@ export function BrandsSection() {
       <BrandEditorSheet
         brand={null}
         open={isCreating}
-        onOpenChange={(open) => { if (!open) setIsCreating(false); }}
+        onOpenChange={(open) => { if (!open) onCreatingChange(false); }}
         onSaved={onSaved}
       />
       {editingBrand && (
