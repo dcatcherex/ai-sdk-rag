@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import {
   BrainCircuitIcon,
+  Building2Icon,
   LayersIcon,
   MessageCircleQuestionIcon,
   ScanTextIcon,
@@ -17,9 +18,10 @@ import { PersonaInstructionsSection } from '@/features/settings/components/perso
 import { CustomPersonasSection } from '@/features/settings/components/custom-personas-section';
 import { ToolsSection } from '@/features/settings/components/tools-section';
 import { ToggleSection } from '@/features/settings/components/toggle-section';
+import { BrandsSection } from '@/features/brands/components/brands-section';
 import { ALL_TOOL_IDS, type ToolId } from '@/lib/tool-registry';
 
-type TabId = 'general' | 'ai-behavior' | 'memory' | 'tools' | 'models';
+type TabId = 'general' | 'ai-behavior' | 'memory' | 'tools' | 'models' | 'brands';
 
 const TABS: { id: TabId; label: string; icon: React.ElementType; description: string }[] = [
   {
@@ -50,7 +52,13 @@ const TABS: { id: TabId; label: string; icon: React.ElementType; description: st
     id: 'models',
     label: 'Models',
     icon: BrainCircuitIcon,
-    description: 'Enable or disable AI models',
+    description: 'Enable or disable models available in your chat',
+  },
+  {
+    id: 'brands',
+    label: 'Brands',
+    icon: Building2Icon,
+    description: 'Brand identity, tone of voice, and creative assets',
   },
 ];
 
@@ -203,6 +211,10 @@ export default function SettingsPage() {
 
           {activeTab === 'models' && (
             <ModelsTable />
+          )}
+
+          {activeTab === 'brands' && (
+            <BrandsSection />
           )}
         </div>
       </div>

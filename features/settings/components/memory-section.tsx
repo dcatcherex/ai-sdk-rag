@@ -5,6 +5,7 @@ import { BrainCircuitIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, GitMerg
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import type { MemoryFact, Preferences } from '../types';
 
 const CATEGORY_ORDER = ['expertise', 'preference', 'context', 'goal'] as const;

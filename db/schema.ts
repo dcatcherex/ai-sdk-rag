@@ -584,3 +584,56 @@ export const toolRunRelations = relations(toolRun, ({ one, many }) => ({
 export const toolArtifactRelations = relations(toolArtifact, ({ one }) => ({
   toolRun: one(toolRun, { fields: [toolArtifact.toolRunId], references: [toolRun.id] }),
 }));
+
+// ── Brands ───────────────────────────────────────────────────────────────────
+
+export const brand = pgTable('brand', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  overview: text('overview'),
+  websiteUrl: text('website_url'),
+  industry: text('industry'),
+  targetAudience: text('target_audience'),
+  toneOfVoice: text('tone_of_voice').array().notNull().default(sql`'{}'::text[]`),
+  brandValues: text('brand_values').array().notNull().default(sql`'{}'::text[]`),
+  visualAesthetics: text('visual_aesthetics').array().notNull().default(sql`'{}'::text[]`),
+  fonts: text('fonts').array().notNull().default(sql`'{}'::text[]`),
+  colorPrimary: text('color_primary'),
+  colorSecondary: text('color_secondary'),
+  colorAccent: text('color_accent'),
+  writingDos: text('writing_dos'),
+  writingDonts: text('writing_donts'),
+  isDefault: boolean('is_default').notNull().default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [index('brand_userId_idx').on(table.userId)]);
+
+export const brandAsset = pgTable('brand_asset', {
+  id: text('id').primaryKey(),
+  brandId: text('brand_id').notNull().references(() => brand.id, { onDelete: 'cascade' }),
+  /** 'logo' | 'product' | 'creative' | 'document' | 'font' | 'other' */
+  kind: text('kind').notNull(),
+  /** Groups assets, e.g. campaign name */
+  collection: text('collection'),
+  title: text('title').notNull(),
+  r2Key: text('r2_key').notNull(),
+  url: text('url').notNull(),
+  mimeType: text('mime_type').notNull(),
+  sizeBytes: integer('size_bytes'),
+  metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  index('brand_asset_brandId_idx').on(table.brandId),
+  index('brand_asset_kind_idx').on(table.kind),
+]);
+
+export const brandRelations = relations(brand, ({ one, many }) => ({
+  user: one(user, { fields: [brand.userId], references: [user.id] }),
+  assets: many(brandAsset),
+}));
+
+export const brandAssetRelations = relations(brandAsset, ({ one }) => ({
+  brand: one(brand, { fields: [brandAsset.brandId], references: [brand.id] }),
+}));

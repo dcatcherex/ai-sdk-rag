@@ -21,6 +21,7 @@ import {
   GlobeIcon,
   HardDriveIcon,
   ImageIcon,
+  Maximize2Icon,
   TypeIcon,
   VideoIcon,
 } from 'lucide-react';
@@ -29,6 +30,13 @@ import { availableModels, type ModelOption, type Capability, type Provider } fro
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -50,6 +58,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useEnabledModels } from '@/features/models/hooks/use-enabled-models';
+import { Dots, speedTier, costTier } from '@/features/chat/components/composer/model-dots';
 
 // Capability → Lucide icon + label
 const capabilityIcons: Record<Capability, { icon: React.ElementType; label: string; color: string }> = {
@@ -152,11 +161,11 @@ function buildColumns(
       <Button
         variant="ghost"
         size="sm"
-        className="-ml-3 h-8"
+        className="-ml-3 h-8 group"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
       >
         Model
-        <ChevronsUpDown className="ml-2 h-3.5 w-3.5" />
+        <ChevronsUpDown className="ml-2 h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
       </Button>
     ),
     cell: ({ row }) => (
@@ -166,16 +175,30 @@ function buildColumns(
     ),
   },
   {
+    id: 'speed',
+    header: 'Speed',
+    accessorFn: (row) => speedTier(row),
+    cell: ({ row }) => <Dots filled={speedTier(row.original)} color="bg-blue-400" />,
+    enableSorting: true,
+  },
+  {
+    id: 'cost',
+    header: 'Cost',
+    accessorFn: (row) => costTier(row),
+    cell: ({ row }) => <Dots filled={costTier(row.original)} color="bg-amber-400" />,
+    enableSorting: true,
+  },
+  {
     accessorKey: 'provider',
     header: ({ column }) => (
       <Button
         variant="ghost"
         size="sm"
-        className="-ml-3 h-8"
+        className="-ml-3 h-8 group"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
       >
         Provider
-        <ChevronsUpDown className="ml-2 h-3.5 w-3.5" />
+        <ChevronsUpDown className="ml-2 h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
       </Button>
     ),
     cell: ({ row }) => (
@@ -209,11 +232,11 @@ function buildColumns(
       <Button
         variant="ghost"
         size="sm"
-        className="-ml-3 h-8"
+        className="-ml-3 h-8 group"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
       >
         Latency
-        <ChevronsUpDown className="ml-2 h-3.5 w-3.5" />
+        <ChevronsUpDown className="ml-2 h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
       </Button>
     ),
     cell: ({ row }) => {
@@ -227,11 +250,11 @@ function buildColumns(
       <Button
         variant="ghost"
         size="sm"
-        className="-ml-3 h-8"
+        className="-ml-3 h-8 group"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
       >
         Throughput
-        <ChevronsUpDown className="ml-2 h-3.5 w-3.5" />
+        <ChevronsUpDown className="ml-2 h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
       </Button>
     ),
     cell: ({ row }) => {
@@ -245,11 +268,11 @@ function buildColumns(
       <Button
         variant="ghost"
         size="sm"
-        className="-ml-3 h-8"
+        className="-ml-3 h-8 group"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
       >
         Input $/1M
-        <ChevronsUpDown className="ml-2 h-3.5 w-3.5" />
+        <ChevronsUpDown className="ml-2 h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
       </Button>
     ),
     cell: ({ row }) => {
@@ -263,11 +286,11 @@ function buildColumns(
       <Button
         variant="ghost"
         size="sm"
-        className="-ml-3 h-8"
+        className="-ml-3 h-8 group"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
       >
         Output $/1M
-        <ChevronsUpDown className="ml-2 h-3.5 w-3.5" />
+        <ChevronsUpDown className="ml-2 h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
       </Button>
     ),
     cell: ({ row }) => {
@@ -275,15 +298,38 @@ function buildColumns(
       return <span className="text-sm">{val != null ? `$${val}` : '—'}</span>;
     },
   },
-  
 ];}
 
-export function ModelsTable() {
+const DEFAULT_HIDDEN: VisibilityState = {
+  provider: false,
+  capabilities: false,
+  context: false,
+  latency: false,
+  throughput: false,
+  inputCost: false,
+  outputCost: false,
+};
+
+// ─── Inner table (shared between embedded and dialog views) ──────────────────
+
+function ModelsTableInner({
+  enabledModelIds,
+  enabledCount,
+  toggleModel,
+  setEnabledModelIds,
+  showMaximize = false,
+  onMaximize,
+}: {
+  enabledModelIds: string[];
+  enabledCount: number;
+  toggleModel: (id: string) => void;
+  setEnabledModelIds: (ids: string[]) => void;
+  showMaximize?: boolean;
+  onMaximize?: () => void;
+}) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
-
-  const { enabledModelIds, enabledModels, toggleModel, setEnabledModelIds } = useEnabledModels();
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(DEFAULT_HIDDEN);
 
   const toggleAll = React.useCallback(
     (enable: boolean, visibleIds: string[]) => {
@@ -318,25 +364,20 @@ export function ModelsTable() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="border-b border-black/5 dark:border-border px-6 py-4">
-        <h2 className="text-lg font-semibold text-foreground">AI Models</h2>
-        <p className="text-sm text-muted-foreground">
-          {enabledModels.length} of {availableModels.length} models enabled · {new Set(availableModels.map((m) => m.provider)).size} providers
-        </p>
-      </div>
-
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-6 py-3">
+      <div className="flex items-center gap-2 pb-3">
+        <span className="text-sm text-muted-foreground shrink-0">
+          {enabledCount} of {availableModels.length} enabled
+        </span>
         <Input
           placeholder="Search models..."
           value={(table.getColumn('name')?.getFilterValue() as string) ?? ''}
           onChange={(e) => table.getColumn('name')?.setFilterValue(e.target.value)}
-          className="max-w-xs"
+          className="max-w-xs ml-auto"
         />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="ml-auto">
+            <Button variant="outline" size="sm">
               Columns <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -356,10 +397,22 @@ export function ModelsTable() {
               ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        {showMaximize && onMaximize && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" className="size-9 shrink-0" onClick={onMaximize}>
+                  <Maximize2Icon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Expand view</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto px-6">
+      <ScrollArea className="flex-1 overflow-auto">
         <div className="overflow-hidden rounded-md border border-black/5 dark:border-border">
           <Table>
             <TableHeader>
@@ -377,8 +430,8 @@ export function ModelsTable() {
             </TableHeader>
             <TableBody>
               {table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
+                table.getRowModel().rows.map((row, i) => (
+                  <TableRow key={row.id} className={i % 2 === 1 ? 'bg-black/[0.02] dark:bg-white/[0.02]' : ''}>
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -396,10 +449,10 @@ export function ModelsTable() {
             </TableBody>
           </Table>
         </div>
-      </div>
+      </ScrollArea>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between px-6 py-3 border-t border-black/5 dark:border-border">
+      <div className="flex items-center justify-between px-4 py-3 border-t border-black/5 dark:border-border">
         <p className="text-sm text-muted-foreground">
           {table.getFilteredRowModel().rows.length} model(s)
         </p>
@@ -426,5 +479,40 @@ export function ModelsTable() {
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Public export ────────────────────────────────────────────────────────────
+
+export function ModelsTable() {
+  const [maximized, setMaximized] = React.useState(false);
+  const { enabledModelIds, enabledModels, toggleModel, setEnabledModelIds } = useEnabledModels();
+
+  const innerProps = {
+    enabledModelIds,
+    enabledCount: enabledModels.length,
+    toggleModel,
+    setEnabledModelIds,
+  };
+
+  return (
+    <>
+      <ModelsTableInner
+        {...innerProps}
+        showMaximize
+        onMaximize={() => setMaximized(true)}
+      />
+
+      <Dialog open={maximized} onOpenChange={setMaximized}>
+        <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-6 py-4 border-b border-black/5 dark:border-border shrink-0">
+            <DialogTitle>AI Models</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden">
+            <ModelsTableInner {...innerProps} />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

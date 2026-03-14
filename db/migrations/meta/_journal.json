@@ -64,6 +64,13 @@
       "when": 1773200000000,
       "tag": "0008_agent_sharing",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1773473257542,
+      "tag": "0009_vengeful_ted_forrester",
+      "breakpoints": true
     }
   ]
 }
