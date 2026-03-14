@@ -20,7 +20,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -40,12 +39,8 @@ import { cn } from "@/lib/utils";
 import type { ThreadItem } from "../../types";
 import type { SessionData, UserProfileData } from "./types";
 import { SidebarAccount } from "./sidebar-account";
-import { SidebarOptionalItemsMenu } from "./sidebar-optional-items-menu";
-import {
-  OPTIONAL_NAV_ITEMS,
-  SidebarNav,
-  type SidebarNavItemId,
-} from "./sidebar-nav";
+import { SidebarMoreMenuContent } from "./sidebar-more-menu";
+import { SidebarNav, type NavItemId } from "./sidebar-nav";
 import { SidebarSearch } from "./sidebar-search";
 import { SidebarThreadList } from "./sidebar-thread-list";
 import { CreditBalanceDisplay } from "@/components/credit-balance-display";
@@ -66,11 +61,10 @@ type Props = {
   onSignOut: () => void;
   currentPath: string;
   isCollapsed?: boolean;
-  visibleItemIds: SidebarNavItemId[];
-  orderedItemIds: SidebarNavItemId[];
+  pinnedItemIds: NavItemId[];
   onToggleCollapse?: () => void;
-  onToggleItemVisibility: (itemId: SidebarNavItemId, checked: boolean) => void;
-  onReorderItems: (orderedItemIds: SidebarNavItemId[]) => void;
+  onToggleNavPin: (itemId: NavItemId) => void;
+  onReorderPinned: (orderedItemIds: NavItemId[]) => void;
 };
 
 export const SidebarContent = ({
@@ -89,17 +83,11 @@ export const SidebarContent = ({
   onSignOut,
   currentPath,
   isCollapsed = false,
-  visibleItemIds,
-  orderedItemIds,
+  pinnedItemIds,
   onToggleCollapse,
-  onToggleItemVisibility,
-  onReorderItems,
+  onToggleNavPin,
+  onReorderPinned,
 }: Props) => {
-  const orderedItems = orderedItemIds
-    .map((itemId) => OPTIONAL_NAV_ITEMS.find((item) => item.id === itemId))
-    .filter(
-      (item): item is (typeof OPTIONAL_NAV_ITEMS)[number] => item !== undefined,
-    );
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -170,14 +158,12 @@ export const SidebarContent = ({
                     <TooltipContent side="bottom">More</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-                <DropdownMenuContent side="bottom" align="end" className="w-64">
-                  <DropdownMenuLabel>More</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <SidebarOptionalItemsMenu
-                    items={orderedItems}
-                    visibleItemIds={visibleItemIds}
-                    onToggleItemVisibility={onToggleItemVisibility}
-                    onReorderItems={onReorderItems}
+                <DropdownMenuContent side="bottom" align="end" className="w-64 p-0">
+                  <SidebarMoreMenuContent
+                    currentPath={currentPath}
+                    pinnedItemIds={pinnedItemIds}
+                    onTogglePin={onToggleNavPin}
+                    onReorderPinned={onReorderPinned}
                   />
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -220,12 +206,11 @@ export const SidebarContent = ({
         activeThreadId={activeThreadId}
         isCollapsed={isCollapsed}
         isCreatingThread={isCreatingThread}
-        visibleItemIds={visibleItemIds}
-        orderedItemIds={orderedItemIds}
+        pinnedItemIds={pinnedItemIds}
         onCreateThread={onCreateThread}
         onSearchOpen={() => setSearchOpen(true)}
-        onToggleItemVisibility={onToggleItemVisibility}
-        onReorderItems={onReorderItems}
+        onTogglePin={onToggleNavPin}
+        onReorderPinned={onReorderPinned}
       />
 
       {/* Thread list */}

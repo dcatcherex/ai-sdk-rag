@@ -1,17 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import {
-  EllipsisIcon,
-  PlusIcon,
-  SearchIcon,
-} from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -20,71 +14,103 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { EllipsisIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SidebarOptionalItemsMenu } from "./sidebar-optional-items-menu";
+import { SidebarMoreMenuContent } from "./sidebar-more-menu";
 
-type NavItem = {
-  id: SidebarNavItemId;
-  href: string;
-  label: string;
-  icon: React.ReactNode;
-  matchFn: (path: string) => boolean;
-};
+// ─── Nav Registry ────────────────────────────────────────────────────────────
+// Single source of truth for all sidebar pages.
+// To add a new page: append one entry here. No other files need changing.
 
-export type SidebarNavItemId = "gallery" | "agents" | "certificate" | "knowledge" | "support";
-
-export const OPTIONAL_NAV_ITEMS: NavItem[] = [
+export const NAV_REGISTRY = [
   {
-    id: "gallery",
+    id: "gallery" as const,
     href: "/gallery",
     label: "Media gallery",
-    icon: <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>,
-    matchFn: (p) => p.startsWith("/gallery"),
+    defaultPinned: true,
+    icon: (
+      <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+        <circle cx="8.5" cy="8.5" r="1.5" />
+        <path d="m21 15-5-5L5 21" />
+      </svg>
+    ),
+    matchFn: (p: string) => p.startsWith("/gallery"),
   },
   {
-    id: "agents",
+    id: "agents" as const,
     href: "/agents",
     label: "Agents",
-    icon: <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 8V4H8" /><rect x="4" y="8" width="16" height="12" rx="2" /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path d="M9 13v2" /></svg>,
-    matchFn: (p) => p.startsWith("/agents"),
+    defaultPinned: true,
+    icon: (
+      <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M12 8V4H8" />
+        <rect x="4" y="8" width="16" height="12" rx="2" />
+        <path d="M2 14h2" /><path d="M20 14h2" />
+        <path d="M15 13v2" /><path d="M9 13v2" />
+      </svg>
+    ),
+    matchFn: (p: string) => p.startsWith("/agents"),
   },
   {
-    id: "certificate",
+    id: "certificate" as const,
     href: "/certificate",
     label: "Certificates",
-    icon: <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6" /><path d="m15.477 12.89 1.515 8.595L12 18l-4.992 3.485 1.515-8.596" /></svg>,
-    matchFn: (p) => p.startsWith("/certificate"),
+    defaultPinned: true,
+    icon: (
+      <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="8" r="6" />
+        <path d="m15.477 12.89 1.515 8.595L12 18l-4.992 3.485 1.515-8.596" />
+      </svg>
+    ),
+    matchFn: (p: string) => p.startsWith("/certificate"),
   },
   {
-    id: "knowledge",
+    id: "knowledge" as const,
     href: "/knowledge",
     label: "Knowledge Base",
-    icon: <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>,
-    matchFn: (p) => p.startsWith("/knowledge"),
+    defaultPinned: false,
+    icon: (
+      <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+      </svg>
+    ),
+    matchFn: (p: string) => p.startsWith("/knowledge"),
   },
   {
-    id: "support",
+    id: "support" as const,
     href: "/support",
     label: "Support Inbox",
-    icon: <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>,
-    matchFn: (p) => p.startsWith("/support"),
+    defaultPinned: false,
+    icon: (
+      <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </svg>
+    ),
+    matchFn: (p: string) => p.startsWith("/support"),
   },
-];
+] as const;
 
-export const DEFAULT_VISIBLE_SIDEBAR_ITEM_IDS: SidebarNavItemId[] =
-  OPTIONAL_NAV_ITEMS.map((item) => item.id);
+export type NavItemId = (typeof NAV_REGISTRY)[number]["id"];
+export type NavItem = (typeof NAV_REGISTRY)[number];
+
+export const DEFAULT_PINNED_IDS: NavItemId[] = NAV_REGISTRY.filter(
+  (item) => item.defaultPinned,
+).map((item) => item.id);
+
+// ─── SidebarNav ───────────────────────────────────────────────────────────────
 
 type Props = {
   currentPath: string;
   activeThreadId: string;
   isCollapsed: boolean;
   isCreatingThread: boolean;
-  visibleItemIds: SidebarNavItemId[];
-  orderedItemIds: SidebarNavItemId[];
+  pinnedItemIds: NavItemId[];
   onCreateThread: () => void;
   onSearchOpen: () => void;
-  onToggleItemVisibility: (itemId: SidebarNavItemId, checked: boolean) => void;
-  onReorderItems: (orderedItemIds: SidebarNavItemId[]) => void;
+  onTogglePin: (itemId: NavItemId) => void;
+  onReorderPinned: (orderedItemIds: NavItemId[]) => void;
 };
 
 const NavButton = ({
@@ -111,128 +137,110 @@ export const SidebarNav = ({
   activeThreadId,
   isCollapsed,
   isCreatingThread,
-  visibleItemIds,
-  orderedItemIds,
+  pinnedItemIds,
   onCreateThread,
   onSearchOpen,
-  onToggleItemVisibility,
-  onReorderItems,
+  onTogglePin,
+  onReorderPinned,
 }: Props) => {
-  const fullWidthButtonClass = "justify-start gap-2 w-full font-normal";
-  const iconButtonClass = "size-9 shrink-0";
-  const orderedItems = orderedItemIds
-    .map((itemId) => OPTIONAL_NAV_ITEMS.find((item) => item.id === itemId))
+  const pinnedItems = pinnedItemIds
+    .map((id) => NAV_REGISTRY.find((item) => item.id === id))
     .filter((item): item is NavItem => item !== undefined);
-  const visibleItems = orderedItems.filter((item) => visibleItemIds.includes(item.id));
 
-  return (
-    <div
-      className={cn(
-        "mt-4 space-y-2",
-        isCollapsed && "flex flex-col items-center",
-      )}
-    >
-      {isCollapsed ? (
-        <>
-          <NavButton isCollapsed={isCollapsed} tooltip="New chat">
+  const iconButtonClass = "size-9 shrink-0";
+  const fullWidthButtonClass = "justify-start gap-2 w-full font-normal";
+
+  if (isCollapsed) {
+    return (
+      <div className="mt-4 flex flex-col items-center space-y-2">
+        <NavButton isCollapsed tooltip="New chat">
+          <Button
+            variant={currentPath === "/" && !activeThreadId ? "secondary" : "ghost"}
+            size="icon"
+            className={iconButtonClass}
+            onClick={onCreateThread}
+            disabled={isCreatingThread}
+          >
+            <PlusIcon className="size-4" />
+          </Button>
+        </NavButton>
+
+        {pinnedItems.map(({ href, label, icon, matchFn }) => (
+          <NavButton key={href} isCollapsed tooltip={label}>
             <Button
-              variant={currentPath === "/" && !activeThreadId ? "secondary" : "ghost"}
+              asChild
+              variant={matchFn(currentPath) ? "secondary" : "ghost"}
               size="icon"
               className={iconButtonClass}
-              onClick={onCreateThread}
-              disabled={isCreatingThread}
             >
-              <PlusIcon className="size-4" />
+              <Link href={href} aria-label={label}>{icon}</Link>
             </Button>
           </NavButton>
+        ))}
 
-          {visibleItems.map(({ href, label, icon, matchFn }) => (
-            <NavButton key={href} isCollapsed={isCollapsed} tooltip={label}>
+        {/* Collapsed ⋮ — opens the full more menu */}
+        <DropdownMenu>
+          <NavButton isCollapsed tooltip="More">
+            <DropdownMenuTrigger asChild>
               <Button
-                asChild
-                variant={matchFn(currentPath) ? "secondary" : "ghost"}
+                type="button"
+                variant={
+                  NAV_REGISTRY.some(({ matchFn }) => matchFn(currentPath)) &&
+                  !pinnedItems.some(({ matchFn }) => matchFn(currentPath))
+                    ? "secondary"
+                    : "ghost"
+                }
                 size="icon"
                 className={iconButtonClass}
+                aria-label="Open more menu"
               >
-                <Link href={href} aria-label={label}>
-                  {icon}
-                </Link>
+                <EllipsisIcon className="size-4" />
               </Button>
-            </NavButton>
-          ))}
-
-          <NavButton isCollapsed={isCollapsed} tooltip="Search chats">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className={iconButtonClass}
-              onClick={onSearchOpen}
-            >
-              <SearchIcon className="size-4" />
-            </Button>
+            </DropdownMenuTrigger>
           </NavButton>
+          <DropdownMenuContent side="right" align="start" className="w-64 p-0">
+            <SidebarMoreMenuContent
+              currentPath={currentPath}
+              pinnedItemIds={pinnedItemIds}
+              onTogglePin={onTogglePin}
+              onReorderPinned={onReorderPinned}
+            />
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    );
+  }
 
-          <DropdownMenu>
-            <NavButton isCollapsed={isCollapsed} tooltip="More">
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant={OPTIONAL_NAV_ITEMS.some(({ matchFn }) => matchFn(currentPath)) ? "secondary" : "ghost"}
-                  size="icon"
-                  className={iconButtonClass}
-                  aria-label="Open more menu"
-                >
-                  <EllipsisIcon className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-            </NavButton>
-            <DropdownMenuContent side="right" align="start" className="w-56">
-              <DropdownMenuLabel>More</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <SidebarOptionalItemsMenu
-                items={orderedItems}
-                visibleItemIds={visibleItemIds}
-                onToggleItemVisibility={onToggleItemVisibility}
-                onReorderItems={onReorderItems}
-              />
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </>
-      ) : (
-        <>
-          <div className="flex items-center gap-2">
-            <NavButton isCollapsed={isCollapsed} tooltip="New chat">
-              <Button
-                variant={currentPath === "/" && !activeThreadId ? "secondary" : "ghost"}
-                size="sm"
-                className={cn("flex-1", fullWidthButtonClass)}
-                onClick={onCreateThread}
-                disabled={isCreatingThread}
-              >
-                <PlusIcon className="size-4" />
-                New chat
-              </Button>
-            </NavButton>
-          </div>
+  return (
+    <div className="mt-4 space-y-2">
+      <NavButton isCollapsed={false} tooltip="New chat">
+        <Button
+          variant={currentPath === "/" && !activeThreadId ? "secondary" : "ghost"}
+          size="sm"
+          className={cn("flex-1", fullWidthButtonClass)}
+          onClick={onCreateThread}
+          disabled={isCreatingThread}
+        >
+          <PlusIcon className="size-4" />
+          New chat
+        </Button>
+      </NavButton>
 
-          {visibleItems.map(({ href, label, icon, matchFn }) => (
-            <NavButton key={href} isCollapsed={isCollapsed} tooltip={label}>
-              <Button
-                asChild
-                variant={matchFn(currentPath) ? "secondary" : "ghost"}
-                size="sm"
-                className={fullWidthButtonClass}
-              >
-                <Link href={href} aria-label={label}>
-                  {icon}
-                  {label}
-                </Link>
-              </Button>
-            </NavButton>
-          ))}
-        </>
-      )}
+      {pinnedItems.map(({ href, label, icon, matchFn }) => (
+        <NavButton key={href} isCollapsed={false} tooltip={label}>
+          <Button
+            asChild
+            variant={matchFn(currentPath) ? "secondary" : "ghost"}
+            size="sm"
+            className={fullWidthButtonClass}
+          >
+            <Link href={href} aria-label={label}>
+              {icon}
+              {label}
+            </Link>
+          </Button>
+        </NavButton>
+      ))}
     </div>
   );
 };
