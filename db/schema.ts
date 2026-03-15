@@ -716,6 +716,24 @@ export const socialAccount = pgTable('social_account', {
   index('social_account_platform_idx').on(table.platform),
 ]);
 
+/** Cached trend data fetched from Apify — shared across all users */
+export const trendCache = pgTable('trend_cache', {
+  id: text('id').primaryKey(),
+  /** 'tiktok' | 'instagram' */
+  platform: text('platform').notNull(),
+  /** Industry/niche, e.g. 'fitness', 'food', 'fashion', 'all' */
+  industry: text('industry').notNull().default('all'),
+  /** Full trend items array as JSON */
+  items: jsonb('items').notNull().default(sql`'[]'::jsonb`),
+  /** ISO week string for deduplication, e.g. '2026-W11' */
+  weekKey: text('week_key').notNull(),
+  /** When Apify fetch completed */
+  fetchedAt: timestamp('fetched_at').defaultNow().notNull(),
+}, (table) => [
+  index('trend_cache_platform_industry_idx').on(table.platform, table.industry),
+  uniqueIndex('trend_cache_week_platform_industry_idx').on(table.weekKey, table.platform, table.industry),
+]);
+
 export const socialPostRelations = relations(socialPost, ({ one }) => ({
   user: one(user, { fields: [socialPost.userId], references: [user.id] }),
   brand: one(brand, { fields: [socialPost.brandId], references: [brand.id] }),

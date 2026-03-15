@@ -107,3 +107,56 @@ export type PublishResult = {
   platformPostId?: string;
   error?: string;
 };
+
+// ── Trends ────────────────────────────────────────────────────────────────────
+
+export type TrendPlatform = 'tiktok' | 'instagram';
+
+export type TrendItem = {
+  id: string;
+  platform: TrendPlatform;
+  /** Hashtag, sound name, or challenge name */
+  title: string;
+  /** Short description of what the trend is about */
+  description: string;
+  /** Number of posts/views using this trend */
+  postCount?: number;
+  /** Growth percentage over last 7 days */
+  growthPercent?: number;
+  /** Example content ideas based on this trend */
+  contentIdeas: string[];
+  /** Relevant hashtags to use */
+  hashtags: string[];
+  /** Content type: 'video' | 'image' | 'reel' | 'story' */
+  contentType: string;
+  /** Industry/niche this trend belongs to */
+  industry: string;
+  /** URL to an example post (if available) */
+  exampleUrl?: string;
+  /** Thumbnail or preview image */
+  thumbnailUrl?: string;
+  fetchedAt: string; // ISO date string
+};
+
+export type TrendCacheRecord = {
+  id: string;
+  platform: TrendPlatform;
+  industry: string;
+  items: TrendItem[];
+  weekKey: string;
+  fetchedAt: Date;
+};
+
+export type GetTrendsInput = {
+  platform?: TrendPlatform;
+  industry?: string;
+  /** If true, bypass cache and fetch fresh from Apify (costs credits) */
+  forceRefresh?: boolean;
+};
+
+export type GetTrendsResult = {
+  items: TrendItem[];
+  cachedAt: string;
+  weekKey: string;
+  isMock: boolean;
+};

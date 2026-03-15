@@ -16,6 +16,10 @@ const envSchema = z.object({
   BETTER_AUTH_URL: z.string().optional(),
   /** Secret used to authorize cron job requests (set automatically by Vercel) */
   CRON_SECRET: z.string().optional(),
+  /** Apify API token for social trend scraping */
+  APIFY_API_TOKEN: z.string().optional(),
+  /** Set to 'true' to use mock trend data instead of calling Apify (for local dev/testing) */
+  USE_MOCK_TRENDS: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);
