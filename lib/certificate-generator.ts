@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { Resvg } from '@resvg/resvg-js';
 import sharp from 'sharp';
 import { PDFDocument, rgb } from 'pdf-lib';
 import { getCertificateFontCssWeight, type CertificateFontWeight } from '@/lib/certificate-fonts';
@@ -77,30 +78,15 @@ function textAnchor(align: TextAlign): SharpTextAlign {
   return 'left';
 }
 
-const svgFontFaceCache = new Map<string, Promise<{ css: string; familyName: string }>>();
 
-async function getSvgEmbeddedFontFace(fontFilePath: string) {
-  if (!svgFontFaceCache.has(fontFilePath)) {
-    svgFontFaceCache.set(
-      fontFilePath,
-      (async () => {
-        const fontBuffer = await readFile(fontFilePath);
-        const fontData = fontBuffer.toString('base64');
-        const familyName = `CertificateFont_${Buffer.from(fontFilePath).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(-24)}`;
-
-        return {
-          familyName,
-          css: `@font-face { font-family: '${familyName}'; src: url(data:font/ttf;base64,${fontData}) format('truetype'); font-style: normal; }`,
-        };
-      })(),
-    );
-  }
-
-  return svgFontFaceCache.get(fontFilePath)!;
-}
+type SvgOverlay = {
+  svg: string;
+  fontFiles: string[];
+};
 
 /**
  * Build SVG overlay with all text fields rendered at correct positions.
+ * Returns the SVG string and font buffers to pass to resvg directly.
  */
 async function buildSvgOverlay(
   width: number,
@@ -108,7 +94,7 @@ async function buildSvgOverlay(
   fields: TextFieldConfig[],
   values: CertificateField[],
   renderScale = 1,
-) {
+): Promise<SvgOverlay | null> {
   const valueMap = new Map(values.map((v) => [v.fieldId, v.value]));
   const textElements = await Promise.all(fields.map(async (field) => {
     const text = valueMap.get(field.id) ?? '';
@@ -125,10 +111,6 @@ async function buildSvgOverlay(
     const minFontSize = Math.max(1, Math.round(field.minFontSize * renderScale));
     const currentFontSize = calcFontSize(text, maxWidthPx, baseFontSize, minFontSize);
     const textLength = text.length * currentFontSize * 0.55;
-    const svgFont = fontFilePath
-      ? await getSvgEmbeddedFontFace(fontFilePath)
-      : null;
-    const fontFamily = svgFont?.familyName ?? resolvedFontFamily;
     const textAnchorValue = anchor === 'center'
       ? 'middle'
       : anchor === 'right'
@@ -136,34 +118,39 @@ async function buildSvgOverlay(
         : 'start';
 
     return {
-      css: svgFont?.css ?? null,
-      markup: `<text x="${xPx}" y="${yPx}" fill="${field.color}" font-family="${escapeXml(fontFamily)}" font-size="${currentFontSize}" font-weight="${fontWeight}" text-anchor="${textAnchorValue}" dominant-baseline="central" lengthAdjust="spacingAndGlyphs"${textLength > maxWidthPx ? ` textLength="${maxWidthPx}"` : ''}>${escapeXml(text)}</text>`,
+      fontFilePath,
+      fontFamily: resolvedFontFamily,
+      markup: `<text x="${xPx}" y="${yPx}" fill="${field.color}" font-family="${escapeXml(resolvedFontFamily)}" font-size="${currentFontSize}" font-weight="${fontWeight}" text-anchor="${textAnchorValue}" dominant-baseline="central" lengthAdjust="spacingAndGlyphs"${textLength > maxWidthPx ? ` textLength="${maxWidthPx}"` : ''}>${escapeXml(text)}</text>`,
     };
   }));
 
-  const overlays = textElements.filter((overlay): overlay is { css: string | null; markup: string } => overlay !== null);
+  const overlays = textElements.filter((o): o is NonNullable<typeof o> => o !== null);
 
   if (overlays.length === 0) {
-    return [];
+    return null;
   }
 
-  const fontCss = Array.from(new Set(overlays.map((overlay) => overlay.css).filter((css): css is string => Boolean(css))));
+  // Collect unique font file paths to pass to resvg
+  const fontFiles = Array.from(new Set(overlays.map((o) => o.fontFilePath).filter((p): p is string => Boolean(p))));
+
   const svg = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
-    fontCss.length > 0
-      ? `<defs><style>${fontCss.join(' ')}</style></defs>`
-      : '',
-    overlays.map((overlay) => overlay.markup).join(''),
+    overlays.map((o) => o.markup).join(''),
     '</svg>',
   ].join('');
 
-  return [
-    {
-      input: Buffer.from(svg),
-      left: 0,
-      top: 0,
-    }
-  ];
+  return { svg, fontFiles };
+}
+
+async function renderSvgOverlay(overlay: SvgOverlay): Promise<Buffer> {
+  const resvg = new Resvg(overlay.svg, {
+    fitTo: { mode: 'original' },
+    font: {
+      fontFiles: overlay.fontFiles,
+      loadSystemFonts: false,
+    },
+  });
+  return Buffer.from(resvg.render().asPng());
 }
 
 // ─── Core generation ──────────────────────────────────────────────────────────
@@ -175,11 +162,17 @@ export async function generateCertificate(options: GenerateOptions): Promise<Buf
   const renderWidth = templateWidth * renderScale;
   const renderHeight = templateHeight * renderScale;
 
-  const textOverlays = await buildSvgOverlay(renderWidth, renderHeight, fields, values, renderScale);
+  const svgOverlay = await buildSvgOverlay(renderWidth, renderHeight, fields, values, renderScale);
+
+  const compositeInputs: sharp.OverlayOptions[] = [];
+  if (svgOverlay) {
+    const overlayPng = await renderSvgOverlay(svgOverlay);
+    compositeInputs.push({ input: overlayPng, left: 0, top: 0 });
+  }
 
   const pngBuffer = await sharp(templateBuffer)
     .resize(renderWidth, renderHeight, { fit: 'fill' })
-    .composite(textOverlays)
+    .composite(compositeInputs)
     .png()
     .toBuffer();
 

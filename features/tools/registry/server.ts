@@ -8,8 +8,10 @@ import type { AgentToolContext, RegisteredTool } from './types';
 import { TOOL_MANIFESTS } from './client';
 import { quizManifest } from '@/features/quiz/manifest';
 import { certificateManifest } from '@/features/certificate/manifest';
+import { contentMarketingManifest } from '@/features/content-marketing/manifest';
 import { createQuizAgentTools } from '@/features/quiz/agent';
 import { createCertificateAgentTools } from '@/features/certificate/agent';
+import { createContentMarketingAgentTools } from '@/features/content-marketing/agent';
 
 const SERVER_REGISTRY: RegisteredTool[] = [
   {
@@ -30,6 +32,12 @@ const SERVER_REGISTRY: RegisteredTool[] = [
         maxRecipients: ctx.toolOptions?.certificateMaxRecipients,
       }),
     getSidebarPageHref: () => `/tools/${certificateManifest.slug}`,
+  },
+  {
+    manifest: contentMarketingManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createContentMarketingAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${contentMarketingManifest.slug}`,
   },
 ];
 

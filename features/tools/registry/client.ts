@@ -7,9 +7,10 @@
 import type { ToolManifest } from './types';
 import { quizManifest } from '@/features/quiz/manifest';
 import { certificateManifest } from '@/features/certificate/manifest';
+import { contentMarketingManifest } from '@/features/content-marketing/manifest';
 
 /** All registered tool manifests */
-export const TOOL_MANIFESTS: ToolManifest[] = [quizManifest, certificateManifest];
+export const TOOL_MANIFESTS: ToolManifest[] = [quizManifest, certificateManifest, contentMarketingManifest];
 
 /** Map from tool id → manifest */
 export const TOOL_MANIFEST_BY_ID = Object.fromEntries(

@@ -668,6 +668,63 @@ export const brandShare = pgTable('brand_share', {
   index('brand_share_userId_idx').on(table.sharedWithUserId),
 ]);
 
+// ── Content Marketing ─────────────────────────────────────────────────────────
+
+export const socialPost = pgTable('social_post', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  /** Base caption used when no platform override exists */
+  caption: text('caption').notNull(),
+  /** ['instagram', 'facebook', 'tiktok'] */
+  platforms: text('platforms').array().notNull(),
+  /** Per-platform caption overrides: { instagram: { caption: '...' }, ... } */
+  platformOverrides: jsonb('platform_overrides').notNull().default(sql`'{}'::jsonb`),
+  /** Attached media: [{ r2Key, url, mimeType, width, height, sizeBytes }] */
+  media: jsonb('media').notNull().default(sql`'[]'::jsonb`),
+  /** 'draft' | 'scheduled' | 'published' | 'failed' */
+  status: text('status').notNull().default('draft'),
+  scheduledAt: timestamp('scheduled_at'),
+  publishedAt: timestamp('published_at'),
+  brandId: text('brand_id').references(() => brand.id, { onDelete: 'set null' }),
+  error: text('error'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  index('social_post_userId_idx').on(table.userId),
+  index('social_post_status_idx').on(table.status),
+  index('social_post_scheduledAt_idx').on(table.scheduledAt),
+]);
+
+/** Connected social accounts (Phase 2 — OAuth tokens) */
+export const socialAccount = pgTable('social_account', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  /** 'instagram' | 'facebook' | 'tiktok' */
+  platform: text('platform').notNull(),
+  platformAccountId: text('platform_account_id').notNull(),
+  accountName: text('account_name').notNull(),
+  /** 'personal' | 'business' | 'creator' */
+  accountType: text('account_type'),
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token'),
+  tokenExpiresAt: timestamp('token_expires_at'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  index('social_account_userId_idx').on(table.userId),
+  index('social_account_platform_idx').on(table.platform),
+]);
+
+export const socialPostRelations = relations(socialPost, ({ one }) => ({
+  user: one(user, { fields: [socialPost.userId], references: [user.id] }),
+  brand: one(brand, { fields: [socialPost.brandId], references: [brand.id] }),
+}));
+
+export const socialAccountRelations = relations(socialAccount, ({ one }) => ({
+  user: one(user, { fields: [socialAccount.userId], references: [user.id] }),
+}));
+
 export const brandRelations = relations(brand, ({ one, many }) => ({
   user: one(user, { fields: [brand.userId], references: [user.id] }),
   assets: many(brandAsset),

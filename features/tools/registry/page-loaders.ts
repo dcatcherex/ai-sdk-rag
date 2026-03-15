@@ -27,4 +27,10 @@ export const TOOL_PAGE_LOADERS: Record<string, ToolPageLoader> = {
     );
     return CertificateToolPage;
   },
+  'content-marketing': async () => {
+    const { ContentMarketingToolPage } = await import(
+      '@/features/content-marketing/components/content-marketing-tool-page'
+    );
+    return ContentMarketingToolPage;
+  },
 };
