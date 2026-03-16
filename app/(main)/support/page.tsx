@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/page-header';
+import { RightPanel } from '@/features/layout/right-panel';
 import { cn } from '@/lib/utils';
 
 type SupportConversation = {
@@ -265,6 +266,106 @@ const renderLineContent = (payload: SupportLineContentPayload | null) => {
   );
 };
 
+// ---------------------------------------------------------------------------
+// Conversations panel (rendered in the layout's right panel slot)
+// ---------------------------------------------------------------------------
+
+function ConversationsPanel({
+  conversations,
+  total,
+  isLoading,
+  isError,
+  isFetched,
+  error,
+  search,
+  onSearchChange,
+  selectedConversationId,
+  onSelectConversation,
+}: {
+  conversations: SupportConversation[];
+  total: number;
+  isLoading: boolean;
+  isError: boolean;
+  isFetched: boolean;
+  error: Error | null;
+  search: string;
+  onSearchChange: (v: string) => void;
+  selectedConversationId: string | null;
+  onSelectConversation: (id: string) => void;
+}) {
+  return (
+    <>
+      <div className="shrink-0 space-y-3 border-b border-black/5 dark:border-border px-4 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-medium">Conversations</span>
+          <Badge variant="secondary">{total}</Badge>
+        </div>
+        <div className="relative">
+          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={search} onChange={(e) => onSearchChange(e.target.value)} placeholder="Search…" className="pl-9" />
+        </div>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="divide-y divide-black/5 dark:divide-border">
+          {isLoading ? (
+            <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">
+              <Loader2Icon className="mr-2 size-4 animate-spin" />Loading…
+            </div>
+          ) : isError ? (
+            <div className="p-6 text-sm text-destructive">{error?.message}</div>
+          ) : conversations.length === 0 ? (
+            <div className="p-6 text-sm text-muted-foreground">
+              {isFetched ? 'No conversations found.' : 'LINE OA support is not configured'}
+            </div>
+          ) : (
+            conversations.map((conversation) => {
+              const active = conversation.id === selectedConversationId;
+              return (
+                <button
+                  key={conversation.id}
+                  type="button"
+                  onClick={() => onSelectConversation(conversation.id)}
+                  className={cn('flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/60', active && 'bg-primary/5')}
+                >
+                  <Avatar size="lg">
+                    <AvatarImage src={conversation.pictureUrl ?? undefined} alt={conversation.displayName ?? conversation.externalId} />
+                    <AvatarFallback>{getInitials(conversation.displayName, 'L')}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">{conversation.displayName ?? conversation.externalId}</div>
+                        <div className="truncate text-xs text-muted-foreground">{conversation.title ?? 'LINE conversation'}</div>
+                      </div>
+                      <div className="shrink-0 text-[11px] text-muted-foreground">{formatConversationTime(conversation.lastMessageAt)}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="capitalize">{conversation.channel}</Badge>
+                      <Badge variant={conversation.status === 'open' ? 'secondary' : 'outline'} className="capitalize">{conversation.status}</Badge>
+                      {conversation.assignedToName && <Badge variant="outline">{conversation.assignedToName}</Badge>}
+                    </div>
+                    {conversation.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {conversation.tags.slice(0, 3).map((tag) => <Badge key={tag} variant="secondary" className="max-w-full truncate">{tag}</Badge>)}
+                      </div>
+                    )}
+                    <p className="line-clamp-2 text-xs text-muted-foreground">{conversation.lastMessageBody ?? 'No messages yet'}</p>
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </ScrollArea>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
 export default function SupportInboxPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -423,6 +524,21 @@ export default function SupportInboxPage() {
 
   return (
     <>
+      <RightPanel>
+        <ConversationsPanel
+          conversations={conversations}
+          total={conversationsQuery.data?.total ?? 0}
+          isLoading={conversationsQuery.isLoading}
+          isError={conversationsQuery.isError}
+          isFetched={conversationsQuery.isFetched}
+          error={conversationsQuery.error}
+          search={search}
+          onSearchChange={setSearch}
+          selectedConversationId={selectedConversationId}
+          onSelectConversation={setSelectedConversationId}
+        />
+      </RightPanel>
+
       <PageHeader
         title="Support Inbox"
         description="Review LINE OA conversations, generate AI drafts, and send replies manually."
@@ -441,244 +557,174 @@ export default function SupportInboxPage() {
         }
       />
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* LEFT: Messages + Reply */}
-        <div className="flex flex-1 flex-col overflow-hidden">
-          {/* Conversation header */}
-          <div className="shrink-0 border-b border-black/5 dark:border-border px-4 py-3 md:px-6">
-            {selectedConversation ? (
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <Avatar size="lg">
-                    <AvatarImage src={selectedConversation.pictureUrl ?? undefined} alt={selectedConversation.displayName ?? selectedConversation.externalId} />
-                    <AvatarFallback>{getInitials(selectedConversation.displayName, 'L')}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className="font-medium">{selectedConversation.displayName ?? selectedConversation.externalId}</div>
-                    <p className="text-sm text-muted-foreground">{selectedConversation.title ?? 'LINE conversation'}</p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">LINE</Badge>
-                  <Badge variant={selectedConversation.status === 'open' ? 'secondary' : 'outline'} className="capitalize">{selectedConversation.status}</Badge>
-                  {selectedConversation.assignedToName && <Badge variant="outline">Assigned: {selectedConversation.assignedToName}</Badge>}
-                  {selectedConversation.tags.map((tag) => <Badge key={tag} variant="secondary">{tag}</Badge>)}
-                  <span className="text-xs text-muted-foreground">Updated {formatConversationTime(selectedConversation.lastMessageAt)}</span>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Conversation header */}
+        <div className="shrink-0 border-b border-black/5 dark:border-border px-4 py-3 md:px-6">
+          {selectedConversation ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Avatar size="lg">
+                  <AvatarImage src={selectedConversation.pictureUrl ?? undefined} alt={selectedConversation.displayName ?? selectedConversation.externalId} />
+                  <AvatarFallback>{getInitials(selectedConversation.displayName, 'L')}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <div className="font-medium">{selectedConversation.displayName ?? selectedConversation.externalId}</div>
+                  <p className="text-sm text-muted-foreground">{selectedConversation.title ?? 'LINE conversation'}</p>
                 </div>
               </div>
-            ) : (
-              <div>
-                <div className="font-medium">Messages</div>
-                <p className="text-sm text-muted-foreground">Select a conversation to view messages.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">LINE</Badge>
+                <Badge variant={selectedConversation.status === 'open' ? 'secondary' : 'outline'} className="capitalize">{selectedConversation.status}</Badge>
+                {selectedConversation.assignedToName && <Badge variant="outline">Assigned: {selectedConversation.assignedToName}</Badge>}
+                {selectedConversation.tags.map((tag) => <Badge key={tag} variant="secondary">{tag}</Badge>)}
+                <span className="text-xs text-muted-foreground">Updated {formatConversationTime(selectedConversation.lastMessageAt)}</span>
               </div>
-            )}
-          </div>
-
-          {/* Metadata: tags + assignee */}
-          {selectedConversation && (
-            <div className="shrink-0 border-b border-black/5 dark:border-border px-4 py-3 md:px-6">
-              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto]">
-                <div className="space-y-2">
-                  <div className="text-xs font-medium text-muted-foreground">Tags</div>
-                  <Input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="vip, refund, urgent" disabled={metadataMutation.isPending} />
-                  <div className="flex flex-wrap gap-1">
-                    {normalizedTags.map((tag) => (
-                      <Badge key={tag} variant="secondary"><TagIcon className="size-3" />{tag}</Badge>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="text-xs font-medium text-muted-foreground">Assigned to</div>
-                  <Select value={selectedAssigneeId} onValueChange={setSelectedAssigneeId}>
-                    <SelectTrigger className="w-full"><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="unassigned">Unassigned</SelectItem>
-                      {assignees.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-end justify-start md:justify-end">
-                  <Button variant="outline" disabled={!metadataDirty || metadataMutation.isPending} onClick={() => metadataMutation.mutate({ assignedToUserId: selectedAssigneeId, tags: normalizedTags })}>
-                    {metadataMutation.isPending && <Loader2Icon className="mr-2 size-4 animate-spin" />}
-                    Save Details
-                  </Button>
-                </div>
-              </div>
+            </div>
+          ) : (
+            <div>
+              <div className="font-medium">Messages</div>
+              <p className="text-sm text-muted-foreground">Select a conversation to view messages.</p>
             </div>
           )}
+        </div>
 
-          {/* Messages */}
-          <ScrollArea className="flex-1 px-4 py-4 md:px-6">
-            <div className="space-y-4">
-              {!selectedConversation ? (
-                <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-                  Choose a conversation from the right panel to inspect the thread.
+        {/* Metadata: tags + assignee */}
+        {selectedConversation && (
+          <div className="shrink-0 border-b border-black/5 dark:border-border px-4 py-3 md:px-6">
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto]">
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">Tags</div>
+                <Input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="vip, refund, urgent" disabled={metadataMutation.isPending} />
+                <div className="flex flex-wrap gap-1">
+                  {normalizedTags.map((tag) => (
+                    <Badge key={tag} variant="secondary"><TagIcon className="size-3" />{tag}</Badge>
+                  ))}
                 </div>
-              ) : messagesQuery.isLoading ? (
-                <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
-                  <Loader2Icon className="mr-2 size-4 animate-spin" />Loading messages…
-                </div>
-              ) : messagesQuery.isError ? (
-                <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{messagesQuery.error.message}</div>
-              ) : (messagesQuery.data?.messages ?? []).length === 0 ? (
-                <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">No synced messages yet for this conversation.</div>
-              ) : (
-                (messagesQuery.data?.messages ?? []).map((message) => {
-                  const isCustomer = message.senderType === 'customer';
-                  const payload = getLineContentPayload(message.payload);
-                  return (
-                    <div key={message.id} className={cn('flex gap-3', isCustomer ? 'justify-start' : 'justify-end')}>
-                      {isCustomer && (
-                        <Avatar size="sm">
-                          <AvatarImage src={selectedConversation.pictureUrl ?? undefined} alt={selectedConversation.displayName ?? selectedConversation.externalId} />
-                          <AvatarFallback>{getInitials(selectedConversation.displayName, 'L')}</AvatarFallback>
-                        </Avatar>
-                      )}
-                      <div className={cn(
-                        'max-w-[85%] rounded-2xl border px-4 py-3 text-sm shadow-sm',
-                        isCustomer ? 'bg-background text-foreground' : message.senderType === 'ai' ? 'border-primary/20 bg-primary/5' : 'bg-card text-foreground',
-                      )}>
-                        <div className="mb-1 flex items-center gap-2 text-[11px] text-muted-foreground">
-                          {message.senderType === 'customer' ? <UserIcon className="size-3.5" /> : <BotIcon className="size-3.5" />}
-                          <span>{getMessageLabel(message.senderType)}</span>
-                          <span>•</span>
-                          <span>{formatConversationTime(message.createdAt)}</span>
-                          {message.modelId && <><span>•</span><span className="truncate">{message.modelId}</span></>}
-                        </div>
-                        <div className="whitespace-pre-wrap wrap-break-word">{message.body ?? 'Unsupported content'}</div>
-                        {renderLineContent(payload)}
-                      </div>
-                      {!isCustomer && (
-                        <Avatar size="sm">
-                          <AvatarFallback>{message.senderType === 'ai' ? 'AI' : 'AG'}</AvatarFallback>
-                        </Avatar>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </ScrollArea>
-
-          <Separator />
-
-          {/* Reply */}
-          <div className="shrink-0 space-y-3 px-4 pb-4 pt-3 md:px-6 md:pb-6">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-sm font-medium">Reply</div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Select value={draftInsertMode} onValueChange={(v) => setDraftInsertMode(v as DraftInsertMode)}>
-                  <SelectTrigger size="sm" className="w-[150px]"><SelectValue placeholder="Insert mode" /></SelectTrigger>
+              </div>
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">Assigned to</div>
+                <Select value={selectedAssigneeId} onValueChange={setSelectedAssigneeId}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Unassigned" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="replace">Replace composer</SelectItem>
-                    <SelectItem value="append">Append to composer</SelectItem>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {assignees.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Button variant="outline" size="sm" disabled={!selectedConversationId || isSending} onClick={() => aiReplyMutation.mutate()}>
-                  {aiReplyMutation.isPending ? <Loader2Icon className="mr-2 size-4 animate-spin" /> : <SparklesIcon className="mr-2 size-4" />}
-                  {draftState === 'none' ? 'Generate AI Draft' : 'Regenerate Draft'}
-                </Button>
-                <Button variant="ghost" size="sm" disabled={!replyText || isSending} onClick={() => { setReplyText(''); setDraftState('none'); setDraftModelId(null); }}>
-                  Clear
+              </div>
+              <div className="flex items-end justify-start md:justify-end">
+                <Button variant="outline" disabled={!metadataDirty || metadataMutation.isPending} onClick={() => metadataMutation.mutate({ assignedToUserId: selectedAssigneeId, tags: normalizedTags })}>
+                  {metadataMutation.isPending && <Loader2Icon className="mr-2 size-4 animate-spin" />}
+                  Save Details
                 </Button>
               </div>
             </div>
+          </div>
+        )}
 
-            {(draftState !== 'none' || draftModelId || metadataMutation.isError) && (
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                {draftState === 'ai' && <Badge variant="secondary">AI draft ready</Badge>}
-                {draftState === 'edited' && <Badge variant="outline">Draft edited</Badge>}
-                {draftModelId && <Badge variant="outline">{draftModelId}</Badge>}
-                {metadataMutation.isError && <span className="text-destructive">{metadataMutation.error.message}</span>}
+        {/* Messages */}
+        <ScrollArea className="flex-1 px-4 py-4 md:px-6">
+          <div className="space-y-4">
+            {!selectedConversation ? (
+              <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
+                Choose a conversation from the right panel to inspect the thread.
               </div>
+            ) : messagesQuery.isLoading ? (
+              <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
+                <Loader2Icon className="mr-2 size-4 animate-spin" />Loading messages…
+              </div>
+            ) : messagesQuery.isError ? (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{messagesQuery.error.message}</div>
+            ) : (messagesQuery.data?.messages ?? []).length === 0 ? (
+              <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">No synced messages yet for this conversation.</div>
+            ) : (
+              (messagesQuery.data?.messages ?? []).map((message) => {
+                const isCustomer = message.senderType === 'customer';
+                const payload = getLineContentPayload(message.payload);
+                return (
+                  <div key={message.id} className={cn('flex gap-3', isCustomer ? 'justify-start' : 'justify-end')}>
+                    {isCustomer && (
+                      <Avatar size="sm">
+                        <AvatarImage src={selectedConversation.pictureUrl ?? undefined} alt={selectedConversation.displayName ?? selectedConversation.externalId} />
+                        <AvatarFallback>{getInitials(selectedConversation.displayName, 'L')}</AvatarFallback>
+                      </Avatar>
+                    )}
+                    <div className={cn(
+                      'max-w-[85%] rounded-2xl border px-4 py-3 text-sm shadow-sm',
+                      isCustomer ? 'bg-background text-foreground' : message.senderType === 'ai' ? 'border-primary/20 bg-primary/5' : 'bg-card text-foreground',
+                    )}>
+                      <div className="mb-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+                        {message.senderType === 'customer' ? <UserIcon className="size-3.5" /> : <BotIcon className="size-3.5" />}
+                        <span>{getMessageLabel(message.senderType)}</span>
+                        <span>•</span>
+                        <span>{formatConversationTime(message.createdAt)}</span>
+                        {message.modelId && <><span>•</span><span className="truncate">{message.modelId}</span></>}
+                      </div>
+                      <div className="whitespace-pre-wrap wrap-break-word">{message.body ?? 'Unsupported content'}</div>
+                      {renderLineContent(payload)}
+                    </div>
+                    {!isCustomer && (
+                      <Avatar size="sm">
+                        <AvatarFallback>{message.senderType === 'ai' ? 'AI' : 'AG'}</AvatarFallback>
+                      </Avatar>
+                    )}
+                  </div>
+                );
+              })
             )}
+          </div>
+        </ScrollArea>
 
-            <Textarea
-              value={replyText}
-              onChange={(e) => { setReplyText(e.target.value); if (draftState !== 'none') setDraftState('edited'); }}
-              placeholder="Type a reply to the customer…"
-              className="min-h-24 resize-y"
-              disabled={!selectedConversationId || isSending}
-            />
+        <Separator />
 
-            {(sendMutation.isError || aiReplyMutation.isError) && (
-              <div className="text-sm text-destructive">{sendMutation.error?.message ?? aiReplyMutation.error?.message}</div>
-            )}
-
-            <div className="flex justify-end">
-              <Button disabled={!selectedConversationId || !replyText.trim() || isSending} onClick={() => sendMutation.mutate({ text: replyText })}>
-                {sendMutation.isPending ? <Loader2Icon className="mr-2 size-4 animate-spin" /> : <SendIcon className="mr-2 size-4" />}
-                Send Reply
+        {/* Reply */}
+        <div className="shrink-0 space-y-3 px-4 pb-4 pt-3 md:px-6 md:pb-6">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm font-medium">Reply</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={draftInsertMode} onValueChange={(v) => setDraftInsertMode(v as DraftInsertMode)}>
+                <SelectTrigger size="sm" className="w-[150px]"><SelectValue placeholder="Insert mode" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="replace">Replace composer</SelectItem>
+                  <SelectItem value="append">Append to composer</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" disabled={!selectedConversationId || isSending} onClick={() => aiReplyMutation.mutate()}>
+                {aiReplyMutation.isPending ? <Loader2Icon className="mr-2 size-4 animate-spin" /> : <SparklesIcon className="mr-2 size-4" />}
+                {draftState === 'none' ? 'Generate AI Draft' : 'Regenerate Draft'}
+              </Button>
+              <Button variant="ghost" size="sm" disabled={!replyText || isSending} onClick={() => { setReplyText(''); setDraftState('none'); setDraftModelId(null); }}>
+                Clear
               </Button>
             </div>
           </div>
-        </div>
 
-        {/* RIGHT: Conversations list */}
-        <div className="flex w-72 shrink-0 flex-col overflow-hidden border-l border-black/5 dark:border-border">
-          <div className="shrink-0 space-y-3 border-b border-black/5 dark:border-border px-4 py-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-medium">Conversations</span>
-              <Badge variant="secondary">{conversationsQuery.data?.total ?? 0}</Badge>
+          {(draftState !== 'none' || draftModelId || metadataMutation.isError) && (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              {draftState === 'ai' && <Badge variant="secondary">AI draft ready</Badge>}
+              {draftState === 'edited' && <Badge variant="outline">Draft edited</Badge>}
+              {draftModelId && <Badge variant="outline">{draftModelId}</Badge>}
+              {metadataMutation.isError && <span className="text-destructive">{metadataMutation.error.message}</span>}
             </div>
-            <div className="relative">
-              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…" className="pl-9" />
-            </div>
+          )}
+
+          <Textarea
+            value={replyText}
+            onChange={(e) => { setReplyText(e.target.value); if (draftState !== 'none') setDraftState('edited'); }}
+            placeholder="Type a reply to the customer…"
+            className="min-h-24 resize-y"
+            disabled={!selectedConversationId || isSending}
+          />
+
+          {(sendMutation.isError || aiReplyMutation.isError) && (
+            <div className="text-sm text-destructive">{sendMutation.error?.message ?? aiReplyMutation.error?.message}</div>
+          )}
+
+          <div className="flex justify-end">
+            <Button disabled={!selectedConversationId || !replyText.trim() || isSending} onClick={() => sendMutation.mutate({ text: replyText })}>
+              {sendMutation.isPending ? <Loader2Icon className="mr-2 size-4 animate-spin" /> : <SendIcon className="mr-2 size-4" />}
+              Send Reply
+            </Button>
           </div>
-
-          <ScrollArea className="flex-1">
-            <div className="divide-y divide-black/5 dark:divide-border">
-              {conversationsQuery.isLoading ? (
-                <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">
-                  <Loader2Icon className="mr-2 size-4 animate-spin" />Loading…
-                </div>
-              ) : conversationsQuery.isError ? (
-                <div className="p-6 text-sm text-destructive">{conversationsQuery.error.message}</div>
-              ) : conversations.length === 0 ? (
-                <div className="p-6 text-sm text-muted-foreground">
-                  {conversationsQuery.isFetched ? 'No conversations found.' : 'LINE OA support is not configured'}
-                </div>
-              ) : (
-                conversations.map((conversation) => {
-                  const active = conversation.id === selectedConversationId;
-                  return (
-                    <button
-                      key={conversation.id}
-                      type="button"
-                      onClick={() => setSelectedConversationId(conversation.id)}
-                      className={cn('flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/60', active && 'bg-primary/5')}
-                    >
-                      <Avatar size="lg">
-                        <AvatarImage src={conversation.pictureUrl ?? undefined} alt={conversation.displayName ?? conversation.externalId} />
-                        <AvatarFallback>{getInitials(conversation.displayName, 'L')}</AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-medium">{conversation.displayName ?? conversation.externalId}</div>
-                            <div className="truncate text-xs text-muted-foreground">{conversation.title ?? 'LINE conversation'}</div>
-                          </div>
-                          <div className="shrink-0 text-[11px] text-muted-foreground">{formatConversationTime(conversation.lastMessageAt)}</div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="capitalize">{conversation.channel}</Badge>
-                          <Badge variant={conversation.status === 'open' ? 'secondary' : 'outline'} className="capitalize">{conversation.status}</Badge>
-                          {conversation.assignedToName && <Badge variant="outline">{conversation.assignedToName}</Badge>}
-                        </div>
-                        {conversation.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {conversation.tags.slice(0, 3).map((tag) => <Badge key={tag} variant="secondary" className="max-w-full truncate">{tag}</Badge>)}
-                          </div>
-                        )}
-                        <p className="line-clamp-2 text-xs text-muted-foreground">{conversation.lastMessageBody ?? 'No messages yet'}</p>
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </ScrollArea>
         </div>
       </div>
     </>

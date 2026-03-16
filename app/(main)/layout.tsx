@@ -46,6 +46,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <main className="flex h-[calc(100dvh-1rem)] flex-1 flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-border bg-card/80 dark:bg-card/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur md:h-[calc(100vh-3rem)] md:rounded-3xl">
           {children}
         </main>
+
+        {/* Right panel slot — pages opt in by rendering <RightPanel> anywhere in their tree */}
+        <div
+          id="right-panel-slot"
+          className="flex h-[calc(100dvh-1rem)] w-72 shrink-0 flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-border bg-card/80 dark:bg-card/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur md:h-[calc(100vh-3rem)] md:rounded-3xl empty:hidden"
+        />
       </div>
     </div>
   );

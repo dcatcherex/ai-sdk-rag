@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import type { ChatStatus } from 'ai';
 import { toast } from 'sonner';
-import { BookOpenIcon, CheckIcon, GlobeIcon } from 'lucide-react';
+import { BookOpenIcon, CheckIcon, GlobeIcon, LibraryIcon } from 'lucide-react';
 import { useLiveVoice, type VoiceHistoryTurn } from '@/features/chat/hooks/use-live-voice';
 import { VoiceMode } from '@/features/chat/components/voice-mode';
 import { AgentSelector } from '@/features/agents/components/agent-selector';
@@ -45,11 +45,13 @@ import {
   PromptInputTextarea,
   PromptInputTools,
   usePromptInputAttachments,
+  usePromptInputController,
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input';
 import { CompareModelPicker } from './compare-model-picker';
 import { ComposerActionButtons } from './composer-action-buttons';
 import { Dots, speedTier, costTier } from './model-dots';
+import { PromptPickerModal } from '@/features/prompts/components/prompt-picker-modal';
 
 // ── Inline attachments preview ────────────────────────────────────────────────
 
@@ -105,6 +107,29 @@ export type ChatComposerProps = {
   onToggleCompareMode: () => void;
   onToggleCompareModel: (modelId: string) => void;
   onClearComparePreset: () => void;
+};
+
+// ── Prompt picker button (must live inside PromptInputProvider) ───────────────
+
+const PromptPickerButton = () => {
+  const [open, setOpen] = useState(false);
+  const controller = usePromptInputController();
+
+  return (
+    <>
+      <PromptInputButton onClick={() => setOpen(true)} title="Prompt library">
+        <LibraryIcon className="size-4" />
+      </PromptInputButton>
+      <PromptPickerModal
+        open={open}
+        onOpenChange={setOpen}
+        onSelect={(text) => {
+          controller.textInput.setInput(text);
+          setOpen(false);
+        }}
+      />
+    </>
+  );
 };
 
 // ── ChatComposer ──────────────────────────────────────────────────────────────
@@ -199,6 +224,7 @@ export function ChatComposer({
           </PromptInputBody>
           <PromptInputFooter>
             <PromptInputTools>
+              <PromptPickerButton />
               <PromptInputActionMenu>
                 <PromptInputActionMenuTrigger />
                 <PromptInputActionMenuContent>
