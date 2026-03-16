@@ -7,7 +7,7 @@ import { socialPlatformSchema } from '@/features/content-marketing/schema';
 const createPostBody = z.object({
   caption: z.string().min(1),
   platforms: z.array(socialPlatformSchema).min(1),
-  platformOverrides: z.record(socialPlatformSchema, z.object({ caption: z.string().optional() })).optional(),
+  platformOverrides: z.record(z.string(), z.object({ caption: z.string().optional() })).optional(),
   media: z.array(z.object({
     r2Key: z.string(),
     url: z.string(),
@@ -41,7 +41,10 @@ export async function POST(req: Request) {
 
   const body = await req.json();
   const result = createPostBody.safeParse(body);
-  if (!result.success) return new Response('Bad Request', { status: 400 });
+  if (!result.success) {
+    console.error('[POST /api/tools/content-marketing/posts] Validation error:', result.error.flatten());
+    return new Response('Bad Request', { status: 400 });
+  }
 
   const post = await createPost({
     userId: session.user.id,

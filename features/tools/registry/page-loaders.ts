@@ -33,4 +33,10 @@ export const TOOL_PAGE_LOADERS: Record<string, ToolPageLoader> = {
     );
     return ContentMarketingToolPage;
   },
+  'website-builder': async () => {
+    const { WebsiteBuilderToolPage } = await import(
+      '@/features/website-builder/components/website-builder-tool-page'
+    );
+    return WebsiteBuilderToolPage;
+  },
 };

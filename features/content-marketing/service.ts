@@ -66,7 +66,7 @@ Rules:
 - Each caption must follow its platform guidelines
 - Include relevant hashtags per platform
 - Keep captions authentic and on-brand
-- Return ONLY valid JSON, no markdown`;
+- Return ONLY the raw JSON object, no markdown, no code fences, no explanation`;
 
   const { text } = await generateText({
     model: CONTENT_MODEL,
@@ -74,7 +74,8 @@ Rules:
   });
 
   try {
-    const parsed = JSON.parse(text.trim()) as GenerateCaptionsResult;
+    const clean = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    const parsed = JSON.parse(clean) as GenerateCaptionsResult;
     return parsed;
   } catch {
     // Fallback: use raw text as base caption

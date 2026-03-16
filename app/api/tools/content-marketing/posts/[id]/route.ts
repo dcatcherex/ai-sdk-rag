@@ -8,7 +8,7 @@ const patchBody = z.object({
   caption: z.string().min(1).optional(),
   platforms: z.array(socialPlatformSchema).min(1).optional(),
   platformOverrides: z
-    .record(socialPlatformSchema, z.object({ caption: z.string().optional() }))
+    .record(z.string(), z.object({ caption: z.string().optional() }))
     .optional(),
   scheduledAt: z.string().datetime().nullable().optional(),
   status: z.enum(['draft', 'scheduled', 'published', 'failed']).optional(),

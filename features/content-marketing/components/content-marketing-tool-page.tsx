@@ -91,7 +91,13 @@ export function ContentMarketingToolPage({ manifest }: Props) {
         </TabsList>
 
         <CreateTab composer={composer} accounts={accountsState} />
-        <PostsTab postsState={postsState} />
+        <PostsTab
+          postsState={postsState}
+          onEdit={(post) => {
+            composer.loadPost(post);
+            setActiveTab('create');
+          }}
+        />
         <CalendarTab allPosts={postsState.allPosts} />
         <AccountsTab accountsState={accountsState} />
         <TrendsTab trendsState={trendsState} />

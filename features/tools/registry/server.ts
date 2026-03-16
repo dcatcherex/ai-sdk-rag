@@ -9,9 +9,11 @@ import { TOOL_MANIFESTS } from './client';
 import { quizManifest } from '@/features/quiz/manifest';
 import { certificateManifest } from '@/features/certificate/manifest';
 import { contentMarketingManifest } from '@/features/content-marketing/manifest';
+import { websiteBuilderManifest } from '@/features/website-builder/manifest';
 import { createQuizAgentTools } from '@/features/quiz/agent';
 import { createCertificateAgentTools } from '@/features/certificate/agent';
 import { createContentMarketingAgentTools } from '@/features/content-marketing/agent';
+import { createWebsiteBuilderAgentTools } from '@/features/website-builder/agent';
 
 const SERVER_REGISTRY: RegisteredTool[] = [
   {
@@ -38,6 +40,12 @@ const SERVER_REGISTRY: RegisteredTool[] = [
     getAgentDefinition: (ctx: AgentToolContext) =>
       createContentMarketingAgentTools({ userId: ctx.userId }),
     getSidebarPageHref: () => `/tools/${contentMarketingManifest.slug}`,
+  },
+  {
+    manifest: websiteBuilderManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createWebsiteBuilderAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${websiteBuilderManifest.slug}`,
   },
 ];
 

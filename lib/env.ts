@@ -20,6 +20,10 @@ const envSchema = z.object({
   APIFY_API_TOKEN: z.string().optional(),
   /** Set to 'true' to use mock trend data instead of calling Apify (for local dev/testing) */
   USE_MOCK_TRENDS: z.string().optional(),
+  /** Cloudflare Pages deployment (optional — website builder feature) */
+  CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
+  CLOUDFLARE_PAGES_API_TOKEN: z.string().optional(),
+  CLOUDFLARE_SITE_SUBDOMAIN: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);

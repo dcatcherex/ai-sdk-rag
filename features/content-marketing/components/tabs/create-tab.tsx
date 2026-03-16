@@ -34,11 +34,14 @@ export function CreateTab({ composer, accounts }: Props) {
     activePlatformPreview, setActivePlatformPreview,
     uploadedMedia,
     scheduledAt, setScheduledAt,
+    editingPostId,
     generateMutation,
     saveMutation,
+    updateMutation,
     uploadMutation,
     togglePlatform,
     removeMedia,
+    cancelEdit,
     activeCaptionForPreview,
     minDatetime,
     canSchedule,
@@ -50,6 +53,11 @@ export function CreateTab({ composer, accounts }: Props) {
 
         {/* Composer panel */}
         <div className="flex w-[400px] shrink-0 flex-col gap-5 overflow-y-auto border-r p-5">
+          {editingPostId && (
+            <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+              Editing post — make your changes and click <strong>Update post</strong>.
+            </div>
+          )}
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Platforms</p>
             <div className="flex flex-wrap gap-2">
@@ -174,23 +182,43 @@ export function CreateTab({ composer, accounts }: Props) {
           </div>
 
           {/* Action buttons */}
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={() => saveMutation.mutate(false)}
-              disabled={!caption.trim() || selectedPlatforms.length === 0 || saveMutation.isPending}
-            >
-              {saveMutation.isPending ? 'Saving…' : 'Save draft'}
-            </Button>
-            <Button
-              className="flex-1"
-              onClick={() => saveMutation.mutate(true)}
-              disabled={!canSchedule || saveMutation.isPending}
-            >
-              Schedule
-            </Button>
-          </div>
+          {editingPostId ? (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={cancelEdit}
+                disabled={updateMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={() => updateMutation.mutate()}
+                disabled={!caption.trim() || selectedPlatforms.length === 0 || updateMutation.isPending}
+              >
+                {updateMutation.isPending ? 'Saving…' : 'Update post'}
+              </Button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => saveMutation.mutate(false)}
+                disabled={!caption.trim() || selectedPlatforms.length === 0 || saveMutation.isPending}
+              >
+                {saveMutation.isPending ? 'Saving…' : 'Save draft'}
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={() => saveMutation.mutate(true)}
+                disabled={!canSchedule || saveMutation.isPending}
+              >
+                Schedule
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Preview panel */}

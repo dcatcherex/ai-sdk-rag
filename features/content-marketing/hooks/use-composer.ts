@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { SocialPlatform, GenerateCaptionsResult } from '../types';
+import type { SocialPlatform, GenerateCaptionsResult, SocialPostRecord } from '../types';
 
 export type UploadedMedia = {
   r2Key: string;
@@ -25,6 +25,30 @@ export function useComposer() {
   const [activePlatformPreview, setActivePlatformPreview] = useState<SocialPlatform>('instagram');
   const [uploadedMedia, setUploadedMedia] = useState<UploadedMedia[]>([]);
   const [scheduledAt, setScheduledAt] = useState('');
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+
+  const resetForm = () => {
+    setEditingPostId(null);
+    setCaption('');
+    setTopic('');
+    setGeneratedOverrides({});
+    setUploadedMedia([]);
+    setScheduledAt('');
+  };
+
+  const loadPost = (post: SocialPostRecord) => {
+    setEditingPostId(post.id);
+    setCaption(post.caption);
+    setSelectedPlatforms(post.platforms);
+    setGeneratedOverrides(post.platformOverrides);
+    setUploadedMedia(post.media as UploadedMedia[]);
+    setScheduledAt(
+      post.scheduledAt
+        ? new Date(post.scheduledAt).toISOString().slice(0, 16)
+        : '',
+    );
+    setTopic('');
+  };
 
   const generateMutation = useMutation({
     mutationFn: async () => {
@@ -60,11 +84,30 @@ export function useComposer() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['social-posts'] });
-      setCaption('');
-      setTopic('');
-      setGeneratedOverrides({});
-      setUploadedMedia([]);
-      setScheduledAt('');
+      resetForm();
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingPostId) throw new Error('No post being edited');
+      const res = await fetch(`/api/tools/content-marketing/posts/${editingPostId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          caption,
+          platforms: selectedPlatforms,
+          ...(Object.keys(generatedOverrides).length > 0 ? { platformOverrides: generatedOverrides } : {}),
+          scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+          status: scheduledAt ? 'scheduled' : 'draft',
+        }),
+      });
+      if (!res.ok) throw new Error('Update failed');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['social-posts'] });
+      resetForm();
     },
   });
 
@@ -106,11 +149,15 @@ export function useComposer() {
     activePlatformPreview, setActivePlatformPreview,
     uploadedMedia,
     scheduledAt, setScheduledAt,
+    editingPostId,
     generateMutation,
     saveMutation,
+    updateMutation,
     uploadMutation,
     togglePlatform,
     removeMedia,
+    loadPost,
+    cancelEdit: resetForm,
     activeCaptionForPreview,
     minDatetime,
     canSchedule,

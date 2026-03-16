@@ -54,7 +54,7 @@ export const NAV_REGISTRY = [
   },
   {
     id: "certificate" as const,
-    href: "/certificate",
+    href: "/tools/certificate",
     label: "Certificates",
     defaultPinned: true,
     icon: (
@@ -63,7 +63,7 @@ export const NAV_REGISTRY = [
         <path d="m15.477 12.89 1.515 8.595L12 18l-4.992 3.485 1.515-8.596" />
       </svg>
     ),
-    matchFn: (p: string) => p.startsWith("/certificate"),
+    matchFn: (p: string) => p.startsWith("/tools/certificate"),
   },
   {
     id: "skills" as const,
@@ -117,6 +117,20 @@ export const NAV_REGISTRY = [
       </svg>
     ),
     matchFn: (p: string) => p.startsWith("/support"),
+  },
+  {
+    id: "website-builder" as const,
+    href: "/tools/website-builder",
+    label: "Website Builder",
+    defaultPinned: false,
+    icon: (
+      <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="2" y1="12" x2="22" y2="12" />
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+      </svg>
+    ),
+    matchFn: (p: string) => p.startsWith("/tools/website-builder"),
   },
 ] as const;
 
