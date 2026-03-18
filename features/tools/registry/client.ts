@@ -9,9 +9,10 @@ import { quizManifest } from '@/features/quiz/manifest';
 import { certificateManifest } from '@/features/certificate/manifest';
 import { contentMarketingManifest } from '@/features/content-marketing/manifest';
 import { websiteBuilderManifest } from '@/features/website-builder/manifest';
+import { examBuilderManifest } from '@/features/exam-builder/manifest';
 
 /** All registered tool manifests */
-export const TOOL_MANIFESTS: ToolManifest[] = [quizManifest, certificateManifest, contentMarketingManifest, websiteBuilderManifest];
+export const TOOL_MANIFESTS: ToolManifest[] = [quizManifest, certificateManifest, contentMarketingManifest, websiteBuilderManifest, examBuilderManifest];
 
 /** Map from tool id → manifest */
 export const TOOL_MANIFEST_BY_ID = Object.fromEntries(

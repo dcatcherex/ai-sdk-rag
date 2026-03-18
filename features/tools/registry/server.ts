@@ -14,6 +14,8 @@ import { createQuizAgentTools } from '@/features/quiz/agent';
 import { createCertificateAgentTools } from '@/features/certificate/agent';
 import { createContentMarketingAgentTools } from '@/features/content-marketing/agent';
 import { createWebsiteBuilderAgentTools } from '@/features/website-builder/agent';
+import { examBuilderManifest } from '@/features/exam-builder/manifest';
+import { createExamBuilderAgentTools } from '@/features/exam-builder/agent';
 
 const SERVER_REGISTRY: RegisteredTool[] = [
   {
@@ -46,6 +48,12 @@ const SERVER_REGISTRY: RegisteredTool[] = [
     getAgentDefinition: (ctx: AgentToolContext) =>
       createWebsiteBuilderAgentTools({ userId: ctx.userId }),
     getSidebarPageHref: () => `/tools/${websiteBuilderManifest.slug}`,
+  },
+  {
+    manifest: examBuilderManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createExamBuilderAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${examBuilderManifest.slug}`,
   },
 ];
 

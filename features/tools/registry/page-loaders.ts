@@ -39,4 +39,10 @@ export const TOOL_PAGE_LOADERS: Record<string, ToolPageLoader> = {
     );
     return WebsiteBuilderToolPage;
   },
+  'exam-builder': async () => {
+    const { ExamBuilderToolPage } = await import(
+      '@/features/exam-builder/components/exam-builder-tool-page'
+    );
+    return ExamBuilderToolPage;
+  },
 };
