@@ -12,6 +12,7 @@ const DEFAULT_PREFS: Preferences = {
   followUpSuggestionsEnabled: true,
   enabledToolIds: null,
   rerankEnabled: false,
+  selectedVoice: null,
 };
 
 export function useSettingsPreferences() {

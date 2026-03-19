@@ -318,6 +318,8 @@ export const userPreferences = pgTable("user_preferences", {
   enabledToolIds: text("enabled_tool_ids").array(),
   /** Cohere cross-encoder reranking after hybrid retrieval. Recommended for large KBs (100+ docs). */
   rerankEnabled: boolean("rerank_enabled").default(false).notNull(),
+  /** Voice name for real-time voice chat. null = use default (Aoede). */
+  selectedVoice: text("selected_voice"),
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
 });
 

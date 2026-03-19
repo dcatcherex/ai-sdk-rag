@@ -14,4 +14,5 @@ export type Preferences = {
   followUpSuggestionsEnabled: boolean;
   enabledToolIds: string[] | null; // null = all tools enabled
   rerankEnabled: boolean;
+  selectedVoice: string | null; // null = use default (Aoede)
 };

@@ -25,6 +25,7 @@ export async function GET() {
       followUpSuggestionsEnabled: true,
       enabledToolIds: null,
       rerankEnabled: false,
+      selectedVoice: null,
     });
   }
 
@@ -37,6 +38,7 @@ export async function GET() {
     followUpSuggestionsEnabled: prefs[0].followUpSuggestionsEnabled,
     enabledToolIds: prefs[0].enabledToolIds ?? null,
     rerankEnabled: prefs[0].rerankEnabled,
+    selectedVoice: prefs[0].selectedVoice ?? null,
   });
 }
 
@@ -53,6 +55,7 @@ export async function PUT(req: Request) {
     followUpSuggestionsEnabled?: boolean;
     enabledToolIds?: string[] | null;
     rerankEnabled?: boolean;
+    selectedVoice?: string | null;
   };
 
   // Validate tool IDs if provided
@@ -75,6 +78,7 @@ export async function PUT(req: Request) {
       followUpSuggestionsEnabled: body.followUpSuggestionsEnabled ?? true,
       enabledToolIds: body.enabledToolIds ?? null,
       rerankEnabled: body.rerankEnabled ?? false,
+      selectedVoice: body.selectedVoice ?? null,
     })
     .onConflictDoUpdate({
       target: userPreferences.userId,
@@ -87,6 +91,7 @@ export async function PUT(req: Request) {
         ...(body.followUpSuggestionsEnabled !== undefined && { followUpSuggestionsEnabled: body.followUpSuggestionsEnabled }),
         ...(body.enabledToolIds !== undefined && { enabledToolIds: body.enabledToolIds }),
         ...(body.rerankEnabled !== undefined && { rerankEnabled: body.rerankEnabled }),
+        ...(body.selectedVoice !== undefined && { selectedVoice: body.selectedVoice }),
         updatedAt: new Date(),
       },
     });

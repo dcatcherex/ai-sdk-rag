@@ -22,6 +22,7 @@ import { PersonaInstructionsSection } from '@/features/settings/components/perso
 import { CustomPersonasSection } from '@/features/settings/components/custom-personas-section';
 import { ToolsSection } from '@/features/settings/components/tools-section';
 import { ToggleSection } from '@/features/settings/components/toggle-section';
+import { VoiceSection } from '@/features/settings/components/voice-section';
 import { BrandsSection } from '@/features/brands/components/brands-section';
 import { ALL_TOOL_IDS, type ToolId } from '@/lib/tool-registry';
 
@@ -183,6 +184,11 @@ export default function SettingsPage() {
                 description="Before sending your message, a fast AI rewrites it to be more specific, add context, and clarify output format — while keeping your original intent. Your message is displayed unchanged; only the model sees the improved version."
                 checked={prefs.promptEnhancementEnabled}
                 onCheckedChange={(v) => void updatePref({ promptEnhancementEnabled: v })}
+              />
+
+              <VoiceSection
+                selectedVoice={prefs.selectedVoice}
+                onSelect={(voice) => void updatePref({ selectedVoice: voice })}
               />
             </>
           )}
