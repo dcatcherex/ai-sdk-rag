@@ -16,6 +16,12 @@ import { createContentMarketingAgentTools } from '@/features/content-marketing/a
 import { createWebsiteBuilderAgentTools } from '@/features/website-builder/agent';
 import { examBuilderManifest } from '@/features/exam-builder/manifest';
 import { createExamBuilderAgentTools } from '@/features/exam-builder/agent';
+import { audioManifest } from '@/features/audio/manifest';
+import { speechManifest } from '@/features/speech/manifest';
+import { videoManifest } from '@/features/video/manifest';
+import { createAudioAgentTools } from '@/features/audio/agent';
+import { createSpeechAgentTools } from '@/features/speech/agent';
+import { createVideoAgentTools } from '@/features/video/agent';
 
 const SERVER_REGISTRY: RegisteredTool[] = [
   {
@@ -54,6 +60,24 @@ const SERVER_REGISTRY: RegisteredTool[] = [
     getAgentDefinition: (ctx: AgentToolContext) =>
       createExamBuilderAgentTools({ userId: ctx.userId }),
     getSidebarPageHref: () => `/tools/${examBuilderManifest.slug}`,
+  },
+  {
+    manifest: audioManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createAudioAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${audioManifest.slug}`,
+  },
+  {
+    manifest: speechManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createSpeechAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${speechManifest.slug}`,
+  },
+  {
+    manifest: videoManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createVideoAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${videoManifest.slug}`,
   },
 ];
 

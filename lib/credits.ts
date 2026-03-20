@@ -2,6 +2,9 @@ import { eq, sql } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { db } from '@/lib/db';
 import { userCredit, creditTransaction } from '@/db/schema';
+import { KIE_AUDIO_MODELS } from '@/lib/models/kie-audio';
+import { KIE_VIDEO_MODELS } from '@/lib/models/kie-video';
+import { KIE_IMAGE_MODELS } from '@/lib/models/kie-image';
 
 // Credit cost per model (per AI request)
 const MODEL_CREDIT_COSTS: Record<string, number> = {
@@ -23,8 +26,17 @@ export const SIGNUP_BONUS_CREDITS = 100;
 
 export type TransactionType = 'grant' | 'usage' | 'refund' | 'signup_bonus';
 
-export const getCreditCost = (modelId: string): number =>
-  MODEL_CREDIT_COSTS[modelId] ?? DEFAULT_CREDIT_COST;
+const KIE_MODELS = [...KIE_AUDIO_MODELS, ...KIE_VIDEO_MODELS, ...KIE_IMAGE_MODELS];
+
+export const getCreditCost = (modelId: string): number => {
+  if (modelId in MODEL_CREDIT_COSTS) return MODEL_CREDIT_COSTS[modelId]!;
+
+  // Fall back to costPerGeneration from KIE model definitions
+  const kieModel = KIE_MODELS.find(m => m.id === modelId);
+  if (kieModel?.costPerGeneration) return kieModel.costPerGeneration;
+
+  return DEFAULT_CREDIT_COST;
+};
 
 export const getUserBalance = async (userId: string): Promise<number> => {
   const result = await db

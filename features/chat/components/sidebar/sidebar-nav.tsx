@@ -160,6 +160,47 @@ export const NAV_REGISTRY = [
     matchFn: (p: string) => p.startsWith("/tools/website-builder"),
   },
   {
+    id: "audio" as const,
+    href: "/tools/audio",
+    label: "Music Generator",
+    defaultPinned: false,
+    icon: (
+      <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M9 18V5l12-2v13" />
+        <circle cx="6" cy="18" r="3" />
+        <circle cx="18" cy="16" r="3" />
+      </svg>
+    ),
+    matchFn: (p: string) => p.startsWith("/tools/audio"),
+  },
+  {
+    id: "speech" as const,
+    href: "/tools/speech",
+    label: "Speech Generator",
+    defaultPinned: false,
+    icon: (
+      <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+        <line x1="12" y1="19" x2="12" y2="22" />
+      </svg>
+    ),
+    matchFn: (p: string) => p.startsWith("/tools/speech"),
+  },
+  {
+    id: "video" as const,
+    href: "/tools/video",
+    label: "Video Generator",
+    defaultPinned: false,
+    icon: (
+      <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <polygon points="23 7 16 12 23 17 23 7" />
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+      </svg>
+    ),
+    matchFn: (p: string) => p.startsWith("/tools/video"),
+  },
+  {
     id: "prompts" as const,
     href: "/prompts",
     label: "Prompt Library",

@@ -45,4 +45,16 @@ export const TOOL_PAGE_LOADERS: Record<string, ToolPageLoader> = {
     );
     return ExamBuilderToolPage;
   },
+  audio: async () => {
+    const { AudioToolPage } = await import('@/features/audio/components/audio-tool-page');
+    return AudioToolPage;
+  },
+  speech: async () => {
+    const { SpeechToolPage } = await import('@/features/speech/components/speech-tool-page');
+    return SpeechToolPage;
+  },
+  video: async () => {
+    const { VideoToolPage } = await import('@/features/video/components/video-tool-page');
+    return VideoToolPage;
+  },
 };

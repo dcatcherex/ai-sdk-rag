@@ -12,7 +12,8 @@ export type ToolCategory =
   | 'assessment'
   | 'admin'
   | 'utilities'
-  | 'developer';
+  | 'developer'
+  | 'media';
 
 export type ToolManifest = {
   /** Unique stable identifier used in DB, preferences, agent tool names */

@@ -1,3 +1,5 @@
+export type Gateway = "kie" | "openrouter" | "glm" | "vercel";
+
 export type ModelOption = {
   id: string;
   name: string;
@@ -8,6 +10,7 @@ export type ModelOption = {
   outputCost?: number; // dollar per 1m tokens
   imageGenCost?: { [key: string]: number }[]; // array of objects with key as image size and value as cost
   provider: Provider;
+  gateway: Gateway;
   description: string;
   capabilities?: Capability[];
 };
@@ -33,6 +36,7 @@ export type Provider =
   | "zai";
 
 export const availableModels = [
+  
   {
     id: "google/gemini-2.5-flash-lite",
     name: "Gemini 2.5 Flash Lite",
@@ -43,6 +47,7 @@ export const availableModels = [
     outputCost: 0.4,
     capabilities: ["text", "implicit caching", "web search"],
     provider: "google",
+    gateway: "vercel",
     description: "Fast and efficient model",
   },
   {
@@ -55,6 +60,7 @@ export const availableModels = [
     outputCost: 1.50,
     capabilities: ["text", "implicit caching", "web search"],
     provider: "google",
+    gateway: "vercel",
     description: "Fast and efficient model",
   },
   {
@@ -67,6 +73,7 @@ export const availableModels = [
     outputCost: 12,
     capabilities: ["text", "implicit caching", "web search"],
     provider: "google",
+    gateway: "vercel",
     description: "Fast and efficient model",
   },
   {
@@ -85,6 +92,7 @@ export const availableModels = [
     ],
     capabilities: ["text", "web search", "image gen"],
     provider: "google",
+    gateway: "vercel",
     description: "Fast and efficient model",
   },
   {
@@ -98,6 +106,32 @@ export const availableModels = [
     imageGenCost: [{ "1k": 0.13 }, { "2k": 0.26 }, { "4k": 0.24 }],
     capabilities: ["text", "web search", "image gen"],
     provider: "google",
+    gateway: "vercel",
+    description: "Fast and efficient model",
+  },
+  {
+    id: "openai/gpt-5.4-mini",
+    name: "GPT 5.4 Mini", 
+    context: "400K",
+    latency: 0.6,
+    throughput: 291,
+    inputCost: 0.75,
+    outputCost: 4.50,
+    capabilities: ["text", "implicit caching", "web search"],
+    provider: "openai",
+    gateway: "vercel",
+    description: "Fast and efficient model",
+  },
+  {
+    id: "openai/gpt-5.4-nano",
+    name: "GPT 5.4 Nano", 
+    context: "400K",
+    latency: 0.4,
+    inputCost: 0.20,
+    outputCost: 1.25,
+    capabilities: ["text", "implicit caching", "web search"],
+    provider: "openai",
+    gateway: "vercel",
     description: "Fast and efficient model",
   },
   {
@@ -110,6 +144,7 @@ export const availableModels = [
     outputCost: 0.4,
     capabilities: ["text", "implicit caching"],
     provider: "openai",
+    gateway: "vercel",
     description: "Fastest, most cost-efficient version of GPT-5",
   },
   {
@@ -122,6 +157,7 @@ export const availableModels = [
     outputCost: 2,
     capabilities: ["text", "implicit caching"],
     provider: "openai",
+    gateway: "vercel",
     description:
       "A faster, cost-efficient version of GPT-5 for well-defined tasks",
   },
@@ -135,6 +171,7 @@ export const availableModels = [
     outputCost: 15,
     capabilities: ["text", "implicit caching", "web search"],
     provider: "openai",
+    gateway: "vercel",
     description:
       "Frontier version of GPT-5 for well-defined tasks",
   },
@@ -148,6 +185,7 @@ export const availableModels = [
     outputCost: 14,
     capabilities: ["text", "implicit caching", "web search"],
     provider: "openai",
+    gateway: "vercel",
     description:
       "A faster, cost-efficient version of GPT-5 for well-defined tasks",
   },
@@ -160,6 +198,7 @@ export const availableModels = [
     outputCost: 0.3,
     capabilities: ["text", "implicit caching"],
     provider: "openai",
+    gateway: "vercel",
     description:
       "The best model for coding and agentic tasks across industries",
   },
@@ -180,6 +219,7 @@ export const availableModels = [
     ],
     capabilities: ["image gen"],
     provider: "openai",
+    gateway: "vercel",
     description: "Fast and efficient model",
   },
 
@@ -193,6 +233,7 @@ export const availableModels = [
     outputCost: 0.5,
     capabilities: ["text", "implicit caching"],
     provider: "xai",
+    gateway: "vercel",
     description: "Fast and efficient model",
   },
   {
@@ -205,6 +246,7 @@ export const availableModels = [
     outputCost: 0.5,
     capabilities: ["text", "implicit caching"],
     provider: "xai",
+    gateway: "vercel",
     description: "Fast and efficient model",
   },
   {
@@ -213,6 +255,7 @@ export const availableModels = [
     imageGenCost: [{ "not specified": 0.02 }],
     capabilities: ["image gen"],
     provider: "xai",
+    gateway: "vercel",
     description: "Fast and efficient model",
   },
   {
@@ -221,6 +264,7 @@ export const availableModels = [
     imageGenCost: [{ "not specified": 0.07 }],
     capabilities: ["image gen"],
     provider: "xai",
+    gateway: "vercel",
     description: "Pro version of Grok Imagine Image",
   },
   {
@@ -233,6 +277,7 @@ export const availableModels = [
     outputCost: 5.00,
     capabilities: ["text", "explicit caching"],
     provider: "anthropic",
+    gateway: "vercel",
     description: "Balanced performance and speed",
   },
   {
@@ -245,6 +290,7 @@ export const availableModels = [
     outputCost: 15.00,
     capabilities: ["text", "explicit caching"],
     provider: "anthropic",
+    gateway: "vercel",
     description: "Balanced performance and speed",
   },
   {
@@ -257,6 +303,33 @@ export const availableModels = [
     outputCost: 25.00,
     capabilities: ["text", "explicit caching", "web search"],
     provider: "anthropic",
+    gateway: "vercel",
+    description: "Balanced performance and speed",
+  },
+  {
+    id: "minimax/minimax-m2.7",
+    name: "Minimax M2.7",
+    context: "205k",
+    latency: 2.2,
+    throughput: 38,
+    inputCost: 0.3,
+    outputCost: 1.2,
+    capabilities: ["text", "implicit caching"],
+    provider: "minimax",
+    gateway: "vercel",
+    description: "Balanced performance and speed",
+  },
+  {
+    id: "minimax/minimax-m2.7-highspeed",
+    name: "Minimax M2.7 High Speed",
+    context: "205k",
+    latency: 0.8,
+    throughput: 63,
+    inputCost: 0.60,
+    outputCost: 2.40,
+    capabilities: ["text", "implicit caching"],
+    provider: "minimax",
+    gateway: "vercel",
     description: "Balanced performance and speed",
   },
   {
@@ -269,6 +342,7 @@ export const availableModels = [
     outputCost: 1.2,
     capabilities: ["text", "implicit caching"],
     provider: "minimax",
+    gateway: "vercel",
     description: "Balanced performance and speed",
   },
   {
@@ -281,6 +355,20 @@ export const availableModels = [
     outputCost: 1.2,
     capabilities: ["text", "implicit caching"],
     provider: "minimax",
+    gateway: "vercel",
+    description: "Balanced performance and speed",
+  },
+  {
+    id: "zai/glm-5-turbo",
+    name: "GLM 5 Turbo", 
+    context: "203k",
+    latency: 4.4,
+    throughput: 142,
+    inputCost: 1.20,
+    outputCost: 4.00,
+    capabilities: ["text", "implicit caching"],
+    provider: "zai",
+    gateway: "vercel",
     description: "Balanced performance and speed",
   },
   {
@@ -293,6 +381,7 @@ export const availableModels = [
     outputCost: 3.2,
     capabilities: ["text", "implicit caching"],
     provider: "zai",
+    gateway: "vercel",
     description: "Balanced performance and speed",
   },
   {
@@ -305,6 +394,7 @@ export const availableModels = [
     outputCost: 2.8,
     capabilities: ["text", "implicit caching"],
     provider: "moonshotai",
+    gateway: "vercel",
     description: "Balanced performance and speed",
   },
   {
@@ -317,6 +407,7 @@ export const availableModels = [
     outputCost: 0.38,
     capabilities: ["text", "implicit caching"],
     provider: "deepseek",
+    gateway: "vercel",
     description: "Balanced performance and speed",
   },
   {
@@ -329,6 +420,7 @@ export const availableModels = [
     outputCost: 0.4,
     capabilities: ["text", "explicit caching"],
     provider: "alibaba",
+    gateway: "vercel",
     description: "Balanced performance and speed",
   },
   {
@@ -341,6 +433,7 @@ export const availableModels = [
     outputCost: 2.4,
     capabilities: ["text", "explicit caching"],
     provider: "alibaba",
+    gateway: "vercel",
     description: "Balanced performance and speed",
   },
 ] satisfies ModelOption[];

@@ -10,9 +10,21 @@ import { certificateManifest } from '@/features/certificate/manifest';
 import { contentMarketingManifest } from '@/features/content-marketing/manifest';
 import { websiteBuilderManifest } from '@/features/website-builder/manifest';
 import { examBuilderManifest } from '@/features/exam-builder/manifest';
+import { audioManifest } from '@/features/audio/manifest';
+import { speechManifest } from '@/features/speech/manifest';
+import { videoManifest } from '@/features/video/manifest';
 
 /** All registered tool manifests */
-export const TOOL_MANIFESTS: ToolManifest[] = [quizManifest, certificateManifest, contentMarketingManifest, websiteBuilderManifest, examBuilderManifest];
+export const TOOL_MANIFESTS: ToolManifest[] = [
+  quizManifest,
+  certificateManifest,
+  contentMarketingManifest,
+  websiteBuilderManifest,
+  examBuilderManifest,
+  audioManifest,
+  speechManifest,
+  videoManifest,
+];
 
 /** Map from tool id → manifest */
 export const TOOL_MANIFEST_BY_ID = Object.fromEntries(
