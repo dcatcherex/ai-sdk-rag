@@ -1,8 +1,11 @@
+export type ImageProvider = 'kie' | 'openai' | 'qwen' | 'xai';
+
 export interface ImageModelConfig {
   id: string;
   name: string;
   description: string;
   badge?: string;
+  provider: ImageProvider;
   /** 'both' = text-only AND with reference images */
   mode: 'generate' | 'edit' | 'both';
   aspectRatios: string[];
@@ -20,6 +23,7 @@ export const IMAGE_MODEL_CONFIGS: ImageModelConfig[] = [
     name: 'Nano Banana 2',
     description: 'Versatile with many aspect ratios, up to 4K resolution, and optional reference images',
     badge: 'Popular',
+    provider: 'kie',
     mode: 'both',
     aspectRatios: ['auto', '1:1', '16:9', '9:16', '4:3', '3:4', '2:3', '3:2', '21:9', '4:5', '5:4'],
     hasResolution: true,
@@ -31,6 +35,7 @@ export const IMAGE_MODEL_CONFIGS: ImageModelConfig[] = [
     name: 'GPT Image 1.5',
     description: 'Photorealistic generation with quality control',
     badge: 'Photorealistic',
+    provider: 'openai',
     mode: 'generate',
     aspectRatios: ['1:1', '2:3', '3:2'],
     hasQuality: true,
@@ -41,6 +46,7 @@ export const IMAGE_MODEL_CONFIGS: ImageModelConfig[] = [
     name: 'GPT Image 1.5 Edit',
     description: 'Identity-preserving image edits with quality control',
     badge: 'Precise Edit',
+    provider: 'openai',
     mode: 'edit',
     aspectRatios: ['1:1', '2:3', '3:2'],
     hasQuality: true,
@@ -52,6 +58,7 @@ export const IMAGE_MODEL_CONFIGS: ImageModelConfig[] = [
     name: 'Qwen Z-Image',
     description: 'Fast and affordable, excellent bilingual text rendering',
     badge: 'Fast',
+    provider: 'qwen',
     mode: 'generate',
     aspectRatios: ['1:1', '4:3', '3:4', '16:9', '9:16'],
     hasSeed: true,
@@ -62,6 +69,7 @@ export const IMAGE_MODEL_CONFIGS: ImageModelConfig[] = [
     name: 'Qwen Image Edit',
     description: 'Open-source image editing with seed for reproducibility',
     badge: 'Edit',
+    provider: 'qwen',
     mode: 'edit',
     aspectRatios: ['1:1', '2:3', '3:2', '3:4', '4:3', '9:16', '16:9', '21:9'],
     hasSeed: true,
@@ -73,6 +81,7 @@ export const IMAGE_MODEL_CONFIGS: ImageModelConfig[] = [
     name: 'Grok Imagine',
     description: "xAI's creative and expressive image generation",
     badge: 'New',
+    provider: 'xai',
     mode: 'generate',
     aspectRatios: ['1:1', '2:3', '3:2'],
     creditCost: 4,

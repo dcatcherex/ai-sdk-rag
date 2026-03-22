@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { ProviderIcon } from '../ui/provider-icon';
 import type { ImageModelConfig } from '../types';
 
 interface Props {
@@ -33,11 +34,12 @@ export function ModelSelector({ models, selectedId, onSelect }: Props) {
       <button
         onClick={() => setOpen(o => !o)}
         className={cn(
-          'w-full flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-sm transition-colors',
-          open ? 'border-primary ring-1 ring-primary bg-background' : 'border-border hover:border-foreground/30 bg-background',
+          'w-full flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-sm transition-colors bg-secondary',
+          open ? 'border-primary ring-1 ring-primary' : 'border-border hover:border-foreground/30',
         )}
       >
         <div className="flex items-center gap-2 min-w-0">
+          {selected && <ProviderIcon provider={selected.provider} />}
           <span className="font-medium truncate">{selected?.name}</span>
           {selected?.badge && (
             <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
@@ -45,7 +47,9 @@ export function ModelSelector({ models, selectedId, onSelect }: Props) {
             </span>
           )}
         </div>
-        {open ? <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />}
+        {open
+          ? <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+          : <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />}
       </button>
 
       {/* Dropdown — floats over layout */}
@@ -56,10 +60,11 @@ export function ModelSelector({ models, selectedId, onSelect }: Props) {
               key={cfg.id}
               onClick={() => { onSelect(cfg.id); setOpen(false); }}
               className={cn(
-                'w-full flex items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/60',
-                cfg.id === selectedId ? 'bg-muted/40' : '',
+                'w-full flex  gap-2 px-3 py-2.5 text-left transition-colors hover:bg-muted/60',
+                cfg.id === selectedId ? 'bg-muted' : '',
               )}
             >
+              <ProviderIcon provider={cfg.provider} className="size-4 my-1" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium">{cfg.name}</span>
@@ -71,10 +76,7 @@ export function ModelSelector({ models, selectedId, onSelect }: Props) {
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{cfg.description}</p>
               </div>
-              <div className="flex flex-col items-end gap-1 shrink-0">
-                {cfg.id === selectedId && <Check className="h-3.5 w-3.5 text-primary" />}
-                <span className="text-xs text-muted-foreground">{cfg.creditCost}cr</span>
-              </div>
+              
             </button>
           ))}
         </div>
