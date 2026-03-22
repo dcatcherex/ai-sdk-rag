@@ -5,10 +5,10 @@ import { ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { ProviderIcon } from '../ui/provider-icon';
-import type { ImageModelConfig } from '../types';
+import type { BaseModelConfig } from '../types';
 
 interface Props {
-  models: ImageModelConfig[];
+  models: BaseModelConfig[];
   selectedId: string;
   onSelect: (id: string) => void;
 }

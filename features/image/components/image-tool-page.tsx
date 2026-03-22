@@ -57,7 +57,7 @@ function ImageToolPageInner({ manifest }: Props) {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] h-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 h-full">
           {/* Left: Controls */}
           <div className="p-6 space-y-6 border-r">
             <PromptSection mode={mode} value={prompt} onChange={setPrompt} disabled={isPolling} />

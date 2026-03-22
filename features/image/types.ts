@@ -1,10 +1,15 @@
 export type ImageProvider = 'kie' | 'openai' | 'qwen' | 'xai';
 
-export interface ImageModelConfig {
+/** Minimal shape needed by the shared ModelSelector component */
+export interface BaseModelConfig {
   id: string;
   name: string;
-  description: string;
+  description?: string;
   badge?: string;
+  provider: string;
+}
+
+export interface ImageModelConfig extends BaseModelConfig {
   provider: ImageProvider;
   /** 'both' = text-only AND with reference images */
   mode: 'generate' | 'edit' | 'both';

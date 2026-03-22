@@ -9,14 +9,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { ToolManifest } from '@/features/tools/registry/types';
 import { useGenerationPoll } from '@/lib/hooks/use-generation-poll';
-import { VEO_GENERATION_MODE_LABELS } from '../types';
+import { VEO_GENERATION_MODE_LABELS, VIDEO_MODEL_CONFIGS } from '../types';
+import { ModelSelector } from '@/features/image/components/model-selector';
 
 type Props = { manifest: ToolManifest };
-
-const MODELS = [
-  { id: 'veo3_fast', label: 'Veo 3 Fast (default)' },
-  { id: 'veo3', label: 'Veo 3 (high quality, text-only)' },
-];
 
 const ASPECT_RATIOS = ['16:9', '9:16', 'Auto'] as const;
 
@@ -132,18 +128,14 @@ function VideoToolPageInner({ manifest }: Props) {
         </div>
 
         {/* Model */}
-        <div className="space-y-2">
-          <Label>Model</Label>
-          <Select value={model} onValueChange={setModel} disabled={isPolling}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {MODELS.map(m => (
-                <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className={isPolling ? 'pointer-events-none opacity-60' : ''}>
+          <ModelSelector
+            models={VIDEO_MODEL_CONFIGS}
+            selectedId={model}
+            onSelect={setModel}
+          />
           {effectiveModel !== model && (
-            <p className="text-xs text-muted-foreground">Using Veo 3 Fast — Veo 3 only supports text-to-video mode.</p>
+            <p className="text-xs text-muted-foreground mt-1">Using Veo 3 Fast — Veo 3 only supports text-to-video mode.</p>
           )}
         </div>
 

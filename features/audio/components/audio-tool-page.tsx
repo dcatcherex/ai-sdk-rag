@@ -12,14 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import type { ToolManifest } from '@/features/tools/registry/types';
 import { useGenerationPoll } from '@/lib/hooks/use-generation-poll';
+import { MUSIC_MODEL_CONFIGS } from '../types';
+import { ModelSelector } from '@/features/image/components/model-selector';
 
 type Props = { manifest: ToolManifest };
-
-const MODELS = [
-  { id: 'suno-v4', label: 'Suno v4' },
-  { id: 'suno-v4.5', label: 'Suno v4.5 (recommended)' },
-  { id: 'suno-v5', label: 'Suno v5' },
-];
 
 function SliderField({ label, value, min, max, step, onChange, disabled }: {
   label: string; value: number; min: number; max: number; step: number;
@@ -112,14 +108,12 @@ function AudioToolPageInner({ manifest }: Props) {
             value={prompt} onChange={e => setPrompt(e.target.value)} disabled={isPolling} />
         </div>
 
-        <div className="space-y-2">
-          <Label>Model</Label>
-          <Select value={model} onValueChange={setModel} disabled={isPolling}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {MODELS.map(m => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
+        <div className={isPolling ? 'pointer-events-none opacity-60' : ''}>
+          <ModelSelector
+            models={MUSIC_MODEL_CONFIGS}
+            selectedId={model}
+            onSelect={setModel}
+          />
         </div>
 
         <div className="flex gap-6">
