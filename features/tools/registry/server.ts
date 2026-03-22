@@ -22,6 +22,8 @@ import { videoManifest } from '@/features/video/manifest';
 import { createAudioAgentTools } from '@/features/audio/agent';
 import { createSpeechAgentTools } from '@/features/speech/agent';
 import { createVideoAgentTools } from '@/features/video/agent';
+import { imageManifest } from '@/features/image/manifest';
+import { createImageAgentTools } from '@/features/image/agent';
 
 const SERVER_REGISTRY: RegisteredTool[] = [
   {
@@ -78,6 +80,12 @@ const SERVER_REGISTRY: RegisteredTool[] = [
     getAgentDefinition: (ctx: AgentToolContext) =>
       createVideoAgentTools({ userId: ctx.userId }),
     getSidebarPageHref: () => `/tools/${videoManifest.slug}`,
+  },
+  {
+    manifest: imageManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createImageAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${imageManifest.slug}`,
   },
 ];
 

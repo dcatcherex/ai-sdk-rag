@@ -33,7 +33,8 @@ export type Provider =
   | "deepseek"
   | "alibaba"
   | "minimax"
-  | "zai";
+  | "zai"
+  | "xiaomi";
 
 export const availableModels = [
   
@@ -436,6 +437,20 @@ export const availableModels = [
     gateway: "vercel",
     description: "Balanced performance and speed",
   },
+  {
+    id: "xiaomi/mimo-v2-pro",
+    name: "Mimo V2 Pro", 
+    context: "1m",
+    latency: 1.5,
+    throughput: 78,
+    inputCost: 1,
+    outputCost: 3,
+    capabilities: ["text"],
+    provider: "xiaomi",
+    gateway: "vercel",
+    description: "Balanced performance and speed",
+  },
+
 ] satisfies ModelOption[];
 
 export const chatModel = availableModels[0]?.id ?? "google/gemini-3-flash";

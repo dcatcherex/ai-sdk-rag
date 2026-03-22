@@ -57,4 +57,8 @@ export const TOOL_PAGE_LOADERS: Record<string, ToolPageLoader> = {
     const { VideoToolPage } = await import('@/features/video/components/video-tool-page');
     return VideoToolPage;
   },
+  image: async () => {
+    const { ImageToolPage } = await import('@/features/image/components/image-tool-page');
+    return ImageToolPage;
+  },
 };

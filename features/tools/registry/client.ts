@@ -13,6 +13,7 @@ import { examBuilderManifest } from '@/features/exam-builder/manifest';
 import { audioManifest } from '@/features/audio/manifest';
 import { speechManifest } from '@/features/speech/manifest';
 import { videoManifest } from '@/features/video/manifest';
+import { imageManifest } from '@/features/image/manifest';
 
 /** All registered tool manifests */
 export const TOOL_MANIFESTS: ToolManifest[] = [
@@ -24,6 +25,7 @@ export const TOOL_MANIFESTS: ToolManifest[] = [
   audioManifest,
   speechManifest,
   videoManifest,
+  imageManifest,
 ];
 
 /** Map from tool id → manifest */

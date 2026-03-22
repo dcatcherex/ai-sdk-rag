@@ -197,29 +197,29 @@ export const KIE_IMAGE_MODELS: ModelDefinition[] = [
 
     // --- Qwen / Z-Image ---
     {
-        id: "z-image",
-        name: "Qwen Z-Image",
-        description: "Z-Image is Tongyi-MAI's efficient image generation model that delivers photorealistic output, fast Turbo performance, and accurate bilingual text rendering with strong semantic understanding.",
+        id: "qwen2/text-to-image",
+        name: "Qwen2 Text To Image",
+        description: "Qwen2-Text-To-Image is an open-source text-to-image generation model based on Qwen2-Image",
         capabilities: ["image"],
         provider: 'kie',
-        costPerGeneration: 0.8,
+        costPerGeneration: 3,
         isNew: true,
-        maxPromptLength: 1000,  // Tested 2024-01-03, fails at ~1200 chars (as per spec)
-        maxPromptTokens: 350,
+        maxPromptLength: 5000,
+        maxPromptTokens: 1500,
         warningThreshold: 0.8,
         guestAccess: true,
         maxReferenceImages: 0
     },
     {
-        id: "qwen/image-edit",
-        name: "Qwen Image Edit",
-        description: "Qwen-Image-Edit is an open-source image editing model based on Qwen-Image",
+        id: "qwen2/image-edit",
+        name: "Qwen2 Image Edit",
+        description: "Qwen2-Image-Edit is an open-source image editing model based on Qwen2-Image",
         capabilities: ["image"],
         provider: 'kie',
-        costPerGeneration: 2,
+        costPerGeneration: 3,
         isNew: true,
-        maxPromptLength: 1000,
-        maxPromptTokens: 350,
+        maxPromptLength: 800,
+        maxPromptTokens: 250,
         warningThreshold: 0.8,
         maxReferenceImages: 0 // TODO: Verify from Kie.ai docs
     },
