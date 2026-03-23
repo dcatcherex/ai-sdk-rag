@@ -19,10 +19,12 @@ export async function POST(req: NextRequest) {
     format?: 'png' | 'jpg' | 'pdf';
     exportMode?: 'zip' | 'single_pdf' | 'sheet_pdf';
     pdfQuality?: PdfQuality;
+    padToGrid?: boolean;
+    fillerTemplateId?: string;
     recipients: Array<{ values: CertificateField[] }>;
   };
 
-  const { templateId, recipients, format = 'png', exportMode = 'zip', pdfQuality = 'standard' } = body;
+  const { templateId, recipients, format = 'png', exportMode = 'zip', pdfQuality = 'standard', padToGrid, fillerTemplateId } = body;
 
   if (!templateId || !recipients?.length) {
     return NextResponse.json({ error: 'Missing templateId or recipients' }, { status: 400 });
@@ -36,6 +38,8 @@ export async function POST(req: NextRequest) {
       format,
       outputMode: exportMode,
       pdfQuality,
+      padToGrid,
+      fillerTemplateId,
       source: 'manual',
     });
 

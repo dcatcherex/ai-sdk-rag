@@ -379,9 +379,11 @@ export async function previewCertificateGeneration(options: {
 }
 
 export async function generateCertificateOutput(options: {
+  fillerTemplateId?: string;
   format?: CertificateOutputFormat;
   maxRecipients?: number;
   outputMode?: Exclude<CertificateOutputMode, 'single_file'>;
+  padToGrid?: boolean;
   pdfQuality?: CertificatePdfQuality;
   recipients: CertificateRecipientInput[];
   source?: CertificateJobSource;
@@ -406,17 +408,40 @@ export async function generateCertificateOutput(options: {
   const template = await loadTemplateForUser(options.userId, options.templateId);
   const fields = template.fields as TextFieldConfig[];
   const backFields = template.backFields as TextFieldConfig[];
-  const normalizedRecipientValues = recipients.map((recipient) => recipient.values);
+  const realRecipientValues = recipients.map((recipient) => recipient.values);
 
-  validateRecipients(normalizedRecipientValues, fields, backFields);
+  validateRecipients(realRecipientValues, fields, backFields);
 
-  const outputMode = resolveOutputMode(recipients.length, format, options.outputMode);
+  const estimatedItemSizeForPad = getEstimatedTemplateItemSizeMm(template.width, template.height);
+  const printSettingsForPad = template.printSettings
+    ? normalizePrintSheetSettings(template.printSettings as Record<string, unknown>, {
+        fallbackItemWidthMm: estimatedItemSizeForPad.itemWidthMm,
+        fallbackItemHeightMm: estimatedItemSizeForPad.itemHeightMm,
+      })
+    : getDefaultPrintSheetSettingsForTemplateType(template.templateType, estimatedItemSizeForPad);
+
+  const resolvedOutputMode = resolveOutputMode(recipients.length, format, options.outputMode);
+  const shouldPad = options.padToGrid === true && resolvedOutputMode === 'sheet_pdf';
+  const allFieldIds = [...fields, ...backFields].map((f) => f.id);
+  const normalizedRecipientValues: CertificateField[][] = [...realRecipientValues];
+
+  if (shouldPad) {
+    const perSheet = printSettingsForPad.columns * printSettingsForPad.rows;
+    const remainder = normalizedRecipientValues.length % perSheet;
+    const padCount = remainder === 0 ? 0 : perSheet - remainder;
+
+    for (let i = 0; i < padCount; i++) {
+      normalizedRecipientValues.push(allFieldIds.map((fieldId) => ({ fieldId, value: '' })));
+    }
+  }
+
+  const outputMode = resolvedOutputMode;
   const requestPayload: CertificateJobRequestPayload = {
-    fieldIds: [...fields, ...backFields].map((field) => field.id),
+    fieldIds: allFieldIds,
     hasBackSide: Boolean(template.backR2Key),
     ...(format === 'pdf' ? { pdfQuality } : {}),
-    recipientCount: recipients.length,
-    recipientPreview: normalizedRecipientValues.slice(0, 5).map((values, index) => getRecipientDisplayName(values, `certificate_${index + 1}`)),
+    recipientCount: realRecipientValues.length,
+    recipientPreview: realRecipientValues.slice(0, 5).map((values, index) => getRecipientDisplayName(values, `certificate_${index + 1}`)),
     requiredFieldIds: [...fields, ...backFields].filter((field) => field.required === true).map((field) => field.id),
     templateName: template.name,
   };
@@ -430,7 +455,7 @@ export async function generateCertificateOutput(options: {
     format,
     exportMode: outputMode,
     source: options.source ?? 'manual',
-    totalCount: recipients.length,
+    totalCount: realRecipientValues.length,
     processedCount: 0,
     requestPayload,
   });
@@ -468,6 +493,19 @@ export async function generateCertificateOutput(options: {
 
         return response.arrayBuffer();
       })())
+      : null;
+
+    const useFillerTemplate = shouldPad
+      && options.fillerTemplateId
+      && options.fillerTemplateId !== options.templateId;
+    const fillerTemplate = useFillerTemplate
+      ? await loadTemplateForUser(options.userId, options.fillerTemplateId!)
+      : null;
+    const fillerBuffer = fillerTemplate
+      ? await fetch(fillerTemplate.url).then(async (r) => {
+          if (!r.ok) throw new Error('Failed to fetch filler template image');
+          return Buffer.from(await r.arrayBuffer());
+        })
       : null;
 
     if (outputMode === 'single_file') {
@@ -513,11 +551,16 @@ export async function generateCertificateOutput(options: {
 
     for (let index = 0; index < normalizedRecipientValues.length; index += 1) {
       const values = normalizedRecipientValues[index];
+      const isPadCard = index >= realRecipientValues.length;
+      const activeBuffer = (isPadCard && fillerBuffer) ? fillerBuffer : templateBuffer;
+      const activeWidth = (isPadCard && fillerTemplate) ? fillerTemplate.width : template.width;
+      const activeHeight = (isPadCard && fillerTemplate) ? fillerTemplate.height : template.height;
+      const activeFields = (isPadCard && fillerTemplate) ? (fillerTemplate.fields as TextFieldConfig[]) : fields;
       const certBuffer = await generateCertificate({
-        templateBuffer,
-        templateWidth: template.width,
-        templateHeight: template.height,
-        fields,
+        templateBuffer: activeBuffer,
+        templateWidth: activeWidth,
+        templateHeight: activeHeight,
+        fields: activeFields,
         values,
         format: outputMode === 'sheet_pdf' ? 'png' : format,
         pdfQuality,
@@ -572,7 +615,7 @@ export async function generateCertificateOutput(options: {
         cacheControl: 'public, max-age=86400',
       });
       const result: CertificateGenerationResult = {
-        count: normalizedRecipientValues.length,
+        count: realRecipientValues.length,
         downloadLabel: canGenerateDuplexSheet ? 'Download print PDF (front/back)' : 'Download print PDF',
         fileKey,
         fileName,

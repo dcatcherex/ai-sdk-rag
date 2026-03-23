@@ -8,6 +8,7 @@ import { FieldConfigurator } from '@/features/certificate/components/field-confi
 import { CertificateForm } from '@/features/certificate/components/certificate-form';
 import { BatchForm } from '@/features/certificate/components/batch-form';
 import { JobHistory } from '@/features/certificate/components/job-history';
+import { GroupsSection } from '@/features/certificate/components/groups';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/page-header';
@@ -78,7 +79,11 @@ export function CertificateToolPage({ manifest }: Props) {
             />
           </div>
         ) : (
-          <div>
+          <div className="space-y-4">
+            {/* Recipient Groups */}
+            <GroupsSection />
+
+            {/* Templates */}
             {templatesLoading ? (
               <p className="text-sm text-zinc-400">Loading templates…</p>
             ) : (

@@ -506,6 +506,28 @@ export const certificateJobRelations = relations(certificateJob, ({ one }) => ({
   template: one(certificateTemplate, { fields: [certificateJob.templateId], references: [certificateTemplate.id] }),
 }));
 
+// Recipient groups for certificate batch generation
+export const recipientGroup = pgTable('recipient_group', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  // Array of { id: string, values: Record<string, string> }
+  recipients: jsonb('recipients')
+    .$type<Array<{ id: string; values: Record<string, string> }>>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at')
+    .defaultNow()
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+}, (table) => [index('recipient_group_userId_idx').on(table.userId)]);
+
+export const recipientGroupRelations = relations(recipientGroup, ({ one }) => ({
+  user: one(user, { fields: [recipientGroup.userId], references: [user.id] }),
+}));
+
 export const agent = pgTable('agent', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),

@@ -96,3 +96,17 @@ export const DEFAULT_FIELD: Omit<TextFieldConfig, 'id' | 'label'> = {
   fontWeight: 'bold',
   align: 'center',
 };
+
+export type GroupPerson = {
+  id: string;
+  values: Record<string, string>;
+};
+
+export type RecipientGroup = {
+  id: string;
+  name: string;
+  description: string | null;
+  recipients: GroupPerson[];
+  createdAt: string;
+  updatedAt: string;
+};
