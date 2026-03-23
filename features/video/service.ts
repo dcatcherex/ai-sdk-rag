@@ -4,12 +4,13 @@ import { db } from '@/lib/db';
 import { toolRun } from '@/db/schema';
 import { getKieApiKey } from '@/lib/api/routeGuards';
 import { KieService } from '@/lib/providers/kieService';
+import { KIE_VIDEO_MODELS } from '@/lib/models/kie-video';
 import type { GenerateVideoInput, TriggerVideoResult } from './schema';
 
 /**
  * Canonical video generation logic.
- * Called by the API route and agent adapter.
- * Handles base64 image upload to R2 before creating the KIE task.
+ * Reads videoOptions from KIE_VIDEO_MODELS to route to the correct API
+ * and build the correct payload — no per-model hardcoding here.
  */
 export async function triggerVideoGeneration(
   params: GenerateVideoInput & { promptTitle?: string },
@@ -18,24 +19,24 @@ export async function triggerVideoGeneration(
   const apiKey = getKieApiKey();
   if (!apiKey) throw new Error('KIE_API_KEY is not configured');
 
+  const modelDef = KIE_VIDEO_MODELS.find(m => m.id === params.model);
+  if (!modelDef?.videoOptions) {
+    throw new Error(`Unknown video model: ${params.model}`);
+  }
+
+  const { videoOptions } = modelDef;
   const {
     prompt,
     model = 'veo3_fast',
     generationMode = 'TEXT_2_VIDEO',
-    aspectRatio = '16:9',
+    aspectRatio,
     imageUrls,
     seeds,
+    duration,
+    quality,
   } = params;
 
-  // Force veo3_fast for reference mode
-  const veoModel: 'veo3' | 'veo3_fast' =
-    model === 'veo3' && generationMode !== 'REFERENCE_2_VIDEO' ? 'veo3' : 'veo3_fast';
-
-  // Force 16:9 for reference mode
-  const veoAspect: '16:9' | '9:16' | 'Auto' =
-    generationMode === 'REFERENCE_2_VIDEO' ? '16:9' : aspectRatio;
-
-  // Resolve images — upload base64 to R2, pass through existing URLs
+  // Upload base64 images to R2 and return public URLs
   let resolvedImageUrls: string[] | undefined;
   if (imageUrls && imageUrls.length > 0) {
     const { getStorageService, STORAGE_BUCKETS } = await import('@/lib/storage/index');
@@ -64,14 +65,61 @@ export async function triggerVideoGeneration(
     }
   }
 
-  const { taskId } = await KieService.createVeoTask({
-    prompt,
-    model: veoModel,
-    aspectRatio: veoAspect,
-    generationType: generationMode,
-    imageUrls: resolvedImageUrls?.length ? resolvedImageUrls : undefined,
-    seeds,
-  }, apiKey);
+  let taskId: string;
+
+  if (videoOptions.apiType === 'veo') {
+    // ── Veo path: flat payload, special /veo/generate endpoint ──────────────
+    const veoModel: 'veo3' | 'veo3_fast' =
+      model === 'veo3' && generationMode !== 'REFERENCE_2_VIDEO' ? 'veo3' : 'veo3_fast';
+    const veoAspect = generationMode === 'REFERENCE_2_VIDEO'
+      ? '16:9'
+      : (aspectRatio as '16:9' | '9:16' | 'Auto') ?? '16:9';
+
+    ({ taskId } = await KieService.createVeoTask({
+      prompt,
+      model: veoModel,
+      aspectRatio: veoAspect,
+      generationType: generationMode as 'TEXT_2_VIDEO' | 'FIRST_AND_LAST_FRAMES_2_VIDEO' | 'REFERENCE_2_VIDEO',
+      imageUrls: resolvedImageUrls?.length ? resolvedImageUrls : undefined,
+      seeds,
+    }, apiKey));
+
+  } else {
+    // ── Standard path: nested input object, /jobs/createTask endpoint ────────
+    const input: Record<string, unknown> = {};
+
+    if (videoOptions.promptRequired) {
+      input.prompt = prompt;
+    }
+
+    // Aspect ratio (Sora uses portrait/landscape; Kling derives from image)
+    if (videoOptions.aspectRatios && aspectRatio) {
+      input.aspect_ratio = aspectRatio;
+    }
+
+    // Duration (n_frames)
+    if (videoOptions.duration && duration) {
+      input.n_frames = duration;
+    }
+
+    // Quality param (name differs: Sora uses 'size', Kling uses 'mode')
+    if (videoOptions.quality && quality) {
+      input[videoOptions.quality.param] = quality;
+    }
+
+    // Images (for img2vid and storyboard models)
+    const imageParamName = videoOptions.inputMode === 'storyboard' ? 'image_urls' : 'image_urls';
+    if (resolvedImageUrls?.length) {
+      input[imageParamName] = resolvedImageUrls;
+    }
+
+    // Watermark removal — default true for Sora models
+    if (model.startsWith('sora-')) {
+      input.remove_watermark = true;
+    }
+
+    ({ taskId } = await KieService.createTask(model, input, apiKey));
+  }
 
   const [record] = await db.insert(toolRun).values({
     id: nanoid(),
@@ -83,10 +131,11 @@ export async function triggerVideoGeneration(
       prompt,
       modelId: model,
       kieTaskId: taskId,
-      kieProvider: 'kie',
-      veoModel,
+      apiType: videoOptions.apiType,
       generationMode,
-      aspectRatio: veoAspect,
+      aspectRatio,
+      duration,
+      quality,
       imageUrls: resolvedImageUrls,
       seeds,
       promptTitle: params.promptTitle ?? prompt.substring(0, 50),

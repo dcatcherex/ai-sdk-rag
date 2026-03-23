@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { modelId = 'veo3_fast', videoSettings, executionConfig } = body;
 
-  // Validate input
+  // Validate input — videoSettings is spread in so duration, quality, etc. are included
   const parsed = generateVideoInputSchema.safeParse({
     prompt: body.prompt,
     model: modelId,

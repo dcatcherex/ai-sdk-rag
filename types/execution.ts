@@ -40,6 +40,32 @@ export interface QueueItem {
   ttsSettings?: PromptTtsSettings; // Text-to-speech options (ElevenLabs)
 }
 
+/**
+ * Structured capability descriptor for KIE video models.
+ * Used by service.ts to build the correct API payload and
+ * by the UI to render only the controls relevant to each model.
+ */
+export interface KieVideoOptions {
+  /** Which KIE endpoint/format to use */
+  apiType: 'veo' | 'standard';
+  /** What input the model accepts */
+  inputMode: 'text' | 'image' | 'both' | 'storyboard';
+  /** Aspect ratio values shown in UI (sent as-is to API). null = not configurable */
+  aspectRatios: string[] | null;
+  /** Duration options — sent as n_frames strings. null = not supported by model */
+  duration: string[] | null;
+  /** Quality control. null = not supported */
+  quality: { param: string; values: string[] } | null;
+  /** Whether the text prompt field is required (false for storyboard) */
+  promptRequired: boolean;
+  /** Veo-only: which generation modes are available */
+  veoModes?: string[];
+  /** Provider slug for the icon (google, openai, kie…) */
+  iconProvider: string;
+  /** Badge text shown in model selector */
+  badge?: string;
+}
+
 export interface ModelDefinition {
   id: string;
   name: string;
@@ -64,4 +90,7 @@ export interface ModelDefinition {
   maxReferenceImages?: number;           // Max number of reference images (0 or undefined = not supported)
   referenceImageParam?: string;          // API parameter name for reference images (e.g. 'image_input', 'image_urls', 'input_urls')
   requiresReferenceImages?: boolean;     // If true, reference images are mandatory (e.g. edit/i2i models)
+
+  /** Video-specific capability options (KIE video models only) */
+  videoOptions?: KieVideoOptions;
 }
