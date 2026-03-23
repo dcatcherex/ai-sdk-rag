@@ -37,9 +37,9 @@ export const KIE_VIDEO_MODELS: ModelDefinition[] = [
 
     // --- Kling ---
     {
-        id: "kling-2.6/image-to-video",
-        name: "Kling 2.6 (Img2Vid)",
-        description: "Animate images with Kling 2.6.",
+        id: "kling-3.0/video",
+        name: "Kling 3.0 (Img2Vid)",
+        description: "Affordable Kling 3.0 API with Native Audio & Multi-Shot Storytelling",
         capabilities: ["video"],
         provider: 'kie',
         costPerGeneration: 55,

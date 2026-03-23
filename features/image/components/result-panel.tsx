@@ -1,6 +1,6 @@
 'use client';
 
-import { ImageIcon, Loader2, CheckCircle2, XCircle, Download, Sparkles } from 'lucide-react';
+import { ImageIcon, Loader2, CheckCircle2, XCircle, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import type { ImageGenerationState } from '../types';
@@ -20,22 +20,10 @@ export function ResultPanel({ state, mode, onRetry, onNewImage, onUseAsReference
       <Label className="text-sm font-medium">Result</Label>
 
       {state.status === 'idle' && (
-        <>
-          <div className="flex-1 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-3 text-muted-foreground min-h-64">
-            <ImageIcon className="h-10 w-10 opacity-20" />
-            <p className="text-sm">Your generated image will appear here</p>
-          </div>
-          <div className="rounded-lg bg-muted/30 p-4 space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prompt tips</p>
-            <ul className="text-xs text-muted-foreground space-y-1">
-              <li>• <strong>Subject:</strong> Be specific about who or what is in the image</li>
-              <li>• <strong>Style:</strong> Add "photorealistic", "watercolor", "3D animation"</li>
-              <li>• <strong>Composition:</strong> "wide shot", "close-up", "portrait"</li>
-              <li>• <strong>Editing:</strong> Use direct commands — "Change the tie to green"</li>
-              <li>• Use the <Sparkles className="inline h-3 w-3" /> Prompt builder for guided input</li>
-            </ul>
-          </div>
-        </>
+        <div className="flex-1 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-3 text-muted-foreground min-h-64">
+          <ImageIcon className="h-10 w-10 opacity-20" />
+          <p className="text-sm">Your generated image will appear here</p>
+        </div>
       )}
 
       {state.status === 'polling' && (
