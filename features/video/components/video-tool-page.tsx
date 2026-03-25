@@ -12,6 +12,70 @@ import { VIDEO_MODEL_CONFIGS, type VideoModelConfig } from '../types';
 import { ModelSelector } from '@/features/image/components/model-selector';
 import { VideoGenerationControls } from './video-generation-controls';
 import { FileUploadZone } from '@/components/ui/file-upload-zone';
+import { TemplateStrip, type TemplateItem } from '@/components/ui/template-strip';
+
+interface VideoTemplate extends TemplateItem {
+  prompt: string;
+  modelId: string;
+  aspectRatio: string;
+}
+
+const VIDEO_TEMPLATES: VideoTemplate[] = [
+  {
+    id: 'nature',
+    title: 'Nature Scene',
+    tag: '16:9 · Timelapse',
+    gradient: 'linear-gradient(135deg, #4ade80 0%, #0d9488 100%)',
+    prompt: 'Cinematic timelapse of golden clouds rolling over snow-capped mountain peaks at sunrise, dramatic lighting',
+    modelId: 'veo3_fast',
+    aspectRatio: '16:9',
+  },
+  {
+    id: 'cinematic',
+    title: 'Cinematic',
+    tag: '16:9 · Drama',
+    gradient: 'linear-gradient(135deg, #475569 0%, #0f172a 100%)',
+    prompt: 'A lone astronaut walking slowly across a barren red planet, slow motion, dust swirling in the wind, epic scale',
+    modelId: 'veo3_fast',
+    aspectRatio: '16:9',
+  },
+  {
+    id: 'urban',
+    title: 'Urban Street',
+    tag: '16:9 · Neon',
+    gradient: 'linear-gradient(135deg, #f59e0b 0%, #dc2626 100%)',
+    prompt: 'Busy Tokyo street at night, neon lights, rain, people with umbrellas, wide angle, cinematic color grade',
+    modelId: 'veo3_fast',
+    aspectRatio: '16:9',
+  },
+  {
+    id: 'ocean',
+    title: 'Ocean Waves',
+    tag: '16:9 · Calm',
+    gradient: 'linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%)',
+    prompt: 'Calm turquoise ocean waves rolling onto a white sandy beach at sunset, aerial drone shot',
+    modelId: 'veo3_fast',
+    aspectRatio: '16:9',
+  },
+  {
+    id: 'abstract',
+    title: 'Abstract',
+    tag: '1:1 · Motion',
+    gradient: 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)',
+    prompt: 'Abstract fluid simulation, iridescent colors morphing and flowing, hypnotic motion, 4K',
+    modelId: 'veo3_fast',
+    aspectRatio: '1:1',
+  },
+  {
+    id: 'product',
+    title: 'Product Demo',
+    tag: '1:1 · Clean',
+    gradient: 'linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%)',
+    prompt: 'A luxury watch slowly rotating on a reflective surface, studio lighting, product advertisement style',
+    modelId: 'veo3_fast',
+    aspectRatio: '1:1',
+  },
+];
 
 type Props = { manifest: ToolManifest };
 
@@ -116,8 +180,22 @@ function VideoToolPageInner({ manifest }: Props) {
         <p className="text-sm text-muted-foreground mt-0.5">{manifest.description}</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-2 h-full">
+      <div className="flex-1 overflow-y-auto flex flex-col">
+        {/* Template strip — full width above both columns */}
+        <div className="border-b px-6 py-4">
+          <TemplateStrip
+            templates={VIDEO_TEMPLATES}
+            onSelect={id => {
+              const t = VIDEO_TEMPLATES.find(x => x.id === id);
+              if (!t) return;
+              setPrompt(t.prompt);
+              setModelId(t.modelId);
+              setAspectRatio(t.aspectRatio);
+            }}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 flex-1">
 
           {/* Left: Controls */}
           <div className="p-6 space-y-6 border-r">

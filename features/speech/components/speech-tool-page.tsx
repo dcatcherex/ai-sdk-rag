@@ -13,6 +13,72 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import type { ToolManifest } from '@/features/tools/registry/types';
 import { useGenerationPoll } from '@/lib/hooks/use-generation-poll';
 import { ELEVENLABS_VOICES } from '../types';
+import { TemplateStrip, type TemplateItem } from '@/components/ui/template-strip';
+
+interface SpeechTemplate extends TemplateItem {
+  text: string;
+  voiceId: string;
+  stability?: number;
+  similarityBoost?: number;
+  speed?: number;
+}
+
+const SPEECH_TEMPLATES: SpeechTemplate[] = [
+  {
+    id: 'narrator',
+    title: 'Narrator',
+    tag: 'Formal · Female',
+    gradient: 'linear-gradient(135deg, #1e40af 0%, #0f172a 100%)',
+    text: 'In a world where technology and humanity converge, one question echoes above all others: what does it truly mean to be alive? Join us as we explore the frontiers of artificial intelligence.',
+    voiceId: '21m00Tcm4TlvDq8ikWAM', // Rachel
+    stability: 0.7,
+    similarityBoost: 0.8,
+  },
+  {
+    id: 'podcast',
+    title: 'Podcast Host',
+    tag: 'Casual · Male',
+    gradient: 'linear-gradient(135deg, #059669 0%, #065f46 100%)',
+    text: "Hey everyone, welcome back to the show! Today we've got an incredible guest who's going to blow your mind. Stick around because this is one episode you definitely don't want to miss.",
+    voiceId: 'TxGEqnHWrfWFTfGW9XjX', // Josh
+    stability: 0.5,
+    similarityBoost: 0.75,
+    speed: 1.05,
+  },
+  {
+    id: 'story',
+    title: 'Bedtime Story',
+    tag: 'Warm · Female',
+    gradient: 'linear-gradient(135deg, #f59e0b 0%, #b45309 100%)',
+    text: "Once upon a time, in a tiny village at the edge of an enchanted forest, there lived a little fox who dreamed of seeing the stars up close. Every night, she would climb the tallest hill and reach toward the sky.",
+    voiceId: 'EXAVITQu4vr4xnSDxMaL', // Bella
+    stability: 0.6,
+    similarityBoost: 0.7,
+    speed: 0.9,
+  },
+  {
+    id: 'news',
+    title: 'News Anchor',
+    tag: 'Authoritative · Male',
+    gradient: 'linear-gradient(135deg, #64748b 0%, #1e293b 100%)',
+    text: 'Good evening. Tonight on the program: scientists announce a major breakthrough in renewable energy storage, markets reach record highs for the third consecutive week, and an exclusive report on urban green spaces.',
+    voiceId: 'pNInz6obpgDQGcFmaJgB', // Adam
+    stability: 0.8,
+    similarityBoost: 0.85,
+    speed: 1.0,
+  },
+  {
+    id: 'promo',
+    title: 'Ad / Promo',
+    tag: 'Energetic · Female',
+    gradient: 'linear-gradient(135deg, #e11d48 0%, #9333ea 100%)',
+    text: "Introducing the app that changes everything. Faster, smarter, beautifully designed. Download free today and discover why millions of people can't imagine life without it.",
+    voiceId: 'MF3mGyEYCl7XYWbV9V6O', // Elli
+    stability: 0.45,
+    similarityBoost: 0.8,
+    speed: 1.1,
+  },
+];
 
 type Props = { manifest: ToolManifest };
 
@@ -124,11 +190,28 @@ function SpeechToolPageInner({ manifest }: Props) {
         <p className="text-sm text-muted-foreground mt-0.5">{manifest.description}</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-2 h-full">
+      <div className="flex-1 overflow-y-auto flex flex-col">
+        {/* Template strip — full width above both columns */}
+        <div className="border-b px-6 py-4">
+          <TemplateStrip
+            templates={SPEECH_TEMPLATES}
+            onSelect={id => {
+              const t = SPEECH_TEMPLATES.find(x => x.id === id);
+              if (!t) return;
+              setText(t.text);
+              setVoice(t.voiceId);
+              if (t.stability !== undefined) setStability(t.stability);
+              if (t.similarityBoost !== undefined) setSimilarityBoost(t.similarityBoost);
+              if (t.speed !== undefined) setSpeed(t.speed);
+              setActiveTab('tts');
+            }}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 flex-1">
 
           {/* Left: Controls */}
-          <div className="p-6 border-r">
+          <div className="p-6 border-r space-y-6">
             <Tabs value={activeTab} onValueChange={v => { setActiveTab(v); reset(); }}>
               <TabsList className="mb-6">
                 <TabsTrigger value="tts">Text to Speech</TabsTrigger>

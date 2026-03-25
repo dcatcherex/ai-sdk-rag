@@ -14,6 +14,75 @@ import type { ToolManifest } from '@/features/tools/registry/types';
 import { useGenerationPoll } from '@/lib/hooks/use-generation-poll';
 import { MUSIC_MODEL_CONFIGS } from '../types';
 import { ModelSelector } from '@/features/image/components/model-selector';
+import { TemplateStrip, type TemplateItem } from '@/components/ui/template-strip';
+
+interface MusicTemplate extends TemplateItem {
+  prompt: string;
+  modelId: string;
+  style?: string;
+  instrumental?: boolean;
+}
+
+const MUSIC_TEMPLATES: MusicTemplate[] = [
+  {
+    id: 'lofi',
+    title: 'Lo-Fi Chill',
+    tag: 'Instrumental · Calm',
+    gradient: 'linear-gradient(135deg, #6366f1 0%, #312e81 100%)',
+    prompt: 'Cozy lo-fi hip hop study beats, warm vinyl crackle, mellow piano, gentle rain ambience',
+    modelId: 'suno-v4.5',
+    instrumental: true,
+    style: 'lo-fi hip hop, chill, mellow',
+  },
+  {
+    id: 'epic',
+    title: 'Epic Orchestral',
+    tag: 'Instrumental · Powerful',
+    gradient: 'linear-gradient(135deg, #dc2626 0%, #1e1b4b 100%)',
+    prompt: 'Epic cinematic orchestral score, rising strings, powerful brass, thunderous drums, heroic theme',
+    modelId: 'suno-v4.5',
+    instrumental: true,
+    style: 'orchestral, cinematic, epic',
+  },
+  {
+    id: 'pop',
+    title: 'Pop Song',
+    tag: 'Vocal · Upbeat',
+    gradient: 'linear-gradient(135deg, #f43f5e 0%, #fb923c 100%)',
+    prompt: 'Upbeat summer pop song about chasing dreams and living in the moment, catchy chorus, feel-good energy',
+    modelId: 'suno-v4.5',
+    style: 'pop, upbeat, summer vibes',
+  },
+  {
+    id: 'electronic',
+    title: 'Electronic',
+    tag: 'Instrumental · Dance',
+    gradient: 'linear-gradient(135deg, #06b6d4 0%, #7c3aed 100%)',
+    prompt: 'Driving electronic dance track with pulsing synth bass, euphoric build-up, festival drop',
+    modelId: 'suno-v5',
+    instrumental: true,
+    style: 'EDM, electronic, dance',
+  },
+  {
+    id: 'jazz',
+    title: 'Jazz Vibes',
+    tag: 'Instrumental · Smooth',
+    gradient: 'linear-gradient(135deg, #d97706 0%, #92400e 100%)',
+    prompt: 'Smooth late-night jazz with walking bass, brushed drums, mellow saxophone improvisation',
+    modelId: 'suno-v4.5',
+    instrumental: true,
+    style: 'jazz, smooth, late night',
+  },
+  {
+    id: 'acoustic',
+    title: 'Acoustic Folk',
+    tag: 'Vocal · Warm',
+    gradient: 'linear-gradient(135deg, #84cc16 0%, #713f12 100%)',
+    prompt: 'Heartfelt acoustic folk song about coming home, fingerpicked guitar, warm vocals, storytelling lyrics',
+    modelId: 'suno-v4.5',
+    style: 'folk, acoustic, storytelling',
+  },
+];
 
 type Props = { manifest: ToolManifest };
 
@@ -102,8 +171,23 @@ function AudioToolPageInner({ manifest }: Props) {
         <p className="text-sm text-muted-foreground mt-0.5">{manifest.description}</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-2 h-full">
+      <div className="flex-1 overflow-y-auto flex flex-col">
+        {/* Template strip — full width above both columns */}
+        <div className="border-b px-6 py-4">
+          <TemplateStrip
+            templates={MUSIC_TEMPLATES}
+            onSelect={id => {
+              const t = MUSIC_TEMPLATES.find(x => x.id === id);
+              if (!t) return;
+              setPrompt(t.prompt);
+              setModel(t.modelId);
+              if (t.instrumental !== undefined) setInstrumental(t.instrumental);
+              if (t.style) { setCustomMode(true); setStyle(t.style); }
+            }}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 flex-1">
 
           {/* Left: Controls */}
           <div className="p-6 space-y-6 border-r">
