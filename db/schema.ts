@@ -168,11 +168,9 @@ export const mediaAsset = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     threadId: text("thread_id")
-      .notNull()
-      .references(() => chatThread.id, { onDelete: "cascade" }),
+      .references(() => chatThread.id, { onDelete: "set null" }),
     messageId: text("message_id")
-      .notNull()
-      .references(() => chatMessage.id, { onDelete: "cascade" }),
+      .references(() => chatMessage.id, { onDelete: "set null" }),
     parentAssetId: text("parent_asset_id"),
     rootAssetId: text("root_asset_id"),
     version: integer("version").default(1).notNull(),

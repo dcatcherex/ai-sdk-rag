@@ -14,17 +14,18 @@ class StorageService {
         bucketName: string,
         sourceUrl: string,
         options: { fetchTimeout?: number } = {},
-    ): Promise<{ publicUrl: string }> {
+    ): Promise<{ publicUrl: string; r2Key: string; mimeType: string; sizeBytes: number }> {
         const response = await safeFetch(sourceUrl);
         if (!response.ok) throw new Error(`Failed to fetch from URL: ${response.status}`);
 
         const buffer = Buffer.from(await response.arrayBuffer());
         const contentType = response.headers.get('content-type') || 'application/octet-stream';
-        const ext = contentType.split('/')[1]?.split(';')[0] || 'bin';
+        const mimeType = contentType.split(';')[0]!.trim();
+        const ext = mimeType.split('/')[1]?.split(';')[0] || 'bin';
         const key = `${bucketName}/gen-${Date.now()}-${nanoid(7)}.${ext}`;
 
         const { url } = await uploadPublicObject({ key, body: buffer, contentType });
-        return { publicUrl: url };
+        return { publicUrl: url, r2Key: key, mimeType, sizeBytes: buffer.length };
     }
 
     /**

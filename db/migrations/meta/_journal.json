@@ -99,6 +99,13 @@
       "when": 1742448000000,
       "tag": "0020_recipient_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1742880000000,
+      "tag": "0021_media_asset_nullable_refs",
+      "breakpoints": true
     }
   ]
 }

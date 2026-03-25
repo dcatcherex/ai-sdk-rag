@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
+import { nanoid } from 'nanoid';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { toolRun } from '@/db/schema';
+import { toolRun, mediaAsset } from '@/db/schema';
 import { validateUrl } from '@/lib/security/ssrfProtection';
+
+const TOOL_SLUG_TO_MEDIA_TYPE: Record<string, string> = {
+  image: 'image',
+  video: 'video',
+  audio: 'audio',
+  speech: 'audio',
+};
 
 /**
  * POST /api/generate/persist
@@ -78,11 +86,23 @@ export async function POST(req: NextRequest) {
                 bucket = STORAGE_BUCKETS.GENERATED_IMAGES.name;
             }
 
-            const { publicUrl: finalUrl } = await storage.uploadFromUrl(bucket, sourceUrl);
+            const { publicUrl: finalUrl, r2Key, mimeType, sizeBytes } = await storage.uploadFromUrl(bucket, sourceUrl);
 
             await db.update(toolRun)
                 .set({ outputJson: { ...outputJson, output: finalUrl } })
                 .where(eq(toolRun.id, generationId));
+
+            // Insert into mediaAsset so it appears in the gallery
+            const mediaType = TOOL_SLUG_TO_MEDIA_TYPE[type] ?? 'image';
+            await db.insert(mediaAsset).values({
+                id: nanoid(),
+                userId: record.userId,
+                type: mediaType,
+                r2Key,
+                url: finalUrl,
+                mimeType,
+                sizeBytes,
+            }).onConflictDoNothing();
 
             console.log(`✅ [persist] R2 upload done for ${generationId}: ${finalUrl}`);
             return NextResponse.json({ success: true, publicUrl: finalUrl });
