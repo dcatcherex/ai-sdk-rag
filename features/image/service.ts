@@ -34,15 +34,62 @@ function buildKieInput(params: GenerateImageInput): Record<string, unknown> {
         ...(imageUrls.length > 0 ? { image_input: imageUrls } : {}),
       };
 
+    case 'nano-banana-pro':
+      return {
+        prompt,
+        aspect_ratio: aspectRatio ?? '1:1',
+        resolution,
+        output_format: outputFormat === 'jpeg' ? 'jpg' : outputFormat,
+        ...(imageUrls.length > 0 ? { image_input: imageUrls } : {}),
+      };
+
+    case 'google/nano-banana':
+      return {
+        prompt,
+        image_size: aspectRatio ?? '1:1',
+        output_format: outputFormat === 'jpg' ? 'jpeg' : outputFormat,
+      };
+
+    case 'google/nano-banana-edit':
+      return {
+        prompt,
+        image_urls: imageUrls,
+        image_size: aspectRatio ?? '1:1',
+        output_format: outputFormat === 'jpg' ? 'jpeg' : outputFormat,
+      };
+
     case 'gpt-image/1.5-text-to-image':
       return { prompt, aspect_ratio: aspectRatio ?? '1:1', quality };
 
     case 'gpt-image/1.5-image-to-image':
       return { prompt, aspect_ratio: aspectRatio ?? '1:1', quality, input_urls: imageUrls };
 
+    case 'seedream/5-lite-text-to-image':
+      return { prompt, ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}) };
+
+    case 'seedream/5-lite-image-to-image':
+      return { prompt, input_urls: imageUrls, ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}) };
+
     case 'z-image':
       return {
         prompt,
+        image_size: aspectRatio ?? '1:1',
+        output_format: outputFormat === 'jpg' ? 'jpeg' : outputFormat,
+        ...(seed !== undefined ? { seed } : {}),
+      };
+
+    case 'qwen2/text-to-image':
+      return {
+        prompt,
+        image_size: aspectRatio ?? '1:1',
+        output_format: outputFormat === 'jpg' ? 'jpeg' : outputFormat,
+        ...(seed !== undefined ? { seed } : {}),
+      };
+
+    case 'qwen2/image-edit':
+      return {
+        prompt,
+        image_url: imageUrls,
         image_size: aspectRatio ?? '1:1',
         output_format: outputFormat === 'jpg' ? 'jpeg' : outputFormat,
         ...(seed !== undefined ? { seed } : {}),
@@ -56,9 +103,6 @@ function buildKieInput(params: GenerateImageInput): Record<string, unknown> {
         output_format: outputFormat === 'jpg' ? 'jpeg' : outputFormat,
         ...(seed !== undefined ? { seed } : {}),
       };
-
-    case 'google/nano-banana-edit':
-      return { prompt, image_urls: imageUrls };
 
     case 'grok-imagine/text-to-image':
       return { prompt, ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}) };

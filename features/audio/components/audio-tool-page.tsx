@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Music2, Loader2, CheckCircle2, XCircle, Play } from 'lucide-react';
+import { Music2, Loader2, CheckCircle2, XCircle, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -25,7 +25,7 @@ function SliderField({ label, value, min, max, step, onChange, disabled }: {
     <div className="space-y-2">
       <div className="flex justify-between text-sm">
         <Label>{label}</Label>
-        <span className="text-muted-foreground">{value.toFixed(2)}</span>
+        <span className="text-muted-foreground tabular-nums">{value.toFixed(2)}</span>
       </div>
       <Slider
         min={min} max={max} step={step}
@@ -96,104 +96,152 @@ function AudioToolPageInner({ manifest }: Props) {
 
   return (
     <div className="flex h-full flex-col">
+      {/* Header */}
       <div className="border-b px-6 py-4">
         <h1 className="text-xl font-semibold tracking-tight">{manifest.title}</h1>
         <p className="text-sm text-muted-foreground mt-0.5">{manifest.description}</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 max-w-2xl">
-        <div className="space-y-2">
-          <Label htmlFor="prompt">Lyrics / Description</Label>
-          <Textarea id="prompt" placeholder="Describe the music or paste lyrics…" rows={4}
-            value={prompt} onChange={e => setPrompt(e.target.value)} disabled={isPolling} />
-        </div>
+      <div className="flex-1 overflow-y-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-2 h-full">
 
-        <div className={isPolling ? 'pointer-events-none opacity-60' : ''}>
-          <ModelSelector
-            models={MUSIC_MODEL_CONFIGS}
-            selectedId={model}
-            onSelect={setModel}
-          />
-        </div>
-
-        <div className="flex gap-6">
-          <div className="flex items-center gap-2">
-            <Switch id="custom" checked={customMode} onCheckedChange={setCustomMode} disabled={isPolling} />
-            <Label htmlFor="custom">Custom mode</Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch id="instrumental" checked={instrumental} onCheckedChange={setInstrumental} disabled={isPolling} />
-            <Label htmlFor="instrumental">Instrumental</Label>
-          </div>
-        </div>
-
-        {customMode && (
-          <div className="space-y-4 rounded-lg border p-4">
+          {/* Left: Controls */}
+          <div className="p-6 space-y-6 border-r">
+            {/* Lyrics / Description */}
             <div className="space-y-2">
-              <Label htmlFor="style">Style</Label>
-              <Input id="style" placeholder="e.g. lo-fi hip hop, dreamy, upbeat"
-                value={style} onChange={e => setStyle(e.target.value)} disabled={isPolling} />
+              <Label htmlFor="prompt">Lyrics / Description</Label>
+              <Textarea id="prompt" placeholder="Describe the music or paste lyrics…" rows={4}
+                value={prompt} onChange={e => setPrompt(e.target.value)} disabled={isPolling} />
             </div>
+
+            {/* Model */}
+            <div className={isPolling ? 'pointer-events-none opacity-60' : ''}>
+              <ModelSelector models={MUSIC_MODEL_CONFIGS} selectedId={model} onSelect={setModel} />
+            </div>
+
+            {/* Mode toggles */}
+            <div className="flex gap-6">
+              <div className="flex items-center gap-2">
+                <Switch id="custom" checked={customMode} onCheckedChange={setCustomMode} disabled={isPolling} />
+                <Label htmlFor="custom">Custom mode</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch id="instrumental" checked={instrumental} onCheckedChange={setInstrumental} disabled={isPolling} />
+                <Label htmlFor="instrumental">Instrumental</Label>
+              </div>
+            </div>
+
+            {/* Custom mode fields */}
+            {customMode && (
+              <div className="space-y-4 rounded-lg border p-4">
+                <div className="space-y-2">
+                  <Label htmlFor="style">Style</Label>
+                  <Input id="style" placeholder="e.g. lo-fi hip hop, dreamy, upbeat"
+                    value={style} onChange={e => setStyle(e.target.value)} disabled={isPolling} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="title">Title</Label>
+                  <Input id="title" placeholder="Song title"
+                    value={title} onChange={e => setTitle(e.target.value)} disabled={isPolling} />
+                </div>
+              </div>
+            )}
+
+            {/* Vocal gender */}
+            {!instrumental && (
+              <div className="space-y-2">
+                <Label>Vocal gender <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Select value={vocalGender || 'any'} onValueChange={v => setVocalGender(v === 'any' ? '' : v)} disabled={isPolling}>
+                  <SelectTrigger><SelectValue placeholder="Any" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">Any</SelectItem>
+                    <SelectItem value="f">Female</SelectItem>
+                    <SelectItem value="m">Male</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Negative tags */}
             <div className="space-y-2">
-              <Label htmlFor="title">Title</Label>
-              <Input id="title" placeholder="Song title"
-                value={title} onChange={e => setTitle(e.target.value)} disabled={isPolling} />
+              <Label htmlFor="neg">Negative tags <span className="text-muted-foreground font-normal">(avoid)</span></Label>
+              <Input id="neg" placeholder="e.g. heavy metal, distortion"
+                value={negativeTags} onChange={e => setNegativeTags(e.target.value)} disabled={isPolling} />
             </div>
-          </div>
-        )}
 
-        {!instrumental && (
-          <div className="space-y-2">
-            <Label>Vocal gender (optional)</Label>
-            <Select value={vocalGender || 'any'} onValueChange={v => setVocalGender(v === 'any' ? '' : v)} disabled={isPolling}>
-              <SelectTrigger><SelectValue placeholder="Any" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="any">Any</SelectItem>
-                <SelectItem value="f">Female</SelectItem>
-                <SelectItem value="m">Male</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        <div className="space-y-2">
-          <Label htmlFor="neg">Negative tags (avoid)</Label>
-          <Input id="neg" placeholder="e.g. heavy metal, distortion"
-            value={negativeTags} onChange={e => setNegativeTags(e.target.value)} disabled={isPolling} />
-        </div>
-
-        <div className="space-y-4">
-          <SliderField label="Style weight" value={styleWeight} min={0} max={1} step={0.05}
-            onChange={setStyleWeight} disabled={isPolling} />
-          <SliderField label="Weirdness" value={weirdness} min={0} max={1} step={0.05}
-            onChange={setWeirdness} disabled={isPolling} />
-        </div>
-
-        <Button onClick={handleGenerate} disabled={isPolling || !prompt.trim()} className="w-full">
-          {isPolling
-            ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
-            : <><Music2 className="mr-2 h-4 w-4" />Generate Music</>}
-        </Button>
-
-        {state.status === 'success' && state.output && (
-          <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-            <div className="flex items-center gap-2 text-green-600 dark:text-green-400 font-medium">
-              <CheckCircle2 className="h-4 w-4" /> Generation complete
+            {/* Sliders */}
+            <div className="space-y-4">
+              <SliderField label="Style weight" value={styleWeight} min={0} max={1} step={0.05}
+                onChange={setStyleWeight} disabled={isPolling} />
+              <SliderField label="Weirdness" value={weirdness} min={0} max={1} step={0.05}
+                onChange={setWeirdness} disabled={isPolling} />
             </div>
-            <audio controls src={state.output} className="w-full" />
-            <a href={state.output} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1 text-sm text-primary hover:underline">
-              <Play className="h-3 w-3" /> Open audio
-            </a>
-          </div>
-        )}
 
-        {(state.status === 'failed' || state.status === 'timeout') && (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 flex items-start gap-2 text-destructive text-sm">
-            <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
-            {state.error ?? 'Generation failed. Please try again.'}
+            <Button onClick={handleGenerate} disabled={isPolling || !prompt.trim()} className="w-full" size="lg">
+              {isPolling
+                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
+                : <><Music2 className="mr-2 h-4 w-4" />Generate Music</>}
+            </Button>
           </div>
-        )}
+
+          {/* Right: Result */}
+          <div className="p-6 flex flex-col gap-4">
+            <Label className="text-sm font-medium">Result</Label>
+
+            {state.status === 'idle' && (
+              <div className="flex-1 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-3 text-muted-foreground min-h-64">
+                <Music2 className="h-10 w-10 opacity-20" />
+                <p className="text-sm">Your generated music will appear here</p>
+                <p className="text-xs opacity-60">Suno generates two tracks per request</p>
+              </div>
+            )}
+
+            {state.status === 'polling' && (
+              <div className="flex-1 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-3 text-muted-foreground min-h-64">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <div className="text-center">
+                  <p className="text-sm font-medium text-foreground">Generating your music…</p>
+                  <p className="text-xs mt-1">This usually takes 30–60 seconds</p>
+                </div>
+              </div>
+            )}
+
+            {state.status === 'success' && state.output && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
+                  <CheckCircle2 className="h-4 w-4" /> Generation complete
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                  <audio controls src={state.output} className="w-full" />
+                  <a
+                    href={state.output}
+                    download="generated-music"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Download track
+                  </a>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => { reset(); setPrompt(''); }}>
+                  Generate new
+                </Button>
+              </div>
+            )}
+
+            {(state.status === 'failed' || state.status === 'timeout') && (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 flex items-start gap-2 text-destructive text-sm">
+                <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium">Generation failed</p>
+                  <p className="mt-0.5 text-xs">{state.error ?? 'Please try again.'}</p>
+                  <Button variant="outline" size="sm" className="mt-2" onClick={reset}>Try again</Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+        </div>
       </div>
     </div>
   );

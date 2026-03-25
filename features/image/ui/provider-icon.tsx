@@ -9,7 +9,8 @@ const LOGO_SLUG: Record<string, string> = {
   qwen: 'qwen',
   xai: 'xai',
   google: 'google',
-  suno: 'google',  // Suno has no models.dev logo; fallback to google
+  suno: 'google',       // Suno has no models.dev logo; fallback to google
+  bytedance: 'qwen',    // ByteDance (Seedream) — use Qwen as closest fallback
   anthropic: 'anthropic',
   mistral: 'mistral',
 };

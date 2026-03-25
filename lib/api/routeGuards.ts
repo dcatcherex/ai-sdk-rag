@@ -22,8 +22,8 @@ export const enforceRateLimit = async (userId: string) => {
     return null;
 };
 
-export const enforceCredits = async (userId: string, modelId: string) => {
-    const creditResult = await checkAndDeductCredits(userId, modelId);
+export const enforceCredits = async (userId: string, modelId: string, costOverride?: number) => {
+    const creditResult = await checkAndDeductCredits(userId, modelId, costOverride);
     if (creditResult.error === 'INSUFFICIENT_CREDITS') {
         return NextResponse.json(
             {

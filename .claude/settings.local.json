@@ -4,7 +4,8 @@
       "Bash(xargs grep:*)",
       "Bash(node:*)",
       "Bash(cd:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(pnpm exec:*)"
     ]
   }
 }

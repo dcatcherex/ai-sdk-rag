@@ -34,6 +34,7 @@ export async function triggerVideoGeneration(
     seeds,
     duration,
     quality,
+    resolution,
   } = params;
 
   // Upload base64 images to R2 and return public URLs
@@ -97,14 +98,19 @@ export async function triggerVideoGeneration(
       input.aspect_ratio = aspectRatio;
     }
 
-    // Duration (n_frames)
+    // Duration (param name differs: Sora/Kling use 'n_frames', Grok uses 'duration')
     if (videoOptions.duration && duration) {
-      input.n_frames = duration;
+      input[videoOptions.durationParam ?? 'n_frames'] = duration;
     }
 
-    // Quality param (name differs: Sora uses 'size', Kling uses 'mode')
+    // Quality param (name differs: Sora uses 'size', Kling uses 'mode', Grok uses 'mode')
     if (videoOptions.quality && quality) {
       input[videoOptions.quality.param] = quality;
+    }
+
+    // Resolution (Grok: 480p/720p)
+    if (videoOptions.resolution && resolution) {
+      input[videoOptions.resolution.param] = resolution;
     }
 
     // Images (for img2vid and storyboard models)

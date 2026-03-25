@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Mic2, Plus, Trash2, Loader2, CheckCircle2, XCircle, Play } from 'lucide-react';
+import { Mic2, Plus, Trash2, Loader2, CheckCircle2, XCircle, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -26,7 +26,7 @@ function SliderField({ label, value, min, max, step, onChange, disabled }: {
     <div className="space-y-2">
       <div className="flex justify-between text-sm">
         <Label>{label}</Label>
-        <span className="text-muted-foreground">{value.toFixed(2)}</span>
+        <span className="text-muted-foreground tabular-nums">{value.toFixed(2)}</span>
       </div>
       <Slider
         min={min} max={max} step={step}
@@ -116,124 +116,169 @@ function SpeechToolPageInner({ manifest }: Props) {
 
   const isPolling = state.status === 'polling';
 
-  const ResultPanel = () => (
-    <>
-      {state.status === 'success' && state.output && (
-        <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-          <div className="flex items-center gap-2 text-green-600 dark:text-green-400 font-medium">
-            <CheckCircle2 className="h-4 w-4" /> Generation complete
-          </div>
-          <audio controls src={state.output} className="w-full" />
-          <a href={state.output} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-1 text-sm text-primary hover:underline">
-            <Play className="h-3 w-3" /> Open audio
-          </a>
-        </div>
-      )}
-      {(state.status === 'failed' || state.status === 'timeout') && (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 flex items-start gap-2 text-destructive text-sm">
-          <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
-          {state.error ?? 'Generation failed. Please try again.'}
-        </div>
-      )}
-    </>
-  );
-
   return (
     <div className="flex h-full flex-col">
+      {/* Header */}
       <div className="border-b px-6 py-4">
         <h1 className="text-xl font-semibold tracking-tight">{manifest.title}</h1>
         <p className="text-sm text-muted-foreground mt-0.5">{manifest.description}</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 max-w-2xl">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6">
-            <TabsTrigger value="tts">Text to Speech</TabsTrigger>
-            <TabsTrigger value="dialogue">Dialogue</TabsTrigger>
-          </TabsList>
+      <div className="flex-1 overflow-y-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-2 h-full">
 
-          <TabsContent value="tts" className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="tts-text">Text</Label>
-              <Textarea id="tts-text" rows={5} placeholder="Enter text to convert to speech…"
-                value={text} onChange={e => setText(e.target.value)} disabled={isPolling} />
-            </div>
+          {/* Left: Controls */}
+          <div className="p-6 border-r">
+            <Tabs value={activeTab} onValueChange={v => { setActiveTab(v); reset(); }}>
+              <TabsList className="mb-6">
+                <TabsTrigger value="tts">Text to Speech</TabsTrigger>
+                <TabsTrigger value="dialogue">Dialogue</TabsTrigger>
+              </TabsList>
 
-            <div className="space-y-2">
-              <Label>Voice</Label>
-              <Select value={voice} onValueChange={setVoice} disabled={isPolling}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {ELEVENLABS_VOICES.map(v => (
-                    <SelectItem key={v.id} value={v.id}>
-                      {v.name} ({v.gender === 'f' ? 'Female' : 'Male'})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              {/* ── TTS ── */}
+              <TabsContent value="tts" className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="tts-text">Text</Label>
+                  <Textarea id="tts-text" rows={5} placeholder="Enter text to convert to speech…"
+                    value={text} onChange={e => setText(e.target.value)} disabled={isPolling} />
+                </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <SliderField label="Stability" value={stability} min={0} max={1} step={0.05} onChange={setStability} disabled={isPolling} />
-              <SliderField label="Similarity boost" value={similarityBoost} min={0} max={1} step={0.05} onChange={setSimilarityBoost} disabled={isPolling} />
-              <SliderField label="Style" value={styleVal} min={0} max={1} step={0.05} onChange={setStyleVal} disabled={isPolling} />
-              <SliderField label="Speed" value={speed} min={0.7} max={1.2} step={0.05} onChange={setSpeed} disabled={isPolling} />
-            </div>
-
-            <Button onClick={handleTtsGenerate} disabled={isPolling || !text.trim()} className="w-full">
-              {isPolling ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</> : <><Mic2 className="mr-2 h-4 w-4" />Generate Speech</>}
-            </Button>
-            <ResultPanel />
-          </TabsContent>
-
-          <TabsContent value="dialogue" className="space-y-5">
-            <div className="space-y-3">
-              {lines.map((line, i) => (
-                <div key={i} className="rounded-lg border p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-muted-foreground">Line {i + 1}</span>
-                    {lines.length > 1 && (
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeLine(i)} disabled={isPolling}>
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    )}
-                  </div>
-                  <Select value={line.voice} onValueChange={v => updateLine(i, 'voice', v)} disabled={isPolling}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <div className="space-y-2">
+                  <Label>Voice</Label>
+                  <Select value={voice} onValueChange={setVoice} disabled={isPolling}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {ELEVENLABS_VOICES.map(v => (
-                        <SelectItem key={v.id} value={v.id} className="text-xs">
-                          {v.name} ({v.gender === 'f' ? 'F' : 'M'})
+                        <SelectItem key={v.id} value={v.id}>
+                          {v.name} ({v.gender === 'f' ? 'Female' : 'Male'})
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <Textarea rows={2} placeholder="Line text…" className="text-sm"
-                    value={line.text} onChange={e => updateLine(i, 'text', e.target.value)} disabled={isPolling} />
                 </div>
-              ))}
-              <Button variant="outline" size="sm" onClick={addLine} disabled={isPolling}>
-                <Plus className="mr-1 h-3 w-3" />Add line
-              </Button>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="lang">Language code</Label>
-                <Input id="lang" value={languageCode} onChange={e => setLanguageCode(e.target.value)}
-                  placeholder="en" disabled={isPolling} />
+                <div className="grid grid-cols-2 gap-4">
+                  <SliderField label="Stability" value={stability} min={0} max={1} step={0.05} onChange={setStability} disabled={isPolling} />
+                  <SliderField label="Similarity boost" value={similarityBoost} min={0} max={1} step={0.05} onChange={setSimilarityBoost} disabled={isPolling} />
+                  <SliderField label="Style" value={styleVal} min={0} max={1} step={0.05} onChange={setStyleVal} disabled={isPolling} />
+                  <SliderField label="Speed" value={speed} min={0.7} max={1.2} step={0.05} onChange={setSpeed} disabled={isPolling} />
+                </div>
+
+                <Button onClick={handleTtsGenerate} disabled={isPolling || !text.trim()} className="w-full" size="lg">
+                  {isPolling
+                    ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
+                    : <><Mic2 className="mr-2 h-4 w-4" />Generate Speech</>}
+                </Button>
+              </TabsContent>
+
+              {/* ── Dialogue ── */}
+              <TabsContent value="dialogue" className="space-y-5">
+                <div className="space-y-3">
+                  {lines.map((line, i) => (
+                    <div key={i} className="rounded-lg border p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-muted-foreground">Line {i + 1}</span>
+                        {lines.length > 1 && (
+                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeLine(i)} disabled={isPolling}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                      <Select value={line.voice} onValueChange={v => updateLine(i, 'voice', v)} disabled={isPolling}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {ELEVENLABS_VOICES.map(v => (
+                            <SelectItem key={v.id} value={v.id} className="text-xs">
+                              {v.name} ({v.gender === 'f' ? 'F' : 'M'})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Textarea rows={2} placeholder="Line text…" className="text-sm"
+                        value={line.text} onChange={e => updateLine(i, 'text', e.target.value)} disabled={isPolling} />
+                    </div>
+                  ))}
+                  <Button variant="outline" size="sm" onClick={addLine} disabled={isPolling}>
+                    <Plus className="mr-1 h-3 w-3" />Add line
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="lang">Language code</Label>
+                    <Input id="lang" value={languageCode} onChange={e => setLanguageCode(e.target.value)}
+                      placeholder="en" disabled={isPolling} />
+                  </div>
+                  <SliderField label="Stability" value={dialogueStability} min={0} max={1} step={0.05}
+                    onChange={setDialogueStability} disabled={isPolling} />
+                </div>
+
+                <Button onClick={handleDialogueGenerate} disabled={isPolling || lines.every(l => !l.text.trim())} className="w-full" size="lg">
+                  {isPolling
+                    ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
+                    : <><Mic2 className="mr-2 h-4 w-4" />Generate Dialogue</>}
+                </Button>
+              </TabsContent>
+            </Tabs>
+          </div>
+
+          {/* Right: Result */}
+          <div className="p-6 flex flex-col gap-4">
+            <Label className="text-sm font-medium">Result</Label>
+
+            {state.status === 'idle' && (
+              <div className="flex-1 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-3 text-muted-foreground min-h-64">
+                <Mic2 className="h-10 w-10 opacity-20" />
+                <p className="text-sm">Your generated audio will appear here</p>
               </div>
-              <SliderField label="Stability" value={dialogueStability} min={0} max={1} step={0.05}
-                onChange={setDialogueStability} disabled={isPolling} />
-            </div>
+            )}
 
-            <Button onClick={handleDialogueGenerate} disabled={isPolling || lines.every(l => !l.text.trim())} className="w-full">
-              {isPolling ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</> : <><Mic2 className="mr-2 h-4 w-4" />Generate Dialogue</>}
-            </Button>
-            <ResultPanel />
-          </TabsContent>
-        </Tabs>
+            {state.status === 'polling' && (
+              <div className="flex-1 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-3 text-muted-foreground min-h-64">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <div className="text-center">
+                  <p className="text-sm font-medium text-foreground">Generating audio…</p>
+                  <p className="text-xs mt-1">This usually takes 10–30 seconds</p>
+                </div>
+              </div>
+            )}
+
+            {state.status === 'success' && state.output && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
+                  <CheckCircle2 className="h-4 w-4" /> Generation complete
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                  <audio controls src={state.output} className="w-full" />
+                  <a
+                    href={state.output}
+                    download="generated-speech"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Download audio
+                  </a>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => { reset(); setText(''); }}>
+                  Generate new
+                </Button>
+              </div>
+            )}
+
+            {(state.status === 'failed' || state.status === 'timeout') && (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 flex items-start gap-2 text-destructive text-sm">
+                <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium">Generation failed</p>
+                  <p className="mt-0.5 text-xs">{state.error ?? 'Please try again.'}</p>
+                  <Button variant="outline" size="sm" className="mt-2" onClick={reset}>Try again</Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+        </div>
       </div>
     </div>
   );

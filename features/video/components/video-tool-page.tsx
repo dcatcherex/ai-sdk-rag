@@ -1,40 +1,24 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Video, Upload, X, Loader2, CheckCircle2, XCircle, Download } from 'lucide-react';
+import { Video, Loader2, CheckCircle2, XCircle, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { ToolManifest } from '@/features/tools/registry/types';
 import { useGenerationPoll } from '@/lib/hooks/use-generation-poll';
-import { VEO_GENERATION_MODE_LABELS, VIDEO_MODEL_CONFIGS, type VideoModelConfig } from '../types';
+import { VIDEO_MODEL_CONFIGS, type VideoModelConfig } from '../types';
 import { ModelSelector } from '@/features/image/components/model-selector';
+import { VideoGenerationControls } from './video-generation-controls';
+import { FileUploadZone } from '@/components/ui/file-upload-zone';
 
 type Props = { manifest: ToolManifest };
 
-/** Human-readable labels for Sora/Kling aspect ratios */
-const ASPECT_RATIO_LABELS: Record<string, string> = {
-  landscape: 'Landscape (16:9)',
-  portrait: 'Portrait (9:16)',
-  '16:9': '16:9 Landscape',
-  '9:16': '9:16 Portrait',
-  Auto: 'Auto',
-};
-
-/** Human-readable labels for quality options */
-const QUALITY_LABELS: Record<string, string> = {
-  standard: 'Standard',
-  high: 'High',
-  std: 'Standard',
-  pro: 'Pro',
-};
 
 function VideoToolPageInner({ manifest }: Props) {
   const searchParams = useSearchParams();
   const { state, startPoll, reset } = useGenerationPoll();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [modelId, setModelId] = useState('veo3_fast');
   const [prompt, setPrompt] = useState('');
@@ -42,8 +26,8 @@ function VideoToolPageInner({ manifest }: Props) {
   const [aspectRatio, setAspectRatio] = useState('');
   const [duration, setDuration] = useState('');
   const [quality, setQuality] = useState('');
+  const [resolution, setResolution] = useState('');
   const [imageUrls, setImageUrls] = useState<string[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
 
   // Resume poll for agent redirect (?id=&taskId=)
   const idFromUrl = searchParams.get('id');
@@ -64,14 +48,13 @@ function VideoToolPageInner({ manifest }: Props) {
     setAspectRatio(videoOptions.aspectRatios?.[0] ?? '');
     setDuration(videoOptions.duration?.[0] ?? '');
     setQuality(videoOptions.quality?.values[0] ?? '');
+    setResolution(videoOptions.resolution?.values[0] ?? '');
     setImageUrls([]);
-    setImagePreviews([]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modelId]);
 
   // Derived state
   const isVeo = videoOptions.apiType === 'veo';
-  const showVeoModes = isVeo && (videoOptions.veoModes?.length ?? 0) > 1;
   const needsImages =
     videoOptions.inputMode === 'image' ||
     videoOptions.inputMode === 'storyboard' ||
@@ -85,24 +68,6 @@ function VideoToolPageInner({ manifest }: Props) {
     (!needsImages || imageUrls.length > 0);
 
   const isPolling = state.status === 'polling';
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    Array.from(e.target.files ?? []).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = ev => {
-        const b64 = ev.target?.result as string;
-        setImageUrls(prev => [...prev, b64]);
-        setImagePreviews(prev => [...prev, b64]);
-      };
-      reader.readAsDataURL(file);
-    });
-    e.target.value = '';
-  };
-
-  const removeImage = (i: number) => {
-    setImageUrls(prev => prev.filter((_, idx) => idx !== i));
-    setImagePreviews(prev => prev.filter((_, idx) => idx !== i));
-  };
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
@@ -120,6 +85,7 @@ function VideoToolPageInner({ manifest }: Props) {
           imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
           duration: duration || undefined,
           quality: quality || undefined,
+          resolution: resolution || undefined,
         },
       }),
     });
@@ -190,124 +156,33 @@ function VideoToolPageInner({ manifest }: Props) {
               />
             </div>
 
-            {/* Veo generation mode */}
-            {showVeoModes && (
-              <div className="space-y-2">
-                <Label>Generation mode</Label>
-                <Select value={veoMode} onValueChange={setVeoMode} disabled={isPolling}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {videoOptions.veoModes!.map(m => (
-                      <SelectItem key={m} value={m}>
-                        {VEO_GENERATION_MODE_LABELS[m] ?? m}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {isVeo && veoMode === 'REFERENCE_2_VIDEO' && (
-                  <p className="text-xs text-muted-foreground">Reference mode is locked to 16:9 and requires veo3_fast.</p>
-                )}
-              </div>
-            )}
-
-            {/* Aspect ratio */}
-            {videoOptions.aspectRatios && !(isVeo && veoMode === 'REFERENCE_2_VIDEO') && (
-              <div className="space-y-2">
-                <Label>Aspect ratio</Label>
-                <Select value={aspectRatio} onValueChange={setAspectRatio} disabled={isPolling}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {videoOptions.aspectRatios.map(r => (
-                      <SelectItem key={r} value={r}>{ASPECT_RATIO_LABELS[r] ?? r}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* Duration */}
-            {videoOptions.duration && (
-              <div className="space-y-2">
-                <Label>Duration</Label>
-                <div className="flex gap-2">
-                  {videoOptions.duration.map(d => (
-                    <button
-                      key={d}
-                      onClick={() => setDuration(d)}
-                      disabled={isPolling}
-                      className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-colors
-                        ${duration === d
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border hover:border-foreground/30 text-muted-foreground'}`}
-                    >
-                      {d}s
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Quality */}
-            {videoOptions.quality && (
-              <div className="space-y-2">
-                <Label>Quality</Label>
-                <div className="flex gap-2">
-                  {videoOptions.quality.values.map(q => (
-                    <button
-                      key={q}
-                      onClick={() => setQuality(q)}
-                      disabled={isPolling}
-                      className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-colors
-                        ${quality === q
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border hover:border-foreground/30 text-muted-foreground'}`}
-                    >
-                      {QUALITY_LABELS[q] ?? q}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            <VideoGenerationControls
+              videoOptions={videoOptions}
+              aspectRatio={aspectRatio}
+              onAspectRatioChange={setAspectRatio}
+              veoMode={veoMode}
+              onVeoModeChange={setVeoMode}
+              duration={duration}
+              onDurationChange={setDuration}
+              quality={quality}
+              onQualityChange={setQuality}
+              resolution={resolution}
+              onResolutionChange={setResolution}
+              disabled={isPolling}
+            />
 
             {/* Image upload */}
             {showImageUpload && (
-              <div className="space-y-3">
-                <Label>
-                  {imageLabel}
-                  {needsImages && <span className="text-destructive ml-1">*</span>}
-                </Label>
-                <div className="flex flex-wrap gap-2">
-                  {imagePreviews.map((src, i) => (
-                    <div key={i} className="relative w-20 h-20 rounded border overflow-hidden">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={src} alt={`img-${i}`} className="w-full h-full object-cover" />
-                      <button
-                        onClick={() => removeImage(i)}
-                        className="absolute top-0.5 right-0.5 bg-black/60 rounded-full p-0.5"
-                        disabled={isPolling}
-                      >
-                        <X className="h-3 w-3 text-white" />
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    className="w-20 h-20 rounded border-2 border-dashed flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isPolling}
-                  >
-                    <Upload className="h-4 w-4" />
-                    <span className="text-xs">Upload</span>
-                  </button>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  multiple
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-              </div>
+              <FileUploadZone
+                files={imageUrls}
+                onAdd={b64 => setImageUrls(prev => [...prev, b64])}
+                onRemove={i => setImageUrls(prev => prev.filter((_, idx) => idx !== i))}
+                label={imageLabel}
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                required={needsImages}
+                disabled={isPolling}
+              />
             )}
 
             {/* Generate */}

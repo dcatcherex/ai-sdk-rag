@@ -16,8 +16,9 @@ export const generateVideoInputSchema = z.object({
   imageUrls: z.array(z.string()).optional(),
   seeds: z.number().int().min(10000).max(99999).optional(),
   // Standard models (Sora, Kling)
-  duration: z.enum(['10', '15', '25']).optional(),
+  duration: z.enum(['6', '10', '15', '25']).optional(),
   quality: z.string().optional(),
+  resolution: z.string().optional(),
 });
 
 export type GenerateVideoInput = z.infer<typeof generateVideoInputSchema>;

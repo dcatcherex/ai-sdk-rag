@@ -64,7 +64,7 @@ function ImageToolPageInner({ manifest }: Props) {
 
             <ModelSelector models={visibleModels} selectedId={modelConfig?.id} onSelect={handleModelSelect} />
 
-            {(mode === 'edit' || modelConfig?.id === 'nano-banana-2') && (
+            {(mode === 'edit' || modelConfig?.mode === 'both') && (
               <ImageUploadZone
                 images={imageUrls}
                 onAdd={b64 => setImageUrls(prev => [...prev, b64])}

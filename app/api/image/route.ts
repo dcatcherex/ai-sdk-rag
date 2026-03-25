@@ -5,6 +5,7 @@ import { enforceRateLimit, enforceCredits } from '@/lib/api/routeGuards';
 import { internalError } from '@/lib/api/errorResponse';
 import { generateImageInputSchema } from '@/features/image/schema';
 import { triggerImageGeneration } from '@/features/image/service';
+import { IMAGE_MODEL_CONFIGS, resolveImageCredits } from '@/features/image/types';
 
 /**
  * Image Generation Route (KIE)
@@ -33,7 +34,13 @@ export async function POST(req: NextRequest) {
 
   const params = parsed.data;
 
-  const creditResponse = await enforceCredits(userId, params.modelId);
+  // Resolve the correct credit cost based on the user's selected resolution/quality
+  const modelConfig = IMAGE_MODEL_CONFIGS.find(m => m.id === params.modelId);
+  const resolvedCost = modelConfig
+    ? resolveImageCredits(modelConfig, { resolution: params.resolution, quality: params.quality })
+    : undefined;
+
+  const creditResponse = await enforceCredits(userId, params.modelId, resolvedCost);
   if (creditResponse) return creditResponse;
 
   try {
@@ -43,7 +50,7 @@ export async function POST(req: NextRequest) {
     );
     return NextResponse.json({ async: true, taskId, generationId, status: 'processing', type: 'image' });
   } catch (error) {
-    await refundGenerationCredits(userId, params.modelId).catch(() => {});
+    await refundGenerationCredits(userId, params.modelId, resolvedCost).catch(() => {});
     return internalError(error, 'Image Generation');
   }
 }

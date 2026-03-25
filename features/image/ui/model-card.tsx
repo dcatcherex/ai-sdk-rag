@@ -25,7 +25,16 @@ export function ModelCard({ config, selected, onClick }: Props) {
         )}
       </div>
       <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{config.description}</p>
-      <p className="mt-1.5 text-xs font-medium text-foreground/60">{config.creditCost} credits</p>
+      <p className="mt-1.5 text-xs font-medium text-foreground/60">
+        {config.pricingTiers
+          ? (() => {
+              const vals = Object.values(config.pricingTiers.map);
+              const min = Math.min(...vals);
+              const max = Math.max(...vals);
+              return min === max ? `${min} credits` : `${min}–${max} credits`;
+            })()
+          : `${config.creditCost} credits`}
+      </p>
     </button>
   );
 }

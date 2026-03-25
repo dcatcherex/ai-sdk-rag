@@ -14,10 +14,11 @@ export interface CreditCheckResult {
 export async function checkAndDeductCredits(
     userId: string | null,
     modelId: string,
+    costOverride?: number,
 ): Promise<CreditCheckResult> {
     if (!userId) return { cost: 0 };
 
-    const cost = getCreditCost(modelId);
+    const cost = costOverride ?? getCreditCost(modelId);
     const balance = await getUserBalance(userId);
 
     if (balance < cost) {
@@ -43,10 +44,11 @@ export async function checkAndDeductCredits(
 export async function refundGenerationCredits(
     userId: string | null,
     modelId: string,
+    costOverride?: number,
 ): Promise<void> {
     if (!userId) return;
 
-    const cost = getCreditCost(modelId);
+    const cost = costOverride ?? getCreditCost(modelId);
     await addCredits({
         userId,
         amount: cost,
