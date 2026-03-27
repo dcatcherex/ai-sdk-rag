@@ -959,3 +959,113 @@ export const brandShareRelations = relations(brandShare, ({ one }) => ({
   brand: one(brand, { fields: [brandShare.brandId], references: [brand.id] }),
   sharedWithUser: one(user, { fields: [brandShare.sharedWithUserId], references: [user.id] }),
 }));
+
+// ── LINE OA Integration ───────────────────────────────────────────────────────
+
+/**
+ * One row per LINE Official Account connected by a user.
+ * channelSecret is used for webhook signature verification.
+ * channelAccessToken is used for sending messages via LINE API.
+ */
+export const lineOaChannel = pgTable('line_oa_channel', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  /** The linked agent that handles conversations from this OA */
+  agentId: text('agent_id').references(() => agent.id, { onDelete: 'set null' }),
+  /** Display name for this connection (user-defined) */
+  name: text('name').notNull(),
+  /** LINE Channel ID (from LINE Developers Console → Basic Settings) */
+  lineChannelId: text('line_channel_id').notNull(),
+  /** LINE Channel Secret — used for webhook signature verification (HMAC-SHA256) */
+  channelSecret: text('channel_secret').notNull(),
+  /** LINE Channel Access Token — used for sending reply/push messages */
+  channelAccessToken: text('channel_access_token').notNull(),
+  /** 'active' | 'inactive' */
+  status: text('status').notNull().default('active'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  index('line_oa_channel_userId_idx').on(table.userId),
+  index('line_oa_channel_lineChannelId_idx').on(table.lineChannelId),
+]);
+
+/**
+ * Maps a LINE user (lineUserId) within a channel to a chatThread.
+ * This gives each LINE user persistent conversation context.
+ */
+export const lineConversation = pgTable('line_conversation', {
+  id: text('id').primaryKey(),
+  channelId: text('channel_id').notNull().references(() => lineOaChannel.id, { onDelete: 'cascade' }),
+  /** LINE user ID (e.g. "Uxxxxxxxxxx") */
+  lineUserId: text('line_user_id').notNull(),
+  /** The chat thread used to persist messages for this LINE user */
+  threadId: text('thread_id').notNull().references(() => chatThread.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  uniqueIndex('line_conversation_channel_user_idx').on(table.channelId, table.lineUserId),
+  index('line_conversation_channelId_idx').on(table.channelId),
+  index('line_conversation_threadId_idx').on(table.threadId),
+]);
+
+export const lineOaChannelRelations = relations(lineOaChannel, ({ one, many }) => ({
+  user: one(user, { fields: [lineOaChannel.userId], references: [user.id] }),
+  agent: one(agent, { fields: [lineOaChannel.agentId], references: [agent.id] }),
+  conversations: many(lineConversation),
+  richMenus: many(lineRichMenu),
+}));
+
+export const lineConversationRelations = relations(lineConversation, ({ one }) => ({
+  channel: one(lineOaChannel, { fields: [lineConversation.channelId], references: [lineOaChannel.id] }),
+  thread: one(chatThread, { fields: [lineConversation.threadId], references: [chatThread.id] }),
+}));
+
+// ── Rich Menu ─────────────────────────────────────────────────────────────────
+
+export type RichMenuAreaConfig = {
+  label: string;     // display label (shown in menu image)
+  emoji: string;     // emoji icon
+  bgColor: string;   // hex background color e.g. '#06C755'
+  action: {
+    type: 'message' | 'uri' | 'postback';
+    text?: string;         // for type='message' — text sent as user message
+    uri?: string;          // for type='uri' — URL to open
+    data?: string;         // for type='postback'
+    displayText?: string;  // display text for postback
+  };
+};
+
+export const lineRichMenu = pgTable('line_rich_menu', {
+  id: text('id').primaryKey(),
+  channelId: text('channel_id').notNull().references(() => lineOaChannel.id, { onDelete: 'cascade' }),
+  lineMenuId: text('line_menu_id'),  // assigned by LINE after deploy; null = draft
+  name: text('name').notNull(),
+  chatBarText: text('chat_bar_text').notNull().default('เมนู'),
+  areas: jsonb('areas').notNull().$type<RichMenuAreaConfig[]>().default([]),
+  isDefault: boolean('is_default').notNull().default(false),
+  status: text('status').notNull().default('draft'),  // 'draft' | 'active'
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  index('line_rich_menu_channelId_idx').on(table.channelId),
+]);
+
+// Tracks which rich menu is currently assigned to each LINE user
+export const lineUserMenu = pgTable('line_user_menu', {
+  id: text('id').primaryKey(),
+  channelId: text('channel_id').notNull().references(() => lineOaChannel.id, { onDelete: 'cascade' }),
+  lineUserId: text('line_user_id').notNull(),
+  lineMenuId: text('line_menu_id').notNull(),  // LINE's menu ID (not our DB id)
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  uniqueIndex('line_user_menu_channel_user_idx').on(table.channelId, table.lineUserId),
+]);
+
+export const lineRichMenuRelations = relations(lineRichMenu, ({ one }) => ({
+  channel: one(lineOaChannel, { fields: [lineRichMenu.channelId], references: [lineOaChannel.id] }),
+}));
+
+export const lineUserMenuRelations = relations(lineUserMenu, ({ one }) => ({
+  channel: one(lineOaChannel, { fields: [lineUserMenu.channelId], references: [lineOaChannel.id] }),
+}));

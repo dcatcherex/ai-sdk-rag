@@ -106,6 +106,13 @@
       "when": 1742880000000,
       "tag": "0021_media_asset_nullable_refs",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1774585294778,
+      "tag": "0022_living_fabian_cortez",
+      "breakpoints": true
     }
   ]
 }

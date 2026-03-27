@@ -1,17 +1,19 @@
 'use client';
 
-import { Suspense } from 'react';
-import { ImageIcon, Loader2 } from 'lucide-react';
+import { Suspense, useRef, useState, useEffect } from 'react';
+import { ImageIcon, Loader2, BarChart2, Globe, X, Plus, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import type { ToolManifest } from '@/features/tools/registry/types';
 import { useImageGenerator, type Mode } from '../hooks/use-image-generator';
-import { PromptSection } from './prompt-section';
-import { ModelSelector } from './model-selector';
-import { GenerationControls } from './generation-controls';
 import { ResultPanel } from './result-panel';
-import { ImageUploadZone } from '../ui/image-upload-zone';
+import { ImageCountStepper } from '../ui/image-count-stepper';
+import { CompactAspectRatioSelect } from '../ui/compact-aspect-ratio-select';
+import { CompactResolutionSelect } from '../ui/compact-resolution-select';
+import { ProviderIcon } from '../ui/provider-icon';
 import { TemplateStrip, type TemplateItem } from '@/components/ui/template-strip';
+import type { BaseModelConfig } from '../types';
 
 interface ImageTemplate extends TemplateItem {
   prompt: string;
@@ -94,6 +96,81 @@ const IMAGE_TEMPLATES: ImageTemplate[] = [
   },
 ];
 
+/* ── Inline model selector for the composer toolbar ───────────────────────── */
+
+interface InlineModelSelectorProps {
+  models: BaseModelConfig[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+}
+
+function InlineModelSelector({ models, selectedId, onSelect }: InlineModelSelectorProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = models.find(m => m.id === selectedId) ?? models[0];
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className={cn(
+          'flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors hover:border-foreground/40',
+          open ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground',
+        )}
+      >
+        <ProviderIcon provider={selected?.provider ?? ''} className="size-3.5" />
+        <span>{selected?.name}</span>
+        {selected?.badge && (
+          <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary leading-none">
+            {selected.badge}
+          </span>
+        )}
+        <ChevronDown className="h-3 w-3 opacity-60" />
+      </button>
+
+      {open && (
+        <div className="absolute bottom-full mb-1.5 left-0 z-50 w-64 rounded-lg border bg-popover shadow-lg py-1">
+          {models.map(cfg => (
+            <button
+              key={cfg.id}
+              onClick={() => { onSelect(cfg.id); setOpen(false); }}
+              className={cn(
+                'w-full flex items-start gap-2.5 px-3 py-2 text-left hover:bg-muted transition-colors',
+                cfg.id === selectedId ? 'bg-muted' : '',
+              )}
+            >
+              <ProviderIcon provider={cfg.provider} className="size-3.5 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium">{cfg.name}</span>
+                  {cfg.badge && (
+                    <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary leading-none">
+                      {cfg.badge}
+                    </span>
+                  )}
+                </div>
+                {cfg.description && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{cfg.description}</p>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Main page ────────────────────────────────────────────────────────────── */
+
 type Props = { manifest: ToolManifest };
 
 function ImageToolPageInner({ manifest }: Props) {
@@ -117,6 +194,26 @@ function ImageToolPageInner({ manifest }: Props) {
     resetPoll,
   } = useImageGenerator();
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
+
+  const showImageUpload = mode === 'edit' || modelConfig?.mode === 'both';
+
+  const handleAddImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const result = ev.target?.result;
+      if (typeof result === 'string') {
+        setImageUrls(prev => [...prev, result]);
+      }
+    };
+    reader.readAsDataURL(file);
+    // Reset so the same file can be re-added if removed
+    e.target.value = '';
+  };
+
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -127,80 +224,190 @@ function ImageToolPageInner({ manifest }: Props) {
         </div>
         <div className="flex rounded-lg border p-0.5 bg-muted/30">
           {(['generate', 'edit'] as Mode[]).map(m => (
-            <button key={m} onClick={() => setMode(m)}
+            <button
+              key={m}
+              onClick={() => setMode(m)}
               className={cn(
                 'rounded-md px-4 py-1.5 text-sm font-medium capitalize transition-colors',
-                mode === m ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground',
-              )}>
-              {m === 'generate' ? 'Generate' : 'Edit image'}
+                mode === m
+                  ? 'bg-background shadow-sm text-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {m === 'generate' ? 'Generate' : 'Edit Image'}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto flex flex-col">
-        {/* Template strip — full width above both columns */}
-        <div className="border-b px-6 py-4">
-          <TemplateStrip
-            templates={IMAGE_TEMPLATES}
-            onSelect={id => {
-              const t = IMAGE_TEMPLATES.find(x => x.id === id);
-              if (!t) return;
-              setPrompt(t.prompt);
-              handleModelSelect(t.modelId);
-              setAspectRatio(t.aspectRatio);
+      {/* Result area */}
+      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-3">
+        <Label className="text-sm font-medium">Result</Label>
+        <ResultPanel
+          state={pollState}
+          mode={mode}
+          onRetry={resetPoll}
+          onNewImage={() => { resetPoll(); setPrompt(''); }}
+          onUseAsReference={url => { setImageUrls([url]); setMode('edit'); }}
+        />
+      </div>
+
+      {/* Bottom composer */}
+      <div className="border-t px-4 pb-4 pt-3 bg-background">
+        {/* Template strip (collapsible) */}
+        {showTemplates && (
+          <div className="mb-3">
+            <TemplateStrip
+              templates={IMAGE_TEMPLATES}
+              onSelect={id => {
+                const t = IMAGE_TEMPLATES.find(x => x.id === id);
+                if (!t) return;
+                setPrompt(t.prompt);
+                handleModelSelect(t.modelId);
+                setAspectRatio(t.aspectRatio);
+                setShowTemplates(false);
+              }}
+            />
+          </div>
+        )}
+
+        <div className="rounded-xl border bg-background shadow-sm">
+          {/* Attachment row — shown in edit mode or when images are uploaded */}
+          {(showImageUpload || imageUrls.length > 0) && (
+            <div className="flex items-center gap-2 px-3 pt-3">
+              {imageUrls.map((url, i) => (
+                <div key={i} className="relative group shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={url}
+                    alt=""
+                    className="h-12 w-12 rounded-lg object-cover border"
+                  />
+                  <button
+                    onClick={() => setImageUrls(prev => prev.filter((_, idx) => idx !== i))}
+                    className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-foreground text-background opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex h-12 w-12 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-dashed text-muted-foreground hover:border-foreground/40 hover:text-foreground transition-colors"
+              >
+                <ImageIcon className="h-4 w-4" />
+                <span className="text-[10px]">Add</span>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAddImage}
+              />
+            </div>
+          )}
+
+          {/* Prompt textarea */}
+          <textarea
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            placeholder="Ask anything"
+            disabled={isPolling}
+            rows={2}
+            className="w-full resize-none bg-transparent px-4 py-3 text-sm placeholder:text-muted-foreground focus:outline-none disabled:opacity-50"
+            onKeyDown={e => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canGenerate && !isPolling) {
+                e.preventDefault();
+                handleGenerate();
+              }
             }}
           />
-        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 flex-1">
-          {/* Left: Controls */}
-          <div className="p-6 space-y-6 border-r">
-            <PromptSection mode={mode} value={prompt} onChange={setPrompt} disabled={isPolling} />
+          {/* Toolbar */}
+          <div className="flex items-center gap-1.5 px-3 pb-3 flex-wrap">
+            {/* Templates toggle */}
+            <button
+              onClick={() => setShowTemplates(v => !v)}
+              title="Templates"
+              className={cn(
+                'flex h-7 w-7 items-center justify-center rounded-md transition-colors',
+                showTemplates
+                  ? 'text-primary bg-primary/10'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+              )}
+            >
+              <BarChart2 className="h-4 w-4" />
+            </button>
 
-            <ModelSelector models={visibleModels} selectedId={modelConfig?.id} onSelect={handleModelSelect} />
+            <div className="w-px h-4 bg-border mx-0.5" />
 
-            {(mode === 'edit' || modelConfig?.mode === 'both') && (
-              <ImageUploadZone
-                images={imageUrls}
-                onAdd={b64 => setImageUrls(prev => [...prev, b64])}
-                onRemove={i => setImageUrls(prev => prev.filter((_, idx) => idx !== i))}
-                required={modelConfig?.requiresImages}
+            {/* Model selector */}
+            <InlineModelSelector
+              models={visibleModels}
+              selectedId={modelConfig?.id ?? ''}
+              onSelect={handleModelSelect}
+            />
+
+            <div className="w-px h-4 bg-border mx-0.5" />
+
+            {/* Image count */}
+            <ImageCountStepper value={imageCount} onChange={setImageCount} />
+
+            <div className="w-px h-4 bg-border mx-0.5" />
+
+            {/* Aspect ratio */}
+            {modelConfig && (
+              <CompactAspectRatioSelect
+                ratios={modelConfig.aspectRatios}
+                value={aspectRatio}
+                onChange={setAspectRatio}
               />
             )}
 
-            <GenerationControls
-              modelConfig={modelConfig}
-              aspectRatio={aspectRatio}
-              onAspectRatioChange={setAspectRatio}
-              resolution={resolution}
-              onResolutionChange={setResolution}
-              imageCount={imageCount}
-              onImageCountChange={setImageCount}
-              quality={quality}
-              onQualityChange={setQuality}
-              googleSearch={googleSearch}
-              onGoogleSearchChange={setGoogleSearch}
-              seed={seed}
-              onSeedChange={setSeed}
-              disabled={isPolling}
-            />
+            {/* Resolution */}
+            {modelConfig?.hasResolution && (
+              <CompactResolutionSelect value={resolution} onChange={setResolution} />
+            )}
 
-            <Button onClick={handleGenerate} disabled={isPolling || !canGenerate} className="w-full" size="lg">
-              {isPolling
-                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
-                : <><ImageIcon className="mr-2 h-4 w-4" />{mode === 'edit' ? 'Edit Image' : 'Generate Image'}</>}
+            {/* Google search grounding */}
+            {modelConfig?.hasGoogleSearch && (
+              <button
+                onClick={() => setGoogleSearch(!googleSearch)}
+                title={googleSearch ? 'Google Search: on' : 'Google Search: off'}
+                className={cn(
+                  'flex h-7 w-7 items-center justify-center rounded-md transition-colors',
+                  googleSearch
+                    ? 'text-primary bg-primary/10'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+                )}
+              >
+                <Globe className="h-4 w-4" />
+              </button>
+            )}
+
+            <div className="flex-1" />
+
+            {/* Generate button */}
+            <Button
+              onClick={handleGenerate}
+              disabled={isPolling || !canGenerate}
+              size="sm"
+              className="gap-1.5"
+            >
+              {isPolling ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Generating…
+                </>
+              ) : (
+                <>
+                  <ImageIcon className="h-3.5 w-3.5" />
+                  {mode === 'edit' ? 'Edit Image' : 'Generate'}
+                </>
+              )}
             </Button>
           </div>
-
-          {/* Right: Result */}
-          <ResultPanel
-            state={pollState}
-            mode={mode}
-            onRetry={resetPoll}
-            onNewImage={() => { resetPoll(); setPrompt(''); }}
-            onUseAsReference={url => { setImageUrls([url]); setMode('edit'); }}
-          />
         </div>
       </div>
     </div>
