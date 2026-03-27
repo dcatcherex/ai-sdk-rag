@@ -1022,10 +1022,13 @@ export const lineConversationRelations = relations(lineConversation, ({ one }) =
 
 // ── Rich Menu ─────────────────────────────────────────────────────────────────
 
+export type RichMenuBounds = { x: number; y: number; width: number; height: number };
+
 export type RichMenuAreaConfig = {
   label: string;     // display label (shown in menu image)
   emoji: string;     // emoji icon
   bgColor: string;   // hex background color e.g. '#06C755'
+  bounds?: RichMenuBounds; // pixel bounds within the menu image; if absent, equal columns are used
   action: {
     type: 'message' | 'uri' | 'postback';
     text?: string;         // for type='message' — text sent as user message
@@ -1062,10 +1065,52 @@ export const lineUserMenu = pgTable('line_user_menu', {
   uniqueIndex('line_user_menu_channel_user_idx').on(table.channelId, table.lineUserId),
 ]);
 
+// Reusable rich menu templates — user-scoped, apply to any channel
+export const lineRichMenuTemplate = pgTable('line_rich_menu_template', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  chatBarText: text('chat_bar_text').notNull().default('เมนู'),
+  areas: jsonb('areas').notNull().$type<RichMenuAreaConfig[]>().default([]),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  index('line_rich_menu_template_userId_idx').on(table.userId),
+]);
+
 export const lineRichMenuRelations = relations(lineRichMenu, ({ one }) => ({
   channel: one(lineOaChannel, { fields: [lineRichMenu.channelId], references: [lineOaChannel.id] }),
 }));
 
 export const lineUserMenuRelations = relations(lineUserMenu, ({ one }) => ({
   channel: one(lineOaChannel, { fields: [lineUserMenu.channelId], references: [lineOaChannel.id] }),
+}));
+
+// ─── Broadcast / Narrowcast ────────────────────────────────────────────────
+
+export type BroadcastMessageType = 'text' | 'flex';
+export type BroadcastTargetType = 'all' | 'followers';
+export type BroadcastStatus = 'draft' | 'sending' | 'sent' | 'failed';
+
+export const lineBroadcast = pgTable('line_broadcast', {
+  id: text('id').primaryKey(),
+  channelId: text('channel_id').notNull().references(() => lineOaChannel.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  targetType: text('target_type').notNull().default('all').$type<BroadcastTargetType>(),
+  messageType: text('message_type').notNull().default('text').$type<BroadcastMessageType>(),
+  messageText: text('message_text'),
+  messagePayload: jsonb('message_payload').$type<Record<string, unknown>>(),
+  status: text('status').notNull().default('draft').$type<BroadcastStatus>(),
+  scheduledAt: timestamp('scheduled_at'),
+  sentAt: timestamp('sent_at'),
+  recipientCount: integer('recipient_count'),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  index('line_broadcast_channelId_idx').on(table.channelId),
+]);
+
+export const lineBroadcastRelations = relations(lineBroadcast, ({ one }) => ({
+  channel: one(lineOaChannel, { fields: [lineBroadcast.channelId], references: [lineOaChannel.id] }),
 }));

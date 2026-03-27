@@ -113,6 +113,13 @@
       "when": 1774585294778,
       "tag": "0022_living_fabian_cortez",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1774624866585,
+      "tag": "0023_overconfident_stellaris",
+      "breakpoints": true
     }
   ]
 }

@@ -6,6 +6,7 @@ export type RichMenuAreaInput = {
   label: string;
   emoji: string;
   bgColor: string;
+  bounds?: { x: number; y: number; width: number; height: number };
   action:
     | { type: 'message'; text: string }
     | { type: 'uri'; uri: string }

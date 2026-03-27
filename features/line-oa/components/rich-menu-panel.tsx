@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import {
+  BookmarkPlusIcon,
   LayoutGridIcon,
   PlusIcon,
   RocketIcon,
@@ -11,6 +12,15 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   useRichMenus,
   useCreateRichMenu,
@@ -18,6 +28,7 @@ import {
   useDeleteRichMenu,
   useDeployRichMenu,
 } from '../hooks/use-rich-menus';
+import { useSaveMenuTemplate } from '../hooks/use-menu-templates';
 import { RichMenuEditor } from './rich-menu-editor';
 import type { RichMenuRecord, CreateRichMenuInput } from '../hooks/use-rich-menus';
 
@@ -27,13 +38,31 @@ export function RichMenuPanel({ channelId }: { channelId: string }) {
   const updateMenu = useUpdateRichMenu(channelId);
   const deleteMenu = useDeleteRichMenu(channelId);
   const deployMenu = useDeployRichMenu(channelId);
+  const saveTemplate = useSaveMenuTemplate();
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<RichMenuRecord | null>(null);
   const [deployingId, setDeployingId] = useState<string | null>(null);
 
+  // Save-as-template dialog state
+  const [templateDialogMenu, setTemplateDialogMenu] = useState<RichMenuRecord | null>(null);
+  const [templateName, setTemplateName] = useState('');
+
   const openCreate = () => { setEditTarget(null); setEditorOpen(true); };
   const openEdit = (menu: RichMenuRecord) => { setEditTarget(menu); setEditorOpen(true); };
+
+  const openSaveTemplate = (menu: RichMenuRecord) => {
+    setTemplateDialogMenu(menu);
+    setTemplateName(menu.name);
+  };
+
+  const confirmSaveTemplate = () => {
+    if (!templateDialogMenu || !templateName.trim()) return;
+    saveTemplate.mutate(
+      { name: templateName.trim(), chatBarText: templateDialogMenu.chatBarText, areas: templateDialogMenu.areas },
+      { onSuccess: () => { setTemplateDialogMenu(null); setTemplateName(''); } },
+    );
+  };
 
   const handleSubmit = (data: CreateRichMenuInput) => {
     if (editTarget) {
@@ -104,6 +133,15 @@ export function RichMenuPanel({ channelId }: { channelId: string }) {
                 variant="ghost"
                 size="icon"
                 className="size-6"
+                title="Save as template"
+                onClick={() => openSaveTemplate(menu)}
+              >
+                <BookmarkPlusIcon className="size-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-6"
                 onClick={() => openEdit(menu)}
               >
                 <PencilIcon className="size-3" />
@@ -121,18 +159,48 @@ export function RichMenuPanel({ channelId }: { channelId: string }) {
           </div>
 
           {/* Area preview strip */}
-          <div className="rounded overflow-hidden flex h-8">
-            {menu.areas.map((area, i) => (
-              <div
-                key={i}
-                className="flex-1 flex items-center justify-center gap-1 text-white"
-                style={{ backgroundColor: area.bgColor }}
-              >
-                <span className="text-sm leading-none">{area.emoji}</span>
-                <span className="text-[9px] font-medium truncate">{area.label}</span>
+          {(() => {
+            const areas = menu.areas;
+            const hasBounds = areas.length > 0 && areas.every((a) => a.bounds);
+            if (hasBounds) {
+              const canvasW = Math.max(...areas.map((a) => a.bounds!.x + a.bounds!.width));
+              const canvasH = Math.max(...areas.map((a) => a.bounds!.y + a.bounds!.height));
+              return (
+                <div className="rounded overflow-hidden relative w-full" style={{ aspectRatio: `${canvasW} / ${canvasH}`, maxHeight: 56 }}>
+                  {areas.map((area, i) => (
+                    <div
+                      key={i}
+                      className="absolute flex items-center justify-center gap-1 text-white"
+                      style={{
+                        backgroundColor: area.bgColor,
+                        left: `${(area.bounds!.x / canvasW) * 100}%`,
+                        top: `${(area.bounds!.y / canvasH) * 100}%`,
+                        width: `${(area.bounds!.width / canvasW) * 100}%`,
+                        height: `${(area.bounds!.height / canvasH) * 100}%`,
+                      }}
+                    >
+                      <span className="text-xs leading-none">{area.emoji}</span>
+                      <span className="text-[8px] font-medium truncate">{area.label}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            }
+            return (
+              <div className="rounded overflow-hidden flex h-8">
+                {areas.map((area, i) => (
+                  <div
+                    key={i}
+                    className="flex-1 flex items-center justify-center gap-1 text-white"
+                    style={{ backgroundColor: area.bgColor }}
+                  >
+                    <span className="text-sm leading-none">{area.emoji}</span>
+                    <span className="text-[9px] font-medium truncate">{area.label}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            );
+          })()}
 
           {/* Deploy actions */}
           <div className="flex gap-1.5">
@@ -168,6 +236,85 @@ export function RichMenuPanel({ channelId }: { channelId: string }) {
         onSubmit={handleSubmit}
         isPending={createMenu.isPending || updateMenu.isPending}
       />
+
+      {/* Save as template dialog */}
+      <Dialog
+        open={Boolean(templateDialogMenu)}
+        onOpenChange={(o) => { if (!o) { setTemplateDialogMenu(null); setTemplateName(''); } }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Save as template</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="space-y-1.5">
+              <Label>Template name</Label>
+              <Input
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="e.g. EdLab Standard Menu"
+                autoFocus
+              />
+            </div>
+            {templateDialogMenu && (() => {
+              const areas = templateDialogMenu.areas;
+              const hasBounds = areas.length > 0 && areas.every((a) => a.bounds);
+              if (hasBounds) {
+                const canvasW = Math.max(...areas.map((a) => a.bounds!.x + a.bounds!.width));
+                const canvasH = Math.max(...areas.map((a) => a.bounds!.y + a.bounds!.height));
+                return (
+                  <div className="rounded overflow-hidden relative w-full border" style={{ aspectRatio: `${canvasW} / ${canvasH}`, maxHeight: 56 }}>
+                    {areas.map((area, i) => (
+                      <div
+                        key={i}
+                        className="absolute flex items-center justify-center gap-1 text-white"
+                        style={{
+                          backgroundColor: area.bgColor,
+                          left: `${(area.bounds!.x / canvasW) * 100}%`,
+                          top: `${(area.bounds!.y / canvasH) * 100}%`,
+                          width: `${(area.bounds!.width / canvasW) * 100}%`,
+                          height: `${(area.bounds!.height / canvasH) * 100}%`,
+                        }}
+                      >
+                        <span className="text-xs leading-none">{area.emoji}</span>
+                        <span className="text-[8px] font-medium truncate">{area.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              }
+              return (
+                <div className="rounded overflow-hidden flex h-8 border">
+                  {areas.map((area, i) => (
+                    <div
+                      key={i}
+                      className="flex-1 flex items-center justify-center gap-1 text-white"
+                      style={{ backgroundColor: area.bgColor }}
+                    >
+                      <span className="text-sm leading-none">{area.emoji}</span>
+                      <span className="text-[9px] font-medium truncate">{area.label}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            <p className="text-xs text-muted-foreground">
+              Templates are saved to your account and available across all LINE OA channels.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setTemplateDialogMenu(null); setTemplateName(''); }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmSaveTemplate}
+              disabled={!templateName.trim() || saveTemplate.isPending}
+            >
+              {saveTemplate.isPending ? 'Saving…' : 'Save template'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

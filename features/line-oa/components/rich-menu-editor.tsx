@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { PlusIcon, Trash2Icon } from 'lucide-react';
+import { BookmarkIcon, ChevronDownIcon, LayoutGridIcon, PlusIcon, Trash2Icon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +13,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -21,6 +29,9 @@ import {
 } from '@/components/ui/select';
 import { MENU_COLORS } from '@/features/line-oa/webhook/rich-menu/types';
 import type { RichMenuAreaInput, RichMenuRecord, CreateRichMenuInput } from '../hooks/use-rich-menus';
+import { useMenuTemplates } from '../hooks/use-menu-templates';
+import { RichMenuLayoutPicker } from './rich-menu-layout-picker';
+import type { LayoutDef } from '@/features/line-oa/webhook/rich-menu/layouts';
 
 const DEFAULT_AREA = (): RichMenuAreaInput => ({
   label: '',
@@ -43,12 +54,34 @@ export function RichMenuEditor({ open, menu, onClose, onSubmit, isPending }: Pro
   const [areas, setAreas] = useState<RichMenuAreaInput[]>(
     menu?.areas ?? [DEFAULT_AREA(), DEFAULT_AREA(), DEFAULT_AREA()],
   );
+  const [layoutPickerOpen, setLayoutPickerOpen] = useState(false);
 
-  // Reset when menu prop changes
+  const { data: templates = [] } = useMenuTemplates();
+
   const resetToMenu = (m: RichMenuRecord | null | undefined) => {
     setName(m?.name ?? '');
     setChatBarText(m?.chatBarText ?? 'เมนู');
     setAreas(m?.areas ?? [DEFAULT_AREA(), DEFAULT_AREA(), DEFAULT_AREA()]);
+  };
+
+  const applyLayout = (layout: LayoutDef) => {
+    setLayoutPickerOpen(false);
+    // Resize areas array to match layout slot count, preserving any existing content
+    setAreas((prev) =>
+      layout.areas.map((bounds, i) => ({
+        ...(prev[i] ?? DEFAULT_AREA()),
+        bounds,
+      })),
+    );
+  };
+
+  const applyTemplate = (templateId: string) => {
+    const tpl = templates.find((t) => t.id === templateId);
+    if (!tpl) return;
+    // Pre-fill all fields — user can edit anything after
+    setName(tpl.name);
+    setChatBarText(tpl.chatBarText);
+    setAreas(tpl.areas.map((a) => ({ ...a })));
   };
 
   const handleOpenChange = (o: boolean) => {
@@ -73,6 +106,7 @@ export function RichMenuEditor({ open, menu, onClose, onSubmit, isPending }: Pro
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -80,6 +114,60 @@ export function RichMenuEditor({ open, menu, onClose, onSubmit, isPending }: Pro
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-5">
+
+          {/* Layout picker */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full h-8 text-xs gap-2 border-dashed"
+            onClick={() => setLayoutPickerOpen(true)}
+          >
+            <LayoutGridIcon className="size-3.5" />
+            Change layout
+          </Button>
+
+          {/* Template selector — only shown when templates exist */}
+          {templates.length > 0 && (
+            <div className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-2 bg-muted/20">
+              <BookmarkIcon className="size-3.5 text-muted-foreground shrink-0" />
+              <span className="text-xs text-muted-foreground">Use template:</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1 ml-auto">
+                    Select template <ChevronDownIcon className="size-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel className="text-xs">Your templates</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {templates.map((tpl) => (
+                    <DropdownMenuItem
+                      key={tpl.id}
+                      className="text-xs cursor-pointer"
+                      onSelect={() => applyTemplate(tpl.id)}
+                    >
+                      <div className="flex items-center gap-2 w-full">
+                        {/* Mini preview dots */}
+                        <div className="flex gap-0.5">
+                          {tpl.areas.slice(0, 4).map((a, i) => (
+                            <div
+                              key={i}
+                              className="size-3 rounded-sm"
+                              style={{ backgroundColor: a.bgColor }}
+                            />
+                          ))}
+                        </div>
+                        <span className="truncate flex-1">{tpl.name}</span>
+                        <span className="text-muted-foreground shrink-0">{tpl.areas.length} btn</span>
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
+
           {/* Basic info */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -105,18 +193,47 @@ export function RichMenuEditor({ open, menu, onClose, onSubmit, isPending }: Pro
           </div>
 
           {/* Preview strip */}
-          <div className="rounded-lg overflow-hidden border flex h-16">
-            {areas.map((area, i) => (
-              <div
-                key={i}
-                className="flex-1 flex flex-col items-center justify-center text-white text-xs font-bold gap-0.5"
-                style={{ backgroundColor: area.bgColor }}
-              >
-                <span className="text-lg leading-none">{area.emoji}</span>
-                <span className="truncate w-full text-center px-1" style={{ fontSize: 9 }}>{area.label}</span>
+          {(() => {
+            const hasBounds = areas.length > 0 && areas.every((a) => a.bounds);
+            if (hasBounds) {
+              const canvasW = Math.max(...areas.map((a) => a.bounds!.x + a.bounds!.width));
+              const canvasH = Math.max(...areas.map((a) => a.bounds!.y + a.bounds!.height));
+              return (
+                <div className="rounded-lg overflow-hidden border relative w-full" style={{ aspectRatio: `${canvasW} / ${canvasH}`, maxHeight: 120 }}>
+                  {areas.map((area, i) => (
+                    <div
+                      key={i}
+                      className="absolute flex flex-col items-center justify-center text-white font-bold"
+                      style={{
+                        backgroundColor: area.bgColor,
+                        left: `${(area.bounds!.x / canvasW) * 100}%`,
+                        top: `${(area.bounds!.y / canvasH) * 100}%`,
+                        width: `${(area.bounds!.width / canvasW) * 100}%`,
+                        height: `${(area.bounds!.height / canvasH) * 100}%`,
+                      }}
+                    >
+                      <span className="text-base leading-none">{area.emoji}</span>
+                      <span className="truncate w-full text-center px-1" style={{ fontSize: 9 }}>{area.label}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            }
+            return (
+              <div className="rounded-lg overflow-hidden border flex h-16">
+                {areas.map((area, i) => (
+                  <div
+                    key={i}
+                    className="flex-1 flex flex-col items-center justify-center text-white text-xs font-bold gap-0.5"
+                    style={{ backgroundColor: area.bgColor }}
+                  >
+                    <span className="text-lg leading-none">{area.emoji}</span>
+                    <span className="truncate w-full text-center px-1" style={{ fontSize: 9 }}>{area.label}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            );
+          })()}
 
           {/* Areas */}
           <div className="space-y-3">
@@ -219,7 +336,6 @@ export function RichMenuEditor({ open, menu, onClose, onSubmit, isPending }: Pro
                       value={(area.action as { type: 'message'; text: string }).text}
                       onChange={(e) => updateArea(i, { action: { type: 'message', text: e.target.value } })}
                       placeholder="Message text to send when tapped"
-                      required
                     />
                   )}
                   {area.action.type === 'uri' && (
@@ -229,7 +345,6 @@ export function RichMenuEditor({ open, menu, onClose, onSubmit, isPending }: Pro
                       onChange={(e) => updateArea(i, { action: { type: 'uri', uri: e.target.value } })}
                       placeholder="https://example.com"
                       type="url"
-                      required
                     />
                   )}
                   {area.action.type === 'postback' && (
@@ -238,7 +353,6 @@ export function RichMenuEditor({ open, menu, onClose, onSubmit, isPending }: Pro
                       value={(area.action as { type: 'postback'; data: string }).data}
                       onChange={(e) => updateArea(i, { action: { type: 'postback', data: e.target.value } })}
                       placeholder="Postback data (e.g. action=quiz)"
-                      required
                     />
                   )}
                 </div>
@@ -255,5 +369,12 @@ export function RichMenuEditor({ open, menu, onClose, onSubmit, isPending }: Pro
         </form>
       </DialogContent>
     </Dialog>
+
+    <RichMenuLayoutPicker
+      open={layoutPickerOpen}
+      onClose={() => setLayoutPickerOpen(false)}
+      onSelect={applyLayout}
+    />
+    </>
   );
 }

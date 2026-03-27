@@ -1,6 +1,5 @@
-export type { RichMenuAreaConfig } from '@/db/schema';
-
-export type RichMenuLayout = '3-col' | '6-col';
+export type { RichMenuAreaConfig, RichMenuBounds } from '@/db/schema';
+export type { LayoutDef, SizeType } from './layouts';
 
 // LINE rich menu image dimensions (full-width large)
 export const RICH_MENU_WIDTH = 2500;
