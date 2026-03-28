@@ -11,6 +11,7 @@ import { buildReplyMessages } from '../flex';
 import { buildQuickReplyItem } from '../utils/quick-reply';
 import { extractTextContent } from '../utils/text';
 import { stripMarkdown } from '../utils/markdown';
+import { consumeLinkToken } from '@/features/line-oa/link/service';
 
 type LineEvent = {
   replyToken?: string;
@@ -52,7 +53,21 @@ export async function handleMessageEvent(
   const userText = event.message.text.trim();
   if (!userText) return;
 
-  // ① Loading animation — fire immediately, non-blocking
+  // ① Account link command: /link <TOKEN>
+  const linkMatch = userText.match(/^\/link\s+([A-Z2-9]{8})$/i);
+  if (linkMatch) {
+    const token = linkMatch[1]!.toUpperCase();
+    const result = await consumeLinkToken(token, lineUserId, channel.id, lineClient);
+    if (event.replyToken) {
+      await lineClient.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{ type: 'text', text: result.message }],
+      });
+    }
+    return;
+  }
+
+  // ② Loading animation — fire immediately, non-blocking
   lineClient
     .showLoadingAnimation({ chatId: lineUserId, loadingSeconds: 30 })
     .catch((err) => console.warn('[LINE] showLoadingAnimation failed:', err));

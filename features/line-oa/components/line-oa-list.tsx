@@ -31,6 +31,7 @@ import {
 import { LineOaFormDialog } from './line-oa-form-dialog';
 import { RichMenuPanel } from './rich-menu-panel';
 import { BroadcastPanel } from './broadcast-panel';
+import { AccountLinkPanel } from './account-link-panel';
 import type { CreateLineOaChannelInput, LineOaChannel, UpdateLineOaChannelInput } from '../types';
 
 export const LineOaList = () => {
@@ -210,6 +211,11 @@ export const LineOaList = () => {
                 {/* Broadcasts */}
                 <div className="border-t pt-3 mt-1">
                   <BroadcastPanel channelId={channel.id} />
+                </div>
+
+                {/* Account links */}
+                <div className="border-t pt-3 mt-1">
+                  <AccountLinkPanel channelId={channel.id} />
                 </div>
               </div>
             ))}

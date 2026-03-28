@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { BotIcon, GlobeIcon, PencilIcon, PlusIcon, Trash2Icon, UsersIcon } from 'lucide-react';
+import { BotIcon, GlobeIcon, PencilIcon, PlusIcon, Share2Icon, Trash2Icon, UsersIcon } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +18,7 @@ import { TOOL_REGISTRY } from '@/lib/tool-registry';
 import { authClient } from '@/lib/auth-client';
 import { useAgents, useCreateAgent, useUpdateAgent, useDeleteAgent } from '../hooks/use-agents';
 import { AgentFormDialog } from './agent-form-dialog';
+import { PublicShareDialog } from './public-share-dialog';
 import type { Agent, AgentWithSharing, CreateAgentInput } from '../types';
 
 export const AgentsList = () => {
@@ -31,6 +32,7 @@ export const AgentsList = () => {
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Agent | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Agent | null>(null);
+  const [shareTarget, setShareTarget] = useState<Agent | null>(null);
 
   const handleFormSubmit = (data: CreateAgentInput) => {
     if (editTarget) {
@@ -118,6 +120,15 @@ export const AgentsList = () => {
                           variant="ghost"
                           size="icon"
                           className="size-7"
+                          onClick={() => setShareTarget(agent)}
+                          title="Share agent"
+                        >
+                          <Share2Icon className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7"
                           onClick={() => openEdit(agent)}
                         >
                           <PencilIcon className="size-3.5" />
@@ -193,6 +204,15 @@ export const AgentsList = () => {
         onSubmit={handleFormSubmit}
         isPending={createAgent.isPending || updateAgent.isPending}
       />
+
+      {shareTarget && (
+        <PublicShareDialog
+          agentId={shareTarget.id}
+          agentName={shareTarget.name}
+          open={Boolean(shareTarget)}
+          onClose={() => setShareTarget(null)}
+        />
+      )}
 
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
         <DialogContent>
