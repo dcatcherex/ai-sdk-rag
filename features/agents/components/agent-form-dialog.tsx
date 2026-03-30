@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Building2Icon, SparklesIcon, XIcon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Building2Icon, PlusIcon, SparklesIcon, XIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -55,6 +55,9 @@ export const AgentFormDialog = ({
   const [brandId, setBrandId] = useState<string>('none');
   const [docSearch, setDocSearch] = useState('');
   const [isPublic, setIsPublic] = useState(false);
+  const [starterPrompts, setStarterPrompts] = useState<string[]>([]);
+  const [starterInput, setStarterInput] = useState('');
+  const starterInputRef = useRef<HTMLInputElement>(null);
   const [sharedWith, setSharedWith] = useState<SharedUser[]>([]);
   const [shareSearch, setShareSearch] = useState('');
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -90,6 +93,7 @@ export const AgentFormDialog = ({
       setIsPublic(agent.isPublic ?? false);
       setSharedWith((agent as AgentWithSharing).sharedWith ?? []);
       setSkillIds(agent.skillIds ?? []);
+      setStarterPrompts(agent.starterPrompts ?? []);
     } else {
       setName('');
       setDescription('');
@@ -101,7 +105,9 @@ export const AgentFormDialog = ({
       setIsPublic(false);
       setSharedWith([]);
       setSkillIds([]);
+      setStarterPrompts([]);
     }
+    setStarterInput('');
     setDocSearch('');
     setShareSearch('');
   }, [agent, open]);
@@ -118,6 +124,7 @@ export const AgentFormDialog = ({
       skillIds,
       brandId: brandId === 'none' ? null : brandId,
       isPublic,
+      starterPrompts,
       sharedUserIds: sharedWith.map((u) => u.id),
     });
   };
@@ -182,6 +189,72 @@ export const AgentFormDialog = ({
               className="min-h-28 resize-none"
               required
             />
+          </div>
+
+          {/* Conversation starters */}
+          <div className="space-y-1.5">
+            <Label>Conversation starters <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <p className="text-xs text-muted-foreground">
+              Suggested prompts shown to users before their first message. Up to 4.
+            </p>
+            {starterPrompts.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {starterPrompts.map((s, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-1 rounded-full border border-input bg-muted/40 px-2.5 py-1 text-xs"
+                  >
+                    {s}
+                    <button
+                      type="button"
+                      className="ml-0.5 text-muted-foreground hover:text-foreground transition"
+                      onClick={() => setStarterPrompts((p) => p.filter((_, j) => j !== i))}
+                    >
+                      <XIcon className="size-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            {starterPrompts.length < 4 && (
+              <div className="flex gap-2">
+                <Input
+                  ref={starterInputRef}
+                  value={starterInput}
+                  onChange={(e) => setStarterInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const v = starterInput.trim();
+                      if (v && starterPrompts.length < 4) {
+                        setStarterPrompts((p) => [...p, v]);
+                        setStarterInput('');
+                      }
+                    }
+                  }}
+                  placeholder="e.g. What can you help me with?"
+                  maxLength={100}
+                  className="text-sm"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0"
+                  disabled={!starterInput.trim()}
+                  onClick={() => {
+                    const v = starterInput.trim();
+                    if (v) {
+                      setStarterPrompts((p) => [...p, v]);
+                      setStarterInput('');
+                      starterInputRef.current?.focus();
+                    }
+                  }}
+                >
+                  <PlusIcon className="size-4" />
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">

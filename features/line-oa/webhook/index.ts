@@ -1,10 +1,10 @@
 import { and, eq } from 'drizzle-orm';
 import { messagingApi, validateSignature } from '@line/bot-sdk';
 import { db } from '@/lib/db';
-import { agent, brandAsset, lineOaChannel } from '@/db/schema';
+import { agent, brandAsset, lineAccountLink, lineOaChannel } from '@/db/schema';
 import { chatModel } from '@/lib/ai';
 import { getSystemPrompt } from '@/lib/prompt';
-import type { AgentRow, Sender } from './types';
+import type { AgentRow, LinkedUser, Sender } from './types';
 import { handleFollowEvent } from './events/follow';
 import { handleMessageEvent } from './events/message';
 import { handlePostbackEvent } from './events/postback';
@@ -92,11 +92,29 @@ export async function POST(
           agentRow,
           brandLogoUrl,
           sender,
+          agentRow?.starterPrompts ?? [],
         );
         continue;
       }
 
       if (event.type === 'message') {
+        // Look up account link for this LINE user (non-fatal if absent)
+        let linkedUser: LinkedUser | undefined;
+        const lineUserId = event.source?.userId;
+        if (lineUserId) {
+          const linkRows = await db
+            .select({ userId: lineAccountLink.userId, displayName: lineAccountLink.displayName })
+            .from(lineAccountLink)
+            .where(
+              and(
+                eq(lineAccountLink.channelId, channel.id),
+                eq(lineAccountLink.lineUserId, lineUserId),
+              ),
+            )
+            .limit(1);
+          if (linkRows[0]) linkedUser = linkRows[0];
+        }
+
         await handleMessageEvent(
           event,
           { id: channel.id, userId: channel.userId, name: channel.name },
@@ -105,6 +123,7 @@ export async function POST(
           sender,
           systemPrompt,
           modelId,
+          linkedUser,
         );
       }
 

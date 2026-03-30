@@ -8,20 +8,23 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 
-type AgentMeta = { name: string; description: string | null };
+type AgentMeta = { name: string; description: string | null; starterPrompts: string[] };
+type ShareMeta = { welcomeMessage: string | null };
 
 const SESSION_KEY = (token: string) => `guest-session-${token}`;
+const SESSION_ID_KEY = (token: string) => `guest-sid-${token}`;
 
 export default function GuestChatPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
   const [agentMeta, setAgentMeta] = useState<AgentMeta | null>(null);
+  const [shareMeta, setShareMeta] = useState<ShareMeta | null>(null);
   const [input, setInput] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch(`/api/agent/${token}`)
-      .then((r) => r.ok ? r.json() as Promise<{ agent: AgentMeta }> : null)
-      .then((d) => { if (d) setAgentMeta(d.agent); });
+      .then((r) => r.ok ? r.json() as Promise<{ agent: AgentMeta; share: ShareMeta }> : null)
+      .then((d) => { if (d) { setAgentMeta(d.agent); setShareMeta(d.share); } });
   }, [token]);
 
   const transport = useMemo(
@@ -29,7 +32,13 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
       api: `/api/agent/${token}/chat`,
       headers: () => {
         const sessionToken = sessionStorage.getItem(SESSION_KEY(token)) ?? '';
-        const h: Record<string, string> = {};
+        // Generate a persistent session ID for analytics (once per browser session)
+        let sessionId = sessionStorage.getItem(SESSION_ID_KEY(token));
+        if (!sessionId) {
+          sessionId = crypto.randomUUID();
+          sessionStorage.setItem(SESSION_ID_KEY(token), sessionId);
+        }
+        const h: Record<string, string> = { 'x-session-id': sessionId };
         if (sessionToken) h['x-guest-token'] = sessionToken;
         return h;
       },
@@ -82,7 +91,7 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4 max-w-2xl w-full mx-auto">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center gap-2 py-16 text-center">
+          <div className="flex flex-col items-center gap-2 py-8 text-center">
             <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center">
               <BotIcon className="size-6 text-primary" />
             </div>
@@ -90,7 +99,36 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
             {agentMeta?.description && (
               <p className="text-xs text-muted-foreground max-w-xs">{agentMeta.description}</p>
             )}
-            <p className="text-xs text-muted-foreground mt-2">Type a message to start…</p>
+            {shareMeta?.welcomeMessage ? (
+              <div className="mt-4 flex justify-start w-full max-w-sm">
+                <div className="size-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-1 mr-2">
+                  <BotIcon className="size-4 text-primary" />
+                </div>
+                <div className="bg-white/90 dark:bg-card/90 border border-black/5 dark:border-border rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm whitespace-pre-wrap text-left">
+                  {shareMeta.welcomeMessage}
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground mt-2">Type a message to start…</p>
+            )}
+            {/* Conversation starters */}
+            {agentMeta?.starterPrompts && agentMeta.starterPrompts.length > 0 && (
+              <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-sm">
+                {agentMeta.starterPrompts.map((prompt, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      if (isLoading) return;
+                      sendMessage({ parts: [{ type: 'text', text: prompt }] });
+                    }}
+                    className="rounded-xl border border-input bg-white/80 dark:bg-card/80 px-3 py-2 text-xs text-left hover:bg-muted/60 transition shadow-sm"
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

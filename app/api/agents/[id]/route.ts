@@ -17,6 +17,7 @@ const updateSchema = z.object({
   skillIds: z.array(z.string()).optional(),
   brandId: z.string().optional().nullable(),
   isPublic: z.boolean().optional(),
+  starterPrompts: z.array(z.string().max(100)).max(4).optional(),
   sharedUserIds: z.array(z.string()).optional(),
 });
 

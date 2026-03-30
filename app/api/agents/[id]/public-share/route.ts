@@ -9,7 +9,15 @@ import { hashPassword } from '@/lib/guest-session';
 
 type Params = { params: Promise<{ id: string }> };
 
-// GET — return current share state for this agent (owner only)
+function toClient(row: typeof publicAgentShare.$inferSelect) {
+  return {
+    ...row,
+    passwordHash: undefined,
+    hasPassword: Boolean(row.passwordHash),
+    expiresAt: row.expiresAt?.toISOString() ?? null,
+  };
+}
+
 export async function GET(req: Request, { params }: Params) {
   const { id } = await params;
   const session = await auth.api.getSession({ headers: await headers() });
@@ -28,19 +36,9 @@ export async function GET(req: Request, { params }: Params) {
     .where(eq(publicAgentShare.agentId, id))
     .limit(1);
 
-  if (!share) return NextResponse.json({ share: null });
-
-  // Never expose passwordHash to the client — return a boolean flag instead
-  return NextResponse.json({
-    share: {
-      ...share,
-      passwordHash: undefined,
-      hasPassword: Boolean(share.passwordHash),
-    },
-  });
+  return NextResponse.json({ share: share ? toClient(share) : null });
 }
 
-// POST — create or update share link settings
 export async function POST(req: Request, { params }: Params) {
   const { id } = await params;
   const session = await auth.api.getSession({ headers: await headers() });
@@ -56,68 +54,63 @@ export async function POST(req: Request, { params }: Params) {
   const body = await req.json().catch(() => ({})) as {
     isActive?: boolean;
     guestMessageLimit?: number | null;
-    password?: string | null;       // plain text; null = remove password
-    expiresAt?: string | null;      // ISO date string; null = never
+    password?: string | null;
+    expiresAt?: string | null;
+    maxUses?: number | null;
+    creditLimit?: number | null;
+    welcomeMessage?: string | null;
   };
 
-  const existing = await db
+  const [existing] = await db
     .select()
     .from(publicAgentShare)
     .where(eq(publicAgentShare.agentId, id))
     .limit(1);
 
-  // Compute new passwordHash only when explicitly set
-  let newPasswordHash: string | null | undefined = undefined; // undefined = keep existing
+  let newPasswordHash: string | null | undefined = undefined;
   if (body.password !== undefined) {
     newPasswordHash = body.password ? hashPassword(body.password) : null;
   }
-
   const newExpiresAt: Date | null | undefined =
     body.expiresAt !== undefined
-      ? body.expiresAt
-        ? new Date(body.expiresAt)
-        : null
+      ? body.expiresAt ? new Date(body.expiresAt) : null
       : undefined;
 
-  if (existing[0]) {
-    const updated = await db
+  if (existing) {
+    const [updated] = await db
       .update(publicAgentShare)
       .set({
-        isActive: body.isActive ?? existing[0].isActive,
-        guestMessageLimit: body.guestMessageLimit !== undefined ? body.guestMessageLimit : existing[0].guestMessageLimit,
+        isActive: body.isActive ?? existing.isActive,
+        guestMessageLimit: body.guestMessageLimit !== undefined ? body.guestMessageLimit : existing.guestMessageLimit,
+        maxUses: body.maxUses !== undefined ? body.maxUses : existing.maxUses,
+        creditLimit: body.creditLimit !== undefined ? body.creditLimit : existing.creditLimit,
+        welcomeMessage: body.welcomeMessage !== undefined ? body.welcomeMessage : existing.welcomeMessage,
         ...(newPasswordHash !== undefined ? { passwordHash: newPasswordHash } : {}),
         ...(newExpiresAt !== undefined ? { expiresAt: newExpiresAt } : {}),
       })
       .where(eq(publicAgentShare.agentId, id))
       .returning();
-
-    const row = updated[0]!;
-    return NextResponse.json({
-      share: { ...row, passwordHash: undefined, hasPassword: Boolean(row.passwordHash) },
-    });
+    return NextResponse.json({ share: toClient(updated!) });
   }
 
-  // Create new share
-  const shareToken = nanoid(9);
   const [created] = await db
     .insert(publicAgentShare)
     .values({
       id: nanoid(),
       agentId: id,
-      shareToken,
+      shareToken: nanoid(9),
       isActive: true,
       guestMessageLimit: body.guestMessageLimit ?? null,
       passwordHash: newPasswordHash ?? null,
       expiresAt: newExpiresAt ?? null,
+      maxUses: body.maxUses ?? null,
+      creditLimit: body.creditLimit ?? null,
+      welcomeMessage: body.welcomeMessage ?? null,
     })
     .returning();
-
-  return NextResponse.json({
-    share: { ...created, passwordHash: undefined, hasPassword: Boolean(created!.passwordHash) },
-  });
+  return NextResponse.json({ share: toClient(created!) });
 }
 
-// DELETE — revoke share (delete row)
 export async function DELETE(req: Request, { params }: Params) {
   const { id } = await params;
   const session = await auth.api.getSession({ headers: await headers() });

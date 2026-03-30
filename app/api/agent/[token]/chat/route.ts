@@ -17,6 +17,8 @@ import { availableModels, chatModel, maxSteps } from '@/lib/ai';
 import { toolDisabledModels } from '@/features/chat/server/routing';
 import { createAgentTools } from '@/lib/agent-tools';
 import { verifySessionToken } from '@/lib/guest-session';
+import { publicAgentShareEvent } from '@/db/schema';
+import { nanoid } from 'nanoid';
 
 export const maxDuration = 30;
 
@@ -49,6 +51,14 @@ export async function POST(req: Request, { params }: Params) {
       }
     }
 
+    // ── Max uses check ────────────────────────────────────────────────────────
+    if (share.maxUses !== null && share.conversationCount >= share.maxUses) {
+      return Response.json(
+        { error: 'This link has reached its maximum number of uses.' },
+        { status: 429 },
+      );
+    }
+
     const [agentRow] = await db
       .select()
       .from(agent)
@@ -59,21 +69,41 @@ export async function POST(req: Request, { params }: Params) {
       return Response.json({ error: 'Agent not found.' }, { status: 404 });
     }
 
-    // ── Parse body ───────────────────────────────────────────────────────────
     const body = await req.json() as { messages: unknown[] };
     const messages = body.messages;
     if (!Array.isArray(messages) || messages.length === 0) {
       return Response.json({ error: 'messages required' }, { status: 400 });
     }
 
-    // ── Resolve model ────────────────────────────────────────────────────────
+    // ── Per-session message limit ─────────────────────────────────────────────
+    if (share.guestMessageLimit !== null) {
+      const userMsgCount = messages.filter(
+        (m): m is { role: string } => typeof m === 'object' && m !== null && (m as { role?: string }).role === 'user'
+      ).length;
+      if (userMsgCount > share.guestMessageLimit) {
+        return Response.json(
+          { error: `You've reached the ${share.guestMessageLimit}-message limit for this session.` },
+          { status: 429 },
+        );
+      }
+    }
+
     const resolvedModel = agentRow.modelId && availableModels.some((m) => m.id === agentRow.modelId)
       ? agentRow.modelId
       : chatModel;
 
-    // ── Credit check (bill owner) ────────────────────────────────────────────
     const ownerId = agentRow.userId;
     const creditCost = getCreditCost(resolvedModel);
+
+    // ── Credit limit check (link budget) ──────────────────────────────────────
+    if (share.creditLimit !== null && share.creditsUsed + creditCost > share.creditLimit) {
+      return Response.json(
+        { error: 'This link has reached its credit budget.' },
+        { status: 402 },
+      );
+    }
+
+    // ── Owner balance check ────────────────────────────────────────────────────
     const ownerBalance = await getUserBalance(ownerId);
     if (ownerBalance < creditCost) {
       return Response.json(
@@ -82,7 +112,6 @@ export async function POST(req: Request, { params }: Params) {
       );
     }
 
-    // ── Build tools ──────────────────────────────────────────────────────────
     const supportsTools = !toolDisabledModels.has(resolvedModel);
     const agentTools = supportsTools && agentRow.enabledTools.length > 0
       ? createAgentTools(
@@ -92,13 +121,11 @@ export async function POST(req: Request, { params }: Params) {
         )
       : undefined;
 
-    // ── System prompt ─────────────────────────────────────────────────────────
     const systemPrompt = agentRow.systemPrompt +
       (agentRow.documentIds.length > 0
         ? '\nIMPORTANT: Use the searchKnowledge tool to find relevant information before answering.'
         : '');
 
-    // ── Stream ────────────────────────────────────────────────────────────────
     const result = streamText({
       model: resolvedModel,
       system: systemPrompt,
@@ -106,6 +133,23 @@ export async function POST(req: Request, { params }: Params) {
       stopWhen: stepCountIs(maxSteps),
       ...(agentTools ? { tools: agentTools } : {}),
     });
+
+    // ── Record analytics event (fire and forget) ─────────────────────────────
+    const sessionId = req.headers.get('x-session-id') ?? undefined;
+    const isFirstMessage = (messages as Array<{ role?: string }>)
+      .filter((m) => m.role === 'user').length === 1;
+    if (isFirstMessage) {
+      const firstUserMsg = (messages as Array<{ role?: string; parts?: Array<{ type: string; text?: string }> }>)
+        .find((m) => m.role === 'user');
+      const firstText = firstUserMsg?.parts?.find((p) => p.type === 'text')?.text ?? null;
+      void db.insert(publicAgentShareEvent).values({
+        id: nanoid(),
+        shareToken: token,
+        eventType: 'chat',
+        sessionId: sessionId ?? null,
+        firstMessage: firstText ? firstText.slice(0, 200) : null,
+      });
+    }
 
     void (async () => {
       try {
@@ -117,7 +161,10 @@ export async function POST(req: Request, { params }: Params) {
         });
         await db
           .update(publicAgentShare)
-          .set({ conversationCount: sql`${publicAgentShare.conversationCount} + 1` })
+          .set({
+            conversationCount: sql`${publicAgentShare.conversationCount} + 1`,
+            creditsUsed: sql`${publicAgentShare.creditsUsed} + ${creditCost}`,
+          })
           .where(eq(publicAgentShare.shareToken, token));
       } catch (err) {
         console.error('[guest-chat] post-stream error', err);

@@ -9,6 +9,7 @@ export type QuickReply     = messagingApi.QuickReply;
 export type QuickReplyItem = messagingApi.QuickReplyItem;
 
 export type Sender = { name: string; iconUrl?: string };
+export type LinkedUser = { userId: string; displayName: string | null };
 export type MessagePart =
   | { type: 'text'; text: string }
   | { type: string; [key: string]: unknown };
@@ -19,6 +20,7 @@ export type AgentRow = {
   systemPrompt: string | null;
   modelId: string | null;
   brandId: string | null;
+  starterPrompts: string[];
 } | null;
 
 // LINE brand green

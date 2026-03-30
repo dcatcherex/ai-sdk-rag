@@ -538,6 +538,7 @@ export const agent = pgTable('agent', {
   skillIds: text('skill_ids').array().notNull().default(sql`'{}'::text[]`),
   brandId: text('brand_id').references(() => brand.id, { onDelete: 'set null' }),
   isPublic: boolean('is_public').notNull().default(false),
+  starterPrompts: text('starter_prompts').array().notNull().default(sql`'{}'::text[]`),
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull(),
 }, (table) => [index('agent_userId_idx').on(table.userId)]);
@@ -577,8 +578,16 @@ export const publicAgentShare = pgTable('public_agent_share', {
   passwordHash: text('password_hash'),
   /** Link expires at this timestamp (null = never) */
   expiresAt: timestamp('expires_at'),
+  /** Max total AI responses across all guests (null = unlimited) */
+  maxUses: integer('max_uses'),
+  /** Max credits the owner is willing to spend on this link (null = unlimited) */
+  creditLimit: integer('credit_limit'),
+  /** Running total of credits spent via this link */
+  creditsUsed: integer('credits_used').notNull().default(0),
   conversationCount: integer('conversation_count').notNull().default(0),
   shareCount: integer('share_count').notNull().default(0),
+  /** Optional greeting shown as the first message in the chat UI */
+  welcomeMessage: text('welcome_message'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (table) => [
@@ -589,6 +598,23 @@ export const publicAgentShare = pgTable('public_agent_share', {
 export const publicAgentShareRelations = relations(publicAgentShare, ({ one }) => ({
   agent: one(agent, { fields: [publicAgentShare.agentId], references: [agent.id] }),
 }));
+
+// ── Public Agent Share Events (analytics) ─────────────────────────────────────
+
+export const publicAgentShareEvent = pgTable('public_agent_share_event', {
+  id: text('id').primaryKey(),
+  shareToken: text('share_token').notNull(),
+  /** 'view' = landing page visit, 'chat' = AI response completed */
+  eventType: text('event_type').notNull(),
+  /** Client-generated UUID per browser session (for unique-session counting) */
+  sessionId: text('session_id'),
+  /** First user message of the session — only populated on 'chat' events */
+  firstMessage: text('first_message'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  index('pas_event_token_idx').on(table.shareToken),
+  index('pas_event_created_idx').on(table.createdAt),
+]);
 
 // ── Agent Skills ──────────────────────────────────────────────────────────────
 

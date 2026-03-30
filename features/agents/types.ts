@@ -10,6 +10,7 @@ export type Agent = {
   skillIds: string[];
   brandId: string | null;
   isPublic: boolean;
+  starterPrompts: string[];
   createdAt: string | Date;
   updatedAt: string | Date;
 };
@@ -24,6 +25,7 @@ export type CreateAgentInput = {
   skillIds?: string[];
   brandId?: string | null;
   isPublic?: boolean;
+  starterPrompts?: string[];
   sharedUserIds?: string[];
 };
 
