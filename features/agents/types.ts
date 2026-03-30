@@ -1,9 +1,12 @@
+import type { AgentStructuredBehavior } from '@/lib/agent-structured-behavior';
+
 export type Agent = {
   id: string;
   userId: string;
   name: string;
   description: string | null;
   systemPrompt: string;
+  structuredBehavior: AgentStructuredBehavior | null;
   modelId: string | null;
   enabledTools: string[];
   documentIds: string[];
@@ -19,6 +22,7 @@ export type CreateAgentInput = {
   name: string;
   description?: string;
   systemPrompt: string;
+  structuredBehavior?: AgentStructuredBehavior | null;
   modelId?: string | null;
   enabledTools?: string[];
   documentIds?: string[];

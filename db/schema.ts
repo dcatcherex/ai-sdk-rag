@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import { boolean, foreignKey, index, integer, jsonb, pgTable, text, timestamp, customType, uniqueIndex } from "drizzle-orm/pg-core";
+import type { AgentStructuredBehavior } from "@/lib/agent-structured-behavior";
 import type { CertificateTemplateType, PrintSheetSettings } from "@/lib/certificate-print";
 
 type CertificateJobExportMode = 'single_file' | 'zip' | 'single_pdf' | 'sheet_pdf';
@@ -516,15 +517,8 @@ export const recipientGroup = pgTable('recipient_group', {
     .notNull()
     .default(sql`'[]'::jsonb`),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at')
-    .defaultNow()
-    .$onUpdate(() => /* @__PURE__ */ new Date())
-    .notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (table) => [index('recipient_group_userId_idx').on(table.userId)]);
-
-export const recipientGroupRelations = relations(recipientGroup, ({ one }) => ({
-  user: one(user, { fields: [recipientGroup.userId], references: [user.id] }),
-}));
 
 export const agent = pgTable('agent', {
   id: text('id').primaryKey(),
@@ -532,6 +526,7 @@ export const agent = pgTable('agent', {
   name: text('name').notNull(),
   description: text('description'),
   systemPrompt: text('system_prompt').notNull(),
+  structuredBehavior: jsonb('structured_behavior').$type<AgentStructuredBehavior>(),
   modelId: text('model_id'),
   enabledTools: text('enabled_tools').array().notNull().default(sql`'{}'::text[]`),
   documentIds: text('document_ids').array().notNull().default(sql`'{}'::text[]`),

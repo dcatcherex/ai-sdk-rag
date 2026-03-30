@@ -6,11 +6,13 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { agent, agentShare } from '@/db/schema';
+import { agentStructuredBehaviorSchema } from '@/lib/agent-structured-behavior';
 
 const updateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().optional().nullable(),
   systemPrompt: z.string().min(1).optional(),
+  structuredBehavior: agentStructuredBehaviorSchema.optional().nullable(),
   modelId: z.string().optional().nullable(),
   enabledTools: z.array(z.string()).optional(),
   documentIds: z.array(z.string()).optional(),

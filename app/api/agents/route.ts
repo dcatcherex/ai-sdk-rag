@@ -7,11 +7,13 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { agent, agentShare, user as userTable } from '@/db/schema';
 import type { SharedUser } from '@/features/agents/types';
+import { agentStructuredBehaviorSchema } from '@/lib/agent-structured-behavior';
 
 const createSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().optional(),
   systemPrompt: z.string().min(1),
+  structuredBehavior: agentStructuredBehaviorSchema.optional().nullable(),
   modelId: z.string().optional().nullable(),
   enabledTools: z.array(z.string()).optional(),
   documentIds: z.array(z.string()).optional(),
@@ -65,6 +67,7 @@ export async function GET() {
       name: agent.name,
       description: agent.description,
       systemPrompt: agent.systemPrompt,
+      structuredBehavior: agent.structuredBehavior,
       modelId: agent.modelId,
       enabledTools: agent.enabledTools,
       documentIds: agent.documentIds,
@@ -87,6 +90,7 @@ export async function GET() {
       name: agent.name,
       description: agent.description,
       systemPrompt: agent.systemPrompt,
+      structuredBehavior: agent.structuredBehavior,
       modelId: agent.modelId,
       enabledTools: agent.enabledTools,
       documentIds: agent.documentIds,
@@ -129,6 +133,7 @@ export async function POST(req: Request) {
     name: body.name,
     description: body.description ?? null,
     systemPrompt: body.systemPrompt,
+    structuredBehavior: body.structuredBehavior ?? null,
     modelId: body.modelId ?? null,
     enabledTools: body.enabledTools ?? [],
     documentIds: body.documentIds ?? [],
