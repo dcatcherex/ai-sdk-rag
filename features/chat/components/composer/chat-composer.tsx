@@ -100,6 +100,7 @@ export type ChatComposerProps = {
   onSubmit: (message: PromptInputMessage) => void | Promise<void>;
   onVoiceTurnComplete?: (userText: string, aiText: string) => Promise<void>;
   voiceHistory?: VoiceHistoryTurn[];
+  selectedVoice?: string | null;
   // Compare mode
   compareMode: boolean;
   comparePresetIds: string[];
@@ -157,6 +158,7 @@ export function ChatComposer({
   onSubmit,
   onVoiceTurnComplete,
   voiceHistory,
+  selectedVoice,
   compareMode,
   comparePresetIds,
   comparePresetMode,
@@ -169,6 +171,7 @@ export function ChatComposer({
   const { voiceState, transcript, micLevel, speakAloud, connect, disconnect, toggleSpeakAloud } =
     useLiveVoice({
       enabled: voiceOpen,
+      voiceName: selectedVoice ?? undefined,
       onError: (msg) => toast.error('Voice error', { description: msg }),
       onTurnComplete: onVoiceTurnComplete,
       history: voiceHistory,

@@ -8,16 +8,14 @@ export async function GET() {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const ai = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY!,
-    httpOptions: { apiVersion: 'v1alpha' },
-  });
+  // authTokens.create is only available in the v1alpha API
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY!, httpOptions: { apiVersion: 'v1alpha' } });
 
   const token = await ai.authTokens.create({
     config: {
       uses: 1,
       expireTime: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-      newSessionExpireTime: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+      newSessionExpireTime: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
       liveConnectConstraints: {
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         config: {
@@ -26,7 +24,6 @@ export async function GET() {
           outputAudioTranscription: {},
         },
       },
-      httpOptions: { apiVersion: 'v1alpha' },
     },
   });
 

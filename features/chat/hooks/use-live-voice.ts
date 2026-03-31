@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GoogleGenAI, Modality } from '@google/genai';
+import { GoogleGenAI, Modality, Session } from '@google/genai';
 
 export type VoiceState = 'idle' | 'connecting' | 'listening' | 'ai-speaking' | 'error';
 
@@ -18,25 +18,28 @@ export type VoiceHistoryTurn = {
 
 type UseLiveVoiceOptions = {
   enabled: boolean;
+  voiceName?: string;
   onError?: (message: string) => void;
   onTurnComplete?: (userText: string, aiText: string) => void;
   history?: VoiceHistoryTurn[];
 };
 
-export function useLiveVoice({ enabled, onError, onTurnComplete, history }: UseLiveVoiceOptions) {
+const LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025';
+const DEFAULT_VOICE = 'Aoede';
+
+export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, history }: UseLiveVoiceOptions) {
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [transcript, setTranscript] = useState<VoiceTurn[]>([]);
   const [micLevel, setMicLevel] = useState(0);
 
   // Internal refs — not state so they don't cause re-renders
-  const sessionRef = useRef<ReturnType<InstanceType<typeof GoogleGenAI>['live']['connect']> extends Promise<infer T> ? T : never | null>(null);
+  const sessionRef = useRef<Session | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const playbackQueueRef = useRef<ArrayBuffer[]>([]);
   const isPlayingRef = useRef(false);
   const playbackContextRef = useRef<AudioContext | null>(null);
-  const muteRef = useRef(false);
   const speakAloudRef = useRef(true);
   const [speakAloud, setSpeakAloudState] = useState(true);
 
@@ -125,6 +128,8 @@ export function useLiveVoice({ enabled, onError, onTurnComplete, history }: UseL
       setVoiceState('listening');
       return;
     }
+
+    // A single event can contain multiple parts simultaneously — process all of them.
 
     // Audio response chunks
     const modelTurn = serverContent.modelTurn as Record<string, unknown> | undefined;
@@ -218,13 +223,13 @@ export function useLiveVoice({ enabled, onError, onTurnComplete, history }: UseL
 
     // Forward PCM chunks to Gemini session
     workletNode.port.onmessage = (event: MessageEvent<{ pcm: Int16Array }>) => {
-      if (!sessionRef.current || muteRef.current) return;
+      if (!sessionRef.current) return;
       const int16 = event.data.pcm;
       const bytes = new Uint8Array(int16.buffer);
       let binary = '';
       for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
       const base64 = btoa(binary);
-      void (sessionRef.current as unknown as { sendRealtimeInput: (args: unknown) => void }).sendRealtimeInput({
+      sessionRef.current.sendRealtimeInput({
         audio: { data: base64, mimeType: 'audio/pcm;rate=16000' },
       });
     };
@@ -260,39 +265,51 @@ export function useLiveVoice({ enabled, onError, onTurnComplete, history }: UseL
       // Connect directly to Gemini Live API using ephemeral token
       const ai = new GoogleGenAI({ apiKey: token, httpOptions: { apiVersion: 'v1alpha' } });
 
+      let connected = false;
+
       const session = await ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+        model: LIVE_MODEL,
         config: {
           responseModalities: [Modality.AUDIO],
           inputAudioTranscription: {},
           outputAudioTranscription: {},
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName ?? DEFAULT_VOICE } },
           },
           systemInstruction: 'You are a helpful, friendly assistant. Always respond in the same language the user speaks in — Thai or English. Keep responses conversational and concise.',
           contextWindowCompression: { slidingWindow: {} },
         },
         callbacks: {
           onopen: () => {
+            connected = true;
             setVoiceState('listening');
           },
           onmessage: (message: unknown) => {
             handleMessage(message as Record<string, unknown>);
           },
           onerror: (e: { message?: string }) => {
+            console.error('[useLiveVoice] session error:', e);
             reportError(e.message ?? 'Connection error');
           },
-          onclose: () => {
-            if (voiceState !== 'idle') setVoiceState('idle');
+          onclose: (e?: { code?: number; reason?: string }) => {
+            console.warn('[useLiveVoice] session closed — code:', e?.code, '| reason:', e?.reason);
+            sessionRef.current = null;
+            // Don't overwrite an error state — keep it visible so the user sees the toast
+            setVoiceState((prev) => (prev === 'error' ? 'error' : 'idle'));
           },
         },
       });
 
-      sessionRef.current = session as typeof sessionRef.current;
+      // Guard against the session closing before await resolved (race condition)
+      if (!connected && session.conn.readyState !== WebSocket.OPEN) {
+        return;
+      }
 
-      // Inject prior thread turns directly into conversation history.
-      // sendClientContent appends turns to the model's context window — unlike
-      // systemInstruction, the model treats these as actual conversation turns it participated in.
+      sessionRef.current = session;
+
+      // Inject prior thread turns as conversation context.
+      // sendClientContent prefills the model's context window with the history
+      // so the voice session is aware of the prior text conversation.
       const priorTurns = (historyRef.current ?? []).slice(-30).filter((t) => t.text.trim());
       if (priorTurns.length > 0) {
         const turns = priorTurns.map((t) => ({
@@ -300,15 +317,10 @@ export function useLiveVoice({ enabled, onError, onTurnComplete, history }: UseL
           parts: [{ text: t.text }],
         }));
         try {
-          (session as unknown as {
-            sendClientContent: (p: { turns: typeof turns; turnComplete: boolean }) => void;
-          }).sendClientContent({ turns, turnComplete: false });
-          console.log('[useLiveVoice] sendClientContent — injected', turns.length, 'history turns');
+          session.sendClientContent({ turns, turnComplete: false });
         } catch (e) {
           console.warn('[useLiveVoice] sendClientContent failed:', e);
         }
-      } else {
-        console.log('[useLiveVoice] sendClientContent — no history to inject');
       }
 
       // Start microphone after session is established
@@ -317,19 +329,18 @@ export function useLiveVoice({ enabled, onError, onTurnComplete, history }: UseL
       const msg = err instanceof Error ? err.message : 'Unknown error';
       reportError(msg);
     }
-  }, [voiceState, handleMessage, startMicrophone, reportError]);
+  }, [voiceState, voiceName, handleMessage, startMicrophone, reportError]);
 
   const disconnect = useCallback(() => {
+    const session = sessionRef.current;
+    sessionRef.current = null; // null first so onmessage/worklet stops sending
+
+    if (session) {
+      try { session.sendRealtimeInput({ audioStreamEnd: true }); } catch { /* ignore */ }
+      try { session.close(); } catch { /* ignore */ }
+    }
     stopMicrophone();
     clearPlaybackQueue();
-    if (sessionRef.current) {
-      try {
-        (sessionRef.current as unknown as { close: () => void }).close();
-      } catch {
-        // ignore close errors
-      }
-      sessionRef.current = null;
-    }
     setVoiceState('idle');
     setMicLevel(0);
   }, [stopMicrophone, clearPlaybackQueue]);

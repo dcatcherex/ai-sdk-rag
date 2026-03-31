@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/page-header';
+import { SettingsShell, type SettingsShellItem } from '@/components/settings-shell';
 import { ModelsTable } from '@/features/models/components/models-table';
 import { useSettingsPreferences } from '@/features/settings/hooks/use-settings-preferences';
 import { MemorySection } from '@/features/settings/components/memory-section';
@@ -28,7 +29,7 @@ import { ALL_TOOL_IDS, type ToolId } from '@/lib/tool-registry';
 
 type TabId = 'general' | 'ai-behavior' | 'memory' | 'tools' | 'models' | 'brands';
 
-const TABS: { id: TabId; label: string; icon: React.ElementType; description: string }[] = [
+const TABS: SettingsShellItem<TabId>[] = [
   {
     id: 'general',
     label: 'General',
@@ -99,73 +100,32 @@ export default function SettingsPage() {
   const activeTabMeta = TABS.find((t) => t.id === activeTab)!;
 
   return (
-    <div className="flex h-full overflow-hidden">
-      {/* Left nav */}
-      <nav className="hidden md:flex w-52 shrink-0 flex-col border-r border-black/5 dark:border-border bg-black/1 dark:bg-white/1 px-2 py-4 gap-0.5">
-        <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Settings</p>
-        {TABS.map(({ id, label, icon: Icon, description }) => {
-          const isActive = activeTab === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setActiveTab(id)}
-              className={`w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors ${
-                isActive
-                  ? 'bg-primary/8 dark:bg-primary/12 text-foreground'
-                  : 'text-muted-foreground hover:bg-black/4 dark:hover:bg-white/4 hover:text-foreground'
-              }`}
-            >
-              <Icon className={`size-4 shrink-0 ${isActive ? 'text-primary' : ''}`} />
-              <span className="text-sm font-medium">{label}</span>
-            </button>
-          );
-        })}
-      </nav>
+    <div className="flex h-full flex-col overflow-hidden">
+      <PageHeader
+        title="Settings"
+        description="Customize your AI workspace, behavior, memory, tools, models, and brands"
+      />
 
-      {/* Mobile tab bar */}
-      <div className="md:hidden flex shrink-0 border-b border-black/5 dark:border-border overflow-x-auto">
-        {TABS.map(({ id, label, icon: Icon }) => {
-          const isActive = activeTab === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setActiveTab(id)}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                isActive
-                  ? 'border-primary text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Icon className="size-3.5" />
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Content */}
-      <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
-        <PageHeader
-          title={activeTabMeta.label}
-          description={activeTabMeta.description}
-          action={activeTab === 'brands' ? (
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setShowBrandImport((v) => !v)}>
-                <DownloadIcon className="mr-1.5 size-3.5" />
-                Import JSON
-              </Button>
-              <Button size="sm" onClick={() => setIsCreatingBrand(true)}>
-                <PlusIcon className="mr-1.5 size-3.5" />
-                New Brand
-              </Button>
-            </div>
-          ) : undefined}
-        />
-
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
+      <SettingsShell
+        activeItem={activeTab}
+        items={TABS}
+        onItemChange={setActiveTab}
+        sectionTitle={activeTabMeta.label}
+        sectionDescription={activeTabMeta.description}
+        contentClassName="space-y-8"
+        sectionAction={activeTab === 'brands' ? (
+          <>
+            <Button variant="outline" size="sm" onClick={() => setShowBrandImport((v) => !v)}>
+              <DownloadIcon className="mr-1.5 size-3.5" />
+              Import JSON
+            </Button>
+            <Button size="sm" onClick={() => setIsCreatingBrand(true)}>
+              <PlusIcon className="mr-1.5 size-3.5" />
+              New Brand
+            </Button>
+          </>
+        ) : undefined}
+      >
           {activeTab === 'general' && (
             <>
               <ToggleSection
@@ -244,8 +204,7 @@ export default function SettingsPage() {
               onShowImportChange={setShowBrandImport}
             />
           )}
-        </div>
-      </div>
+      </SettingsShell>
     </div>
   );
 }

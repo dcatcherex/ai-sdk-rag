@@ -52,10 +52,16 @@ export default function Chat() {
     if (compareMode) setSubmittedComparePrompt(null);
   }, [compareMode]);
   const [followUpSuggestionsEnabled, setFollowUpSuggestionsEnabled] = useState(true);
+  const [selectedVoice, setSelectedVoice] = useState<string | null>(null);
   useEffect(() => {
     void fetch('/api/user/preferences')
       .then((r) => r.ok ? r.json() : null)
-      .then((prefs) => { if (prefs) setFollowUpSuggestionsEnabled(prefs.followUpSuggestionsEnabled ?? true); });
+      .then((prefs) => {
+        if (prefs) {
+          setFollowUpSuggestionsEnabled(prefs.followUpSuggestionsEnabled ?? true);
+          setSelectedVoice(prefs.selectedVoice ?? null);
+        }
+      });
   }, []);
 
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
@@ -385,6 +391,7 @@ export default function Chat() {
                 onSubmit={compareMode ? handleCompareSubmit : handleSubmitMessage}
                 onVoiceTurnComplete={handleVoiceTurnComplete}
                 voiceHistory={voiceHistory}
+                selectedVoice={selectedVoice}
                 compareMode={compareMode}
                 comparePresetIds={presetIds}
                 comparePresetMode={presetMode}

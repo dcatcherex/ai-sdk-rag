@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ArrowLeftIcon, BotIcon } from 'lucide-react';
+import { PageHeader } from '@/components/page-header';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -65,27 +66,21 @@ export function AgentEditorPanel({ agent, isPending, onBack, onSubmit }: AgentEd
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center justify-between border-b border-black/5 px-6 py-4 dark:border-border">
-        <div className="flex min-w-0 items-center gap-3">
+      <PageHeader
+        title={isEdit ? 'Edit Agent' : 'Create Agent'}
+        description={isEdit
+          ? 'Update prompt, tools, sharing, and model settings in one workspace.'
+          : 'Create a tailored AI agent with its own prompt, tools, and knowledge sources.'}
+        icon={<BotIcon className="size-4" />}
+        leading={
           <Button type="button" variant="ghost" size="sm" className="gap-1.5" onClick={handleBack} disabled={isPending}>
             <ArrowLeftIcon className="size-4" />
             Back to Agents
           </Button>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <BotIcon className="size-4 text-primary" />
-              <h2 className="truncate text-lg font-semibold">{isEdit ? 'Edit Agent' : 'Create Agent'}</h2>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {isEdit
-                ? 'Update prompt, tools, sharing, and model settings in one workspace.'
-                : 'Create a tailored AI agent with its own prompt, tools, and knowledge sources.'}
-            </p>
-          </div>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="flex min-h-0 flex-1 flex-col px-6 py-5">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <AgentForm
           activeSection={activeSection}
           agent={agent}

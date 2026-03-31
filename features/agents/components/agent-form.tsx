@@ -485,7 +485,7 @@ export function AgentForm({
         )
       }
       onSkillToggle={(skillId, checked) =>
-        setSkillIds((prev) => (checked ? prev.filter((id) => id !== skillId) : [...prev, skillId]))
+        setSkillIds((prev) => (checked ? [...prev, skillId] : prev.filter((id) => id !== skillId)))
       }
       skillIds={skillIds}
       userDocuments={userDocuments}
@@ -516,11 +516,23 @@ export function AgentForm({
     model: modelSection,
   };
 
+  const formActions = (
+    <div className="flex items-center justify-end gap-2">
+      <Button type="button" variant="outline" onClick={onCancel} disabled={isPending}>
+        Cancel
+      </Button>
+      <Button type="submit" disabled={!isValid || isPending}>
+        {isPending ? 'Saving…' : submitLabel}
+      </Button>
+    </div>
+  );
+
   return (
     <form onSubmit={handleSubmit} className={cn('space-y-4', isPanel && 'flex min-h-0 flex-1 flex-col overflow-hidden gap-6 space-y-0')}>
       {isPanel ? (
         <AgentSettingsLayout
           activeSection={resolvedActiveSection}
+          footer={formActions}
           onSectionChange={onSectionChange ?? (() => undefined)}
           sectionDescription={activeSectionMeta?.description}
           sectionTitle={activeSectionMeta?.label ?? 'General'}
@@ -535,22 +547,9 @@ export function AgentForm({
           {toolsSection}
           {knowledgeSection}
           {sharingSection}
+          {formActions}
         </>
       )}
-
-      <div
-        className={cn(
-          'flex items-center justify-end gap-2',
-          isPanel && 'shrink-0 border-t border-black/5 bg-background px-6 py-4 dark:border-border'
-        )}
-      >
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isPending}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={!isValid || isPending}>
-          {isPending ? 'Saving…' : submitLabel}
-        </Button>
-      </div>
     </form>
   );
 }
