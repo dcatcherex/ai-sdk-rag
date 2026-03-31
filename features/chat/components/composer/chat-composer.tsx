@@ -4,8 +4,7 @@ import { useCallback, useState } from 'react';
 import type { ChatStatus } from 'ai';
 import { toast } from 'sonner';
 import { BookOpenIcon, CheckIcon, GlobeIcon, LibraryIcon } from 'lucide-react';
-import { useLiveVoice, type VoiceHistoryTurn } from '@/features/chat/hooks/use-live-voice';
-import { VoiceMode } from '@/features/chat/components/voice-mode';
+import { useLiveVoice, type VoiceHistoryTurn, type VoiceState } from '@/features/chat/hooks/use-live-voice';
 import { AgentSelector } from '@/features/agents/components/agent-selector';
 import { PersonaSelector } from '@/features/chat/components/persona-selector';
 import type { Agent } from '@/features/agents/types';
@@ -133,6 +132,62 @@ const PromptPickerButton = () => {
   );
 };
 
+// ── Voice inline display (replaces textarea when voice mode is active) ────────
+
+const VOICE_STATUS_DOT: Record<VoiceState, string> = {
+  idle: 'bg-zinc-400',
+  connecting: 'bg-yellow-400 animate-pulse',
+  listening: 'bg-green-500 animate-pulse',
+  'ai-speaking': 'bg-blue-400 animate-pulse',
+  error: 'bg-red-500',
+};
+
+const VOICE_STATUS_TEXT: Record<VoiceState, string> = {
+  idle: 'Initializing...',
+  connecting: 'Connecting...',
+  listening: 'Listening',
+  'ai-speaking': 'AI is responding...',
+  error: 'Connection error',
+};
+
+const VoiceWaveformBars = ({ level, active }: { level: number; active: boolean }) => {
+  const bars = [0.4, 0.7, 1.0, 0.7, 0.4, 0.6, 0.9, 0.6, 0.3, 0.8];
+  return (
+    <div className="flex items-center justify-center gap-[3px] h-8">
+      {bars.map((base, i) => {
+        const animating = active && level > 0.05;
+        const height = animating
+          ? Math.max(4, Math.round(base * level * 32))
+          : active
+            ? 4
+            : Math.round(base * 12);
+        return (
+          <div
+            key={i}
+            className={`w-1 rounded-full transition-all duration-75 ${active ? 'bg-primary' : 'bg-muted-foreground/40'}`}
+            style={{ height: `${height}px` }}
+          />
+        );
+      })}
+    </div>
+  );
+};
+
+const VoiceInlineDisplay = ({ voiceState, micLevel }: { voiceState: VoiceState; micLevel: number }) => {
+  const isListening = voiceState === 'listening';
+  const isAiSpeaking = voiceState === 'ai-speaking';
+  const isActive = isListening || isAiSpeaking;
+  return (
+    <div className="flex flex-col items-center justify-center gap-1.5 py-2 min-h-[52px]">
+      <VoiceWaveformBars level={isListening ? micLevel : isAiSpeaking ? 0.6 : 0} active={isActive} />
+      <div className="flex items-center gap-1.5">
+        <span className={`size-1.5 rounded-full ${VOICE_STATUS_DOT[voiceState]}`} />
+        <span className="text-xs text-muted-foreground">{VOICE_STATUS_TEXT[voiceState]}</span>
+      </div>
+    </div>
+  );
+};
+
 // ── ChatComposer ──────────────────────────────────────────────────────────────
 
 export function ChatComposer({
@@ -168,7 +223,7 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const [voiceOpen, setVoiceOpen] = useState(false);
 
-  const { voiceState, transcript, micLevel, speakAloud, connect, disconnect, toggleSpeakAloud } =
+  const { voiceState, transcript, micLevel, speakAloud, disconnect, toggleSpeakAloud } =
     useLiveVoice({
       enabled: voiceOpen,
       voiceName: selectedVoice ?? undefined,
@@ -179,8 +234,7 @@ export function ChatComposer({
 
   const handleOpenVoice = useCallback(() => {
     setVoiceOpen(true);
-    void connect();
-  }, [connect]);
+  }, []);
 
   const handleCloseVoice = useCallback(() => {
     disconnect();
@@ -189,18 +243,6 @@ export function ChatComposer({
 
   return (
     <div className="relative border-t border-black/5 dark:border-border px-3 py-3 md:px-6 md:py-4">
-      {voiceOpen && (
-        <div className="absolute bottom-full left-0 right-0 z-10 px-3 pb-1 md:px-6">
-          <VoiceMode
-            voiceState={voiceState}
-            transcript={transcript}
-            micLevel={micLevel}
-            speakAloud={speakAloud}
-            onClose={handleCloseVoice}
-            onToggleSpeakAloud={toggleSpeakAloud}
-          />
-        </div>
-      )}
       {selectedDocCount > 0 && (
         <div className="mb-2 flex items-center gap-1.5 text-xs text-primary">
           <BookOpenIcon className="size-3.5" />
@@ -216,14 +258,18 @@ export function ChatComposer({
             <ComposerAttachments />
           </PromptInputHeader>
           <PromptInputBody>
-            <PromptInputTextarea
-              className="max-h-[40vh] overflow-y-auto leading-6"
-              placeholder={
-                compareMode
-                  ? 'Type a prompt to compare across models…'
-                  : 'Ask anything or drop files to ground the response.'
-              }
-            />
+            {voiceOpen ? (
+              <VoiceInlineDisplay voiceState={voiceState} micLevel={micLevel} />
+            ) : (
+              <PromptInputTextarea
+                className="max-h-[40vh] overflow-y-auto leading-6"
+                placeholder={
+                  compareMode
+                    ? 'Type a prompt to compare across models…'
+                    : 'Ask anything or drop files to ground the response.'
+                }
+              />
+            )}
           </PromptInputBody>
           <PromptInputFooter>
             <PromptInputTools>
@@ -321,8 +367,12 @@ export function ChatComposer({
             <ComposerActionButtons
               status={status}
               voiceOpen={voiceOpen}
+              voiceState={voiceState}
+              speakAloud={speakAloud}
               onStop={onStop}
               onOpenVoice={handleOpenVoice}
+              onCloseVoice={handleCloseVoice}
+              onToggleSpeakAloud={toggleSpeakAloud}
               onTranscriptionChange={onTranscriptionChange}
             />
           </PromptInputFooter>

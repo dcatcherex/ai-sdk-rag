@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GoogleGenAI, Modality, Session } from '@google/genai';
+import { GoogleGenAI, Modality, Session, type LiveConnectConfig } from '@google/genai';
 
 export type VoiceState = 'idle' | 'connecting' | 'listening' | 'ai-speaking' | 'error';
 
@@ -24,13 +24,30 @@ type UseLiveVoiceOptions = {
   history?: VoiceHistoryTurn[];
 };
 
-const LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025';
+const LIVE_MODEL = 'gemini-3.1-flash-live-preview';
 const DEFAULT_VOICE = 'Aoede';
+const BASE_SYSTEM_INSTRUCTION = 'You are a helpful, friendly assistant. Always respond in the same language the user speaks in — Thai or English. Keep responses conversational and concise.';
+const AUDIO_ACTIVITY_THRESHOLD = 120;
+const AUDIO_ACTIVITY_HOLD_MS = 900;
+
+function buildSystemInstruction(history?: VoiceHistoryTurn[]) {
+  const priorTurns = (history ?? []).slice(-12).filter((turn) => turn.text.trim());
+  if (priorTurns.length === 0) {
+    return BASE_SYSTEM_INSTRUCTION;
+  }
+
+  const serializedHistory = priorTurns
+    .map((turn) => `${turn.role === 'assistant' ? 'Assistant' : 'User'}: ${turn.text.trim()}`)
+    .join('\n');
+
+  return `${BASE_SYSTEM_INSTRUCTION}\n\nConversation context from the existing text chat:\n${serializedHistory}`;
+}
 
 export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, history }: UseLiveVoiceOptions) {
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [transcript, setTranscript] = useState<VoiceTurn[]>([]);
   const [micLevel, setMicLevel] = useState(0);
+  const [speakAloud, setSpeakAloudState] = useState(true);
 
   // Internal refs — not state so they don't cause re-renders
   const sessionRef = useRef<Session | null>(null);
@@ -41,16 +58,106 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
   const isPlayingRef = useRef(false);
   const playbackContextRef = useRef<AudioContext | null>(null);
   const speakAloudRef = useRef(true);
-  const [speakAloud, setSpeakAloudState] = useState(true);
-
-  // Accumulate partial transcripts during a turn
   const inputTranscriptAccRef = useRef('');
   const outputTranscriptAccRef = useRef('');
+  const sessionHandleRef = useRef<string | null>(null);
+  const reconnectTimeoutRef = useRef<number | null>(null);
+  const goAwayReconnectTimeoutRef = useRef<number | null>(null);
+  const activityEndTimeoutRef = useRef<number | null>(null);
+  const activeConnectionIdRef = useRef<symbol | null>(null);
+  const enabledRef = useRef(enabled);
+  const manualDisconnectRef = useRef(false);
+  const isConnectingRef = useRef(false);
+  const isGoAwayReconnectPendingRef = useRef(false);
+  const isActivityActiveRef = useRef(false);
+  const connectRef = useRef<(() => Promise<void>) | null>(null);
+
+  enabledRef.current = enabled;
 
   const reportError = useCallback((msg: string) => {
     setVoiceState('error');
     onError?.(msg);
   }, [onError]);
+
+  const isSessionSocketOpen = useCallback((session: Session | null) => {
+    if (!session) {
+      return false;
+    }
+
+    const conn = session.conn as { readyState?: number };
+    return conn.readyState === WebSocket.OPEN;
+  }, []);
+
+  const clearActivityEndTimeout = useCallback(() => {
+    if (activityEndTimeoutRef.current !== null) {
+      window.clearTimeout(activityEndTimeoutRef.current);
+      activityEndTimeoutRef.current = null;
+    }
+  }, []);
+
+  const finishActivity = useCallback((session: Session | null) => {
+    clearActivityEndTimeout();
+    if (!session || !isActivityActiveRef.current || !isSessionSocketOpen(session)) {
+      isActivityActiveRef.current = false;
+      return;
+    }
+    try {
+      session.sendRealtimeInput({ activityEnd: {} });
+    } catch {
+      // ignore
+    }
+    isActivityActiveRef.current = false;
+  }, [clearActivityEndTimeout, isSessionSocketOpen]);
+
+  const clearReconnectTimeout = useCallback(() => {
+    if (reconnectTimeoutRef.current !== null) {
+      window.clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    if (goAwayReconnectTimeoutRef.current !== null) {
+      window.clearTimeout(goAwayReconnectTimeoutRef.current);
+      goAwayReconnectTimeoutRef.current = null;
+    }
+  }, []);
+
+  const scheduleReconnect = useCallback(() => {
+    if (!enabledRef.current || manualDisconnectRef.current || reconnectTimeoutRef.current !== null) {
+      return;
+    }
+    setVoiceState('connecting');
+    reconnectTimeoutRef.current = window.setTimeout(() => {
+      reconnectTimeoutRef.current = null;
+      void connectRef.current?.();
+    }, 750);
+  }, []);
+
+  const scheduleGoAwayReconnect = useCallback((timeLeftMs?: number) => {
+    if (
+      !enabledRef.current ||
+      manualDisconnectRef.current ||
+      goAwayReconnectTimeoutRef.current !== null ||
+      isGoAwayReconnectPendingRef.current
+    ) {
+      return;
+    }
+
+    const delay = Math.max(0, Math.min(Math.max((timeLeftMs ?? 1500) - 500, 0), 5000));
+    goAwayReconnectTimeoutRef.current = window.setTimeout(() => {
+      goAwayReconnectTimeoutRef.current = null;
+      const activeSession = sessionRef.current;
+      if (!activeSession || !isSessionSocketOpen(activeSession)) {
+        return;
+      }
+      isGoAwayReconnectPendingRef.current = true;
+      finishActivity(activeSession);
+      try {
+        activeSession.close();
+      } catch {
+        isGoAwayReconnectPendingRef.current = false;
+        scheduleReconnect();
+      }
+    }, delay);
+  }, [finishActivity, isSessionSocketOpen, scheduleReconnect]);
 
   // ── Audio Playback ─────────────────────────────────────────────────────────
 
@@ -113,6 +220,33 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
   historyRef.current = history;
 
   const handleMessage = useCallback((message: Record<string, unknown>) => {
+    const sessionResumptionUpdate = message.sessionResumptionUpdate as Record<string, unknown> | undefined;
+    if (sessionResumptionUpdate?.resumable === true && typeof sessionResumptionUpdate.newHandle === 'string') {
+      sessionHandleRef.current = sessionResumptionUpdate.newHandle;
+    }
+
+    const goAway = message.goAway as Record<string, unknown> | undefined;
+    if (goAway?.timeLeft !== undefined) {
+      const timeLeftValue = goAway.timeLeft;
+      let timeLeftMs: number | undefined;
+      if (typeof timeLeftValue === 'number' && Number.isFinite(timeLeftValue)) {
+        timeLeftMs = timeLeftValue;
+      } else if (typeof timeLeftValue === 'string') {
+        if (timeLeftValue.endsWith('s')) {
+          const seconds = Number.parseFloat(timeLeftValue.slice(0, -1));
+          if (Number.isFinite(seconds)) {
+            timeLeftMs = seconds * 1000;
+          }
+        } else {
+          const parsed = Number.parseFloat(timeLeftValue);
+          if (Number.isFinite(parsed)) {
+            timeLeftMs = parsed;
+          }
+        }
+      }
+      scheduleGoAwayReconnect(timeLeftMs);
+    }
+
     const serverContent = message.serverContent as Record<string, unknown> | undefined;
     if (!serverContent) return;
 
@@ -195,7 +329,7 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     streamRef.current = stream;
 
-    const ctx = new AudioContext();
+    const ctx = new AudioContext({ sampleRate: 16000 });
     audioContextRef.current = ctx;
 
     await ctx.audioWorklet.addModule('/worklets/pcm-processor.js');
@@ -223,19 +357,45 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
 
     // Forward PCM chunks to Gemini session
     workletNode.port.onmessage = (event: MessageEvent<{ pcm: Int16Array }>) => {
-      if (!sessionRef.current) return;
+      const activeSession = sessionRef.current;
+      if (!activeSession || !isSessionSocketOpen(activeSession)) return;
       const int16 = event.data.pcm;
+      const averageLevel = int16.length > 0
+        ? int16.reduce((sum, value) => sum + Math.abs(value), 0) / int16.length
+        : 0;
+      const hasSpeech = averageLevel > AUDIO_ACTIVITY_THRESHOLD;
+
+      if (hasSpeech && !isActivityActiveRef.current) {
+        try {
+          activeSession.sendRealtimeInput({ activityStart: {} });
+          isActivityActiveRef.current = true;
+        } catch {
+          return;
+        }
+      }
+
+      if (!hasSpeech && !isActivityActiveRef.current) return;
+
+      if (hasSpeech) {
+        clearActivityEndTimeout();
+        activityEndTimeoutRef.current = window.setTimeout(() => {
+          finishActivity(activeSession);
+        }, AUDIO_ACTIVITY_HOLD_MS);
+      }
+
       const bytes = new Uint8Array(int16.buffer);
       let binary = '';
       for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
       const base64 = btoa(binary);
-      sessionRef.current.sendRealtimeInput({
+      activeSession.sendRealtimeInput({
         audio: { data: base64, mimeType: 'audio/pcm;rate=16000' },
       });
     };
-  }, []);
+  }, [clearActivityEndTimeout, finishActivity, isSessionSocketOpen]);
 
   const stopMicrophone = useCallback(() => {
+    clearActivityEndTimeout();
+    isActivityActiveRef.current = false;
     workletNodeRef.current?.disconnect();
     workletNodeRef.current = null;
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
@@ -247,14 +407,23 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
       streamRef.current = null;
     }
     setMicLevel(0);
-  }, []);
+  }, [clearActivityEndTimeout]);
 
   // ── Connect / Disconnect ───────────────────────────────────────────────────
 
   const connect = useCallback(async () => {
-    if (voiceState !== 'idle' && voiceState !== 'error') return;
+    if (sessionRef.current || isConnectingRef.current) return;
+    manualDisconnectRef.current = false;
+    clearReconnectTimeout();
+    isConnectingRef.current = true;
     setVoiceState('connecting');
-    setTranscript([]);
+    const connectionAttemptId = Symbol('live-session');
+    activeConnectionIdRef.current = connectionAttemptId;
+
+    const resumeHandle = sessionHandleRef.current;
+    if (!resumeHandle) {
+      setTranscript([]);
+    }
 
     try {
       // Get ephemeral token from our backend
@@ -267,83 +436,139 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
 
       let connected = false;
 
+      const config: LiveConnectConfig = {
+        responseModalities: [Modality.AUDIO],
+        inputAudioTranscription: {},
+        outputAudioTranscription: {},
+        realtimeInputConfig: {
+          automaticActivityDetection: {
+            disabled: true,
+          },
+        },
+        speechConfig: {
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName ?? DEFAULT_VOICE } },
+        },
+        systemInstruction: buildSystemInstruction(historyRef.current),
+        contextWindowCompression: { slidingWindow: {} },
+        sessionResumption: resumeHandle ? { handle: resumeHandle } : {},
+      };
+
       const session = await ai.live.connect({
         model: LIVE_MODEL,
-        config: {
-          responseModalities: [Modality.AUDIO],
-          inputAudioTranscription: {},
-          outputAudioTranscription: {},
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName ?? DEFAULT_VOICE } },
-          },
-          systemInstruction: 'You are a helpful, friendly assistant. Always respond in the same language the user speaks in — Thai or English. Keep responses conversational and concise.',
-          contextWindowCompression: { slidingWindow: {} },
-        },
+        config,
         callbacks: {
           onopen: () => {
+            if (activeConnectionIdRef.current !== connectionAttemptId) {
+              return;
+            }
             connected = true;
+            isConnectingRef.current = false;
+            isGoAwayReconnectPendingRef.current = false;
+            clearReconnectTimeout();
             setVoiceState('listening');
           },
           onmessage: (message: unknown) => {
+            if (activeConnectionIdRef.current !== connectionAttemptId) {
+              return;
+            }
             handleMessage(message as Record<string, unknown>);
           },
           onerror: (e: { message?: string }) => {
+            if (activeConnectionIdRef.current !== connectionAttemptId) {
+              return;
+            }
             console.error('[useLiveVoice] session error:', e);
             reportError(e.message ?? 'Connection error');
           },
           onclose: (e?: { code?: number; reason?: string }) => {
+            if (activeConnectionIdRef.current !== connectionAttemptId) {
+              return;
+            }
             console.warn('[useLiveVoice] session closed — code:', e?.code, '| reason:', e?.reason);
+            isConnectingRef.current = false;
+            activeConnectionIdRef.current = null;
             sessionRef.current = null;
+            stopMicrophone();
+            clearPlaybackQueue();
+            const shouldReconnect = !manualDisconnectRef.current && enabledRef.current;
+            const wasGoAwayReconnect = isGoAwayReconnectPendingRef.current;
+            isGoAwayReconnectPendingRef.current = false;
+            if (shouldReconnect && wasGoAwayReconnect) {
+              void connectRef.current?.();
+              return;
+            }
+            if (shouldReconnect) {
+              const description = e?.reason
+                ? `Live session closed (${e.code ?? 'unknown'}): ${e.reason}`
+                : `Live session closed (${e?.code ?? 'unknown'})`;
+              reportError(description);
+              return;
+            }
             // Don't overwrite an error state — keep it visible so the user sees the toast
             setVoiceState((prev) => (prev === 'error' ? 'error' : 'idle'));
           },
         },
       });
 
+      if (activeConnectionIdRef.current !== connectionAttemptId) {
+        try { session.close(); } catch { /* ignore */ }
+        return;
+      }
+
       // Guard against the session closing before await resolved (race condition)
-      if (!connected && session.conn.readyState !== WebSocket.OPEN) {
+      if (!connected && !isSessionSocketOpen(session)) {
+        isConnectingRef.current = false;
+        isGoAwayReconnectPendingRef.current = false;
+        if (activeConnectionIdRef.current === connectionAttemptId) {
+          activeConnectionIdRef.current = null;
+        }
         return;
       }
 
       sessionRef.current = session;
 
-      // Inject prior thread turns as conversation context.
-      // sendClientContent prefills the model's context window with the history
-      // so the voice session is aware of the prior text conversation.
-      const priorTurns = (historyRef.current ?? []).slice(-30).filter((t) => t.text.trim());
-      if (priorTurns.length > 0) {
-        const turns = priorTurns.map((t) => ({
-          role: t.role === 'assistant' ? ('model' as const) : ('user' as const),
-          parts: [{ text: t.text }],
-        }));
-        try {
-          session.sendClientContent({ turns, turnComplete: false });
-        } catch (e) {
-          console.warn('[useLiveVoice] sendClientContent failed:', e);
-        }
-      }
-
       // Start microphone after session is established
       await startMicrophone();
     } catch (err) {
+      isConnectingRef.current = false;
+      isGoAwayReconnectPendingRef.current = false;
+      if (activeConnectionIdRef.current === connectionAttemptId) {
+        activeConnectionIdRef.current = null;
+      }
       const msg = err instanceof Error ? err.message : 'Unknown error';
       reportError(msg);
     }
-  }, [voiceState, voiceName, handleMessage, startMicrophone, reportError]);
+  }, [voiceName, clearPlaybackQueue, clearReconnectTimeout, handleMessage, reportError, scheduleReconnect, startMicrophone, stopMicrophone]);
+
+  connectRef.current = connect;
+
+  useEffect(() => {
+    if (enabled && voiceState === 'idle' && !sessionRef.current && !isConnectingRef.current) {
+      void connect();
+    }
+  }, [enabled, voiceState, connect]);
 
   const disconnect = useCallback(() => {
+    manualDisconnectRef.current = true;
+    isConnectingRef.current = false;
+    isGoAwayReconnectPendingRef.current = false;
+    activeConnectionIdRef.current = null;
+    clearReconnectTimeout();
+    sessionHandleRef.current = null;
+    inputTranscriptAccRef.current = '';
+    outputTranscriptAccRef.current = '';
     const session = sessionRef.current;
     sessionRef.current = null; // null first so onmessage/worklet stops sending
 
     if (session) {
-      try { session.sendRealtimeInput({ audioStreamEnd: true }); } catch { /* ignore */ }
+      finishActivity(session);
       try { session.close(); } catch { /* ignore */ }
     }
     stopMicrophone();
     clearPlaybackQueue();
     setVoiceState('idle');
     setMicLevel(0);
-  }, [stopMicrophone, clearPlaybackQueue]);
+  }, [clearPlaybackQueue, clearReconnectTimeout, finishActivity, stopMicrophone]);
 
   const toggleSpeakAloud = useCallback(() => {
     speakAloudRef.current = !speakAloudRef.current;

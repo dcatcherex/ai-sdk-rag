@@ -3,26 +3,34 @@
 import { useCallback, useRef, useState } from 'react';
 import type { ChatStatus } from 'ai';
 import { toast } from 'sonner';
-import { AudioLinesIcon } from 'lucide-react';
+import { AudioLinesIcon, Volume2Icon, VolumeXIcon } from 'lucide-react';
 import {
   PromptInputSubmit,
   usePromptInputController,
 } from '@/components/ai-elements/prompt-input';
 import { SpeechInput } from '@/components/ai-elements/speech-input';
+import type { VoiceState } from '@/features/chat/hooks/use-live-voice';
 
 export type ComposerActionButtonsProps = {
   status: ChatStatus;
   voiceOpen: boolean;
+  voiceState?: VoiceState;
+  speakAloud?: boolean;
   onStop: () => void;
   onOpenVoice: () => void;
+  onCloseVoice: () => void;
+  onToggleSpeakAloud?: () => void;
   onTranscriptionChange: (transcript: string) => void;
 };
 
 export const ComposerActionButtons = ({
   status,
   voiceOpen,
+  speakAloud,
   onStop,
   onOpenVoice,
+  onCloseVoice,
+  onToggleSpeakAloud,
   onTranscriptionChange,
 }: ComposerActionButtonsProps) => {
   const { textInput } = usePromptInputController();
@@ -70,6 +78,30 @@ export const ComposerActionButtons = ({
     );
   }
 
+  // Voice mode active: mute toggle + close button
+  if (voiceOpen) {
+    return (
+      <div className="ml-auto flex items-center gap-2">
+        <button
+          type="button"
+          title={speakAloud ? 'Mute AI voice' : 'Unmute AI voice'}
+          onClick={onToggleSpeakAloud}
+          className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-zinc-100 dark:hover:bg-muted hover:text-foreground"
+        >
+          {speakAloud ? <Volume2Icon className="size-4" /> : <VolumeXIcon className="size-4" />}
+        </button>
+        <button
+          type="button"
+          title="End voice conversation"
+          onClick={onCloseVoice}
+          className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          <AudioLinesIcon className="size-4" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="ml-auto flex items-center gap-2">
       <SpeechInput
@@ -86,11 +118,7 @@ export const ComposerActionButtons = ({
           type="button"
           title="Voice conversation"
           onClick={onOpenVoice}
-          className={`flex size-8 items-center justify-center rounded-md transition-colors ${
-            voiceOpen
-              ? 'bg-primary text-primary-foreground'
-              : 'text-muted-foreground hover:bg-zinc-100 dark:hover:bg-muted'
-          }`}
+          className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-zinc-100 dark:hover:bg-muted"
         >
           <AudioLinesIcon className="size-4" />
         </button>

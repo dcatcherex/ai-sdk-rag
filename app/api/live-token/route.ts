@@ -17,11 +17,17 @@ export async function GET() {
       expireTime: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
       newSessionExpireTime: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
       liveConnectConstraints: {
-        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+        model: 'gemini-3.1-flash-live-preview',
         config: {
           responseModalities: [Modality.AUDIO],
           inputAudioTranscription: {},
           outputAudioTranscription: {},
+          realtimeInputConfig: {
+            automaticActivityDetection: {
+              disabled: true,
+            },
+          },
+          sessionResumption: {},
         },
       },
     },

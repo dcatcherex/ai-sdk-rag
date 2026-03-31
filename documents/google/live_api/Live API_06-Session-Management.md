@@ -1,18 +1,36 @@
-<br />
-
-In the Live API, a session refers to a persistent connection where input and output are streamed continuously over the same connection (read more about[how it works](https://ai.google.dev/gemini-api/docs/live)). This unique session design enables low latency and supports unique features, but can also introduce challenges, like session time limits, and early termination. This guide covers strategies for overcoming the session management challenges that can arise when using the Live API.
+In the Live API, a session refers to a persistent
+connection where input and output are streamed continuously over the same
+connection (read more about [how it works](https://ai.google.dev/gemini-api/docs/live)).
+This unique session design enables low latency and supports unique features, but
+can also introduce challenges, like session time limits, and early termination.
+This guide covers strategies for overcoming the session management challenges
+that can arise when using the Live API.
 
 ## Session lifetime
 
-Without compression, audio-only sessions are limited to 15 minutes, and audio-video sessions are limited to 2 minutes. Exceeding these limits will terminate the session (and therefore, the connection), but you can use[context window compression](https://ai.google.dev/gemini-api/docs/live-session#context-window-compression)to extend sessions to an unlimited amount of time.
+Without compression, audio-only sessions are limited to 15 minutes,
+and audio-video sessions are limited to 2 minutes. Exceeding these limits
+will terminate the session (and therefore, the connection), but you can use
+[context window compression](https://ai.google.dev/gemini-api/docs/live-api/session-management#context-window-compression) to extend sessions to
+an unlimited amount of time.
 
-The lifetime of a connection is limited as well, to around 10 minutes. When the connection terminates, the session terminates as well. In this case, you can configure a single session to stay active over multiple connections using[session resumption](https://ai.google.dev/gemini-api/docs/live-session#session-resumption). You'll also receive a[GoAway message](https://ai.google.dev/gemini-api/docs/live-session#goaway-message)before the connection ends, allowing you to take further actions.
+The lifetime of a connection is limited as well, to around 10 minutes. When the
+connection terminates, the session terminates as well. In this case, you can
+configure a single session to stay active over multiple connections using
+[session resumption](https://ai.google.dev/gemini-api/docs/live-api/session-management#session-resumption).
+You'll also receive a [GoAway message](https://ai.google.dev/gemini-api/docs/live-api/session-management#goaway-message) before the
+connection ends, allowing you to take further actions.
 
 ## Context window compression
 
-To enable longer sessions, and avoid abrupt connection termination, you can enable context window compression by setting the[contextWindowCompression](https://ai.google.dev/api/live#BidiGenerateContentSetup.FIELDS.ContextWindowCompressionConfig.BidiGenerateContentSetup.context_window_compression)field as part of the session configuration.
+To enable longer sessions, and avoid abrupt connection termination, you can
+enable context window compression by setting the [contextWindowCompression](https://ai.google.dev/api/live#BidiGenerateContentSetup.FIELDS.ContextWindowCompressionConfig.BidiGenerateContentSetup.context_window_compression)
+field as part of the session configuration.
 
-In the[ContextWindowCompressionConfig](https://ai.google.dev/api/live#contextwindowcompressionconfig), you can configure a[sliding-window mechanism](https://ai.google.dev/api/live#ContextWindowCompressionConfig.FIELDS.ContextWindowCompressionConfig.SlidingWindow.ContextWindowCompressionConfig.sliding_window)and the[number of tokens](https://ai.google.dev/api/live#ContextWindowCompressionConfig.FIELDS.int64.ContextWindowCompressionConfig.trigger_tokens)that triggers compression.  
+In the [ContextWindowCompressionConfig](https://ai.google.dev/api/live#contextwindowcompressionconfig), you can configure a
+[sliding-window mechanism](https://ai.google.dev/api/live#ContextWindowCompressionConfig.FIELDS.ContextWindowCompressionConfig.SlidingWindow.ContextWindowCompressionConfig.sliding_window)
+and the [number of tokens](https://ai.google.dev/api/live#ContextWindowCompressionConfig.FIELDS.int64.ContextWindowCompressionConfig.trigger_tokens)
+that triggers compression.
 
 ### Python
 
@@ -37,11 +55,17 @@ In the[ContextWindowCompressionConfig](https://ai.google.dev/api/live#contextwin
 
 ## Session resumption
 
-To prevent session termination when the server periodically resets the WebSocket connection, configure the[sessionResumption](https://ai.google.dev/api/live#BidiGenerateContentSetup.FIELDS.SessionResumptionConfig.BidiGenerateContentSetup.session_resumption)field within the[setup configuration](https://ai.google.dev/api/live#BidiGenerateContentSetup).
+To prevent session termination when the server periodically resets the WebSocket
+connection, configure the [sessionResumption](https://ai.google.dev/api/live#BidiGenerateContentSetup.FIELDS.SessionResumptionConfig.BidiGenerateContentSetup.session_resumption)
+field within the [setup configuration](https://ai.google.dev/api/live#BidiGenerateContentSetup).
 
-Passing this configuration causes the server to send[SessionResumptionUpdate](https://ai.google.dev/api/live#SessionResumptionUpdate)messages, which can be used to resume the session by passing the last resumption token as the[`SessionResumptionConfig.handle`](https://ai.google.dev/api/live#SessionResumptionConfig.FIELDS.string.SessionResumptionConfig.handle)of the subsequent connection.
+Passing this configuration causes the
+server to send [SessionResumptionUpdate](https://ai.google.dev/api/live#SessionResumptionUpdate)
+messages, which can be used to resume the session by passing the last resumption
+token as the [`SessionResumptionConfig.handle`](https://ai.google.dev/api/live#SessionResumptionConfig.FIELDS.string.SessionResumptionConfig.handle)
+of the subsequent connection.
 
-Resumption tokens are valid for 2 hr after the last sessions termination.  
+Resumption tokens are valid for 2 hr after the last sessions termination.
 
 ### Python
 
@@ -50,7 +74,7 @@ Resumption tokens are valid for 2 hr after the last sessions termination.
     from google.genai import types
 
     client = genai.Client()
-    model = "gemini-2.5-flash-native-audio-preview-12-2025"
+    model = "gemini-3.1-flash-live-preview"
 
     async def main():
         print(f"Connecting to the service with handle {previous_session_handle}...")
@@ -94,7 +118,7 @@ Resumption tokens are valid for 2 hr after the last sessions termination.
     import { GoogleGenAI, Modality } from '@google/genai';
 
     const ai = new GoogleGenAI({});
-    const model = 'gemini-2.5-flash-native-audio-preview-12-2025';
+    const model = 'gemini-3.1-flash-live-preview';
 
     async function live() {
       const responseQueue = [];
@@ -174,7 +198,10 @@ Resumption tokens are valid for 2 hr after the last sessions termination.
 
 ## Receiving a message before the session disconnects
 
-The server sends a[GoAway](https://ai.google.dev/api/live#GoAway)message that signals that the current connection will soon be terminated. This message includes the[timeLeft](https://ai.google.dev/api/live#GoAway.FIELDS.google.protobuf.Duration.GoAway.time_left), indicating the remaining time and lets you take further action before the connection will be terminated as ABORTED.  
+The server sends a [GoAway](https://ai.google.dev/api/live#GoAway) message that signals that the current
+connection will soon be terminated. This message includes the [timeLeft](https://ai.google.dev/api/live#GoAway.FIELDS.google.protobuf.Duration.GoAway.time_left),
+indicating the remaining time and lets you take further action before the
+connection will be terminated as ABORTED.
 
 ### Python
 
@@ -195,7 +222,8 @@ The server sends a[GoAway](https://ai.google.dev/api/live#GoAway)message that si
 
 ## Receiving a message when the generation is complete
 
-The server sends a[generationComplete](https://ai.google.dev/api/live#BidiGenerateContentServerContent.FIELDS.bool.BidiGenerateContentServerContent.generation_complete)message that signals that the model finished generating the response.  
+The server sends a [generationComplete](https://ai.google.dev/api/live#BidiGenerateContentServerContent.FIELDS.bool.BidiGenerateContentServerContent.generation_complete)
+message that signals that the model finished generating the response.
 
 ### Python
 
@@ -215,4 +243,7 @@ The server sends a[generationComplete](https://ai.google.dev/api/live#BidiGenera
 
 ## What's next
 
-Explore more ways to work with the Live API in the full[Capabilities](https://ai.google.dev/gemini-api/docs/live)guide, the[Tool use](https://ai.google.dev/gemini-api/docs/live-tools)page, or the[Live API cookbook](https://colab.research.google.com/github/google-gemini/cookbook/blob/main/quickstarts/Get_started_LiveAPI.ipynb).
+Explore more ways to work with the Live API in the full
+[Capabilities](https://ai.google.dev/gemini-api/docs/live) guide,
+the [Tool use](https://ai.google.dev/gemini-api/docs/live-tools) page, or the
+[Live API cookbook](https://colab.research.google.com/github/google-gemini/cookbook/blob/main/quickstarts/Get_started_LiveAPI.ipynb).

@@ -1,27 +1,36 @@
-<br />
-
-Tool use allows Live API to go beyond just conversation by enabling it to perform actions in the real-world and pull in external context while maintaining a real time connection. You can define tools such as[Function calling](https://ai.google.dev/gemini-api/docs/function-calling)and[Google Search](https://ai.google.dev/gemini-api/docs/grounding)with the Live API.
+Tool use allows Live API to go beyond just conversation by enabling it to
+perform actions in the real-world and pull in external context while maintaining
+a real time connection.
+You can define tools such as [Function calling](https://ai.google.dev/gemini-api/docs/function-calling)
+and [Google Search](https://ai.google.dev/gemini-api/docs/grounding) with the Live API.
 
 ## Overview of supported tools
 
 Here's a brief overview of the available tools for Live API models:
 
-|         Tool         | `gemini-2.5-flash-native-audio-preview-12-2025` |
-|----------------------|-------------------------------------------------|
-| **Search**           | Yes                                             |
-| **Function calling** | Yes                                             |
-| **Google Maps**      | No                                              |
-| **Code execution**   | No                                              |
-| **URL context**      | No                                              |
+| Tool | Gemini 3.1 Flash Live Preview | Gemini 2.5 Flash Live Preview |
+|---|---|---|
+| **Search** | Supported | Supported |
+| **Function calling** | Supported (synchronous only) | Supported (synchronous and [asynchronous](https://ai.google.dev/gemini-api/docs/live-api/tools#async-function-calling)) |
+| **Google Maps** | Not supported | Not supported |
+| **Code execution** | Not supported | Not supported |
+| **URL context** | Not supported | Not supported |
 
 ## Function calling
 
-Live API supports function calling, just like regular content generation requests. Function calling lets the Live API interact with external data and programs, greatly increasing what your applications can accomplish.
+Live API supports function calling, just like regular content generation
+requests. Function calling lets the Live API interact with external data and
+programs, greatly increasing what your applications can accomplish.
 
-You can define function declarations as part of the session configuration. After receiving tool calls, the client should respond with a list of`FunctionResponse`objects using the`session.send_tool_response`method.
+You can define function declarations as part of the session configuration.
+After receiving tool calls, the client should respond with a list of
+`FunctionResponse` objects using the `session.send_tool_response` method.
 
-See the[Function calling tutorial](https://ai.google.dev/gemini-api/docs/function-calling)to learn more.
-**Note:** Unlike the`generateContent`API, the Live API doesn't support automatic tool response handling. You must handle tool responses manually in your client code.  
+See the [Function calling tutorial](https://ai.google.dev/gemini-api/docs/function-calling) to learn
+more.
+
+> [!NOTE]
+> **Note:** Unlike the `generateContent` API, the Live API doesn't support automatic tool response handling. You must handle tool responses manually in your client code.
 
 ### Python
 
@@ -32,7 +41,7 @@ See the[Function calling tutorial](https://ai.google.dev/gemini-api/docs/functio
 
     client = genai.Client()
 
-    model = "gemini-2.5-flash-native-audio-preview-12-2025"
+    model = "gemini-3.1-flash-live-preview"
 
     # Simple function definitions
     turn_on_the_lights = {"name": "turn_on_the_lights"}
@@ -80,7 +89,7 @@ See the[Function calling tutorial](https://ai.google.dev/gemini-api/docs/functio
     const { WaveFile } = pkg;
 
     const ai = new GoogleGenAI({});
-    const model = 'gemini-2.5-flash-native-audio-preview-12-2025';
+    const model = 'gemini-3.1-flash-live-preview';
 
     // Simple function definitions
     const turn_on_the_lights = { name: "turn_on_the_lights" } // , description: '...', parameters: { ... }
@@ -194,13 +203,23 @@ See the[Function calling tutorial](https://ai.google.dev/gemini-api/docs/functio
 
     main();
 
-From a single prompt, the model can generate multiple function calls and the code necessary to chain their outputs. This code executes in a sandbox environment, generating subsequent[BidiGenerateContentToolCall](https://ai.google.dev/api/live#bidigeneratecontenttoolcall)messages.
+From a single prompt, the model can generate multiple function calls and the
+code necessary to chain their outputs. This code executes in a sandbox
+environment, generating subsequent [BidiGenerateContentToolCall](https://ai.google.dev/api/live#bidigeneratecontenttoolcall) messages.
 
 ## Asynchronous function calling
 
-Function calling executes sequentially by default, meaning execution pauses until the results of each function call are available. This ensures sequential processing, which means you won't be able to continue interacting with the model while the functions are being run.
+Function calling executes sequentially by default, meaning execution pauses
+until the results of each function call are available. This ensures sequential
+processing, which means you won't be able to continue interacting with the model
+while the functions are being run.
 
-If you don't want to block the conversation, you can tell the model to run the functions asynchronously. To do so, you first need to add a`behavior`to the function definitions:  
+> [!NOTE]
+> **Note:** Asynchronous function calling is not yet supported in Gemini 3.1 Flash Live. The model will not start responding until you've sent the tool response.
+
+If you don't want to block the conversation, you can tell the model to run the
+functions asynchronously. To do so, you first need to add a `behavior` to the
+function definitions:
 
 ### Python
 
@@ -220,13 +239,16 @@ If you don't want to block the conversation, you can tell the model to run the f
 
     const tools = [{ functionDeclarations: [turn_on_the_lights, turn_off_the_lights] }]
 
-`NON-BLOCKING`ensures the function runs asynchronously while you can continue interacting with the model.
+`NON-BLOCKING` ensures the function runs asynchronously while you can
+continue interacting with the model.
 
-Then you need to tell the model how to behave when it receives the`FunctionResponse`using the`scheduling`parameter. It can either:
+Then you need to tell the model how to behave when it receives the
+`FunctionResponse` using the `scheduling` parameter. It can either:
 
 - Interrupt what it's doing and tell you about the response it got right away (`scheduling="INTERRUPT"`),
 - Wait until it's finished with what it's currently doing (`scheduling="WHEN_IDLE"`),
-- Or do nothing and use that knowledge later on in the discussion (`scheduling="SILENT"`)
+- Or do nothing and use that knowledge later on in the discussion
+  (`scheduling="SILENT"`)
 
 ### Python
 
@@ -256,7 +278,10 @@ Then you need to tell the model how to behave when it receives the`FunctionRespo
 
 ## Grounding with Google Search
 
-You can enable Grounding with Google Search as part of the session configuration. This increases the Live API's accuracy and prevents hallucinations. See the[Grounding tutorial](https://ai.google.dev/gemini-api/docs/grounding)to learn more.  
+You can enable Grounding with Google Search as part of the session
+configuration. This increases the Live API's accuracy and prevents
+hallucinations. See the [Grounding tutorial](https://ai.google.dev/gemini-api/docs/grounding) to
+learn more.
 
 ### Python
 
@@ -267,7 +292,7 @@ You can enable Grounding with Google Search as part of the session configuration
 
     client = genai.Client()
 
-    model = "gemini-2.5-flash-native-audio-preview-12-2025"
+    model = "gemini-3.1-flash-live-preview"
 
     tools = [{'google_search': {}}]
     config = {"response_modalities": ["AUDIO"], "tools": tools}
@@ -310,7 +335,7 @@ You can enable Grounding with Google Search as part of the session configuration
     const { WaveFile } = pkg;
 
     const ai = new GoogleGenAI({});
-    const model = 'gemini-2.5-flash-native-audio-preview-12-2025';
+    const model = 'gemini-3.1-flash-live-preview';
 
     const tools = [{ googleSearch: {} }]
     const config = {
@@ -413,7 +438,8 @@ You can enable Grounding with Google Search as part of the session configuration
 
 ## Combining multiple tools
 
-You can combine multiple tools within the Live API, increasing your application's capabilities even more:  
+You can combine multiple tools within the Live API,
+increasing your application's capabilities even more:
 
 ### Python
 
@@ -459,5 +485,5 @@ You can combine multiple tools within the Live API, increasing your application'
 
 ## What's next
 
-- Check out more examples of using tools with the Live API in the[Tool use cookbook](https://colab.research.google.com/github/google-gemini/cookbook/blob/main/quickstarts/Get_started_LiveAPI_tools.ipynb).
-- Get the full story on features and configurations from the[Live API Capabilities guide](https://ai.google.dev/gemini-api/docs/live-guide).
+- Check out more examples of using tools with the Live API in the [Tool use cookbook](https://colab.research.google.com/github/google-gemini/cookbook/blob/main/quickstarts/Get_started_LiveAPI_tools.ipynb).
+- Get the full story on features and configurations from the [Live API Capabilities guide](https://ai.google.dev/gemini-api/docs/live-guide).

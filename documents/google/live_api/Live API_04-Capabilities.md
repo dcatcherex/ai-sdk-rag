@@ -1,17 +1,34 @@
-<br />
-
 > [!WARNING]
 > **Preview:** The Live API is in preview.
 
 This is a comprehensive guide that covers capabilities and configurations
 available with the Live API.
-See [Get started with Live API](https://ai.google.dev/gemini-api/docs/live) page for a
+See [Get started with Live API](https://ai.google.dev/gemini-api/docs/live) page for an
 overview and sample code for common use cases.
 
 ## Before you begin
 
 - **Familiarize yourself with core concepts:** If you haven't already done so, read the [Get started with Live API](https://ai.google.dev/gemini-api/docs/live) page first. This will introduce you to the fundamental principles of the Live API, how it works, and the different [implementation approaches](https://ai.google.dev/gemini-api/docs/live#implementation-approach).
 - **Try the Live API in AI Studio:** You may find it useful to try the Live API in [Google AI Studio](https://aistudio.google.com/app/live) before you start building. To use the Live API in Google AI Studio, select **Stream**.
+
+## Model comparison
+
+The following table summarizes the key differences between the
+[Gemini 3.1 Flash Live Preview](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-live-preview) and the [Gemini 2.5 Flash Live Preview](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash-native-audio-preview-12-2025) models:
+
+| Feature | Gemini 3.1 Flash Live Preview | Gemini 2.5 Flash Live Preview |
+|---|---|---|
+| **[Thinking](https://ai.google.dev/gemini-api/docs/live-api/capabilities#native-audio-output-thinking)** | Uses `thinkingLevel` to control thinking depth with settings like `minimal`, `low`, `medium`, and `high`. Defaults to `minimal` to optimize for lowest latency. See [Thinking levels and budgets](https://ai.google.dev/gemini-api/docs/thinking#levels-budgets). | Uses `thinkingBudget` to set the number of thinking tokens. Dynamic thinking is enabled by default. Set `thinkingBudget` to `0` to disable. See [Thinking levels and budgets](https://ai.google.dev/gemini-api/docs/thinking#levels-budgets). |
+| **[Receiving response](https://ai.google.dev/api/live#bidigeneratecontentservercontent)** | A single server event can contain multiple content parts simultaneously (for example, `inlineData` and transcript). Ensure your code processes all parts in each event to avoid missing content. | Each server event contains only one content part. Parts are delivered in separate events. |
+| **[Client content](https://ai.google.dev/gemini-api/docs/live-api/capabilities#incremental-updates)** | `send_client_content` is only supported for seeding initial context history (requires setting `initial_history_in_client_content` in session config). To send text updates during the conversation, use `send_realtime_input` instead. | `send_client_content` is supported throughout the conversation for sending incremental content updates and establishing context. |
+| **[Turn coverage](https://ai.google.dev/api/live#turncoverage)** | Defaults to `TURN_INCLUDES_AUDIO_ACTIVITY_AND_ALL_VIDEO`. The model's turn includes detected audio activity and all video frames. | Defaults to `TURN_INCLUDES_ONLY_ACTIVITY`. The model's turn includes only the detected activity. |
+| **[Custom VAD](https://ai.google.dev/gemini-api/docs/live-api/capabilities#disable-automatic-vad)** (`activity_start`/`activity_end`) | Supported. Disable automatic VAD and send `activityStart` and `activityEnd` messages manually to control turn boundaries. | Supported. Disable automatic VAD and send `activityStart` and `activityEnd` messages manually to control turn boundaries. |
+| **[Automatic VAD configuration](https://ai.google.dev/gemini-api/docs/live-api/capabilities#configure-automatic-vad)** | Supported. Configure parameters such as `start_of_speech_sensitivity`, `end_of_speech_sensitivity`, `prefix_padding_ms`, and `silence_duration_ms`. | Supported. Configure parameters such as `start_of_speech_sensitivity`, `end_of_speech_sensitivity`, `prefix_padding_ms`, and `silence_duration_ms`. |
+| **[Asynchronous function calling](https://ai.google.dev/gemini-api/docs/live-tools#async-function-calling)** (`behavior: NON_BLOCKING`) | Not supported. Function calling is sequential only. The model will not start responding until you've sent the tool response. | Supported. Set `behavior` to `NON_BLOCKING` on a function declaration to let the model continue interacting while the function runs. Control how the model handles responses with the `scheduling` parameter (`INTERRUPT`, `WHEN_IDLE`, or `SILENT`). |
+| **[Proactive audio](https://ai.google.dev/gemini-api/docs/live-api/capabilities#proactive-audio)** | Not supported | Supported. When enabled, the model can proactively decide not to respond if the input content is not relevant. Set `proactive_audio` to `true` in the `proactivity` config (requires `v1alpha`). |
+| **[Affective dialogue](https://ai.google.dev/gemini-api/docs/live-api/capabilities#affective-dialog)** | Not supported | Supported. The model adapts its response style to match the expression and tone of the input. Set `enable_affective_dialog` to `true` in session config (requires `v1alpha`). |
+
+To migrate from Gemini 2.5 Flash Live to Gemini 3.1 Flash Live, see the [migration guide](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-live-preview#migrating).
 
 ## Establishing a connection
 
@@ -24,7 +41,7 @@ The following example shows how to create a connection with an API key:
 
     client = genai.Client()
 
-    model = "gemini-2.5-flash-native-audio-preview-12-2025"
+    model = "gemini-3.1-flash-live-preview"
     config = {"response_modalities": ["AUDIO"]}
 
     async def main():
@@ -40,7 +57,7 @@ The following example shows how to create a connection with an API key:
     import { GoogleGenAI, Modality } from '@google/genai';
 
     const ai = new GoogleGenAI({});
-    const model = 'gemini-2.5-flash-native-audio-preview-12-2025';
+    const model = 'gemini-3.1-flash-live-preview';
     const config = { responseModalities: [Modality.AUDIO] };
 
     async function main() {
@@ -77,10 +94,29 @@ The following example shows how to create a connection with an API key:
 The following sections provide examples and supporting context for the different
 input and output modalities available in Live API.
 
-### Sending and receiving audio
+### Sending audio
 
-The most common audio example, **audio-to-audio** , is covered in the
-[Getting started](https://ai.google.dev/gemini-api/docs/live#audio-to-audio) guide.
+Audio needs to be sent as raw PCM data (raw 16-bit PCM audio, 16kHz, little-endian).
+
+### Python
+
+    # Assuming 'chunk' is your raw PCM audio bytes
+    await session.send_realtime_input(
+        audio=types.Blob(
+            data=chunk,
+            mime_type="audio/pcm;rate=16000"
+        )
+    )
+
+### JavaScript
+
+    // Assuming 'chunk' is a Buffer of raw PCM audio
+    session.sendRealtimeInput({
+      audio: {
+        data: chunk.toString('base64'),
+        mimeType: 'audio/pcm;rate=16000'
+      }
+    });
 
 ### Audio formats
 
@@ -91,25 +127,78 @@ so any sample rate can be sent. To convey the sample rate of input audio, set
 the MIME type of each audio-containing [Blob](https://ai.google.dev/api/caching#Blob) to a value
 like `audio/pcm;rate=16000`.
 
-### Sending text
+### Receiving audio
 
-Here's how you can send text:
+The model's audio responses are received as chunks of data.
 
 ### Python
 
-    message = "Hello, how are you?"
-    await session.send_client_content(turns=message, turn_complete=True)
+    async for response in session.receive():
+        if response.server_content and response.server_content.model_turn:
+            for part in response.server_content.model_turn.parts:
+                if part.inline_data:
+                    audio_data = part.inline_data.data
+                    # Process or play the audio data
 
 ### JavaScript
 
-    const message = 'Hello, how are you?';
-    session.sendClientContent({ turns: message, turnComplete: true });
+    // Inside the onmessage callback
+    const content = response.serverContent;
+    if (content?.modelTurn?.parts) {
+      for (const part of content.modelTurn.parts) {
+        if (part.inlineData) {
+          const audioData = part.inlineData.data;
+          // Process or play audioData (base64 encoded string)
+        }
+      }
+    }
+
+### Sending text
+
+Text can be sent using `send_realtime_input` (Python) or `sendRealtimeInput` (JavaScript).
+
+### Python
+
+    await session.send_realtime_input(text="Hello, how are you?")
+
+### JavaScript
+
+    session.sendRealtimeInput({
+      text: 'Hello, how are you?'
+    });
+
+### Sending video
+
+Video frames are sent as individual images (e.g., JPEG or PNG) at a specific frame rate (max 1 frame per second).
+
+### Python
+
+    # Assuming 'frame' is your JPEG-encoded image bytes
+    await session.send_realtime_input(
+        video=types.Blob(
+            data=frame,
+            mime_type="image/jpeg"
+        )
+    )
+
+### JavaScript
+
+    // Assuming 'frame' is a Buffer of JPEG-encoded image data
+    session.sendRealtimeInput({
+      video: {
+        data: frame.toString('base64'),
+        mimeType: 'image/jpeg'
+      }
+    });
 
 #### Incremental content updates
 
 Use incremental updates to send text input, establish session context, or
 restore session context. For short contexts you can send turn-by-turn
 interactions to represent the exact sequence of events:
+
+> [!NOTE]
+> **Note:** For `gemini-3.1-flash-live-preview`, `send_client_content` is only supported for seeding initial context history. You must set [`initial_history_in_client_content`](https://ai.google.dev/api/live#HistoryConfig) to `true` in the session config's `history_config`. After the first model turn, use `send_realtime_input` with the `text` field instead.
 
 ### Python
 
@@ -157,7 +246,7 @@ inferred from the model's response.
     from google.genai import types
 
     client = genai.Client()
-    model = "gemini-2.5-flash-native-audio-preview-12-2025"
+    model = "gemini-3.1-flash-live-preview"
 
     config = {
         "response_modalities": ["AUDIO"],
@@ -186,7 +275,7 @@ inferred from the model's response.
     import { GoogleGenAI, Modality } from '@google/genai';
 
     const ai = new GoogleGenAI({});
-    const model = 'gemini-2.5-flash-native-audio-preview-12-2025';
+    const model = 'gemini-3.1-flash-live-preview';
 
     const config = {
       responseModalities: [Modality.AUDIO],
@@ -273,7 +362,7 @@ To enable transcription of the model's audio input, send
     from google.genai import types
 
     client = genai.Client()
-    model = "gemini-2.5-flash-native-audio-preview-12-2025"
+    model = "gemini-3.1-flash-live-preview"
 
     config = {
         "response_modalities": ["AUDIO"],
@@ -303,7 +392,7 @@ To enable transcription of the model's audio input, send
     const { WaveFile } = pkg;
 
     const ai = new GoogleGenAI({});
-    const model = 'gemini-2.5-flash-native-audio-preview-12-2025';
+    const model = 'gemini-3.1-flash-live-preview';
 
     const config = {
       responseModalities: [Modality.AUDIO],
@@ -404,20 +493,9 @@ To enable transcription of the model's audio input, send
 
     main();
 
-### Stream audio and video
-
-> [!NOTE]
-> To see an example of how to use
-> the Live API in a streaming audio and video format,
-> run the "Live API - Get Started" file in the cookbooks repository:
->
->
-> [View
-> on Colab](https://github.com/google-gemini/cookbook/blob/main/quickstarts/Get_started_LiveAPI.py)
-
 ### Change voice and language
 
-[Native audio output](https://ai.google.dev/gemini-api/docs/live-guide#native-audio-output) models support any of the voices
+[Native audio output](https://ai.google.dev/gemini-api/docs/live-api/capabilities#native-audio-output) models support any of the voices
 available for our [Text-to-Speech (TTS)](https://ai.google.dev/gemini-api/docs/speech-generation#voices)
 models. You can listen to all the voices in [AI Studio](https://aistudio.google.com/app/live).
 
@@ -443,24 +521,99 @@ of the session configuration:
 > [!NOTE]
 > **Note:** If you're using the `generateContent` API, the set of available voices is slightly different. See the [audio generation guide](https://ai.google.dev/gemini-api/docs/audio-generation#voices) for `generateContent` audio generation voices.
 
-The Live API supports [multiple languages](https://ai.google.dev/gemini-api/docs/live-guide#supported-languages).
-[Native audio output](https://ai.google.dev/gemini-api/docs/live-guide#native-audio-output) models automatically choose
+The Live API supports [multiple languages](https://ai.google.dev/gemini-api/docs/live-api/capabilities#supported-languages).
+[Native audio output](https://ai.google.dev/gemini-api/docs/live-api/capabilities#native-audio-output) models automatically choose
 the appropriate language and don't support explicitly setting the language
 code.
 
 ## Native audio capabilities
 
-Our latest models feature [native audio output](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash-native-audio-preview-12-2025),
+Our latest models feature [native audio output](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-live-preview),
 which provides natural, realistic-sounding speech and improved multilingual
-performance. Native audio also enables advanced features like [affective
-(emotion-aware) dialogue](https://ai.google.dev/gemini-api/docs/live-guide#affective-dialog), [proactive audio](https://ai.google.dev/gemini-api/docs/live-guide#proactive-audio)
-(where the model intelligently decides when to respond to input),
-and ["thinking"](https://ai.google.dev/gemini-api/docs/live-guide#native-audio-output-thinking).
+performance.
+
+### Thinking
+
+Gemini 3.1 models use `thinkingLevel` to control thinking depth, with settings
+like `minimal`, `low`, `medium`, and `high`. The default is `minimal` to
+optimize for lowest latency. Gemini 2.5 models use
+`thinkingBudget` to set the number of thinking tokens instead. For more details
+on levels vs budgets, see
+[Thinking levels and budgets](https://ai.google.dev/gemini-api/docs/thinking#levels-budgets).
+
+### Python
+
+    model = "gemini-3.1-flash-live-preview"
+
+    config = types.LiveConnectConfig(
+        response_modalities=["AUDIO"]
+        thinking_config=types.ThinkingConfig(
+            thinking_level="low",
+        )
+    )
+
+    async with client.aio.live.connect(model=model, config=config) as session:
+        # Send audio input and receive audio
+
+### JavaScript
+
+    const model = 'gemini-3.1-flash-live-preview';
+    const config = {
+      responseModalities: [Modality.AUDIO],
+      thinkingConfig: {
+        thinkingLevel: 'low',
+      },
+    };
+
+    async function main() {
+
+      const session = await ai.live.connect({
+        model: model,
+        config: config,
+        callbacks: ...,
+      });
+
+      // Send audio input and receive audio
+
+      session.close();
+    }
+
+    main();
+
+Additionally, you can enable thought summaries by setting `includeThoughts` to
+`true` in your configuration. See [thought summaries](https://ai.google.dev/gemini-api/docs/thinking#summaries)
+for more info:
+
+### Python
+
+    model = "gemini-3.1-flash-live-preview"
+
+    config = types.LiveConnectConfig(
+        response_modalities=["AUDIO"]
+        thinking_config=types.ThinkingConfig(
+            thinking_level="low",
+            include_thoughts=True
+        )
+    )
+
+### JavaScript
+
+    const model = 'gemini-3.1-flash-live-preview';
+    const config = {
+      responseModalities: [Modality.AUDIO],
+      thinkingConfig: {
+        thinkingLevel: 'low',
+        includeThoughts: true,
+      },
+    };
 
 ### Affective dialog
 
 This feature lets Gemini adapt its response style to the input expression and
 tone.
+
+> [!NOTE]
+> **Note:** This feature is not supported in Gemini 3.1 Flash Live.
 
 To use affective dialog, set the api version to `v1alpha` and set
 `enable_affective_dialog` to `true`in the setup message:
@@ -488,6 +641,9 @@ To use affective dialog, set the api version to `v1alpha` and set
 When this feature is enabled, Gemini can proactively decide not to respond
 if the content is not relevant.
 
+> [!NOTE]
+> **Note:** This feature is not supported in Gemini 3.1 Flash Live.
+
 To use it, set the api version to `v1alpha` and configure the `proactivity`
 field in the setup message and set `proactive_audio` to `true`:
 
@@ -508,83 +664,6 @@ field in the setup message and set `proactive_audio` to `true`:
       responseModalities: [Modality.AUDIO],
       proactivity: { proactiveAudio: true }
     }
-
-### Thinking
-
-The latest native audio output model `gemini-2.5-flash-native-audio-preview-12-2025`
-supports [thinking capabilities](https://ai.google.dev/gemini-api/docs/thinking), with dynamic
-thinking enabled by default.
-
-The `thinkingBudget` parameter guides the model on the number of thinking tokens
-to use when generating a response. You can disable thinking by setting
-`thinkingBudget` to `0`. For more info on the `thinkingBudget` configuration
-details of the model, see the [thinking budgets documentation](https://ai.google.dev/gemini-api/docs/thinking#set-budget).
-
-### Python
-
-    model = "gemini-2.5-flash-native-audio-preview-12-2025"
-
-    config = types.LiveConnectConfig(
-        response_modalities=["AUDIO"]
-        thinking_config=types.ThinkingConfig(
-            thinking_budget=1024,
-        )
-    )
-
-    async with client.aio.live.connect(model=model, config=config) as session:
-        # Send audio input and receive audio
-
-### JavaScript
-
-    const model = 'gemini-2.5-flash-native-audio-preview-12-2025';
-    const config = {
-      responseModalities: [Modality.AUDIO],
-      thinkingConfig: {
-        thinkingBudget: 1024,
-      },
-    };
-
-    async function main() {
-
-      const session = await ai.live.connect({
-        model: model,
-        config: config,
-        callbacks: ...,
-      });
-
-      // Send audio input and receive audio
-
-      session.close();
-    }
-
-    main();
-
-Additionally, you can enable thought summaries by setting `includeThoughts` to
-`true` in your configuration. See [thought summaries](https://ai.google.dev/gemini-api/docs/thinking#summaries)
-for more info:
-
-### Python
-
-    model = "gemini-2.5-flash-native-audio-preview-12-2025"
-
-    config = types.LiveConnectConfig(
-        response_modalities=["AUDIO"]
-        thinking_config=types.ThinkingConfig(
-            thinking_budget=1024,
-            include_thoughts=True
-        )
-    )
-
-### JavaScript
-
-    const model = 'gemini-2.5-flash-native-audio-preview-12-2025';
-    const config = {
-      responseModalities: [Modality.AUDIO],
-      thinkingConfig: {
-        thinkingBudget: 1024,
-        includeThoughts: true,
-      },
-    };
 
 ## Voice Activity Detection (VAD)
 
@@ -645,9 +724,9 @@ audio data at any time.
     from google.genai import types
 
     client = genai.Client()
-    model = "gemini-live-2.5-flash-preview"
+    model = "gemini-3.1-flash-live-preview"
 
-    config = {"response_modalities": ["TEXT"]}
+    config = {"response_modalities": ["AUDIO"]}
 
     async def main():
         async with client.aio.live.connect(model=model, config=config) as session:
@@ -676,8 +755,8 @@ audio data at any time.
     import * as fs from "node:fs";
 
     const ai = new GoogleGenAI({});
-    const model = 'gemini-live-2.5-flash-preview';
-    const config = { responseModalities: [Modality.TEXT] };
+    const model = 'gemini-3.1-flash-live-preview';
+    const config = { responseModalities: [Modality.AUDIO] };
 
     async function live() {
       const responseQueue = [];
@@ -780,7 +859,7 @@ info.
     from google.genai import types
 
     config = {
-        "response_modalities": ["TEXT"],
+        "response_modalities": ["AUDIO"],
         "realtime_input_config": {
             "automatic_activity_detection": {
                 "disabled": False, # default
@@ -797,7 +876,7 @@ info.
     import { GoogleGenAI, Modality, StartSensitivity, EndSensitivity } from '@google/genai';
 
     const config = {
-      responseModalities: [Modality.TEXT],
+      responseModalities: [Modality.AUDIO],
       realtimeInputConfig: {
         automaticActivityDetection: {
           disabled: false, // default
@@ -824,7 +903,7 @@ an `activityEnd` message.
 ### Python
 
     config = {
-        "response_modalities": ["TEXT"],
+        "response_modalities": ["AUDIO"],
         "realtime_input_config": {"automatic_activity_detection": {"disabled": True}},
     }
 
@@ -840,7 +919,7 @@ an `activityEnd` message.
 ### JavaScript
 
     const config = {
-      responseModalities: [Modality.TEXT],
+      responseModalities: [Modality.AUDIO],
       realtimeInputConfig: {
         automaticActivityDetection: {
           disabled: true,
@@ -914,7 +993,7 @@ You can specify the media resolution for the input media by setting the
     import { GoogleGenAI, Modality, MediaResolution } from '@google/genai';
 
     const config = {
-        responseModalities: [Modality.TEXT],
+        responseModalities: [Modality.AUDIO],
         mediaResolution: MediaResolution.MEDIA_RESOLUTION_LOW,
     };
 
@@ -925,10 +1004,9 @@ when you plan your project.
 
 ### Response modalities
 
-You can only set one response modality (`TEXT` or `AUDIO`) per session in the
-session configuration. Setting both results in a config error message. This
-means that you can configure the model to respond with either text or audio,
-but not both in the same session.
+The native audio models only support \`AUDIO response modality. If you need the
+model response as text, use the [output audio transcription](https://ai.google.dev/gemini-api/docs/live-api/capabilities#audio-transcription)
+feature.
 
 ### Client authentication
 
@@ -948,57 +1026,71 @@ However, you can configure different [session management techniques](https://ai.
 
 A session has a context window limit of:
 
-- 128k tokens for [native audio output](https://ai.google.dev/gemini-api/docs/live-guide#native-audio-output) models
+- 128k tokens for [native audio output](https://ai.google.dev/gemini-api/docs/live-api/capabilities#native-audio-output) models
 - 32k tokens for other Live API models
 
 ## Supported languages
 
-Live API supports the following 70 languages.
+Live API supports the following 97 languages.
 
 > [!NOTE]
-> **Note:** [Native audio output](https://ai.google.dev/gemini-api/docs/live-guide#native-audio-output) models can switch between languages naturally during conversation. You can also restrict the languages it speaks in by specifying it in the system instructions.
+> **Note:** [Native audio output](https://ai.google.dev/gemini-api/docs/live-api/capabilities#native-audio-output) models can switch between languages naturally during conversation. You can also restrict the languages it speaks in by specifying it in the system instructions.
 
 | Language | BCP-47 Code | Language | BCP-47 Code |
 |---|---|---|---|
-| Afrikaans | `af` | Kannada | `kn` |
-| Albanian | `sq` | Kazakh | `kk` |
-| Amharic | `am` | Khmer | `km` |
-| Arabic | `ar` | Korean | `ko` |
-| Armenian | `hy` | Lao | `lo` |
-| Assamese | `as` | Latvian | `lv` |
-| Azerbaijani | `az` | Lithuanian | `lt` |
-| Basque | `eu` | Macedonian | `mk` |
-| Belarusian | `be` | Malay | `ms` |
-| Bengali | `bn` | Malayalam | `ml` |
-| Bosnian | `bs` | Marathi | `mr` |
-| Bulgarian | `bg` | Mongolian | `mn` |
-| Catalan | `ca` | Nepali | `ne` |
-| Chinese | `zh` | Norwegian | `no` |
-| Croatian | `hr` | Odia | `or` |
-| Czech | `cs` | Polish | `pl` |
-| Danish | `da` | Portuguese | `pt` |
-| Dutch | `nl` | Punjabi | `pa` |
-| English | `en` | Romanian | `ro` |
-| Estonian | `et` | Russian | `ru` |
-| Filipino | `fil` | Serbian | `sr` |
+| Afrikaans | `af` | Latvian | `lv` |
+| Akan | `ak` | Lithuanian | `lt` |
+| Albanian | `sq` | Macedonian | `mk` |
+| Amharic | `am` | Malay | `ms` |
+| Arabic | `ar` | Malayalam | `ml` |
+| Armenian | `hy` | Maltese | `mt` |
+| Assamese | `as` | Maori | `mi` |
+| Azerbaijani | `az` | Marathi | `mr` |
+| Basque | `eu` | Mongolian | `mn` |
+| Belarusian | `be` | Nepali | `ne` |
+| Bengali | `bn` | Norwegian | `no` |
+| Bosnian | `bs` | Odia | `or` |
+| Bulgarian | `bg` | Oromo | `om` |
+| Burmese | `my` | Pashto | `ps` |
+| Catalan | `ca` | Persian | `fa` |
+| Cebuano | `ceb` | Polish | `pl` |
+| Chinese | `zh` | Portuguese | `pt` |
+| Croatian | `hr` | Punjabi | `pa` |
+| Czech | `cs` | Quechua | `qu` |
+| Danish | `da` | Romanian | `ro` |
+| Dutch | `nl` | Romansh | `rm` |
+| English | `en` | Russian | `ru` |
+| Estonian | `et` | Serbian | `sr` |
+| Faroese | `fo` | Sindhi | `sd` |
+| Filipino | `fil` | Sinhala | `si` |
 | Finnish | `fi` | Slovak | `sk` |
 | French | `fr` | Slovenian | `sl` |
-| Galician | `gl` | Spanish | `es` |
-| Georgian | `ka` | Swahili | `sw` |
-| German | `de` | Swedish | `sv` |
-| Greek | `el` | Tamil | `ta` |
-| Gujarati | `gu` | Telugu | `te` |
-| Hebrew | `iw` | Thai | `th` |
-| Hindi | `hi` | Turkish | `tr` |
-| Hungarian | `hu` | Ukrainian | `uk` |
-| Icelandic | `is` | Urdu | `ur` |
-| Indonesian | `id` | Uzbek | `uz` |
-| Italian | `it` | Vietnamese | `vi` |
-| Japanese | `ja` | Zulu | `zu` |
+| Galician | `gl` | Somali | `so` |
+| Georgian | `ka` | Southern Sotho | `st` |
+| German | `de` | Spanish | `es` |
+| Greek | `el` | Swahili | `sw` |
+| Gujarati | `gu` | Swedish | `sv` |
+| Hausa | `ha` | Tajik | `tg` |
+| Hebrew | `iw` | Tamil | `ta` |
+| Hindi | `hi` | Telugu | `te` |
+| Hungarian | `hu` | Thai | `th` |
+| Icelandic | `is` | Tswana | `tn` |
+| Indonesian | `id` | Turkish | `tr` |
+| Irish | `ga` | Turkmen | `tk` |
+| Italian | `it` | Ukrainian | `uk` |
+| Japanese | `ja` | Urdu | `ur` |
+| Kannada | `kn` | Uzbek | `uz` |
+| Kazakh | `kk` | Vietnamese | `vi` |
+| Khmer | `km` | Welsh | `cy` |
+| Kinyarwanda | `rw` | Western Frisian | `fy` |
+| Korean | `ko` | Wolof | `wo` |
+| Kurdish | `ku` | Yoruba | `yo` |
+| Kyrgyz | `ky` | Zulu | `zu` |
+| Lao | `lo` |   |   |
 
 ## What's next
 
 - Read the [Tool Use](https://ai.google.dev/gemini-api/docs/live-tools) and [Session Management](https://ai.google.dev/gemini-api/docs/live-session) guides for essential information on using the Live API effectively.
 - Try the Live API in [Google AI Studio](https://aistudio.google.com/app/live).
-- For more info about the Live API models, see [Gemini 2.5 Flash Native Audio](https://ai.google.dev/gemini-api/docs/models#gemini-2.5-flash-live) on the Models page.
+- For more info about the Live API models, see [Gemini 2.5 Flash Native Audio](https://ai.google.dev/gemini-api/docs/models#gemini-2.5-flash-native-audio) on the Models page.
 - Try more examples in the [Live API cookbook](https://colab.research.google.com/github/google-gemini/cookbook/blob/main/quickstarts/Get_started_LiveAPI.ipynb), the [Live API Tools cookbook](https://colab.research.google.com/github/google-gemini/cookbook/blob/main/quickstarts/Get_started_LiveAPI_tools.ipynb), and the [Live API Get Started script](https://github.com/google-gemini/cookbook/blob/main/quickstarts/Get_started_LiveAPI.py).
