@@ -1,6 +1,6 @@
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { and, desc, eq, inArray, ne, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { auth } from '@/lib/auth';
@@ -20,6 +20,7 @@ const createSchema = z.object({
   skillIds: z.array(z.string()).optional(),
   brandId: z.string().optional().nullable(),
   isPublic: z.boolean().optional(),
+  isDefault: z.boolean().optional(),
   starterPrompts: z.array(z.string().max(100)).max(4).optional(),
   sharedUserIds: z.array(z.string()).optional(),
 });
@@ -30,11 +31,11 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // 1. Own agents
+  // 1. Own agents (excluding templates)
   const ownAgents = await db
     .select()
     .from(agent)
-    .where(eq(agent.userId, session.user.id))
+    .where(and(eq(agent.userId, session.user.id), eq(agent.isTemplate, false)))
     .orderBy(desc(agent.updatedAt));
 
   // 2. Share lists for own agents
@@ -115,7 +116,17 @@ export async function GET() {
   const publicIds = new Set(publicAgents.map((a) => a.id));
   const deduped = targetedShared.filter((a) => !publicIds.has(a.id));
 
-  return NextResponse.json({ agents: [...ownAgentsOut, ...publicAgents, ...deduped] });
+  // 5. System templates (userId = null, isTemplate = true)
+  const templates = await db
+    .select()
+    .from(agent)
+    .where(and(isNull(agent.userId), eq(agent.isTemplate, true)))
+    .orderBy(agent.name);
+
+  return NextResponse.json({
+    agents: [...ownAgentsOut, ...publicAgents, ...deduped],
+    templates,
+  });
 }
 
 export async function POST(req: Request) {
@@ -140,6 +151,9 @@ export async function POST(req: Request) {
     skillIds: body.skillIds ?? [],
     brandId: body.brandId ?? null,
     isPublic: body.isPublic ?? false,
+    isDefault: body.isDefault ?? false,
+    isTemplate: false,
+    templateId: null,
     starterPrompts: body.starterPrompts ?? [],
     createdAt: now,
     updatedAt: now,

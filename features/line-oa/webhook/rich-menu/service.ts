@@ -50,9 +50,18 @@ export async function deployRichMenu(
   // Create menu on LINE
   const { richMenuId: lineMenuId } = await lineClient.createRichMenu(payload);
 
-  // Generate and upload image
-  const imageBuffer = await generateRichMenuImage(menu.areas);
-  await lineBlobClient.setRichMenuImage(lineMenuId, new Blob([new Uint8Array(imageBuffer)], { type: 'image/png' }));
+  // Use custom uploaded image if present, otherwise auto-generate
+  let imageBlob: Blob;
+  if (menu.backgroundImageUrl) {
+    const response = await fetch(menu.backgroundImageUrl);
+    if (!response.ok) throw new Error('Failed to fetch custom background image');
+    const contentType = response.headers.get('content-type') ?? 'image/png';
+    imageBlob = new Blob([await response.arrayBuffer()], { type: contentType });
+  } else {
+    const imageBuffer = await generateRichMenuImage(menu.areas);
+    imageBlob = new Blob([new Uint8Array(imageBuffer)], { type: 'image/png' });
+  }
+  await lineBlobClient.setRichMenuImage(lineMenuId, imageBlob);
 
   // Update DB
   await db

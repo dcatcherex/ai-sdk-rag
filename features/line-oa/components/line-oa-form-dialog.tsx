@@ -32,7 +32,8 @@ type Props = {
 };
 
 export const LineOaFormDialog = ({ open, channel, onClose, onSubmit, isPending }: Props) => {
-  const { data: agents = [] } = useAgents();
+  const { data: agentsData } = useAgents();
+  const agents = agentsData?.agents ?? [];
 
   const [name, setName] = useState('');
   const [lineChannelId, setLineChannelId] = useState('');

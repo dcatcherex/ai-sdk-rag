@@ -522,7 +522,8 @@ export const recipientGroup = pgTable('recipient_group', {
 
 export const agent = pgTable('agent', {
   id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  // nullable to allow system-owned templates (userId = null)
+  userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
   systemPrompt: text('system_prompt').notNull(),
@@ -534,6 +535,11 @@ export const agent = pgTable('agent', {
   brandId: text('brand_id').references(() => brand.id, { onDelete: 'set null' }),
   isPublic: boolean('is_public').notNull().default(false),
   starterPrompts: text('starter_prompts').array().notNull().default(sql`'{}'::text[]`),
+  // template support
+  isTemplate: boolean('is_template').notNull().default(false),
+  templateId: text('template_id'),
+  // marks user's general/default agent
+  isDefault: boolean('is_default').notNull().default(false),
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull(),
 }, (table) => [index('agent_userId_idx').on(table.userId)]);
@@ -1092,6 +1098,7 @@ export const lineRichMenu = pgTable('line_rich_menu', {
   name: text('name').notNull(),
   chatBarText: text('chat_bar_text').notNull().default('เมนู'),
   areas: jsonb('areas').notNull().$type<RichMenuAreaConfig[]>().default([]),
+  backgroundImageUrl: text('background_image_url'),  // custom Canva/uploaded image URL
   isDefault: boolean('is_default').notNull().default(false),
   status: text('status').notNull().default('draft'),  // 'draft' | 'active'
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -1201,4 +1208,160 @@ export const lineAccountLink = pgTable('line_account_link', {
 export const lineAccountLinkRelations = relations(lineAccountLink, ({ one }) => ({
   channel: one(lineOaChannel, { fields: [lineAccountLink.channelId], references: [lineOaChannel.id] }),
   user: one(user, { fields: [lineAccountLink.userId], references: [user.id] }),
+}));
+
+// ── Agent Teams (multi-agent orchestration) ───────────────────────────────────
+
+export type AgentTeamConfig = {
+  /** Hard cap on specialist steps per run. Default: 5 */
+  maxSteps?: number;
+  /** Max credits this team may spend per run. null = unlimited */
+  budgetCredits?: number;
+  /** Output format hint passed to the orchestrator's synthesis step */
+  outputFormat?: 'markdown' | 'json';
+};
+
+export const agentTeam = pgTable('agent_team', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  /**
+   * V1 supports 'sequential' only.
+   * 'planner_generated' will be added in a future phase.
+   */
+  routingStrategy: text('routing_strategy')
+    .$type<'sequential' | 'planner_generated'>()
+    .notNull()
+    .default('sequential'),
+  config: jsonb('config').$type<AgentTeamConfig>().notNull().default(sql`'{}'::jsonb`),
+  brandId: text('brand_id').references(() => brand.id, { onDelete: 'set null' }),
+  isPublic: boolean('is_public').notNull().default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  index('agent_team_userId_idx').on(table.userId),
+]);
+
+export const agentTeamMember = pgTable('agent_team_member', {
+  id: text('id').primaryKey(),
+  teamId: text('team_id').notNull().references(() => agentTeam.id, { onDelete: 'cascade' }),
+  agentId: text('agent_id').notNull().references(() => agent.id, { onDelete: 'cascade' }),
+  /**
+   * 'orchestrator' — exactly one per team; plans and synthesises.
+   * 'specialist'   — domain expert called in order by the orchestrator.
+   */
+  role: text('role').$type<'orchestrator' | 'specialist'>().notNull().default('specialist'),
+  /** Human-readable label shown in the UI ("Market Researcher", "Copywriter") */
+  displayRole: text('display_role'),
+  /** Execution order for sequential routing. Lower = runs first. */
+  position: integer('position').notNull().default(0),
+  /** Semantic tags used by planner_generated routing in later phases */
+  tags: text('tags').array().notNull().default(sql`'{}'::text[]`),
+  /**
+   * Pre-authored interface contract for this member.
+   * Tells the orchestrator exactly what input this specialist needs
+   * and what output to expect, e.g.:
+   * "Provide target audience, key message, tone. Expect 3 copy variants."
+   */
+  handoffInstructions: text('handoff_instructions'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  index('agent_team_member_teamId_idx').on(table.teamId),
+  uniqueIndex('agent_team_member_unique_idx').on(table.teamId, table.agentId),
+]);
+
+export const teamRun = pgTable('team_run', {
+  id: text('id').primaryKey(),
+  teamId: text('team_id').notNull().references(() => agentTeam.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  /** Thread this run is associated with (null for standalone runs) */
+  threadId: text('thread_id').references(() => chatThread.id, { onDelete: 'set null' }),
+  /** 'running' | 'completed' | 'failed' */
+  status: text('status').notNull().default('running'),
+  /** Original user prompt or task description that triggered this run */
+  inputPrompt: text('input_prompt').notNull(),
+  /** Final synthesised answer from the orchestrator */
+  finalOutput: text('final_output'),
+  /** Credit budget for this run (copied from team config at run time) */
+  budgetCredits: integer('budget_credits'),
+  /** Running total of credits spent across all steps in this run */
+  spentCredits: integer('spent_credits').notNull().default(0),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  completedAt: timestamp('completed_at'),
+}, (table) => [
+  index('team_run_teamId_idx').on(table.teamId),
+  index('team_run_userId_idx').on(table.userId),
+  index('team_run_threadId_idx').on(table.threadId),
+  index('team_run_status_idx').on(table.status),
+]);
+
+export const teamRunStep = pgTable('team_run_step', {
+  id: text('id').primaryKey(),
+  runId: text('run_id').notNull().references(() => teamRun.id, { onDelete: 'cascade' }),
+  memberId: text('member_id').references(() => agentTeamMember.id, { onDelete: 'set null' }),
+  /** Snapshot of agent id at execution time */
+  agentId: text('agent_id').notNull(),
+  /** Snapshot of agent name at execution time */
+  agentName: text('agent_name').notNull(),
+  role: text('role').$type<'orchestrator' | 'specialist'>().notNull(),
+  /** 0-based index within the run */
+  stepIndex: integer('step_index').notNull(),
+  /** Sub-prompt sent to this specialist by the orchestrator */
+  inputPrompt: text('input_prompt').notNull(),
+  /** Full raw output from the specialist */
+  output: text('output'),
+  /**
+   * Short summary of the output (1-2 sentences).
+   * Passed to downstream specialists instead of the full output
+   * to keep context windows clean.
+   */
+  summary: text('summary'),
+  /**
+   * Semantic type of this step's output.
+   * Used to route the right context to the next specialist.
+   */
+  artifactType: text('artifact_type')
+    .$type<'research_brief' | 'ad_copy' | 'analysis' | 'creative_direction' | 'strategy' | 'content' | 'other'>()
+    .notNull()
+    .default('other'),
+  modelId: text('model_id'),
+  promptTokens: integer('prompt_tokens'),
+  completionTokens: integer('completion_tokens'),
+  creditCost: integer('credit_cost').notNull().default(0),
+  /** 'running' | 'completed' | 'failed' */
+  status: text('status').notNull().default('running'),
+  errorMessage: text('error_message'),
+  startedAt: timestamp('started_at').defaultNow().notNull(),
+  completedAt: timestamp('completed_at'),
+}, (table) => [
+  index('team_run_step_runId_idx').on(table.runId),
+  index('team_run_step_memberId_idx').on(table.memberId),
+]);
+
+// ── Agent Team Relations ───────────────────────────────────────────────────────
+
+export const agentTeamRelations = relations(agentTeam, ({ one, many }) => ({
+  user: one(user, { fields: [agentTeam.userId], references: [user.id] }),
+  brand: one(brand, { fields: [agentTeam.brandId], references: [brand.id] }),
+  members: many(agentTeamMember),
+  runs: many(teamRun),
+}));
+
+export const agentTeamMemberRelations = relations(agentTeamMember, ({ one }) => ({
+  team: one(agentTeam, { fields: [agentTeamMember.teamId], references: [agentTeam.id] }),
+  agent: one(agent, { fields: [agentTeamMember.agentId], references: [agent.id] }),
+}));
+
+export const teamRunRelations = relations(teamRun, ({ one, many }) => ({
+  team: one(agentTeam, { fields: [teamRun.teamId], references: [agentTeam.id] }),
+  user: one(user, { fields: [teamRun.userId], references: [user.id] }),
+  thread: one(chatThread, { fields: [teamRun.threadId], references: [chatThread.id] }),
+  steps: many(teamRunStep),
+}));
+
+export const teamRunStepRelations = relations(teamRunStep, ({ one }) => ({
+  run: one(teamRun, { fields: [teamRunStep.runId], references: [teamRun.id] }),
+  member: one(agentTeamMember, { fields: [teamRunStep.memberId], references: [agentTeamMember.id] }),
 }));

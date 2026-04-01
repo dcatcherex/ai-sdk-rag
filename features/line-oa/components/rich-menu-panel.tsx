@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import {
   BookmarkPlusIcon,
+  ImagePlusIcon,
   LayoutGridIcon,
   PlusIcon,
   RocketIcon,
@@ -27,6 +28,7 @@ import {
   useUpdateRichMenu,
   useDeleteRichMenu,
   useDeployRichMenu,
+  useUploadRichMenuImage,
 } from '../hooks/use-rich-menus';
 import { useSaveMenuTemplate } from '../hooks/use-menu-templates';
 import { RichMenuEditor } from './rich-menu-editor';
@@ -38,6 +40,7 @@ export function RichMenuPanel({ channelId }: { channelId: string }) {
   const updateMenu = useUpdateRichMenu(channelId);
   const deleteMenu = useDeleteRichMenu(channelId);
   const deployMenu = useDeployRichMenu(channelId);
+  const uploadImage = useUploadRichMenuImage(channelId);
   const saveTemplate = useSaveMenuTemplate();
 
   const [editorOpen, setEditorOpen] = useState(false);
@@ -138,6 +141,24 @@ export function RichMenuPanel({ channelId }: { channelId: string }) {
               >
                 <BookmarkPlusIcon className="size-3" />
               </Button>
+              {/* Upload custom background image */}
+              <label
+                className="inline-flex items-center justify-center size-6 rounded-md hover:bg-accent cursor-pointer"
+                title="Upload background image (PNG/JPG from Canva)"
+              >
+                <ImagePlusIcon className="size-3" />
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  className="sr-only"
+                  disabled={uploadImage.isPending}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadImage.mutate({ menuId: menu.id, file });
+                    e.target.value = '';
+                  }}
+                />
+              </label>
               <Button
                 variant="ghost"
                 size="icon"
@@ -159,7 +180,17 @@ export function RichMenuPanel({ channelId }: { channelId: string }) {
           </div>
 
           {/* Area preview strip */}
-          {(() => {
+          {menu.backgroundImageUrl ? (
+            // Custom uploaded image — display at natural aspect ratio
+            <div className="rounded overflow-hidden w-full">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={menu.backgroundImageUrl}
+                alt="Rich menu background"
+                className="w-full h-auto block"
+              />
+            </div>
+          ) : (() => {
             const areas = menu.areas;
             const hasBounds = areas.length > 0 && areas.every((a) => a.bounds);
             if (hasBounds) {

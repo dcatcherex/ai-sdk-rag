@@ -77,7 +77,9 @@ export default function Chat() {
   const selectedPersonaIdRef = useRef(selectedPersonaId);
   selectedPersonaIdRef.current = selectedPersonaId;
 
-  const { data: agents = [] } = useAgents();
+  const { data: agentsData } = useAgents();
+  const agents = agentsData?.agents ?? [];
+  const selectedAgent = agents.find((a) => a.id === selectedAgentId) ?? null;
   const { data: customPersonas = [] } = useCustomPersonas();
 
   const { data: docStats } = useDocumentStats();
@@ -347,6 +349,9 @@ export default function Chat() {
                 copiedMessageId={copiedMessageId}
                 messageReactions={messageReactions}
                 fontSize={fontSize}
+                agentName={selectedAgent?.name}
+                agentDescription={selectedAgent?.description}
+                starterPrompts={selectedAgent?.starterPrompts}
                 onCopyMessage={copyToClipboard}
                 onRegenerateMessage={regenerateMessage}
                 onDeleteMessage={deleteMessage}

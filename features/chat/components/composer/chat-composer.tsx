@@ -5,8 +5,7 @@ import type { ChatStatus } from 'ai';
 import { toast } from 'sonner';
 import { BookOpenIcon, CheckIcon, GlobeIcon, LibraryIcon } from 'lucide-react';
 import { useLiveVoice, type VoiceHistoryTurn, type VoiceState } from '@/features/chat/hooks/use-live-voice';
-import { AgentSelector } from '@/features/agents/components/agent-selector';
-import { PersonaSelector } from '@/features/chat/components/persona-selector';
+import { AiModeSelector } from './ai-mode-selector';
 import type { Agent } from '@/features/agents/types';
 import type { CustomPersona } from '@/features/chat/types/custom-persona';
 import type { ComparePresetMode } from '@/features/chat/hooks/use-compare-preset';
@@ -292,17 +291,13 @@ export function ChatComposer({
                   )}
                 </PromptInputActionMenuContent>
               </PromptInputActionMenu>
-              {!compareMode && selectedPersonaId === null && (
-                <AgentSelector
+              {!compareMode && (
+                <AiModeSelector
                   agents={agents}
-                  selectedAgentId={selectedAgentId}
-                  onSelectAgent={onSelectAgent}
-                />
-              )}
-              {!compareMode && selectedAgentId === null && (
-                <PersonaSelector
                   customPersonas={customPersonas}
+                  selectedAgentId={selectedAgentId}
                   selectedPersonaId={selectedPersonaId}
+                  onSelectAgent={onSelectAgent}
                   onSelectPersona={onSelectPersona}
                 />
               )}

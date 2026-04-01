@@ -92,6 +92,9 @@ export async function POST(req: Request, { params }: Params) {
       ? agentRow.modelId
       : chatModel;
 
+    if (!agentRow.userId) {
+      return Response.json({ error: 'Agent not available.' }, { status: 400 });
+    }
     const ownerId = agentRow.userId;
     const creditCost = getCreditCost(resolvedModel);
 

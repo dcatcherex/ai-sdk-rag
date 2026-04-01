@@ -2,7 +2,7 @@ import type { AgentStructuredBehavior } from '@/lib/agent-structured-behavior';
 
 export type Agent = {
   id: string;
-  userId: string;
+  userId: string | null;
   name: string;
   description: string | null;
   systemPrompt: string;
@@ -14,6 +14,9 @@ export type Agent = {
   brandId: string | null;
   isPublic: boolean;
   starterPrompts: string[];
+  isTemplate: boolean;
+  templateId: string | null;
+  isDefault: boolean;
   createdAt: string | Date;
   updatedAt: string | Date;
 };
@@ -29,6 +32,7 @@ export type CreateAgentInput = {
   skillIds?: string[];
   brandId?: string | null;
   isPublic?: boolean;
+  isDefault?: boolean;
   starterPrompts?: string[];
   sharedUserIds?: string[];
 };

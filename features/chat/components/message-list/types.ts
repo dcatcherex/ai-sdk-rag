@@ -29,6 +29,10 @@ export type ChatMessageListProps = {
   copiedMessageId: string | null;
   messageReactions: ReactionMap;
   fontSize?: FontSize;
+  // agent starter prompts shown on empty state
+  agentName?: string;
+  agentDescription?: string | null;
+  starterPrompts?: string[];
   onCopyMessage: (messageId: string, text: string) => void;
   onRegenerateMessage: (messageId: string) => void;
   onToggleReaction: (messageId: string, reaction: MessageReaction) => void;

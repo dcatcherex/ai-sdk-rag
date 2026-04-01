@@ -20,6 +20,7 @@ export type RichMenuRecord = {
   name: string;
   chatBarText: string;
   areas: RichMenuAreaInput[];
+  backgroundImageUrl: string | null;
   isDefault: boolean;
   status: 'draft' | 'active';
   createdAt: string;
@@ -84,6 +85,23 @@ export const useDeleteRichMenu = (channelId: string) => {
     mutationFn: async (menuId: string) => {
       const res = await fetch(`/api/line-oa/${channelId}/rich-menus/${menuId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(await res.text());
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKey(channelId) }),
+  });
+};
+
+export const useUploadRichMenuImage = (channelId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ menuId, file }: { menuId: string; file: File }) => {
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await fetch(`/api/line-oa/${channelId}/rich-menus/${menuId}/upload-image`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return (await res.json()) as { url: string };
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKey(channelId) }),
   });

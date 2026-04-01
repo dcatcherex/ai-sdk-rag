@@ -1,12 +1,14 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
+import { BotIcon } from 'lucide-react';
 import {
   Conversation,
   ConversationContent,
   ConversationEmptyState,
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation';
+import { FollowUpChips } from './follow-up-chips';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { ChatMessageMetadata } from '@/features/chat/types';
 import { SelectionContextMenu } from '@/features/chat/components/selection-context-menu';
@@ -27,6 +29,9 @@ export const ChatMessageList = ({
   copiedMessageId,
   messageReactions,
   fontSize = 'sm',
+  agentName,
+  agentDescription,
+  starterPrompts,
   onCopyMessage,
   onRegenerateMessage,
   onToggleReaction,
@@ -87,10 +92,25 @@ export const ChatMessageList = ({
         />
         <ConversationContent className="px-3 md:px-6">
           {messages.length === 0 ? (
-            <ConversationEmptyState
-              title="Plan, ask, and refine"
-              description="Start by asking for a brief, or drag in files to ground the response."
-            />
+            agentName && starterPrompts && starterPrompts.length > 0 ? (
+              <div className="flex flex-col items-center justify-center gap-4 py-16 text-center px-4">
+                <div className="rounded-full bg-primary/10 p-3">
+                  <BotIcon className="size-7 text-primary" />
+                </div>
+                <div>
+                  <p className="font-semibold text-base">{agentName}</p>
+                  {agentDescription && (
+                    <p className="mt-1 text-sm text-muted-foreground max-w-sm">{agentDescription}</p>
+                  )}
+                </div>
+                <FollowUpChips suggestions={starterPrompts} onSuggestionClick={onSuggestionClick} />
+              </div>
+            ) : (
+              <ConversationEmptyState
+                title="Plan, ask, and refine"
+                description="Start by asking for a brief, or drag in files to ground the response."
+              />
+            )
           ) : (
             <>
               {groupedItems.map((item) => {
