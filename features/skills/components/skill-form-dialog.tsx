@@ -60,7 +60,7 @@ export const SkillFormDialog = ({ open, skill, onClose, onSubmit, isPending }: P
     e.preventDefault();
     onSubmit({
       name: name.trim(),
-      description: description.trim() || undefined,
+      description: description.trim(),
       triggerType,
       trigger: triggerType !== 'always' ? trigger.trim() || undefined : undefined,
       promptFragment: promptFragment.trim(),
@@ -68,7 +68,8 @@ export const SkillFormDialog = ({ open, skill, onClose, onSubmit, isPending }: P
     });
   };
 
-  const isValid = name.trim().length > 0 && promptFragment.trim().length > 0 &&
+  const isValid = name.trim().length > 0 && description.trim().length > 0 &&
+    promptFragment.trim().length > 0 &&
     (triggerType === 'always' || trigger.trim().length > 0);
 
   const triggerPlaceholder =
@@ -95,14 +96,18 @@ export const SkillFormDialog = ({ open, skill, onClose, onSubmit, isPending }: P
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="skill-description">Description</Label>
+            <Label htmlFor="skill-description">Description *</Label>
             <Input
               id="skill-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What does this skill do?"
-              maxLength={300}
+              placeholder="Describe what this skill does and when to use it. Include keywords the agent can use to recognize relevant tasks."
+              maxLength={1024}
+              required
             />
+            <p className="text-xs text-muted-foreground">
+              Used by the agent to discover this skill. Be specific — include task types and trigger conditions.
+            </p>
           </div>
 
           <div className="space-y-1.5">

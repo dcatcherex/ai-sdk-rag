@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { PlusIcon, UsersIcon, PlayIcon, SettingsIcon, HistoryIcon } from 'lucide-react';
+import { PlusIcon, UsersIcon, PlayIcon, SettingsIcon, HistoryIcon, LayoutTemplateIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,17 +10,21 @@ import { PageHeader } from '@/components/page-header';
 import { TeamBuilderPanel } from './team-builder-panel';
 import { TeamChatInterface } from './team-chat-interface';
 import { TeamRunHistory } from './team-run-history';
+import { TemplatePickerDialog } from './template-picker-dialog';
 import { useTeams, useCreateTeam } from '../hooks/use-teams';
 import type { TeamWithMembers } from '../hooks/use-teams';
+import type { TeamMemberSlot, TeamTemplate } from '../types';
 
 export function TeamsList() {
   const { data, isLoading } = useTeams();
   const createTeam = useCreateTeam();
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [selectedTeam, setSelectedTeam] = useState<TeamWithMembers | null>(null);
   const [view, setView] = useState<'build' | 'chat' | 'history'>('chat');
+  const [pendingSlots, setPendingSlots] = useState<TeamMemberSlot[]>([]);
 
   const teams = data?.teams ?? [];
 
@@ -32,6 +36,25 @@ export function TeamsList() {
         onSuccess: (team) => {
           setCreateOpen(false);
           setNewName('');
+          setPendingSlots([]);
+          setSelectedTeam({ ...team, members: [] });
+          setView('build');
+        },
+      },
+    );
+  }
+
+  function handleFromTemplate(template: TeamTemplate) {
+    createTeam.mutate(
+      {
+        name: template.name,
+        description: template.description,
+        routingStrategy: template.routingStrategy,
+        config: template.config,
+      },
+      {
+        onSuccess: (team) => {
+          setPendingSlots(template.memberSlots);
           setSelectedTeam({ ...team, members: [] });
           setView('build');
         },
@@ -94,11 +117,21 @@ export function TeamsList() {
 
         <div className="flex-1 overflow-y-auto p-6">
           {view === 'build' ? (
-            <TeamBuilderPanel team={fresh} onDeleted={() => setSelectedTeam(null)} />
+            <TeamBuilderPanel
+              team={fresh}
+              onDeleted={() => setSelectedTeam(null)}
+              pendingSlots={pendingSlots}
+            />
           ) : view === 'history' ? (
             <TeamRunHistory teamId={fresh.id} />
           ) : (
-            <TeamChatInterface teamId={fresh.id} teamName={fresh.name} />
+            <TeamChatInterface
+              teamId={fresh.id}
+              teamName={fresh.name}
+              routingStrategy={fresh.routingStrategy ?? 'sequential'}
+              outputContract={fresh.config?.outputContract}
+              contractSections={fresh.config?.contractSections}
+            />
           )}
         </div>
       </div>
@@ -113,10 +146,21 @@ export function TeamsList() {
         title="Agent Teams"
         description="Coordinate multiple agents to tackle complex workflows"
         action={
-          <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
-            <PlusIcon className="size-4" />
-            New team
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => setTemplatePickerOpen(true)}
+            >
+              <LayoutTemplateIcon className="size-4" />
+              From template
+            </Button>
+            <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
+              <PlusIcon className="size-4" />
+              New team
+            </Button>
+          </div>
         }
       />
 
@@ -130,10 +174,16 @@ export function TeamsList() {
             <p className="mt-1 text-xs text-muted-foreground">
               Create a team to run coordinated multi-agent workflows.
             </p>
-            <Button size="sm" className="mt-4 gap-1.5" onClick={() => setCreateOpen(true)}>
-              <PlusIcon className="size-4" />
-              Create your first team
-            </Button>
+            <div className="mt-4 flex justify-center gap-2">
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setTemplatePickerOpen(true)}>
+                <LayoutTemplateIcon className="size-4" />
+                From template
+              </Button>
+              <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
+                <PlusIcon className="size-4" />
+                New team
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
@@ -183,6 +233,13 @@ export function TeamsList() {
           </div>
         )}
       </div>
+
+      {/* Template picker */}
+      <TemplatePickerDialog
+        open={templatePickerOpen}
+        onOpenChange={setTemplatePickerOpen}
+        onSelect={handleFromTemplate}
+      />
 
       {/* Create dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

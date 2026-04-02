@@ -16,8 +16,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { type Brand, type BrandColor } from '../types';
 import { useAddBrandShare, useBrandShareSearch, useRemoveBrandShare, useSaveBrand } from '../hooks/use-brands';
 import { AssetsTab } from './assets-tab';
+import { BrandKnowledgeTab } from './brand-knowledge-tab';
 import { ChipInput } from './chip-input';
 import { ColorPaletteEditor } from './color-palette-editor';
+import { StrategyTab } from './strategy-tab';
 
 // ── Form state ────────────────────────────────────────────────────────────────
 
@@ -34,6 +36,11 @@ type FormState = {
   colors: BrandColor[];
   writingDos: string;
   writingDonts: string;
+  positioningStatement: string;
+  messagingPillars: string[];
+  proofPoints: string[];
+  exampleHeadlines: string[];
+  exampleRejections: string[];
 };
 
 function toForm(b: Brand | null): FormState {
@@ -50,6 +57,11 @@ function toForm(b: Brand | null): FormState {
     colors: b?.colors ?? [],
     writingDos: b?.writingDos ?? '',
     writingDonts: b?.writingDonts ?? '',
+    positioningStatement: b?.positioningStatement ?? '',
+    messagingPillars: b?.messagingPillars ?? [],
+    proofPoints: b?.proofPoints ?? [],
+    exampleHeadlines: b?.exampleHeadlines ?? [],
+    exampleRejections: b?.exampleRejections ?? [],
   };
 }
 
@@ -157,6 +169,7 @@ type Props = {
 const BASE_TABS = [
   { value: 'profile', label: 'Profile' },
   { value: 'voice', label: 'Voice & Values' },
+  { value: 'strategy', label: 'Strategy' },
   { value: 'visual', label: 'Visual' },
 ];
 
@@ -192,6 +205,7 @@ export function BrandEditorSheet({ brand, open, onOpenChange, onSaved }: Props) 
           colors: form.colors.filter((c) => c.hex.trim()),
           writingDos: form.writingDos.trim() || null,
           writingDonts: form.writingDonts.trim() || null,
+          positioningStatement: form.positioningStatement.trim() || null,
         },
       },
       {
@@ -203,7 +217,7 @@ export function BrandEditorSheet({ brand, open, onOpenChange, onSaved }: Props) 
 
   const tabs = brand?.isOwner !== false
     ? brand
-      ? [...BASE_TABS, { value: 'assets', label: 'Assets' }, { value: 'sharing', label: 'Sharing' }]
+      ? [...BASE_TABS, { value: 'knowledge', label: 'Knowledge' }, { value: 'assets', label: 'Assets' }, { value: 'sharing', label: 'Sharing' }]
       : BASE_TABS
     : BASE_TABS;
 
@@ -346,6 +360,30 @@ export function BrandEditorSheet({ brand, open, onOpenChange, onSaved }: Props) 
               </div>
               <ColorPaletteEditor colors={form.colors} onChange={(v) => set({ colors: v })} />
             </TabsContent>
+
+            <TabsContent value="strategy" className="mt-0">
+              {brand ? (
+                <StrategyTab
+                  brand={brand}
+                  strategyForm={{
+                    positioningStatement: form.positioningStatement,
+                    messagingPillars: form.messagingPillars,
+                    proofPoints: form.proofPoints,
+                    exampleHeadlines: form.exampleHeadlines,
+                    exampleRejections: form.exampleRejections,
+                  }}
+                  onStrategyChange={set}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">Save the brand first to add strategy.</p>
+              )}
+            </TabsContent>
+
+            {brand && (
+              <TabsContent value="knowledge" className="mt-0">
+                <BrandKnowledgeTab brandId={brand.id} />
+              </TabsContent>
+            )}
 
             {brand && (
               <TabsContent value="assets" className="mt-0">

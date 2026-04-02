@@ -49,11 +49,11 @@ export const persistChatResult = async (options: PersistChatResultOptions): Prom
       ? (getThreadTitleFromMessages(chatMessages) ?? currentTitle)
       : currentTitle;
 
-  // Preserve compare messages: they are managed by /api/compare, not this chat session
+  // Preserve compare + team-run messages: managed by their own routes, not this chat session
   const existingRows = await db.select().from(chatMessage).where(eq(chatMessage.threadId, threadId));
   const compareRows = existingRows.filter((row) => {
-    const meta = row.metadata as { compareGroupId?: string } | null;
-    return !!meta?.compareGroupId;
+    const meta = row.metadata as { compareGroupId?: string; teamRun?: unknown } | null;
+    return !!meta?.compareGroupId || !!meta?.teamRun;
   });
 
   await db.delete(chatMessage).where(eq(chatMessage.threadId, threadId));

@@ -149,7 +149,7 @@ export async function importSkillFromUrl(
 
   return createSkill(userId, {
     name: parsed.name,
-    description: parsed.description ?? undefined,
+    description: parsed.description ?? `Imported skill: ${parsed.name}`,
     triggerType: parsed.triggerType,
     trigger: parsed.trigger ?? undefined,
     promptFragment: parsed.body,
@@ -220,10 +220,22 @@ function parseSkillMd(content: string): {
   const name = frontmatter['name'] ?? 'Imported Skill';
   const description = frontmatter['description'];
 
-  // Try to infer a trigger from the name or description
-  const triggerType: SkillTriggerType = 'always';
+  // Infer trigger type from frontmatter fields
+  let triggerType: SkillTriggerType = 'always';
+  let trigger: string | undefined;
 
-  return { name, description, triggerType, body };
+  const rawTrigger = frontmatter['trigger'] ?? frontmatter['slash-command'] ?? frontmatter['keyword'];
+  if (rawTrigger) {
+    if (rawTrigger.startsWith('/')) {
+      triggerType = 'slash';
+      trigger = rawTrigger;
+    } else {
+      triggerType = 'keyword';
+      trigger = rawTrigger;
+    }
+  }
+
+  return { name, description, triggerType, trigger, body };
 }
 
 /** Minimal YAML key: value parser (single-level only). */

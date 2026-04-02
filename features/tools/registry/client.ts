@@ -14,6 +14,8 @@ import { audioManifest } from '@/features/audio/manifest';
 import { speechManifest } from '@/features/speech/manifest';
 import { videoManifest } from '@/features/video/manifest';
 import { imageManifest } from '@/features/image/manifest';
+import { longFormManifest } from '@/features/long-form/manifest';
+import { repurposingManifest } from '@/features/repurposing/manifest';
 
 /** All registered tool manifests */
 export const TOOL_MANIFESTS: ToolManifest[] = [
@@ -26,6 +28,8 @@ export const TOOL_MANIFESTS: ToolManifest[] = [
   speechManifest,
   videoManifest,
   imageManifest,
+  longFormManifest,
+  repurposingManifest,
 ];
 
 /** Map from tool id → manifest */

@@ -24,6 +24,10 @@ import { createSpeechAgentTools } from '@/features/speech/agent';
 import { createVideoAgentTools } from '@/features/video/agent';
 import { imageManifest } from '@/features/image/manifest';
 import { createImageAgentTools } from '@/features/image/agent';
+import { longFormManifest } from '@/features/long-form/manifest';
+import { createLongFormAgentTools } from '@/features/long-form/agent';
+import { repurposingManifest } from '@/features/repurposing/manifest';
+import { createRepurposingAgentTools } from '@/features/repurposing/agent';
 
 const SERVER_REGISTRY: RegisteredTool[] = [
   {
@@ -86,6 +90,18 @@ const SERVER_REGISTRY: RegisteredTool[] = [
     getAgentDefinition: (ctx: AgentToolContext) =>
       createImageAgentTools({ userId: ctx.userId }),
     getSidebarPageHref: () => `/tools/${imageManifest.slug}`,
+  },
+  {
+    manifest: longFormManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createLongFormAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${longFormManifest.slug}`,
+  },
+  {
+    manifest: repurposingManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createRepurposingAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${repurposingManifest.slug}`,
   },
 ];
 

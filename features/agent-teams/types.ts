@@ -107,6 +107,43 @@ export type TeamRunStatusUpdate =
       error: string;
     };
 
+// ── Team templates ────────────────────────────────────────────────────────────
+
+export type TeamMemberSlot = {
+  displayRole: string;
+  role: TeamMemberRole;
+  tags: string[];
+  position: number;
+  /** Description of what kind of agent should fill this slot */
+  slotHint: string;
+};
+
+export type TeamTemplate = {
+  id: string;
+  name: string;
+  description: string;
+  routingStrategy: RoutingStrategy;
+  config: AgentTeamConfig;
+  memberSlots: TeamMemberSlot[];
+};
+
+// ── Plan preview (Phase 3) ────────────────────────────────────────────────────
+
+export type PlanPreviewStep = {
+  memberId: string;
+  memberName: string;
+  displayRole: string | null;
+  subPrompt: string;
+  artifactType: ArtifactType;
+  reasoning?: string;
+};
+
+export type PlanPreviewResponse = {
+  steps: PlanPreviewStep[];
+  synthesisInstruction: string;
+  fallback: boolean;
+};
+
 // ── API input types ───────────────────────────────────────────────────────────
 
 export type CreateAgentTeamInput = {

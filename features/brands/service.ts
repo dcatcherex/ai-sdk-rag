@@ -1,9 +1,9 @@
-import { and, desc, eq, inArray, ne, or, exists } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne, or, exists } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 
 import { db } from '@/lib/db';
-import { brand, brandAsset, brandShare, user as userTable } from '@/db/schema';
-import type { Brand, BrandAsset, BrandAssetKind, BrandImportJson, BrandSharedUser } from './types';
+import { brand, brandAsset, brandIcp, brandShare, user as userTable } from '@/db/schema';
+import type { Brand, BrandAsset, BrandIcp, BrandIcpInput, BrandImportJson, BrandSharedUser } from './types';
 
 // ── Brand CRUD ────────────────────────────────────────────────────────────────
 
@@ -118,6 +118,11 @@ export async function createBrand(userId: string, data: BrandInput): Promise<Bra
       colors: data.colors ?? [],
       writingDos: data.writingDos ?? null,
       writingDonts: data.writingDonts ?? null,
+      positioningStatement: data.positioningStatement ?? null,
+      messagingPillars: data.messagingPillars ?? [],
+      proofPoints: data.proofPoints ?? [],
+      exampleHeadlines: data.exampleHeadlines ?? [],
+      exampleRejections: data.exampleRejections ?? [],
       isDefault: data.isDefault ?? false,
     })
     .returning();
@@ -249,13 +254,52 @@ export async function importBrandFromJson(
   });
 }
 
+// ── Brand ICP CRUD ────────────────────────────────────────────────────────────
+
+export async function getBrandIcps(brandId: string): Promise<BrandIcp[]> {
+  return db
+    .select()
+    .from(brandIcp)
+    .where(eq(brandIcp.brandId, brandId))
+    .orderBy(asc(brandIcp.sortOrder), asc(brandIcp.createdAt)) as Promise<BrandIcp[]>;
+}
+
+export async function createBrandIcp(brandId: string, data: BrandIcpInput): Promise<BrandIcp> {
+  const [created] = await db
+    .insert(brandIcp)
+    .values({ id: nanoid(), brandId, ...data })
+    .returning();
+  return created as BrandIcp;
+}
+
+export async function updateBrandIcp(
+  brandId: string,
+  icpId: string,
+  data: Partial<BrandIcpInput>,
+): Promise<BrandIcp | null> {
+  const [updated] = await db
+    .update(brandIcp)
+    .set(data)
+    .where(and(eq(brandIcp.id, icpId), eq(brandIcp.brandId, brandId)))
+    .returning();
+  return (updated as BrandIcp) ?? null;
+}
+
+export async function deleteBrandIcp(brandId: string, icpId: string): Promise<void> {
+  await db.delete(brandIcp).where(and(eq(brandIcp.id, icpId), eq(brandIcp.brandId, brandId)));
+}
+
 // ── Context Block (used by chat route in Phase 2) ─────────────────────────────
 
 export function buildBrandBlock(b: Brand): string {
   const lines: string[] = [
     `Name: ${b.name}`,
     b.overview ? `Overview: ${b.overview}` : '',
+    b.industry ? `Industry: ${b.industry}` : '',
     b.targetAudience ? `Target Audience: ${b.targetAudience}` : '',
+    b.positioningStatement ? `Positioning: ${b.positioningStatement}` : '',
+    b.messagingPillars.length ? `Messaging Pillars: ${b.messagingPillars.join(' | ')}` : '',
+    b.proofPoints.length ? `Proof Points: ${b.proofPoints.join(' | ')}` : '',
     b.toneOfVoice.length ? `Tone of Voice: ${b.toneOfVoice.join(', ')}` : '',
     b.brandValues.length ? `Brand Values: ${b.brandValues.join(', ')}` : '',
     b.visualAesthetics.length ? `Visual Style: ${b.visualAesthetics.join(', ')}` : '',
@@ -264,9 +308,44 @@ export function buildBrandBlock(b: Brand): string {
       : '',
     b.writingDos ? `Writing guidelines (do): ${b.writingDos}` : '',
     b.writingDonts ? `Writing guidelines (don't): ${b.writingDonts}` : '',
+    b.exampleHeadlines.length ? `On-brand headline examples: ${b.exampleHeadlines.join(' | ')}` : '',
+    b.exampleRejections.length ? `Off-brand headline examples: ${b.exampleRejections.join(' | ')}` : '',
   ].filter(Boolean);
 
   return `<brand_context>\n${lines.join('\n')}\n</brand_context>`;
+}
+
+/**
+ * Full strategic brand context string for content agents.
+ * Includes brand fields + all ICP personas.
+ * Use this when building prompts for content creation agents.
+ */
+export async function buildBrandContext(brandId: string): Promise<string> {
+  const [b, icps] = await Promise.all([
+    db.select().from(brand).where(eq(brand.id, brandId)).limit(1),
+    getBrandIcps(brandId),
+  ]);
+  if (!b[0]) return '';
+
+  const brandSection = buildBrandBlock(b[0] as Brand);
+
+  if (icps.length === 0) return brandSection;
+
+  const icpSection = icps.map((icp) => {
+    const parts = [
+      `### ${icp.name}`,
+      icp.ageRange ? `Age range: ${icp.ageRange}` : '',
+      icp.jobTitles.length ? `Job titles: ${icp.jobTitles.join(', ')}` : '',
+      icp.painPoints.length ? `Pain points: ${icp.painPoints.join('; ')}` : '',
+      icp.buyingTriggers.length ? `Buying triggers: ${icp.buyingTriggers.join('; ')}` : '',
+      icp.objections.length ? `Objections: ${icp.objections.join('; ')}` : '',
+      icp.channels.length ? `Where they are: ${icp.channels.join(', ')}` : '',
+      icp.notes ? `Notes: ${icp.notes}` : '',
+    ].filter(Boolean).join('\n');
+    return parts;
+  }).join('\n\n');
+
+  return `${brandSection}\n\n<audience_personas>\n${icpSection}\n</audience_personas>`;
 }
 
 /**

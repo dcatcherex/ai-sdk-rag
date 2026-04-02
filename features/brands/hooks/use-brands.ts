@@ -1,12 +1,13 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Brand, BrandAsset, BrandImportJson, BrandSharedUser } from '../types';
+import type { Brand, BrandAsset, BrandIcp, BrandIcpInput, BrandImportJson, BrandSharedUser } from '../types';
 
 export const brandKeys = {
   all: ['brands'] as const,
   assets: (brandId: string) => ['brands', brandId, 'assets'] as const,
   stats: (brandId: string) => ['brands', brandId, 'stats'] as const,
+  icps: (brandId: string) => ['brands', brandId, 'icps'] as const,
 };
 
 export function useBrands() {
@@ -179,5 +180,48 @@ export function useDeleteBrandAsset(brandId: string) {
       if (!res.ok) throw new Error('Delete failed');
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: brandKeys.assets(brandId) }),
+  });
+}
+
+// ── ICP hooks ─────────────────────────────────────────────────────────────────
+
+export function useIcps(brandId: string) {
+  return useQuery({
+    queryKey: brandKeys.icps(brandId),
+    queryFn: async () => {
+      const res = await fetch(`/api/brands/${brandId}/icps`);
+      if (!res.ok) throw new Error('Failed to fetch ICPs');
+      return res.json() as Promise<BrandIcp[]>;
+    },
+    enabled: Boolean(brandId),
+  });
+}
+
+export function useSaveIcp(brandId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ icpId, data }: { icpId?: string; data: BrandIcpInput }) => {
+      const url = icpId ? `/api/brands/${brandId}/icps/${icpId}` : `/api/brands/${brandId}/icps`;
+      const method = icpId ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Failed to save ICP');
+      return res.json() as Promise<BrandIcp>;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: brandKeys.icps(brandId) }),
+  });
+}
+
+export function useDeleteIcp(brandId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (icpId: string) => {
+      const res = await fetch(`/api/brands/${brandId}/icps/${icpId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete ICP');
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: brandKeys.icps(brandId) }),
   });
 }

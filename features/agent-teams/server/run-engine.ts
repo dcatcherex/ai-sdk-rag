@@ -1,25 +1,22 @@
 /**
- * Sequential team run execution engine.
+ * Sequential and planner-generated team run execution engine.
  *
- * Flow:
- *   1. Validate: must have exactly one orchestrator + at least one specialist
- *   2. Credit pre-check: estimate cost and verify balance covers it
- *   3. For each specialist in position order:
- *      a. Emit 'step_start' update
- *      b. Build sub-prompt with context from prior steps
- *      c. Call specialist via generateText
- *      d. Generate summary + infer artifact type
- *      e. Deduct credits, persist step row
- *      f. Emit 'step_complete' update
- *   4. Call orchestrator for synthesis
- *   5. Persist final output on teamRun, emit 'run_complete'
+ * Sequential flow (routingStrategy = 'sequential'):
+ *   Specialists run in position order; sub-prompts built from prior context.
  *
- * Specialists cannot delegate (no recursion). V1 is sequential only.
+ * Planner-generated flow (routingStrategy = 'planner_generated'):
+ *   Orchestrator produces a JSON execution plan first, selecting which
+ *   specialists to involve and providing focused sub-prompts for each.
+ *   The plan step itself is persisted and credited before specialists run.
+ *
+ * Both strategies share the same step-execution loop and synthesis step.
  */
 
 import { generateText } from 'ai';
-import { nanoid } from 'nanoid';
+import type { ToolSet } from 'ai';
 import { getCreditCost, getUserBalance, deductCredits } from '@/lib/credits';
+import { buildToolSet } from '@/lib/tools';
+import { toolDisabledModels } from '@/features/chat/server/routing';
 import {
   createTeamRun,
   updateTeamRun,
@@ -33,16 +30,19 @@ import {
   generateStepSummary,
   inferArtifactType,
   synthesizeWithOrchestrator,
+  generatePlan,
+  type StepContext,
 } from './orchestrator';
 import type {
   AgentTeamWithMembers,
   AgentTeamMemberWithAgent,
+  OrchestratorPlan,
   TeamRunRow,
   TeamRunStatusUpdate,
   ArtifactType,
 } from '../types';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Public types ──────────────────────────────────────────────────────────────
 
 export type ExecuteTeamRunParams = {
   team: AgentTeamWithMembers;
@@ -50,14 +50,14 @@ export type ExecuteTeamRunParams = {
   userPrompt: string;
   threadId?: string | null;
   onUpdate: (update: TeamRunStatusUpdate) => void;
+  /** Pre-approved plan (from plan-preview flow) — skips the planning LLM call */
+  approvedPlan?: OrchestratorPlan;
 };
 
 export type ExecuteTeamRunResult = {
   run: TeamRunRow;
   finalOutput: string;
 };
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Estimate the maximum credit cost for a run (all members × their model cost). */
 export function estimateRunCost(team: AgentTeamWithMembers): number {
@@ -67,19 +67,31 @@ export function estimateRunCost(team: AgentTeamWithMembers): number {
   }, 0);
 }
 
-/** Split members into orchestrator (exactly one) and specialists (ordered by position). */
+// ── Internal types ────────────────────────────────────────────────────────────
+
+/** Resolved execution step — same shape regardless of routing strategy. */
+type ResolvedStep = {
+  member: AgentTeamMemberWithAgent;
+  /** Null = build dynamically from context (sequential). Non-null = from plan. */
+  subPrompt: string | null;
+  /** Null = infer from member tags (sequential). Non-null = from plan. */
+  plannedArtifactType: ArtifactType | null;
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function splitMembers(team: AgentTeamWithMembers): {
   orchestrator: AgentTeamMemberWithAgent;
   specialists: AgentTeamMemberWithAgent[];
 } {
   const orchestrator = team.members.find((m) => m.role === 'orchestrator');
-  if (!orchestrator) throw new Error(`Team "${team.name}" has no orchestrator member.`);
+  if (!orchestrator) throw new TeamRunError(`Team "${team.name}" has no orchestrator member.`, 'unknown');
 
   const specialists = team.members
     .filter((m) => m.role === 'specialist')
     .sort((a, b) => a.position - b.position);
 
-  if (specialists.length === 0) throw new Error(`Team "${team.name}" has no specialist members.`);
+  if (specialists.length === 0) throw new TeamRunError(`Team "${team.name}" has no specialist members.`, 'unknown');
 
   return { orchestrator, specialists };
 }
@@ -87,13 +99,13 @@ function splitMembers(team: AgentTeamWithMembers): {
 // ── Main execution function ───────────────────────────────────────────────────
 
 export async function executeTeamRun(params: ExecuteTeamRunParams): Promise<ExecuteTeamRunResult> {
-  const { team, userId, userPrompt, threadId, onUpdate } = params;
+  const { team, userId, userPrompt, threadId, onUpdate, approvedPlan } = params;
   const config = team.config ?? {};
   const maxSteps = config.maxSteps ?? 5;
+  const isPlanner = team.routingStrategy === 'planner_generated';
 
-  // ── 1. Validate team structure ─────────────────────────────────────────────
+  // ── 1. Validate ────────────────────────────────────────────────────────────
   const { orchestrator, specialists } = splitMembers(team);
-  const cappedSpecialists = specialists.slice(0, maxSteps);
 
   // ── 2. Credit pre-check ────────────────────────────────────────────────────
   const estimatedCost = estimateRunCost(team);
@@ -115,67 +127,173 @@ export async function executeTeamRun(params: ExecuteTeamRunParams): Promise<Exec
   });
 
   let totalSpent = 0;
-
-  // Accumulated context passed to each downstream specialist
-  const priorStepContexts: Parameters<typeof buildContextBlock>[0] = [];
-
-  // Full outputs collected for final synthesis
-  const synthesisSteps: Parameters<typeof synthesizeWithOrchestrator>[0]['steps'] = [];
+  // Running index for step rows (shared across planning + specialist + synthesis steps)
+  let stepIndex = 0;
 
   try {
-    // ── 4. Execute each specialist in order ─────────────────────────────────
-    for (let i = 0; i < cappedSpecialists.length; i++) {
-      const member = cappedSpecialists[i]!;
+    // ── 4. Build execution plan ────────────────────────────────────────────
+    let resolvedSteps: ResolvedStep[];
+    let synthesisInstruction: string | undefined;
+
+    if (isPlanner) {
+      // ── 4a. Planner path: orchestrator generates the step plan ────────────
+      const planStepRow = await createTeamRunStep({
+        runId: run.id,
+        memberId: orchestrator.id,
+        agentId: orchestrator.agentId,
+        agentName: orchestrator.agent.name,
+        role: 'orchestrator',
+        stepIndex: stepIndex++,
+        inputPrompt: `Plan the execution for: ${userPrompt}`,
+      });
+
+      const orchestratorModelId = resolveAgentModel(orchestrator.agent.modelId);
+      const planCreditCost = getCreditCost(orchestratorModelId);
+
+      // Budget guard for planning step
+      if (config.budgetCredits != null && totalSpent + planCreditCost > config.budgetCredits) {
+        throw new TeamRunError('Run aborted: budget limit reached before planning.', 'budget_exceeded');
+      }
+
+      let planResult: Awaited<ReturnType<typeof generatePlan>>;
+
+      if (approvedPlan) {
+        // Use the pre-approved plan — skip the planning LLM call and credit charge
+        planResult = {
+          plan: approvedPlan,
+          modelId: resolveAgentModel(orchestrator.agent.modelId),
+          promptTokens: 0,
+          completionTokens: 0,
+          wasFallback: false,
+        };
+        await updateTeamRunStep(planStepRow.id, {
+          status: 'completed',
+          output: JSON.stringify(approvedPlan, null, 2),
+          summary: `Using pre-approved plan with ${approvedPlan.steps.length} step(s).`,
+          artifactType: 'other',
+          completedAt: new Date(),
+        });
+      } else {
+        try {
+          planResult = await generatePlan({ orchestratorMember: orchestrator, userPrompt, specialists });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          await updateTeamRunStep(planStepRow.id, {
+            status: 'failed',
+            errorMessage: msg,
+            completedAt: new Date(),
+          });
+          throw new TeamRunError(`Planning step failed: ${msg}`, 'unknown');
+        }
+
+        await deductCredits({
+          userId,
+          amount: planCreditCost,
+          description: `Team run planning: "${orchestrator.agent.name}" in team "${team.name}"`,
+        });
+        totalSpent += planCreditCost;
+      }
+
+      if (!approvedPlan) {
+        const planSummary = `Planned ${planResult.plan.steps.length} step(s): ${planResult.plan.steps.map((s) => {
+          const m = specialists.find((sp) => sp.id === s.memberId);
+          return m ? (m.displayRole ?? m.agent.name) : s.memberId;
+        }).join(' → ')}`;
+
+        await updateTeamRunStep(planStepRow.id, {
+          status: 'completed',
+          output: JSON.stringify(planResult.plan, null, 2),
+          summary: planSummary,
+          artifactType: 'other',
+          modelId: planResult.modelId,
+          promptTokens: planResult.promptTokens,
+          completionTokens: planResult.completionTokens,
+          creditCost: planCreditCost,
+          completedAt: new Date(),
+        });
+        await updateTeamRun(run.id, { spentCredits: totalSpent });
+      }
+
+      synthesisInstruction = planResult.plan.synthesisInstruction;
+
+      // Resolve plan steps to member objects (capped at maxSteps)
+      resolvedSteps = planResult.plan.steps
+        .slice(0, maxSteps)
+        .map((s) => ({
+          member: specialists.find((m) => m.id === s.memberId)!,
+          subPrompt: s.subPrompt,
+          plannedArtifactType: s.artifactType,
+        }))
+        .filter((s) => s.member != null);
+    } else {
+      // ── 4b. Sequential path: run all specialists in position order ─────────
+      resolvedSteps = specialists.slice(0, maxSteps).map((m) => ({
+        member: m,
+        subPrompt: null,
+        plannedArtifactType: null,
+      }));
+    }
+
+    // ── 5. Execute each resolved step ──────────────────────────────────────
+    const priorStepContexts: StepContext[] = [];
+    const synthesisSteps: Parameters<typeof synthesizeWithOrchestrator>[0]['steps'] = [];
+
+    for (let i = 0; i < resolvedSteps.length; i++) {
+      const { member, subPrompt: plannedSubPrompt, plannedArtifactType } = resolvedSteps[i]!;
       const modelId = resolveAgentModel(member.agent.modelId);
       const creditCost = getCreditCost(modelId);
 
-      // Budget guard: abort if this step would exceed the run budget
-      if (config.budgetCredits !== undefined && config.budgetCredits !== null) {
-        if (totalSpent + creditCost > config.budgetCredits) {
-          await updateTeamRun(run.id, {
-            status: 'failed',
-            errorMessage: `Budget limit of ${config.budgetCredits} credits reached after ${i} steps.`,
-            spentCredits: totalSpent,
-            completedAt: new Date(),
-          });
-          onUpdate({ type: 'run_error', runId: run.id, error: 'Budget limit reached.' });
-          throw new TeamRunError('Run aborted: budget limit reached.', 'budget_exceeded');
-        }
+      // Budget guard
+      if (config.budgetCredits != null && totalSpent + creditCost > config.budgetCredits) {
+        await updateTeamRun(run.id, {
+          status: 'failed',
+          errorMessage: `Budget limit of ${config.budgetCredits} credits reached after ${i} step(s).`,
+          spentCredits: totalSpent,
+          completedAt: new Date(),
+        });
+        onUpdate({ type: 'run_error', runId: run.id, error: 'Budget limit reached.' });
+        throw new TeamRunError('Run aborted: budget limit reached.', 'budget_exceeded');
       }
 
-      // Create step row (status = 'running')
+      const currentStepIndex = stepIndex++;
+
       const stepRow = await createTeamRunStep({
         runId: run.id,
         memberId: member.id,
         agentId: member.agentId,
         agentName: member.agent.name,
         role: 'specialist',
-        stepIndex: i,
-        inputPrompt: userPrompt,
+        stepIndex: currentStepIndex,
+        inputPrompt: plannedSubPrompt ?? userPrompt,
       });
 
       onUpdate({
         type: 'step_start',
         runId: run.id,
-        stepIndex: i,
+        stepIndex: currentStepIndex,
         memberId: member.id,
         agentId: member.agentId,
         agentName: member.agent.name,
         displayRole: member.displayRole,
       });
 
-      // Build full system prompt for specialist
-      const specialistSystemPrompt = member.agent.systemPrompt +
-        (member.agent.documentIds.length > 0
-          ? '\nIMPORTANT: Use the searchKnowledge tool to find relevant information before answering.'
-          : '');
+      // Build the prompt: use plan's sub-prompt if available, else build from context
+      const subPrompt = plannedSubPrompt
+        ? buildContextBlock(priorStepContexts)
+            ? `${buildContextBlock(priorStepContexts)}\n\n${plannedSubPrompt}`
+            : plannedSubPrompt
+        : buildSpecialistPrompt({ userPrompt, member, priorSteps: priorStepContexts });
 
-      // Build focused sub-prompt with prior context
-      const subPrompt = buildSpecialistPrompt({
-        userPrompt,
-        member,
-        priorSteps: priorStepContexts,
-      });
+      const specialistSystemPrompt = member.agent.systemPrompt;
+
+      // Build tool set for this specialist — empty if model doesn't support tools
+      const specialistTools: ToolSet = (() => {
+        if (toolDisabledModels.has(modelId)) return {};
+        const enabledIds = member.agent.enabledTools;
+        if (!enabledIds || enabledIds.length === 0) return {};
+        return buildToolSet({ enabledToolIds: enabledIds, userId, source: 'agent' });
+      })();
+      const hasTools = Object.keys(specialistTools).length > 0;
 
       let output = '';
       let promptTokens = 0;
@@ -187,19 +305,19 @@ export async function executeTeamRun(params: ExecuteTeamRunParams): Promise<Exec
           model: modelId as Parameters<typeof generateText>[0]['model'],
           system: specialistSystemPrompt,
           prompt: subPrompt,
+          ...(hasTools && { tools: specialistTools, maxSteps: 5 }),
         });
         output = result.text;
         promptTokens = result.usage?.inputTokens ?? 0;
         completionTokens = result.usage?.outputTokens ?? 0;
       } catch (err) {
         stepError = err instanceof Error ? err.message : String(err);
-        console.error(`[team-run] step ${i} failed for agent "${member.agent.name}"`, err);
+        console.error(`[team-run] step ${currentStepIndex} failed for "${member.agent.name}"`, err);
       }
 
-      const artifactType: ArtifactType = stepError ? 'other' : inferArtifactType(member);
+      const artifactType: ArtifactType = plannedArtifactType ?? (stepError ? 'other' : inferArtifactType(member));
       const summary = stepError ? `[Step failed: ${stepError}]` : generateStepSummary(output);
 
-      // Deduct credits (even on step error — the model was called)
       if (!stepError) {
         await deductCredits({
           userId,
@@ -209,7 +327,6 @@ export async function executeTeamRun(params: ExecuteTeamRunParams): Promise<Exec
         totalSpent += creditCost;
       }
 
-      // Update step row
       await updateTeamRunStep(stepRow.id, {
         status: stepError ? 'failed' : 'completed',
         output: stepError ? undefined : output,
@@ -223,13 +340,12 @@ export async function executeTeamRun(params: ExecuteTeamRunParams): Promise<Exec
         completedAt: new Date(),
       });
 
-      // Update running spend on run row
       await updateTeamRun(run.id, { spentCredits: totalSpent });
 
       onUpdate({
         type: 'step_complete',
         runId: run.id,
-        stepIndex: i,
+        stepIndex: currentStepIndex,
         memberId: member.id,
         agentId: member.agentId,
         agentName: member.agent.name,
@@ -238,36 +354,24 @@ export async function executeTeamRun(params: ExecuteTeamRunParams): Promise<Exec
         artifactType,
       });
 
-      // Accumulate context for next specialist (summaries only)
       if (!stepError) {
-        priorStepContexts.push({
-          agentName: member.agent.name,
-          displayRole: member.displayRole,
-          summary,
-          artifactType,
-        });
-
-        synthesisSteps.push({
-          agentName: member.agent.name,
-          displayRole: member.displayRole,
-          artifactType,
-          output,
-        });
+        priorStepContexts.push({ agentName: member.agent.name, displayRole: member.displayRole, summary, artifactType });
+        synthesisSteps.push({ agentName: member.agent.name, displayRole: member.displayRole, artifactType, output });
       }
     }
 
-    // ── 5. Orchestrator synthesis ────────────────────────────────────────────
+    // ── 6. Orchestrator synthesis ──────────────────────────────────────────
     const orchestratorModelId = resolveAgentModel(orchestrator.agent.modelId);
     const synthesisCreditCost = getCreditCost(orchestratorModelId);
 
-    const orchestratorStepRow = await createTeamRunStep({
+    const synthStepRow = await createTeamRunStep({
       runId: run.id,
       memberId: orchestrator.id,
       agentId: orchestrator.agentId,
       agentName: orchestrator.agent.name,
       role: 'orchestrator',
-      stepIndex: cappedSpecialists.length,
-      inputPrompt: `Synthesize the team's work into a final answer for: ${userPrompt}`,
+      stepIndex: stepIndex++,
+      inputPrompt: synthesisInstruction ?? `Synthesize the team's work into a final answer for: ${userPrompt}`,
     });
 
     let finalOutput = '';
@@ -281,6 +385,9 @@ export async function executeTeamRun(params: ExecuteTeamRunParams): Promise<Exec
         userPrompt,
         steps: synthesisSteps,
         outputFormat: config.outputFormat,
+        outputContract: config.outputContract,
+        contractSections: config.contractSections,
+        synthesisInstruction,
       });
       finalOutput = synthesis.text;
       synthPromptTokens = synthesis.promptTokens;
@@ -288,7 +395,6 @@ export async function executeTeamRun(params: ExecuteTeamRunParams): Promise<Exec
     } catch (err) {
       synthError = err instanceof Error ? err.message : String(err);
       console.error('[team-run] synthesis step failed', err);
-      // Fall back: concatenate step outputs
       finalOutput = synthesisSteps
         .map((s) => `## ${s.displayRole ?? s.agentName}\n\n${s.output}`)
         .join('\n\n---\n\n');
@@ -303,7 +409,7 @@ export async function executeTeamRun(params: ExecuteTeamRunParams): Promise<Exec
       totalSpent += synthesisCreditCost;
     }
 
-    await updateTeamRunStep(orchestratorStepRow.id, {
+    await updateTeamRunStep(synthStepRow.id, {
       status: synthError ? 'failed' : 'completed',
       output: finalOutput,
       summary: generateStepSummary(finalOutput),
@@ -316,7 +422,7 @@ export async function executeTeamRun(params: ExecuteTeamRunParams): Promise<Exec
       completedAt: new Date(),
     });
 
-    // ── 6. Finalise run ──────────────────────────────────────────────────────
+    // ── 7. Finalise run ────────────────────────────────────────────────────
     await updateTeamRun(run.id, {
       status: 'completed',
       finalOutput,
@@ -328,7 +434,6 @@ export async function executeTeamRun(params: ExecuteTeamRunParams): Promise<Exec
 
     return { run, finalOutput };
   } catch (err) {
-    // Catch-all: mark run as failed if not already handled
     if (!(err instanceof TeamRunError)) {
       const msg = err instanceof Error ? err.message : String(err);
       await updateTeamRun(run.id, {

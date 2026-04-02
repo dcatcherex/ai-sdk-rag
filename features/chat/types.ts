@@ -26,6 +26,13 @@ export type ChatMessageMetadata = {
   compareGroupId?: string;
   compareModelId?: string;
   compareModelName?: string;
+  // Agent team run
+  teamRun?: {
+    runId: string;
+    teamId: string;
+    teamName: string;
+    stepCount: number;
+  };
 };
 
 export type QuizAttemptSummary = {

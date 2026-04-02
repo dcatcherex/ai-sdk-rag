@@ -61,4 +61,16 @@ export const TOOL_PAGE_LOADERS: Record<string, ToolPageLoader> = {
     const { ImageToolPage } = await import('@/features/image/components/image-tool-page');
     return ImageToolPage;
   },
+  'long-form': async () => {
+    const { LongFormToolPage } = await import(
+      '@/features/long-form/components/long-form-tool-page'
+    );
+    return LongFormToolPage;
+  },
+  repurposing: async () => {
+    const { RepurposingToolPage } = await import(
+      '@/features/repurposing/components/repurposing-tool-page'
+    );
+    return RepurposingToolPage;
+  },
 };

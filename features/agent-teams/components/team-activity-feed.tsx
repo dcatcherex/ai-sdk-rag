@@ -7,7 +7,7 @@ import type { TeamRunStatusUpdate, ArtifactType } from '../types';
 
 type TeamActivityFeedProps = {
   updates: TeamRunStatusUpdate[];
-  status: 'idle' | 'running' | 'done' | 'error';
+  status: 'idle' | 'running' | 'awaiting_approval' | 'done' | 'error';
 };
 
 /** Maps a step_start update to its matching step_complete (if any) */

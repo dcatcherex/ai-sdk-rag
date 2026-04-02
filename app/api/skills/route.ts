@@ -5,7 +5,7 @@ import { createSkill, getSkills } from '@/features/skills/service';
 
 const createSchema = z.object({
   name: z.string().min(1).max(100),
-  description: z.string().max(300).optional(),
+  description: z.string().min(1).max(1024),
   triggerType: z.enum(['slash', 'keyword', 'always']),
   trigger: z.string().max(100).nullable().optional(),
   promptFragment: z.string().min(1),

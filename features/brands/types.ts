@@ -28,6 +28,12 @@ export type Brand = {
   colors: BrandColor[];
   writingDos: string | null;
   writingDonts: string | null;
+  // ── Strategy layer ──────────────────────────────────────────────────────
+  positioningStatement: string | null;
+  messagingPillars: string[];
+  proofPoints: string[];
+  exampleHeadlines: string[];
+  exampleRejections: string[];
   isDefault: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -36,6 +42,24 @@ export type Brand = {
   /** Populated for owned brands — list of users this brand is shared with */
   sharedWith?: BrandSharedUser[];
 };
+
+export type BrandIcp = {
+  id: string;
+  brandId: string;
+  name: string;
+  ageRange: string | null;
+  jobTitles: string[];
+  painPoints: string[];
+  buyingTriggers: string[];
+  objections: string[];
+  channels: string[];
+  notes: string | null;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type BrandIcpInput = Omit<BrandIcp, 'id' | 'brandId' | 'createdAt' | 'updatedAt'>;
 
 export type BrandAsset = {
   id: string;

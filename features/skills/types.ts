@@ -18,7 +18,7 @@ export type Skill = {
 
 export type CreateSkillInput = {
   name: string;
-  description?: string;
+  description: string;
   triggerType: SkillTriggerType;
   trigger?: string | null;
   promptFragment: string;

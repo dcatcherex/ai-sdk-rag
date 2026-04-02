@@ -14,27 +14,40 @@
  */
 
 import { headers } from 'next/headers';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, max } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import { createUIMessageStreamResponse, createUIMessageStream } from 'ai';
 import { nanoid } from 'nanoid';
 
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { agentTeam, agentTeamMember, agent, chatThread } from '@/db/schema';
+import { agentTeam, agentTeamMember, agent, chatThread, chatMessage } from '@/db/schema';
 import { getUserBalance } from '@/lib/credits';
 import { estimateRunCost, executeTeamRun, TeamRunError } from '@/features/agent-teams/server/run-engine';
 import type { AgentTeamWithMembers, AgentTeamMemberWithAgent, TeamRunStatusUpdate } from '@/features/agent-teams/types';
 import type { Agent } from '@/features/agents/types';
 
-// Multi-step runs can take longer than a single chat turn.
-// Set to 60s — covers up to ~5 specialist calls at ~10s each.
-export const maxDuration = 60;
+// Multi-step runs with tool use require more time: ~5 specialist calls × tool round-trips.
+// 120s requires Vercel Pro. Revert to 60s on Hobby plan.
+export const maxDuration = 120;
+
+const approvedPlanSchema = z.object({
+  steps: z.array(
+    z.object({
+      memberId: z.string(),
+      subPrompt: z.string(),
+      artifactType: z.string(),
+      usesPreviousSteps: z.array(z.string()).optional(),
+    }),
+  ),
+  synthesisInstruction: z.string(),
+});
 
 const requestSchema = z.object({
   teamId: z.string().min(1),
   userPrompt: z.string().min(1).max(4000),
   threadId: z.string().optional().nullable(),
+  approvedPlan: approvedPlanSchema.optional(),
 });
 
 export async function POST(req: Request) {
@@ -157,6 +170,7 @@ export async function POST(req: Request) {
             userId,
             userPrompt: body.userPrompt,
             threadId: body.threadId ?? null,
+            approvedPlan: body.approvedPlan as Parameters<typeof executeTeamRun>[0]['approvedPlan'],
             onUpdate: (update: TeamRunStatusUpdate) => {
               teamUpdates.push(update);
               // Push latest state to client so UI can re-render step progress
@@ -166,6 +180,53 @@ export async function POST(req: Request) {
               });
             },
           });
+
+          // Persist user + assistant messages to the thread (if threadId provided)
+          if (body.threadId) {
+            try {
+              const [{ maxPos }] = await db
+                .select({ maxPos: max(chatMessage.position) })
+                .from(chatMessage)
+                .where(eq(chatMessage.threadId, body.threadId));
+              const base = (maxPos ?? -1) + 1;
+              const stepCount = teamUpdates.filter((u) => u.type === 'step_complete').length;
+
+              type JsonValue = Parameters<typeof db.insert<typeof chatMessage>>[0] extends never ? never : unknown;
+              await db.insert(chatMessage).values([
+                {
+                  id: nanoid(),
+                  threadId: body.threadId,
+                  role: 'user',
+                  parts: [{ type: 'text', text: body.userPrompt }] as JsonValue,
+                  metadata: null,
+                  position: base,
+                },
+                {
+                  id: nanoid(),
+                  threadId: body.threadId,
+                  role: 'assistant',
+                  parts: [{ type: 'text', text: finalOutput }] as JsonValue,
+                  metadata: {
+                    teamRun: {
+                      runId: teamUpdates.find((u) => u.type === 'run_complete')?.runId ?? '',
+                      teamId: body.teamId,
+                      teamName: teamRow.name,
+                      stepCount,
+                    },
+                  },
+                  position: base + 1,
+                },
+              ]);
+
+              // Touch thread updatedAt + preview
+              await db
+                .update(chatThread)
+                .set({ preview: finalOutput.slice(0, 140), updatedAt: new Date() })
+                .where(eq(chatThread.id, body.threadId));
+            } catch (persistErr) {
+              console.error('[team-chat] failed to persist thread messages', persistErr);
+            }
+          }
 
           // Stream the final synthesised answer as text
           const textId = nanoid();

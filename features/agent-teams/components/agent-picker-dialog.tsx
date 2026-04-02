@@ -16,6 +16,8 @@ type AgentPickerDialogProps = {
   excludedAgentIds?: string[];
   onSelect: (agentId: string, role: TeamMemberRole) => void;
   isSubmitting?: boolean;
+  /** Pre-select a role when the dialog opens (e.g. from a template slot) */
+  initialRole?: TeamMemberRole;
 };
 
 export function AgentPickerDialog({
@@ -24,11 +26,12 @@ export function AgentPickerDialog({
   excludedAgentIds = [],
   onSelect,
   isSubmitting,
+  initialRole,
 }: AgentPickerDialogProps) {
   const { data, isLoading } = useAgents();
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [role, setRole] = useState<TeamMemberRole>('specialist');
+  const [role, setRole] = useState<TeamMemberRole>(initialRole ?? 'specialist');
 
   const agents = useMemo(() => {
     const all = data?.agents ?? [];
@@ -54,7 +57,7 @@ export function AgentPickerDialog({
     if (!next) {
       setSelectedId(null);
       setQuery('');
-      setRole('specialist');
+      setRole(initialRole ?? 'specialist');
     }
     onOpenChange(next);
   }

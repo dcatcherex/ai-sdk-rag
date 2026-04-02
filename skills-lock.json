@@ -1,6 +1,11 @@
 {
   "version": 1,
   "skills": {
+    "content-marketing": {
+      "source": "refoundai/lenny-skills",
+      "sourceType": "github",
+      "computedHash": "c30cecde78967d528d362d5d0afad32b01d7760c32cec5379f80821fbbbd99f0"
+    },
     "gemini-api-dev": {
       "source": "google-gemini/gemini-skills",
       "sourceType": "github",

@@ -226,7 +226,16 @@ export async function POST(req: Request) {
 
     const brandBlock = activeBrand ? `\n\n${buildBrandBlock(activeBrand)}` : '';
 
-    // Build skill injection block from triggered skills
+    // Tier 1: skill catalog — let the model know what skills are available
+    const skillCatalog = agentSkillRows.length > 0
+      ? '\n\n<available_skills>\n' +
+        agentSkillRows
+          .map((s) => `- ${s.name}: ${s.description ?? s.promptFragment.slice(0, 120)}`)
+          .join('\n') +
+        '\n</available_skills>'
+      : '';
+
+    // Tier 2: full instructions for skills whose trigger fired this turn
     const skillBlock = triggeredSkills.length > 0
       ? '\n\n<active_skills>\n' +
         triggeredSkills
@@ -242,6 +251,7 @@ export async function POST(req: Request) {
           : '') +
         (memoryContext ? `\n\n${memoryContext}` : '') +
         brandBlock +
+        skillCatalog +
         skillBlock
       : isGrounded
         ? baseSystemPrompt +
@@ -249,11 +259,13 @@ export async function POST(req: Request) {
           '\nIMPORTANT: The user has selected specific documents. You MUST use the searchKnowledge tool to find information before answering. Only respond using information from tool results. If no relevant information is found, say so.' +
           (memoryContext ? `\n\n${memoryContext}` : '') +
           brandBlock +
+          skillCatalog +
           skillBlock
         : baseSystemPrompt +
           (personaExtraInstructions ? `\n\n<user_instructions>\n${personaExtraInstructions}\n</user_instructions>` : '') +
           (memoryContext ? `\n\n${memoryContext}` : '') +
           brandBlock +
+          skillCatalog +
           skillBlock;
 
     // ── Model routing ────────────────────────────────────────────────────────
