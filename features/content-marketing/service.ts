@@ -7,7 +7,7 @@ import { generateText } from 'ai';
 import { nanoid } from 'nanoid';
 import { eq, and, desc, lte } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { socialPost } from '@/db/schema';
+import { socialPost, contentPiece, distributionRecord, contentCalendarEntry } from '@/db/schema';
 import { getAccountsWithTokenByPlatform } from './social-account-service';
 import type {
   SocialPlatform,
@@ -97,10 +97,34 @@ export async function createPost(input: CreatePostInput): Promise<SocialPostReco
     media = [],
     scheduledAt,
     brandId,
+    campaignId,
   } = input;
 
   const id = nanoid();
   const status: PostStatus = scheduledAt ? 'scheduled' : 'draft';
+
+  // Create a calendar entry when scheduling so the post appears in the content calendar
+  let calendarEntryId: string | null = null;
+  if (scheduledAt && platforms.length > 0) {
+    calendarEntryId = nanoid();
+    const plannedDate = scheduledAt.toISOString().slice(0, 10);
+    const firstPlatform = platforms[0]!;
+    const calChannel = (firstPlatform === 'tiktok' ? 'other' : firstPlatform) as
+      | 'instagram'
+      | 'facebook'
+      | 'other';
+    await db.insert(contentCalendarEntry).values({
+      id: calendarEntryId,
+      userId,
+      brandId: brandId ?? null,
+      campaignId: campaignId ?? null,
+      title: caption.slice(0, 80),
+      contentType: 'social',
+      channel: calChannel,
+      status: 'scheduled',
+      plannedDate,
+    });
+  }
 
   await db.insert(socialPost).values({
     id,
@@ -112,6 +136,8 @@ export async function createPost(input: CreatePostInput): Promise<SocialPostReco
     status,
     scheduledAt: scheduledAt ?? null,
     brandId: brandId ?? null,
+    campaignId: campaignId ?? null,
+    calendarEntryId,
   });
 
   return getPost(id, userId) as Promise<SocialPostRecord>;
@@ -160,6 +186,7 @@ export async function updatePost(input: UpdatePostInput): Promise<SocialPostReco
   if (updates.media !== undefined) updateData.media = updates.media;
   if (updates.scheduledAt !== undefined) updateData.scheduledAt = updates.scheduledAt;
   if (updates.status !== undefined) updateData.status = updates.status;
+  if (updates.campaignId !== undefined) updateData.campaignId = updates.campaignId;
 
   await db
     .update(socialPost)
@@ -201,12 +228,57 @@ export async function publishPost(input: PublishPostInput): Promise<PublishResul
 
   // Update post status
   const newStatus: PostStatus = anySuccess ? 'published' : 'failed';
+  const publishedAt = anySuccess ? new Date() : null;
+
+  // On success: create a content_piece so the post becomes trackable in analytics
+  let createdContentPieceId: string | null = null;
+  if (anySuccess) {
+    createdContentPieceId = nanoid();
+    const platformsPublished = results.filter((r) => r.success).map((r) => r.platform);
+    await db.insert(contentPiece).values({
+      id: createdContentPieceId,
+      userId,
+      brandId: post.brandId,
+      contentType: 'social_post',
+      title: post.caption.slice(0, 80),
+      body: post.caption,
+      excerpt: post.caption.slice(0, 160),
+      status: 'published',
+      channel: platformsPublished.join(','),
+      metadata: { socialPostId: postId, platforms: platformsPublished },
+    });
+
+    // Create a distribution_record per successfully published platform
+    for (const r of results.filter((res) => res.success)) {
+      await db.insert(distributionRecord).values({
+        id: nanoid(),
+        userId,
+        contentPieceId: createdContentPieceId,
+        brandId: post.brandId,
+        channel: r.platform,
+        status: 'sent',
+        sentAt: publishedAt,
+        externalRef: r.platformPostId ?? null,
+        metadata: { socialPostId: postId },
+      });
+    }
+
+    // Update calendar entry status to 'published' if one was linked
+    if (post.calendarEntryId) {
+      await db
+        .update(contentCalendarEntry)
+        .set({ status: 'published', contentPieceId: createdContentPieceId })
+        .where(eq(contentCalendarEntry.id, post.calendarEntryId));
+    }
+  }
+
   await db
     .update(socialPost)
     .set({
       status: newStatus,
-      publishedAt: anySuccess ? new Date() : null,
+      publishedAt,
       error: errors.length > 0 ? errors.join('; ') : null,
+      ...(createdContentPieceId ? { contentPieceId: createdContentPieceId } : {}),
     })
     .where(and(eq(socialPost.id, postId), eq(socialPost.userId, userId)));
 
@@ -433,6 +505,9 @@ function mapRow(row: typeof socialPost.$inferSelect): SocialPostRecord {
     scheduledAt: row.scheduledAt,
     publishedAt: row.publishedAt,
     brandId: row.brandId,
+    campaignId: row.campaignId ?? null,
+    calendarEntryId: row.calendarEntryId ?? null,
+    contentPieceId: row.contentPieceId ?? null,
     error: row.error,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

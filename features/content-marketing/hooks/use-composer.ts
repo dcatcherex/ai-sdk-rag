@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SocialPlatform, GenerateCaptionsResult, SocialPostRecord } from '../types';
+import type { GuardrailCheckResult } from '@/features/brand-guardrails/types';
 
 export type UploadedMedia = {
   r2Key: string;
@@ -27,6 +28,12 @@ export function useComposer() {
   const [scheduledAt, setScheduledAt] = useState('');
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
 
+  // ── New: brand + campaign context ────────────────────────────────────────────
+  const [brandId, setBrandId] = useState<string>('');
+  const [campaignId, setCampaignId] = useState<string>('');
+  const [guardrailResult, setGuardrailResult] = useState<GuardrailCheckResult | null>(null);
+  const [showGuardrails, setShowGuardrails] = useState(false);
+
   const resetForm = () => {
     setEditingPostId(null);
     setCaption('');
@@ -34,6 +41,8 @@ export function useComposer() {
     setGeneratedOverrides({});
     setUploadedMedia([]);
     setScheduledAt('');
+    setGuardrailResult(null);
+    setShowGuardrails(false);
   };
 
   const loadPost = (post: SocialPostRecord) => {
@@ -48,14 +57,25 @@ export function useComposer() {
         : '',
     );
     setTopic('');
+    setBrandId(post.brandId ?? '');
+    setCampaignId(post.campaignId ?? '');
+    setGuardrailResult(null);
+    setShowGuardrails(false);
   };
+
+  // ── Mutations ─────────────────────────────────────────────────────────────────
 
   const generateMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch('/api/tools/content-marketing/generate-captions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic, platforms: selectedPlatforms, tone }),
+        body: JSON.stringify({
+          topic,
+          platforms: selectedPlatforms,
+          tone,
+          ...(brandId ? { brandId } : {}),
+        }),
       });
       if (!res.ok) throw new Error('Generation failed');
       return res.json() as Promise<GenerateCaptionsResult>;
@@ -63,6 +83,29 @@ export function useComposer() {
     onSuccess: (data) => {
       setCaption(data.base);
       setGeneratedOverrides(data.overrides ?? {});
+      // Auto-run guardrail check if brand is set
+      if (brandId && data.base) {
+        guardrailMutation.mutate(data.base);
+      }
+    },
+  });
+
+  const guardrailMutation = useMutation({
+    mutationFn: async (content: string) => {
+      if (!brandId) return null;
+      const res = await fetch('/api/tools/content-marketing/guardrail-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandId, content }),
+      });
+      if (!res.ok) return null;
+      return res.json() as Promise<GuardrailCheckResult>;
+    },
+    onSuccess: (data) => {
+      if (data) {
+        setGuardrailResult(data);
+        if (data.violations.length > 0) setShowGuardrails(true);
+      }
     },
   });
 
@@ -77,6 +120,8 @@ export function useComposer() {
           platformOverrides: generatedOverrides,
           media: uploadedMedia,
           scheduledAt: schedule && scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
+          ...(brandId ? { brandId } : {}),
+          ...(campaignId ? { campaignId } : {}),
         }),
       });
       if (!res.ok) throw new Error('Save failed');
@@ -84,6 +129,7 @@ export function useComposer() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['social-posts'] });
+      queryClient.invalidateQueries({ queryKey: ['calendar-entries'] });
       resetForm();
     },
   });
@@ -100,6 +146,7 @@ export function useComposer() {
           ...(Object.keys(generatedOverrides).length > 0 ? { platformOverrides: generatedOverrides } : {}),
           scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
           status: scheduledAt ? 'scheduled' : 'draft',
+          ...(campaignId ? { campaignId } : {}),
         }),
       });
       if (!res.ok) throw new Error('Update failed');
@@ -107,6 +154,7 @@ export function useComposer() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['social-posts'] });
+      queryClient.invalidateQueries({ queryKey: ['calendar-entries'] });
       resetForm();
     },
   });
@@ -122,6 +170,8 @@ export function useComposer() {
     onSuccess: (media) => setUploadedMedia((prev) => [...prev, media]),
   });
 
+  // ── Helpers ───────────────────────────────────────────────────────────────────
+
   const togglePlatform = (platform: SocialPlatform) =>
     setSelectedPlatforms((prev) =>
       prev.includes(platform) ? prev.filter((p) => p !== platform) : [...prev, platform],
@@ -129,6 +179,12 @@ export function useComposer() {
 
   const removeMedia = (r2Key: string) =>
     setUploadedMedia((prev) => prev.filter((x) => x.r2Key !== r2Key));
+
+  const runGuardrailCheck = () => {
+    if (brandId && caption.trim()) {
+      guardrailMutation.mutate(caption);
+    }
+  };
 
   const activeCaptionForPreview = generatedOverrides[activePlatformPreview]?.caption ?? caption;
 
@@ -138,6 +194,9 @@ export function useComposer() {
   }, []);
 
   const canSchedule = !!scheduledAt && !!caption.trim() && selectedPlatforms.length > 0;
+
+  const hasBlockingViolation =
+    guardrailResult?.violations.some((v) => v.severity === 'block') ?? false;
 
   return {
     fileInputRef,
@@ -150,10 +209,20 @@ export function useComposer() {
     uploadedMedia,
     scheduledAt, setScheduledAt,
     editingPostId,
+    // Brand + campaign
+    brandId, setBrandId,
+    campaignId, setCampaignId,
+    // Guardrails
+    guardrailResult, setGuardrailResult, showGuardrails, setShowGuardrails,
+    guardrailMutation,
+    runGuardrailCheck,
+    hasBlockingViolation,
+    // Mutations
     generateMutation,
     saveMutation,
     updateMutation,
     uploadMutation,
+    // Helpers
     togglePlatform,
     removeMedia,
     loadPost,

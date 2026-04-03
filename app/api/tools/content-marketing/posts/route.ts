@@ -18,6 +18,7 @@ const createPostBody = z.object({
   })).optional(),
   scheduledAt: z.string().datetime().optional(),
   brandId: z.string().optional(),
+  campaignId: z.string().optional(),
 });
 
 export async function GET(req: Request) {
@@ -54,6 +55,7 @@ export async function POST(req: Request) {
     media: result.data.media,
     scheduledAt: result.data.scheduledAt ? new Date(result.data.scheduledAt) : undefined,
     brandId: result.data.brandId,
+    campaignId: result.data.campaignId,
   });
 
   return Response.json({ post }, { status: 201 });

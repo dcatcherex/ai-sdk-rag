@@ -12,6 +12,8 @@ export function TrendCard({ trend, onUse }: Props) {
   const platformColor =
     trend.platform === 'tiktok'
       ? 'bg-black text-white dark:bg-zinc-800'
+      : trend.platform === 'youtube'
+      ? 'bg-red-600 text-white'
       : 'bg-gradient-to-br from-pink-500 to-purple-600 text-white';
 
   return (
@@ -50,6 +52,18 @@ export function TrendCard({ trend, onUse }: Props) {
             : trend.postCount}{' '}
           {trend.platform === 'tiktok' ? 'views' : 'posts'}
         </p>
+      )}
+
+      {trend.trendingAudio && (
+        <div className="flex items-center gap-1.5 rounded-md bg-zinc-100 dark:bg-zinc-800 px-2 py-1.5">
+          <svg viewBox="0 0 24 24" className="size-3 shrink-0 text-muted-foreground" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
+          </svg>
+          <span className="text-[11px] text-muted-foreground truncate">
+            <span className="font-medium text-foreground">{trend.trendingAudio.title}</span>
+            {trend.trendingAudio.author && ` · ${trend.trendingAudio.author}`}
+          </span>
+        </div>
       )}
 
       {trend.contentIdeas.length > 0 && (

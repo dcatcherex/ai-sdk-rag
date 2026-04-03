@@ -89,24 +89,3 @@ export const publicAgentShareEvent = pgTable("public_agent_share_event", {
   index("pas_event_token_idx").on(table.shareToken),
   index("pas_event_created_idx").on(table.createdAt),
 ]);
-
-// ── Agent Skills ──────────────────────────────────────────────────────────────
-
-export const agentSkill = pgTable("agent_skill", {
-  id: text("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  description: text("description"),
-  triggerType: text("trigger_type").notNull().default("keyword"),
-  trigger: text("trigger"),
-  promptFragment: text("prompt_fragment").notNull(),
-  enabledTools: text("enabled_tools").array().notNull().default(sql`'{}'::text[]`),
-  sourceUrl: text("source_url"),
-  isPublic: boolean("is_public").notNull().default(false),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (table) => [index("agent_skill_userId_idx").on(table.userId)]);
-
-export const agentSkillRelations = relations(agentSkill, ({ one }) => ({
-  user: one(user, { fields: [agentSkill.userId], references: [user.id] }),
-}));

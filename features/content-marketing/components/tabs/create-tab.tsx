@@ -4,6 +4,7 @@ import { TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -11,9 +12,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { AlertTriangleIcon, ShieldCheckIcon, ShieldXIcon } from 'lucide-react';
 import { PLATFORMS, TONES } from '../../constants';
 import type { useComposer } from '../../hooks/use-composer';
 import type { useAccounts } from '../../hooks/use-accounts';
+import { useBrands } from '@/features/brands/hooks/use-brands';
+import { useCampaignBriefs } from '@/features/content-calendar/hooks/use-calendar';
 
 type ComposerState = ReturnType<typeof useComposer>;
 type AccountsState = Pick<ReturnType<typeof useAccounts>, 'isConnected'>;
@@ -21,6 +25,18 @@ type AccountsState = Pick<ReturnType<typeof useAccounts>, 'isConnected'>;
 type Props = {
   composer: ComposerState;
   accounts: AccountsState;
+};
+
+const SEVERITY_STYLES = {
+  block: 'border-destructive/40 bg-destructive/5 text-destructive',
+  warning: 'border-amber-400/40 bg-amber-50 dark:bg-amber-900/10 text-amber-700 dark:text-amber-400',
+  info: 'border-blue-300/40 bg-blue-50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-400',
+};
+
+const SEVERITY_ICON = {
+  block: <ShieldXIcon className="size-3.5 shrink-0" />,
+  warning: <AlertTriangleIcon className="size-3.5 shrink-0" />,
+  info: <ShieldCheckIcon className="size-3.5 shrink-0" />,
 };
 
 export function CreateTab({ composer, accounts }: Props) {
@@ -35,6 +51,12 @@ export function CreateTab({ composer, accounts }: Props) {
     uploadedMedia,
     scheduledAt, setScheduledAt,
     editingPostId,
+    brandId, setBrandId,
+    campaignId, setCampaignId,
+    guardrailResult, setGuardrailResult, showGuardrails, setShowGuardrails,
+    guardrailMutation,
+    runGuardrailCheck,
+    hasBlockingViolation,
     generateMutation,
     saveMutation,
     updateMutation,
@@ -47,17 +69,57 @@ export function CreateTab({ composer, accounts }: Props) {
     canSchedule,
   } = composer;
 
+  const { data: brands = [] } = useBrands();
+  const { data: campaigns = [] } = useCampaignBriefs(brandId ? { brandId } : undefined);
+
   return (
     <TabsContent value="create" className="flex flex-1 overflow-hidden m-0">
       <div className="flex flex-1 overflow-hidden">
 
         {/* Composer panel */}
-        <div className="flex w-[400px] shrink-0 flex-col gap-5 overflow-y-auto border-r p-5">
+        <div className="flex w-[420px] shrink-0 flex-col gap-5 overflow-y-auto border-r p-5">
           {editingPostId && (
             <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
               Editing post — make your changes and click <strong>Update post</strong>.
             </div>
           )}
+
+          {/* Brand selector */}
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Brand (optional)</p>
+            <Select value={brandId || '__none__'} onValueChange={(v) => { setBrandId(v === '__none__' ? '' : v); setCampaignId(''); }}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="No brand selected" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">No brand</SelectItem>
+                {brands.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {brandId && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Brand voice and guardrails will be applied to caption generation.
+              </p>
+            )}
+          </div>
+
+          {/* Campaign selector — only shown when brand is selected */}
+          {brandId && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Campaign (optional)</p>
+              <Select value={campaignId || '__none__'} onValueChange={(v) => setCampaignId(v === '__none__' ? '' : v)}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="No campaign" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No campaign</SelectItem>
+                  {campaigns.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Platforms */}
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Platforms</p>
             <div className="flex flex-wrap gap-2">
@@ -79,6 +141,7 @@ export function CreateTab({ composer, accounts }: Props) {
             </div>
           </div>
 
+          {/* Topic */}
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Topic</p>
             <Textarea
@@ -90,6 +153,7 @@ export function CreateTab({ composer, accounts }: Props) {
             />
           </div>
 
+          {/* Tone + Generate */}
           <div className="flex items-center gap-3">
             <div className="flex-1">
               <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Tone</p>
@@ -112,17 +176,62 @@ export function CreateTab({ composer, accounts }: Props) {
             </div>
           </div>
 
+          {/* Caption */}
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Caption</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Caption</p>
+              {brandId && caption.trim() && (
+                <button
+                  type="button"
+                  onClick={runGuardrailCheck}
+                  disabled={guardrailMutation.isPending}
+                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                >
+                  {guardrailMutation.isPending ? 'Checking…' : 'Check guardrails'}
+                </button>
+              )}
+            </div>
             <Textarea
               placeholder="Write your caption, or generate one above…"
               value={caption}
-              onChange={(e) => setCaption(e.target.value)}
+              onChange={(e) => { setCaption(e.target.value); setGuardrailResult(null as never); setShowGuardrails(false); }}
               rows={5}
               className="resize-none text-sm"
             />
             <p className="mt-1 text-right text-xs text-muted-foreground">{caption.length} chars</p>
           </div>
+
+          {/* Guardrail violations */}
+          {showGuardrails && guardrailResult && guardrailResult.violations.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium">Brand guardrail check</p>
+                <button type="button" onClick={() => setShowGuardrails(false)} className="text-xs text-muted-foreground">dismiss</button>
+              </div>
+              {guardrailResult.violations.map((v, i) => (
+                <div
+                  key={i}
+                  className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 text-xs ${SEVERITY_STYLES[v.severity as keyof typeof SEVERITY_STYLES] ?? SEVERITY_STYLES.info}`}
+                >
+                  {SEVERITY_ICON[v.severity as keyof typeof SEVERITY_ICON]}
+                  <div className="min-w-0">
+                    <p className="font-medium">{v.title}</p>
+                    {v.suggestion && <p className="mt-0.5 opacity-80">{v.suggestion}</p>}
+                  </div>
+                  <Badge variant="outline" className="ml-auto shrink-0 text-xs capitalize">{v.severity}</Badge>
+                </div>
+              ))}
+              {!hasBlockingViolation && (
+                <p className="text-xs text-muted-foreground">No blocking violations — you can still save or schedule.</p>
+              )}
+            </div>
+          )}
+          {showGuardrails && guardrailResult && guardrailResult.violations.length === 0 && (
+            <div className="flex items-center gap-2 rounded-lg border border-green-300/40 bg-green-50 dark:bg-green-900/10 px-2.5 py-2 text-xs text-green-700 dark:text-green-400">
+              <ShieldCheckIcon className="size-3.5" />
+              All brand guardrails passed.
+            </div>
+          )}
 
           {/* Media upload */}
           <div>
@@ -177,6 +286,7 @@ export function CreateTab({ composer, accounts }: Props) {
             {scheduledAt && (
               <p className="mt-1 text-xs text-muted-foreground">
                 Will publish automatically on {new Date(scheduledAt).toLocaleString()}
+                {campaignId && ' · linked to campaign'}
               </p>
             )}
           </div>
@@ -206,18 +316,24 @@ export function CreateTab({ composer, accounts }: Props) {
                 variant="outline"
                 className="flex-1"
                 onClick={() => saveMutation.mutate(false)}
-                disabled={!caption.trim() || selectedPlatforms.length === 0 || saveMutation.isPending}
+                disabled={!caption.trim() || selectedPlatforms.length === 0 || saveMutation.isPending || hasBlockingViolation}
               >
                 {saveMutation.isPending ? 'Saving…' : 'Save draft'}
               </Button>
               <Button
                 className="flex-1"
                 onClick={() => saveMutation.mutate(true)}
-                disabled={!canSchedule || saveMutation.isPending}
+                disabled={!canSchedule || saveMutation.isPending || hasBlockingViolation}
               >
                 Schedule
               </Button>
             </div>
+          )}
+
+          {hasBlockingViolation && (
+            <p className="text-xs text-destructive text-center">
+              Fix the blocking guardrail violation before saving.
+            </p>
           )}
         </div>
 

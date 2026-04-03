@@ -26,11 +26,15 @@ function generatePkce(): { verifier: string; challenge: string } {
 }
 
 const META_SCOPES = [
-  'pages_show_list',
-  'pages_read_engagement',
-  'pages_manage_posts',
-  'instagram_basic',
-  'instagram_content_publish',
+  'public_profile',
+  'email',
+  // Pages + Instagram scopes — require additional use cases in Meta app
+  // Uncomment after adding Pages/Instagram use cases in Meta developer console:
+  // 'pages_show_list',
+  // 'pages_read_engagement',
+  // 'pages_manage_posts',
+  // 'instagram_basic',
+  // 'instagram_content_publish',
 ].join(',');
 
 const TIKTOK_SCOPES = ['user.info.basic', 'video.upload', 'video.list'].join(',');

@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { CreateSkillInput, Skill, SkillTriggerType } from '../types';
+import type { CreateSkillInput, Skill, SkillActivationMode, SkillTriggerType } from '../types';
 
 type Props = {
   open: boolean;
@@ -33,6 +33,7 @@ type Props = {
 export const SkillFormDialog = ({ open, skill, onClose, onSubmit, isPending }: Props) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [activationMode, setActivationMode] = useState<SkillActivationMode>('rule');
   const [triggerType, setTriggerType] = useState<SkillTriggerType>('keyword');
   const [trigger, setTrigger] = useState('');
   const [promptFragment, setPromptFragment] = useState('');
@@ -42,6 +43,7 @@ export const SkillFormDialog = ({ open, skill, onClose, onSubmit, isPending }: P
     if (skill) {
       setName(skill.name);
       setDescription(skill.description ?? '');
+      setActivationMode(skill.activationMode);
       setTriggerType(skill.triggerType);
       setTrigger(skill.trigger ?? '');
       setPromptFragment(skill.promptFragment);
@@ -49,6 +51,7 @@ export const SkillFormDialog = ({ open, skill, onClose, onSubmit, isPending }: P
     } else {
       setName('');
       setDescription('');
+      setActivationMode('rule');
       setTriggerType('keyword');
       setTrigger('');
       setPromptFragment('');
@@ -61,8 +64,9 @@ export const SkillFormDialog = ({ open, skill, onClose, onSubmit, isPending }: P
     onSubmit({
       name: name.trim(),
       description: description.trim(),
+      activationMode,
       triggerType,
-      trigger: triggerType !== 'always' ? trigger.trim() || undefined : undefined,
+      trigger: activationMode === 'rule' && triggerType !== 'always' ? trigger.trim() || undefined : undefined,
       promptFragment: promptFragment.trim(),
       isPublic,
     });
@@ -70,7 +74,7 @@ export const SkillFormDialog = ({ open, skill, onClose, onSubmit, isPending }: P
 
   const isValid = name.trim().length > 0 && description.trim().length > 0 &&
     promptFragment.trim().length > 0 &&
-    (triggerType === 'always' || trigger.trim().length > 0);
+    (activationMode === 'model' || triggerType === 'always' || trigger.trim().length > 0);
 
   const triggerPlaceholder =
     triggerType === 'slash' ? '/email, /report …' : 'email, report …';
@@ -111,6 +115,24 @@ export const SkillFormDialog = ({ open, skill, onClose, onSubmit, isPending }: P
           </div>
 
           <div className="space-y-1.5">
+            <Label>Activation mode</Label>
+            <Select value={activationMode} onValueChange={(value) => setActivationMode(value as SkillActivationMode)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="rule">Rule-based</SelectItem>
+                <SelectItem value="model">Model discovered</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {activationMode === 'rule'
+                ? 'Use explicit slash, keyword, or always-on rules to activate this skill.'
+                : 'Expose this skill in the available-skills catalog so the model can activate it when the task matches.'}
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
             <Label>Trigger type</Label>
             <Select value={triggerType} onValueChange={(v) => setTriggerType(v as SkillTriggerType)}>
               <SelectTrigger>
@@ -123,13 +145,14 @@ export const SkillFormDialog = ({ open, skill, onClose, onSubmit, isPending }: P
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              {triggerType === 'always' && 'This skill is always injected when the agent is active.'}
-              {triggerType === 'slash' && 'Skill activates when the user starts their message with the slash command.'}
-              {triggerType === 'keyword' && 'Skill activates when the user message contains the keyword.'}
+              {activationMode === 'model' && 'Optional fallback rule metadata. The model catalog remains the primary activation path.'}
+              {activationMode === 'rule' && triggerType === 'always' && 'This skill is always injected when the agent is active.'}
+              {activationMode === 'rule' && triggerType === 'slash' && 'Skill activates when the user starts their message with the slash command.'}
+              {activationMode === 'rule' && triggerType === 'keyword' && 'Skill activates when the user message contains the keyword.'}
             </p>
           </div>
 
-          {triggerType !== 'always' && (
+          {activationMode === 'rule' && triggerType !== 'always' && (
             <div className="space-y-1.5">
               <Label htmlFor="skill-trigger">
                 {triggerType === 'slash' ? 'Slash command *' : 'Keyword *'}

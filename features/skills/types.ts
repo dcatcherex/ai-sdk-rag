@@ -1,4 +1,34 @@
 export type SkillTriggerType = 'slash' | 'keyword' | 'always';
+export type SkillKind = 'inline' | 'package';
+export type SkillActivationMode = 'rule' | 'model';
+export type SkillSyncStatus = 'local' | 'synced' | 'update_available' | 'diverged' | 'error';
+export type SkillFileKind = 'skill' | 'reference' | 'asset' | 'script' | 'other';
+
+export type SkillFile = {
+  id: string;
+  skillId: string;
+  relativePath: string;
+  fileKind: SkillFileKind;
+  mediaType: string | null;
+  textContent: string | null;
+  sizeBytes: number | null;
+  checksum: string | null;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+};
+
+export type SkillSource = {
+  id: string;
+  sourceType: string;
+  canonicalUrl: string;
+  repoOwner: string | null;
+  repoName: string | null;
+  repoRef: string | null;
+  subdirPath: string | null;
+  defaultEntryPath: string;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+};
 
 export type Skill = {
   id: string;
@@ -6,19 +36,37 @@ export type Skill = {
   name: string;
   description: string | null;
   triggerType: SkillTriggerType;
-  /** The slash command (e.g. '/email') or keyword. Null when triggerType is 'always'. */
   trigger: string | null;
   promptFragment: string;
   enabledTools: string[];
   sourceUrl: string | null;
+  sourceId: string | null;
+  skillKind: SkillKind;
+  activationMode: SkillActivationMode;
+  entryFilePath: string;
+  installedRef: string | null;
+  installedCommitSha: string | null;
+  upstreamCommitSha: string | null;
+  syncStatus: SkillSyncStatus;
+  pinnedToInstalledVersion: boolean;
+  hasBundledFiles: boolean;
+  packageManifest: Record<string, unknown> | null;
+  lastSyncCheckedAt: string | Date | null;
+  lastSyncedAt: string | Date | null;
   isPublic: boolean;
   createdAt: string | Date;
   updatedAt: string | Date;
 };
 
+export type SkillDetail = Skill & {
+  files: SkillFile[];
+  source: SkillSource | null;
+};
+
 export type CreateSkillInput = {
   name: string;
   description: string;
+  activationMode?: SkillActivationMode;
   triggerType: SkillTriggerType;
   trigger?: string | null;
   promptFragment: string;
@@ -30,7 +78,6 @@ export type CreateSkillInput = {
 export type UpdateSkillInput = Partial<CreateSkillInput>;
 
 export type ImportSkillInput = {
-  /** GitHub URL to a SKILL.md file or raw content URL */
   url: string;
 };
 

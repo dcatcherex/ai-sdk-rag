@@ -7,6 +7,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { agent, agentShare, user as userTable } from '@/db/schema';
 import type { SharedUser } from '@/features/agents/types';
+import { getResolvedSkillIdsByAgentIds, replaceSkillAttachmentsForAgent } from '@/features/skills/service';
 import { agentStructuredBehaviorSchema } from '@/lib/agent-structured-behavior';
 
 const createSchema = z.object({
@@ -123,9 +124,27 @@ export async function GET() {
     .where(and(isNull(agent.userId), eq(agent.isTemplate, true)))
     .orderBy(agent.name);
 
+  const allAgentIds = [
+    ...ownAgents.map((row) => row.id),
+    ...publicAgents.map((row) => row.id),
+    ...deduped.map((row) => row.id),
+    ...templates.map((row) => row.id),
+  ];
+  const attachmentMap = await getResolvedSkillIdsByAgentIds(allAgentIds);
+
+  const withResolvedSkillIds = <T extends { id: string; skillIds: string[] }>(rows: T[]) =>
+    rows.map((row) => ({
+      ...row,
+      skillIds: attachmentMap[row.id] ?? row.skillIds,
+    }));
+
   return NextResponse.json({
-    agents: [...ownAgentsOut, ...publicAgents, ...deduped],
-    templates,
+    agents: [
+      ...withResolvedSkillIds(ownAgentsOut),
+      ...withResolvedSkillIds(publicAgents),
+      ...withResolvedSkillIds(deduped),
+    ],
+    templates: withResolvedSkillIds(templates),
   });
 }
 
@@ -160,6 +179,7 @@ export async function POST(req: Request) {
   };
 
   await db.insert(agent).values(newAgent);
+  await replaceSkillAttachmentsForAgent(newAgent.id, newAgent.skillIds);
 
   if (body.sharedUserIds && body.sharedUserIds.length > 0) {
     await db.insert(agentShare).values(

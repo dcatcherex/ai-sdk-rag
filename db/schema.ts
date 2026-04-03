@@ -14,3 +14,7 @@ export * from "./schema/exams";
 export * from "./schema/line-oa";
 export * from "./schema/agent-teams";
 export * from "./schema/content";
+export * from "./schema/skills";
+export * from "./schema/planning";
+export * from "./schema/collaboration";
+export * from "./schema/analytics";

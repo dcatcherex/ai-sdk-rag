@@ -73,4 +73,10 @@ export const TOOL_PAGE_LOADERS: Record<string, ToolPageLoader> = {
     );
     return RepurposingToolPage;
   },
+  analytics: async () => {
+    const { AnalyticsToolPage } = await import(
+      '@/features/analytics/components/analytics-tool-page'
+    );
+    return AnalyticsToolPage;
+  },
 };

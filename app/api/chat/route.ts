@@ -26,7 +26,13 @@ import { getCreditCost, getUserBalance } from '@/lib/credits';
 import { requestSchema } from '@/features/chat/server/schema';
 import { buildBrandBlock, buildImageBrandSuffix } from '@/features/brands/service';
 import type { Brand } from '@/features/brands/types';
-import { detectTriggeredSkills, getSkillsByIds } from '@/features/skills/service';
+import {
+  buildAvailableSkillsCatalog,
+  detectTriggeredSkills,
+  getSkillsForAgent,
+  getRelevantSkillResourcesForPrompt,
+  selectModelDiscoveredSkills,
+} from '@/features/skills/service';
 import type { Skill } from '@/features/skills/types';
 import { getLastUserPrompt } from '@/features/chat/server/thread-utils';
 import { toolDisabledModels, isImageOnlyModel, getModelByIntent } from '@/features/chat/server/routing';
@@ -131,12 +137,18 @@ export async function POST(req: Request) {
 
     // Load skills attached to the active agent
     const agentSkillRows: Skill[] =
-      activeAgent?.skillIds?.length
-        ? await getSkillsByIds(activeAgent.skillIds)
+      activeAgent
+        ? await getSkillsForAgent(activeAgent.id, activeAgent.skillIds ?? [])
         : [];
-    const triggeredSkills = agentSkillRows.length > 0 && lastUserPrompt
+    const ruleTriggeredSkills = agentSkillRows.length > 0 && lastUserPrompt
       ? detectTriggeredSkills(agentSkillRows, lastUserPrompt)
       : [];
+    const discoveredSkills = agentSkillRows.length > 0 && lastUserPrompt
+      ? selectModelDiscoveredSkills(agentSkillRows, lastUserPrompt)
+      : [];
+    const triggeredSkills = [...new Map(
+      [...ruleTriggeredSkills, ...discoveredSkills].map((skill) => [skill.id, skill]),
+    ).values()];
     // Tool IDs unlocked by triggered skills (needed before activeToolIds calculation)
     const skillToolIds = [...new Set(triggeredSkills.flatMap((s) => s.enabledTools))];
 
@@ -145,7 +157,7 @@ export async function POST(req: Request) {
     // ── Stage 3: memory + persona detection + brand in parallel ─────────────
     // Agent's brand takes priority over user's active brand.
     const effectiveBrandId = activeAgent?.brandId ?? brandId ?? null;
-    const [memoryContext, detectedPersona, brandRows] = await Promise.all([
+    const [memoryContext, detectedPersona, brandRows, skillResourcesBlock] = await Promise.all([
       (userPrefs.memoryEnabled && userPrefs.memoryInjectEnabled)
         ? getUserMemoryContext(session.user.id)
         : Promise.resolve(''),
@@ -179,6 +191,9 @@ export async function POST(req: Request) {
             )
             .limit(1)
         : Promise.resolve([]),
+      triggeredSkills.length > 0 && lastUserPrompt
+        ? getRelevantSkillResourcesForPrompt(triggeredSkills, lastUserPrompt)
+        : Promise.resolve(''),
     ]);
 
     const activeBrand = (brandRows[0] ?? null) as Brand | null;
@@ -226,16 +241,10 @@ export async function POST(req: Request) {
 
     const brandBlock = activeBrand ? `\n\n${buildBrandBlock(activeBrand)}` : '';
 
-    // Tier 1: skill catalog — let the model know what skills are available
-    const skillCatalog = agentSkillRows.length > 0
-      ? '\n\n<available_skills>\n' +
-        agentSkillRows
-          .map((s) => `- ${s.name}: ${s.description ?? s.promptFragment.slice(0, 120)}`)
-          .join('\n') +
-        '\n</available_skills>'
-      : '';
+    // Tier 1: skill catalog — let the model know what model-discoverable skills are available
+    const skillCatalog = buildAvailableSkillsCatalog(agentSkillRows);
 
-    // Tier 2: full instructions for skills whose trigger fired this turn
+    // Tier 2: full instructions for rule-triggered and model-discovered skills active this turn
     const skillBlock = triggeredSkills.length > 0
       ? '\n\n<active_skills>\n' +
         triggeredSkills
@@ -252,7 +261,8 @@ export async function POST(req: Request) {
         (memoryContext ? `\n\n${memoryContext}` : '') +
         brandBlock +
         skillCatalog +
-        skillBlock
+        skillBlock +
+        skillResourcesBlock
       : isGrounded
         ? baseSystemPrompt +
           (personaExtraInstructions ? `\n\n<user_instructions>\n${personaExtraInstructions}\n</user_instructions>` : '') +
@@ -260,13 +270,15 @@ export async function POST(req: Request) {
           (memoryContext ? `\n\n${memoryContext}` : '') +
           brandBlock +
           skillCatalog +
-          skillBlock
+          skillBlock +
+          skillResourcesBlock
         : baseSystemPrompt +
           (personaExtraInstructions ? `\n\n<user_instructions>\n${personaExtraInstructions}\n</user_instructions>` : '') +
           (memoryContext ? `\n\n${memoryContext}` : '') +
           brandBlock +
           skillCatalog +
-          skillBlock;
+          skillBlock +
+          skillResourcesBlock;
 
     // ── Model routing ────────────────────────────────────────────────────────
     const enabledIds =

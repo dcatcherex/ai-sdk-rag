@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateSkillInput, Skill, UpdateSkillInput } from '../types';
+import type { CreateSkillInput, Skill, SkillDetail, UpdateSkillInput } from '../types';
 
 const KEY = ['skills'] as const;
 
@@ -14,6 +14,18 @@ export function useSkills() {
       return res.json() as Promise<Skill[]>;
     },
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useSkillDetail(skillId: string | null) {
+  return useQuery<SkillDetail>({
+    queryKey: [...KEY, skillId],
+    queryFn: async () => {
+      const res = await fetch(`/api/skills/${skillId}`);
+      if (!res.ok) throw new Error(await res.text());
+      return res.json() as Promise<SkillDetail>;
+    },
+    enabled: Boolean(skillId),
   });
 }
 

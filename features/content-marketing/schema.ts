@@ -16,6 +16,10 @@ export const generateCaptionsInputSchema = z.object({
     .string()
     .optional()
     .describe('Brand context: name, values, target audience'),
+  brandId: z
+    .string()
+    .optional()
+    .describe('Brand ID — if provided, brand context is resolved server-side'),
 });
 
 export type GenerateCaptionsInput = z.infer<typeof generateCaptionsInputSchema>;
@@ -36,6 +40,7 @@ export const createDraftPostInputSchema = z.object({
     .optional()
     .describe('ISO 8601 datetime to schedule the post'),
   brandId: z.string().optional().describe('Brand ID to associate with this post'),
+  campaignId: z.string().optional().describe('Campaign brief ID to link this post to'),
 });
 
 export type CreateDraftPostInput = z.infer<typeof createDraftPostInputSchema>;

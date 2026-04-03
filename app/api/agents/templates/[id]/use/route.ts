@@ -5,6 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { agent } from '@/db/schema';
+import { getResolvedSkillIdsByAgentIds, replaceSkillAttachmentsForAgent } from '@/features/skills/service';
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -24,6 +25,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: 'Template not found' }, { status: 404 });
   }
 
+  const attachmentMap = await getResolvedSkillIdsByAgentIds([template.id]);
+  const resolvedSkillIds = attachmentMap[template.id] ?? template.skillIds;
+
   const now = new Date();
   const copy = {
     id: crypto.randomUUID(),
@@ -35,7 +39,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     modelId: template.modelId,
     enabledTools: template.enabledTools,
     documentIds: [],
-    skillIds: [],
+    skillIds: resolvedSkillIds,
     brandId: null,
     isPublic: false,
     starterPrompts: template.starterPrompts,
@@ -47,6 +51,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   };
 
   await db.insert(agent).values(copy);
+  await replaceSkillAttachmentsForAgent(copy.id, resolvedSkillIds);
 
   return NextResponse.json({ agent: copy }, { status: 201 });
 }

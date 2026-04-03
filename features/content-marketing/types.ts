@@ -29,6 +29,9 @@ export type SocialPostRecord = {
   scheduledAt: Date | null;
   publishedAt: Date | null;
   brandId: string | null;
+  campaignId: string | null;
+  calendarEntryId: string | null;
+  contentPieceId: string | null;
   error: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -54,6 +57,7 @@ export type CreatePostInput = {
   media?: PostMedia[];
   scheduledAt?: Date;
   brandId?: string;
+  campaignId?: string;
 };
 
 export type UpdatePostInput = {
@@ -65,6 +69,7 @@ export type UpdatePostInput = {
   media?: PostMedia[];
   scheduledAt?: Date | null;
   status?: PostStatus;
+  campaignId?: string | null;
 };
 
 // ── Social Accounts ───────────────────────────────────────────────────────────
@@ -110,7 +115,7 @@ export type PublishResult = {
 
 // ── Trends ────────────────────────────────────────────────────────────────────
 
-export type TrendPlatform = 'tiktok' | 'instagram';
+export type TrendPlatform = 'tiktok' | 'instagram' | 'youtube';
 
 export type TrendItem = {
   id: string;
@@ -135,6 +140,8 @@ export type TrendItem = {
   exampleUrl?: string;
   /** Thumbnail or preview image */
   thumbnailUrl?: string;
+  /** Trending audio/sound driving this trend (TikTok mainly) */
+  trendingAudio?: { title: string; author: string; url?: string };
   fetchedAt: string; // ISO date string
 };
 

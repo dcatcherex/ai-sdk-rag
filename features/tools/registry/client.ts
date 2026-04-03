@@ -16,6 +16,9 @@ import { videoManifest } from '@/features/video/manifest';
 import { imageManifest } from '@/features/image/manifest';
 import { longFormManifest } from '@/features/long-form/manifest';
 import { repurposingManifest } from '@/features/repurposing/manifest';
+import { brandGuardrailsManifest } from '@/features/brand-guardrails/manifest';
+import { analyticsManifest } from '@/features/analytics/manifest';
+import { distributionManifest } from '@/features/distribution/manifest';
 
 /** All registered tool manifests */
 export const TOOL_MANIFESTS: ToolManifest[] = [
@@ -30,6 +33,9 @@ export const TOOL_MANIFESTS: ToolManifest[] = [
   imageManifest,
   longFormManifest,
   repurposingManifest,
+  brandGuardrailsManifest,
+  analyticsManifest,
+  distributionManifest,
 ];
 
 /** Map from tool id → manifest */

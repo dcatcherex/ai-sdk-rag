@@ -28,6 +28,12 @@ import { longFormManifest } from '@/features/long-form/manifest';
 import { createLongFormAgentTools } from '@/features/long-form/agent';
 import { repurposingManifest } from '@/features/repurposing/manifest';
 import { createRepurposingAgentTools } from '@/features/repurposing/agent';
+import { brandGuardrailsManifest } from '@/features/brand-guardrails/manifest';
+import { createBrandGuardrailsAgentTools } from '@/features/brand-guardrails/agent';
+import { analyticsManifest } from '@/features/analytics/manifest';
+import { createAnalyticsAgentTools } from '@/features/analytics/agent';
+import { distributionManifest } from '@/features/distribution/manifest';
+import { createDistributionAgentTools } from '@/features/distribution/agent';
 
 const SERVER_REGISTRY: RegisteredTool[] = [
   {
@@ -102,6 +108,24 @@ const SERVER_REGISTRY: RegisteredTool[] = [
     getAgentDefinition: (ctx: AgentToolContext) =>
       createRepurposingAgentTools({ userId: ctx.userId }),
     getSidebarPageHref: () => `/tools/${repurposingManifest.slug}`,
+  },
+  {
+    manifest: brandGuardrailsManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createBrandGuardrailsAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${brandGuardrailsManifest.slug}`,
+  },
+  {
+    manifest: analyticsManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createAnalyticsAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${analyticsManifest.slug}`,
+  },
+  {
+    manifest: distributionManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createDistributionAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${distributionManifest.slug}`,
   },
 ];
 

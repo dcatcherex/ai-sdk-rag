@@ -3,6 +3,7 @@ import { boolean, index, jsonb, pgTable, text, timestamp, uniqueIndex } from "dr
 
 import { user } from "./auth";
 import { brand } from "./brands";
+import { campaignBrief } from "./planning";
 
 // ── Content Marketing ─────────────────────────────────────────────────────────
 
@@ -17,6 +18,9 @@ export const socialPost = pgTable("social_post", {
   scheduledAt: timestamp("scheduled_at"),
   publishedAt: timestamp("published_at"),
   brandId: text("brand_id").references(() => brand.id, { onDelete: "set null" }),
+  campaignId: text("campaign_id").references(() => campaignBrief.id, { onDelete: "set null" }),
+  calendarEntryId: text("calendar_entry_id"),
+  contentPieceId: text("content_piece_id"),
   error: text("error"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
@@ -61,6 +65,7 @@ export const trendCache = pgTable("trend_cache", {
 export const socialPostRelations = relations(socialPost, ({ one }) => ({
   user: one(user, { fields: [socialPost.userId], references: [user.id] }),
   brand: one(brand, { fields: [socialPost.brandId], references: [brand.id] }),
+  campaign: one(campaignBrief, { fields: [socialPost.campaignId], references: [campaignBrief.id] }),
 }));
 
 export const socialAccountRelations = relations(socialAccount, ({ one }) => ({

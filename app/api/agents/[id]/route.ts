@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { agent, agentShare } from '@/db/schema';
+import { replaceSkillAttachmentsForAgent } from '@/features/skills/service';
 import { agentStructuredBehaviorSchema } from '@/lib/agent-structured-behavior';
 
 const updateSchema = z.object({
@@ -53,6 +54,10 @@ export async function PUT(
     .set({ ...agentFields, updatedAt: new Date() })
     .where(and(eq(agent.id, id), eq(agent.userId, session.user.id)))
     .returning();
+
+  if (body.skillIds !== undefined) {
+    await replaceSkillAttachmentsForAgent(id, body.skillIds);
+  }
 
   // Replace shares when provided (delete all + re-insert)
   if (sharedUserIds !== undefined) {

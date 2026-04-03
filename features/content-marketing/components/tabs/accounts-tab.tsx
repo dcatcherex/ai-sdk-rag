@@ -42,7 +42,7 @@ export function AccountsTab({ accountsState }: Props) {
                   size="sm"
                   variant={isAnyConnected ? 'outline' : 'default'}
                   onClick={() => {
-                    window.location.href = `/api/social/connect/${oauthPlatform}?returnTo=/tools/content-marketing`;
+                    window.location.href = `/api/social/connect/${oauthPlatform}?returnTo=/content?tab=settings`;
                   }}
                 >
                   {isAnyConnected ? 'Reconnect' : 'Connect'}

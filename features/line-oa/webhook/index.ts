@@ -117,7 +117,7 @@ export async function POST(
 
         await handleMessageEvent(
           event,
-          { id: channel.id, userId: channel.userId, name: channel.name },
+          { id: channel.id, userId: channel.userId, name: channel.name, channelAccessToken: channel.channelAccessToken },
           lineClient,
           agentRow,
           sender,

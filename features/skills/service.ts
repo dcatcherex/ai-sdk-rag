@@ -1,10 +1,19 @@
-import { and, eq, or } from 'drizzle-orm';
+import { and, asc, eq, inArray, or } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { db } from '@/lib/db';
-import { agentSkill, user } from '@/db/schema';
-import type { CreateSkillInput, Skill, SkillTriggerType, SkillWithOwner, UpdateSkillInput } from './types';
-
-// ── CRUD ──────────────────────────────────────────────────────────────────────
+import { agentSkill, agentSkillAttachment, agentSkillFile, skillSource, user } from '@/db/schema';
+import { loadSkillPackageFromUrl } from './server/package-import';
+import type {
+  SkillActivationMode,
+  CreateSkillInput,
+  Skill,
+  SkillDetail,
+  SkillFile,
+  SkillSource,
+  SkillTriggerType,
+  SkillWithOwner,
+  UpdateSkillInput,
+} from './types';
 
 export async function getSkills(userId: string): Promise<SkillWithOwner[]> {
   const rows = await db
@@ -25,8 +34,7 @@ export async function getSkills(userId: string): Promise<SkillWithOwner[]> {
       return true;
     })
     .map(({ skill, ownerName }) => ({
-      ...skill,
-      triggerType: skill.triggerType as SkillTriggerType,
+      ...mapSkillRow(skill),
       ownerName: ownerName ?? undefined,
     }));
 }
@@ -41,7 +49,91 @@ export async function getSkillsByIds(skillIds: string[]): Promise<Skill[]> {
         ? eq(agentSkill.id, skillIds[0]!)
         : or(...skillIds.map((id) => eq(agentSkill.id, id)))
     );
-  return rows.map((r) => ({ ...r, triggerType: r.triggerType as SkillTriggerType }));
+  return rows.map(mapSkillRow);
+}
+
+export async function getResolvedSkillIdsByAgentIds(agentIds: string[]): Promise<Record<string, string[]>> {
+  if (agentIds.length === 0) return {};
+
+  const rows = await db
+    .select({
+      agentId: agentSkillAttachment.agentId,
+      skillId: agentSkillAttachment.skillId,
+    })
+    .from(agentSkillAttachment)
+    .where(
+      and(
+        inArray(agentSkillAttachment.agentId, agentIds),
+        eq(agentSkillAttachment.isEnabled, true),
+      ),
+    )
+    .orderBy(asc(agentSkillAttachment.priority), asc(agentSkillAttachment.createdAt));
+
+  return rows.reduce<Record<string, string[]>>((acc, row) => {
+    (acc[row.agentId] ??= []).push(row.skillId);
+    return acc;
+  }, {});
+}
+
+export async function getSkillsForAgent(agentId: string, fallbackSkillIds: string[]): Promise<Skill[]> {
+  const attachmentMap = await getResolvedSkillIdsByAgentIds([agentId]);
+  const skillIds = attachmentMap[agentId] ?? fallbackSkillIds;
+  return getSkillsByIds(skillIds);
+}
+
+export async function replaceSkillAttachmentsForAgent(agentId: string, skillIds: string[]): Promise<void> {
+  const uniqueSkillIds = [...new Set(skillIds)];
+  const now = new Date();
+
+  await db.transaction(async (tx) => {
+    await tx.delete(agentSkillAttachment).where(eq(agentSkillAttachment.agentId, agentId));
+
+    if (uniqueSkillIds.length > 0) {
+      await tx.insert(agentSkillAttachment).values(
+        uniqueSkillIds.map((skillId, index) => ({
+          id: nanoid(),
+          agentId,
+          skillId,
+          isEnabled: true,
+          priority: index,
+          createdAt: now,
+          updatedAt: now,
+        })),
+      );
+    }
+  });
+}
+
+export async function getSkillById(userId: string, skillId: string): Promise<SkillDetail | null> {
+  const [row] = await db
+    .select({
+      skill: agentSkill,
+      source: skillSource,
+    })
+    .from(agentSkill)
+    .leftJoin(skillSource, eq(agentSkill.sourceId, skillSource.id))
+    .where(
+      and(
+        eq(agentSkill.id, skillId),
+        or(eq(agentSkill.userId, userId), eq(agentSkill.isPublic, true)),
+      ),
+    )
+    .limit(1);
+
+  if (!row) {
+    return null;
+  }
+
+  const fileRows = await db
+    .select()
+    .from(agentSkillFile)
+    .where(eq(agentSkillFile.skillId, skillId));
+
+  return {
+    ...mapSkillRow(row.skill),
+    files: fileRows.map(mapSkillFileRow),
+    source: row.source ? mapSkillSourceRow(row.source) : null,
+  };
 }
 
 export async function createSkill(userId: string, data: CreateSkillInput): Promise<Skill> {
@@ -58,12 +150,18 @@ export async function createSkill(userId: string, data: CreateSkillInput): Promi
       promptFragment: data.promptFragment,
       enabledTools: data.enabledTools ?? [],
       sourceUrl: data.sourceUrl ?? null,
+      skillKind: 'inline',
+      activationMode: data.activationMode ?? 'rule',
+      entryFilePath: 'SKILL.md',
+      syncStatus: 'local',
+      pinnedToInstalledVersion: false,
+      hasBundledFiles: false,
       isPublic: data.isPublic ?? false,
       createdAt: now,
       updatedAt: now,
     })
     .returning();
-  return { ...row!, triggerType: row!.triggerType as SkillTriggerType };
+  return mapSkillRow(row!);
 }
 
 export async function updateSkill(
@@ -80,6 +178,7 @@ export async function updateSkill(
       ...(data.trigger !== undefined && {
         trigger: normaliseTrigger(data.triggerType ?? 'keyword', data.trigger),
       }),
+      ...(data.activationMode !== undefined && { activationMode: data.activationMode }),
       ...(data.promptFragment !== undefined && { promptFragment: data.promptFragment }),
       ...(data.enabledTools !== undefined && { enabledTools: data.enabledTools }),
       ...(data.sourceUrl !== undefined && { sourceUrl: data.sourceUrl ?? null }),
@@ -88,7 +187,7 @@ export async function updateSkill(
     .where(and(eq(agentSkill.id, skillId), eq(agentSkill.userId, userId)))
     .returning();
   if (!row) return null;
-  return { ...row, triggerType: row.triggerType as SkillTriggerType };
+  return mapSkillRow(row);
 }
 
 export async function deleteSkill(userId: string, skillId: string): Promise<boolean> {
@@ -108,67 +207,155 @@ export async function installSkill(userId: string, skillId: string): Promise<Ski
   if (!source) return null;
 
   const now = new Date();
-  const [row] = await db
-    .insert(agentSkill)
-    .values({
-      id: nanoid(),
-      userId,
-      name: source.name,
-      description: source.description,
-      triggerType: source.triggerType,
-      trigger: source.trigger,
-      promptFragment: source.promptFragment,
-      enabledTools: source.enabledTools,
-      sourceUrl: source.sourceUrl,
-      isPublic: false,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning();
-  return { ...row!, triggerType: row!.triggerType as SkillTriggerType };
+  const sourceFiles = await db
+    .select()
+    .from(agentSkillFile)
+    .where(eq(agentSkillFile.skillId, source.id));
+
+  return db.transaction(async (tx) => {
+    const cloneId = nanoid();
+    const [row] = await tx
+      .insert(agentSkill)
+      .values({
+        id: cloneId,
+        userId,
+        name: source.name,
+        description: source.description,
+        triggerType: source.triggerType,
+        trigger: source.trigger,
+        promptFragment: source.promptFragment,
+        enabledTools: source.enabledTools,
+        sourceUrl: source.sourceUrl,
+        sourceId: source.sourceId,
+        skillKind: source.skillKind,
+        activationMode: source.activationMode,
+        entryFilePath: source.entryFilePath,
+        installedRef: source.installedRef,
+        installedCommitSha: source.installedCommitSha,
+        upstreamCommitSha: source.upstreamCommitSha,
+        syncStatus: source.syncStatus,
+        pinnedToInstalledVersion: source.pinnedToInstalledVersion,
+        hasBundledFiles: source.hasBundledFiles,
+        packageManifest: source.packageManifest,
+        lastSyncCheckedAt: source.lastSyncCheckedAt,
+        lastSyncedAt: source.lastSyncedAt,
+        isPublic: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    if (sourceFiles.length > 0) {
+      await tx.insert(agentSkillFile).values(
+        sourceFiles.map((file) => ({
+          id: nanoid(),
+          skillId: cloneId,
+          relativePath: file.relativePath,
+          fileKind: file.fileKind,
+          mediaType: file.mediaType,
+          textContent: file.textContent,
+          sizeBytes: file.sizeBytes,
+          checksum: file.checksum,
+          createdAt: now,
+          updatedAt: now,
+        })),
+      );
+    }
+
+    return mapSkillRow(row!);
+  });
 }
 
-// ── Import from URL ───────────────────────────────────────────────────────────
-
-/**
- * Import a skill from a GitHub URL pointing to a SKILL.md file.
- * Accepts:
- *   - https://github.com/user/repo/blob/branch/path/SKILL.md
- *   - https://raw.githubusercontent.com/user/repo/branch/path/SKILL.md
- */
 export async function importSkillFromUrl(
   userId: string,
   rawUrl: string,
 ): Promise<Skill> {
-  const fetchUrl = toRawUrl(rawUrl);
-  const res = await fetch(fetchUrl, { headers: { 'User-Agent': 'ai-sdk-skill-importer' } });
-  if (!res.ok) throw new Error(`Failed to fetch skill: HTTP ${res.status}`);
+  const importedPackage = await loadSkillPackageFromUrl(rawUrl);
+  const now = new Date();
 
-  const markdown = await res.text();
-  const parsed = parseSkillMd(markdown);
+  return db.transaction(async (tx) => {
+    const [existingSource] = await tx
+      .select()
+      .from(skillSource)
+      .where(eq(skillSource.canonicalUrl, importedPackage.source.canonicalUrl))
+      .limit(1);
 
-  return createSkill(userId, {
-    name: parsed.name,
-    description: parsed.description ?? `Imported skill: ${parsed.name}`,
-    triggerType: parsed.triggerType,
-    trigger: parsed.trigger ?? undefined,
-    promptFragment: parsed.body,
-    enabledTools: [],
-    sourceUrl: rawUrl,
-    isPublic: false,
+    const sourceId = existingSource?.id ?? nanoid();
+
+    if (!existingSource) {
+      await tx.insert(skillSource).values({
+        id: sourceId,
+        sourceType: importedPackage.source.sourceType,
+        canonicalUrl: importedPackage.source.canonicalUrl,
+        repoOwner: importedPackage.source.repoOwner,
+        repoName: importedPackage.source.repoName,
+        repoRef: importedPackage.source.repoRef,
+        subdirPath: importedPackage.source.subdirPath,
+        defaultEntryPath: importedPackage.source.entryFilePath,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    const skillId = nanoid();
+    const [row] = await tx
+      .insert(agentSkill)
+      .values({
+        id: skillId,
+        userId,
+        name: importedPackage.parsed.name,
+        description: importedPackage.parsed.description ?? `Imported skill: ${importedPackage.parsed.name}`,
+        triggerType: importedPackage.parsed.triggerType,
+        trigger: normaliseTrigger(importedPackage.parsed.triggerType, importedPackage.parsed.trigger),
+        promptFragment: importedPackage.parsed.body,
+        enabledTools: [],
+        sourceUrl: importedPackage.source.sourceUrl,
+        sourceId,
+        skillKind: 'package',
+        activationMode: 'rule',
+        entryFilePath: importedPackage.source.entryFilePath,
+        installedRef: importedPackage.source.repoRef,
+        installedCommitSha: null,
+        upstreamCommitSha: null,
+        syncStatus: 'synced',
+        pinnedToInstalledVersion: false,
+        hasBundledFiles: importedPackage.files.some((file) => file.relativePath !== importedPackage.source.entryFilePath),
+        packageManifest: importedPackage.manifest,
+        lastSyncCheckedAt: now,
+        lastSyncedAt: now,
+        isPublic: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    if (importedPackage.files.length > 0) {
+      await tx.insert(agentSkillFile).values(
+        importedPackage.files.map((file) => ({
+          id: nanoid(),
+          skillId,
+          relativePath: file.relativePath,
+          fileKind: file.fileKind,
+          mediaType: file.mediaType,
+          textContent: file.textContent,
+          sizeBytes: file.sizeBytes,
+          checksum: file.checksum,
+          createdAt: now,
+          updatedAt: now,
+        })),
+      );
+    }
+
+    return mapSkillRow(row!);
   });
 }
 
-// ── Trigger detection ─────────────────────────────────────────────────────────
-
-/**
- * Given a list of skills and the last user message, return skills whose trigger matches.
- */
 export function detectTriggeredSkills(skills: Skill[], userMessage: string): Skill[] {
   const msg = userMessage.trim();
   const msgLower = msg.toLowerCase();
 
   return skills.filter((skill) => {
+    if (skill.activationMode === 'model') return false;
     if (skill.triggerType === 'always') return true;
     if (!skill.trigger) return false;
 
@@ -181,77 +368,149 @@ export function detectTriggeredSkills(skills: Skill[], userMessage: string): Ski
   });
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+export function selectModelDiscoveredSkills(skills: Skill[], userMessage: string): Skill[] {
+  const normalizedMessage = tokenizeForSkillMatch(userMessage);
+
+  return skills
+    .filter((skill) => skill.activationMode === 'model')
+    .map((skill) => ({
+      skill,
+      score: scoreSkillDiscovery(skill, normalizedMessage),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || a.skill.name.localeCompare(b.skill.name))
+    .slice(0, 2)
+    .map((entry) => entry.skill);
+}
+
+export function buildAvailableSkillsCatalog(skills: Skill[]): string {
+  const catalogSkills = skills.filter((skill) => skill.activationMode === 'model');
+  if (catalogSkills.length === 0) return '';
+
+  return '\n\n<available_skills>\n' +
+    catalogSkills
+      .map((skill) => `- ${skill.name}: ${skill.description ?? skill.promptFragment.slice(0, 120)}`)
+      .join('\n') +
+    '\n</available_skills>';
+}
+
+export async function getRelevantSkillResourcesForPrompt(
+  skills: Skill[],
+  userMessage: string,
+): Promise<string> {
+  if (skills.length === 0) return '';
+
+  const skillIds = skills.map((skill) => skill.id);
+  const fileRows = await db
+    .select()
+    .from(agentSkillFile)
+    .where(inArray(agentSkillFile.skillId, skillIds));
+
+  const filesBySkillId = fileRows.reduce<Record<string, SkillFile[]>>((acc, row) => {
+    const file = mapSkillFileRow(row);
+    (acc[file.skillId] ??= []).push(file);
+    return acc;
+  }, {});
+
+  const messageTokens = tokenizeForSkillMatch(userMessage);
+  const sections = skills
+    .map((skill) => {
+      const relevantFiles = selectRelevantReferenceFiles(filesBySkillId[skill.id] ?? [], messageTokens);
+      if (relevantFiles.length === 0) return null;
+
+      return `## Skill: ${skill.name}\n` + relevantFiles
+        .map((file) => `### ${file.relativePath}\n${file.textContent}`)
+        .join('\n\n');
+    })
+    .filter((section): section is string => Boolean(section));
+
+  if (sections.length === 0) return '';
+
+  return '\n\n<skill_resources>\n' + sections.join('\n\n') + '\n</skill_resources>';
+}
 
 function normaliseTrigger(
   triggerType: SkillTriggerType | undefined,
   trigger: string | null | undefined,
 ): string | null {
+  if (triggerType === undefined) return trigger ?? null;
   if (triggerType === 'always') return null;
   if (!trigger) return null;
   if (triggerType === 'slash' && !trigger.startsWith('/')) return `/${trigger}`;
   return trigger;
 }
 
-/** Convert a GitHub blob URL to a raw content URL. */
-function toRawUrl(url: string): string {
-  return url
-    .replace('https://github.com/', 'https://raw.githubusercontent.com/')
-    .replace('/blob/', '/');
+function tokenizeForSkillMatch(input: string): Set<string> {
+  return new Set(
+    input
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 3),
+  );
 }
 
-/** Parse YAML frontmatter + body from a SKILL.md string. */
-function parseSkillMd(content: string): {
-  name: string;
-  description?: string;
-  triggerType: SkillTriggerType;
-  trigger?: string;
-  body: string;
-} {
-  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-  let frontmatter: Record<string, string> = {};
-  let body = content;
+function scoreSkillDiscovery(skill: Skill, messageTokens: Set<string>): number {
+  if (messageTokens.size === 0) return 0;
 
-  if (fmMatch) {
-    frontmatter = parseYaml(fmMatch[1]!);
-    body = fmMatch[2]!.trim();
-  }
+  const haystack = `${skill.name} ${skill.description ?? ''} ${skill.promptFragment.slice(0, 280)}`.toLowerCase();
+  let score = 0;
 
-  const name = frontmatter['name'] ?? 'Imported Skill';
-  const description = frontmatter['description'];
-
-  // Infer trigger type from frontmatter fields
-  let triggerType: SkillTriggerType = 'always';
-  let trigger: string | undefined;
-
-  const rawTrigger = frontmatter['trigger'] ?? frontmatter['slash-command'] ?? frontmatter['keyword'];
-  if (rawTrigger) {
-    if (rawTrigger.startsWith('/')) {
-      triggerType = 'slash';
-      trigger = rawTrigger;
-    } else {
-      triggerType = 'keyword';
-      trigger = rawTrigger;
+  for (const token of messageTokens) {
+    if (haystack.includes(token)) {
+      score += token.length >= 6 ? 2 : 1;
     }
   }
 
-  return { name, description, triggerType, trigger, body };
+  return score;
 }
 
-/** Minimal YAML key: value parser (single-level only). */
-function parseYaml(yaml: string): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const line of yaml.split('\n')) {
-    const colonIdx = line.indexOf(':');
-    if (colonIdx === -1) continue;
-    const key = line.slice(0, colonIdx).trim();
-    let value = line.slice(colonIdx + 1).trim();
-    // Strip surrounding quotes
-    if ((value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
+function selectRelevantReferenceFiles(files: SkillFile[], messageTokens: Set<string>): SkillFile[] {
+  return files
+    .filter((file) => file.fileKind === 'reference' && Boolean(file.textContent))
+    .map((file) => ({
+      file,
+      score: scoreReferenceFile(file, messageTokens),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || a.file.relativePath.localeCompare(b.file.relativePath))
+    .slice(0, 2)
+    .map((entry) => entry.file);
+}
+
+function scoreReferenceFile(file: SkillFile, messageTokens: Set<string>): number {
+  if (!file.textContent || messageTokens.size === 0) return 0;
+
+  const haystack = `${file.relativePath} ${file.textContent.slice(0, 600)}`.toLowerCase();
+  let score = 0;
+
+  for (const token of messageTokens) {
+    if (haystack.includes(token)) {
+      score += token.length >= 6 ? 2 : 1;
     }
-    if (key) result[key] = value;
   }
-  return result;
+
+  return score;
+}
+
+function mapSkillRow(row: typeof agentSkill.$inferSelect): Skill {
+  return {
+    ...row,
+    triggerType: row.triggerType as SkillTriggerType,
+    skillKind: row.skillKind as Skill['skillKind'],
+    activationMode: row.activationMode as Skill['activationMode'],
+    syncStatus: row.syncStatus as Skill['syncStatus'],
+    packageManifest: (row.packageManifest ?? null) as Record<string, unknown> | null,
+  };
+}
+
+function mapSkillFileRow(row: typeof agentSkillFile.$inferSelect): SkillFile {
+  return {
+    ...row,
+    fileKind: row.fileKind as SkillFile['fileKind'],
+  };
+}
+
+function mapSkillSourceRow(row: typeof skillSource.$inferSelect): SkillSource {
+  return row;
 }

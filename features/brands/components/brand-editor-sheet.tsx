@@ -20,6 +20,7 @@ import { BrandKnowledgeTab } from './brand-knowledge-tab';
 import { ChipInput } from './chip-input';
 import { ColorPaletteEditor } from './color-palette-editor';
 import { StrategyTab } from './strategy-tab';
+import { GuardrailEditor } from '@/features/brand-guardrails/components/guardrail-editor';
 
 // ── Form state ────────────────────────────────────────────────────────────────
 
@@ -171,6 +172,7 @@ const BASE_TABS = [
   { value: 'voice', label: 'Voice & Values' },
   { value: 'strategy', label: 'Strategy' },
   { value: 'visual', label: 'Visual' },
+  { value: 'guardrails', label: 'Guardrails' },
 ];
 
 export function BrandEditorSheet({ brand, open, onOpenChange, onSaved }: Props) {
@@ -378,6 +380,12 @@ export function BrandEditorSheet({ brand, open, onOpenChange, onSaved }: Props) 
                 <p className="text-sm text-muted-foreground">Save the brand first to add strategy.</p>
               )}
             </TabsContent>
+
+            {brand && (
+              <TabsContent value="guardrails" className="mt-0">
+                <GuardrailEditor brandId={brand.id} />
+              </TabsContent>
+            )}
 
             {brand && (
               <TabsContent value="knowledge" className="mt-0">

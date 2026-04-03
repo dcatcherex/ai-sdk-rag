@@ -65,7 +65,7 @@ export async function GET(
     switch (platform) {
       case 'meta': {
         if (!env.META_APP_ID || !env.META_APP_SECRET) {
-          redirect(`${returnTo}?error=meta_not_configured`);
+          redirect(`${returnTo}${returnTo.includes('?') ? '&' : '?'}error=meta_not_configured`);
         }
 
         // Exchange code for short-lived token
@@ -78,7 +78,7 @@ export async function GET(
               redirect_uri: `${baseUrl}/api/social/callback/meta`,
             }),
         );
-        if (!tokenRes.ok) redirect(`${returnTo}?error=meta_token_failed`);
+        if (!tokenRes.ok) redirect(`${returnTo}${returnTo.includes('?') ? '&' : '?'}error=meta_token_failed`);
 
         const tokenData = (await tokenRes.json()) as { access_token: string };
 
@@ -95,14 +95,33 @@ export async function GET(
         // Get Facebook pages + linked Instagram accounts
         const metaAccounts = await getMetaAccounts(longLivedToken);
 
-        for (const acct of metaAccounts) {
+        if (metaAccounts.length > 0) {
+          for (const acct of metaAccounts) {
+            await upsertAccount({
+              userId,
+              platform: acct.type,
+              platformAccountId: acct.platformAccountId,
+              accountName: acct.accountName,
+              accountType: acct.accountType,
+              accessToken: acct.accessToken,
+              tokenExpiresAt,
+            });
+          }
+        } else {
+          // No pages found (limited scopes) — save meta user token so connection shows in UI
+          const meRes = await fetch(
+            `https://graph.facebook.com/me?fields=id,name&access_token=${longLivedToken}`,
+          );
+          const meData = meRes.ok
+            ? ((await meRes.json()) as { id: string; name: string })
+            : { id: userId, name: 'Meta Account' };
           await upsertAccount({
             userId,
-            platform: acct.type,
-            platformAccountId: acct.platformAccountId,
-            accountName: acct.accountName,
-            accountType: acct.accountType,
-            accessToken: acct.accessToken,
+            platform: 'facebook',
+            platformAccountId: meData.id,
+            accountName: meData.name,
+            accountType: 'user',
+            accessToken: longLivedToken,
             tokenExpiresAt,
           });
         }
@@ -149,9 +168,13 @@ export async function GET(
         redirect(`${returnTo}?error=unknown_platform`);
     }
 
-    redirect(`${returnTo}?connected=${platform}`);
+    const separator = returnTo.includes('?') ? '&' : '?';
+    redirect(`${returnTo}${separator}connected=${platform}`);
   } catch (err) {
+    // Next.js redirect() throws NEXT_REDIRECT — must re-throw it
+    if (err instanceof Error && err.message === 'NEXT_REDIRECT') throw err;
     console.error(`[social/callback/${platform}]`, err);
-    redirect(`${returnTo}?error=connection_failed`);
+    const separator = returnTo.includes('?') ? '&' : '?';
+    redirect(`${returnTo}${separator}error=connection_failed`);
   }
 }
