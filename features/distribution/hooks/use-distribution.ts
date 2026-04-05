@@ -3,6 +3,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DistributionRecord, SendEmailInput, ExportInput, ExportResult } from '../types';
 
+export type SendLineBroadcastInput = {
+  contentPieceId: string;
+  channelId: string;
+};
+
 const distKeys = {
   all: (userId?: string) => ['distribution', userId] as const,
   byContent: (contentPieceId: string) => ['distribution', 'content', contentPieceId] as const,
@@ -69,6 +74,25 @@ export function useSendWebhook() {
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: distKeys.byContent(vars.contentPieceId) });
+    },
+  });
+}
+
+export function useSendLineBroadcast() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: SendLineBroadcastInput) => {
+      const res = await fetch('/api/distribution/line-broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json() as Promise<DistributionRecord>;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: distKeys.byContent(vars.contentPieceId) });
+      qc.invalidateQueries({ queryKey: distKeys.all() });
     },
   });
 }

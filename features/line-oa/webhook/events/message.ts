@@ -14,6 +14,10 @@ import { extractTextContent } from '../utils/text';
 import { stripMarkdown } from '../utils/markdown';
 import { consumeLinkToken } from '@/features/line-oa/link/service';
 import { uploadPublicObject } from '@/lib/r2';
+import { buildContentMarketingLineTools } from '@/features/content-marketing/line-tools';
+import { buildContentPlannerLineTools } from '@/features/content-calendar/line-tools';
+import { buildLineMetricsTools } from '@/features/line-oa/metrics-tools';
+import { recordMessageEvent } from '@/features/line-oa/analytics';
 
 /** Default model used for LINE image generation requests */
 const LINE_IMAGE_MODEL = 'openai/gpt-image-1.5';
@@ -214,6 +218,7 @@ export async function handleMessageEvent(
 
     const replyMessages = buildReplyMessages(analysisText, sender, quickReply);
     await lineClient.replyMessage({ replyToken: event.replyToken, messages: replyMessages });
+    recordMessageEvent(channel.id, lineUserId).catch(() => {});
     return;
   }
 
@@ -265,6 +270,7 @@ export async function handleMessageEvent(
         previewImageUrl: url,
       } as LineMessage;
       await lineClient.replyMessage({ replyToken: event.replyToken, messages: [imageMsg] });
+      recordMessageEvent(channel.id, lineUserId, { imagesSent: 1 }).catch(() => {});
       return;
     } catch (err) {
       console.error('[LINE] Image generation failed, falling back to text:', err);
@@ -272,16 +278,43 @@ export async function handleMessageEvent(
     }
   }
 
-  // ④b Standard text → text response
-  const { text: rawReplyText } = await generateText({
+  // ④b Standard text → text response (with optional tool use for content agents)
+  const enabledTools = agentRow?.enabledTools ?? [];
+  const isContentAgent = enabledTools.includes('content_marketing');
+  const isPlannerAgent = enabledTools.includes('content_planning');
+  const isMetricsAgent = enabledTools.includes('line_analytics');
+
+  const contentTools = isContentAgent
+    ? buildContentMarketingLineTools(linkedUser?.userId ?? null)
+    : undefined;
+  const plannerTools = isPlannerAgent
+    ? buildContentPlannerLineTools(linkedUser?.userId ?? null)
+    : undefined;
+  const metricsTools = isMetricsAgent
+    ? buildLineMetricsTools(linkedUser?.userId ?? null, channel.id)
+    : undefined;
+  const mergedTools = (contentTools || plannerTools || metricsTools)
+    ? { ...contentTools, ...plannerTools, ...metricsTools }
+    : undefined;
+
+  const generateResult = await generateText({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     model: modelId as any,
     system: lineSystemPrompt,
     messages: [...historyMessages, { role: 'user', content: userText }],
+    ...(mergedTools ? { tools: mergedTools, maxSteps: 3 } : {}),
   });
 
+  const rawReplyText = generateResult.text;
   if (!rawReplyText) return;
   const replyText = stripMarkdown(rawReplyText);
+
+  // Collect any image URLs produced by tool calls (e.g. generate_image tool)
+  const toolImageUrls: string[] = (generateResult.toolResults ?? [])
+    .flatMap((tr) => {
+      const r = (tr as { output?: Record<string, unknown> }).output;
+      return r?.imageUrl && typeof r.imageUrl === 'string' ? [r.imageUrl] : [];
+    });
 
   const contextStr = [
     ...historyMessages.slice(-4).map((m) => `${m.role}: ${m.content.slice(0, 200)}`),
@@ -327,6 +360,22 @@ export async function handleMessageEvent(
     .map((s) => buildQuickReplyItem(s));
   const quickReply = quickReplyItems.length > 0 ? { items: quickReplyItems } : undefined;
 
-  const messages = buildReplyMessages(replyText, sender, quickReply);
-  await lineClient.replyMessage({ replyToken: event.replyToken, messages });
+  // Build text reply messages (Flex or plain)
+  const textMessages = buildReplyMessages(replyText, sender, quickReply);
+
+  // Append generated images from tool calls (max 4 total messages per LINE reply)
+  const imageMessages: LineMessage[] = toolImageUrls
+    .slice(0, Math.max(0, 4 - textMessages.length))
+    .map((url) => ({ type: 'image', originalContentUrl: url, previewImageUrl: url } as LineMessage));
+
+  await lineClient.replyMessage({
+    replyToken: event.replyToken,
+    messages: [...textMessages, ...imageMessages],
+  });
+
+  // Fire-and-forget: record daily stats for this channel
+  recordMessageEvent(channel.id, lineUserId, {
+    toolCallCount: generateResult.toolResults?.length ?? 0,
+    imagesSent: imageMessages.length,
+  }).catch((err) => console.warn('[LINE] recordMessageEvent failed:', err));
 }

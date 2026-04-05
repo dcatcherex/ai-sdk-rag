@@ -273,81 +273,94 @@ export async function importSkillFromUrl(
   const importedPackage = await loadSkillPackageFromUrl(rawUrl);
   const now = new Date();
 
-  return db.transaction(async (tx) => {
-    const [existingSource] = await tx
+  let sourceId: string;
+  const [existingSource] = await db
+    .select()
+    .from(skillSource)
+    .where(eq(skillSource.canonicalUrl, importedPackage.source.canonicalUrl))
+    .limit(1);
+
+  if (existingSource) {
+    sourceId = existingSource.id;
+  } else {
+    sourceId = nanoid();
+
+    await db.insert(skillSource).values({
+      id: sourceId,
+      sourceType: importedPackage.source.sourceType,
+      canonicalUrl: importedPackage.source.canonicalUrl,
+      repoOwner: importedPackage.source.repoOwner,
+      repoName: importedPackage.source.repoName,
+      repoRef: importedPackage.source.repoRef,
+      subdirPath: importedPackage.source.subdirPath,
+      defaultEntryPath: importedPackage.source.entryFilePath,
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+
+    const [resolvedSource] = await db
       .select()
       .from(skillSource)
       .where(eq(skillSource.canonicalUrl, importedPackage.source.canonicalUrl))
       .limit(1);
 
-    const sourceId = existingSource?.id ?? nanoid();
-
-    if (!existingSource) {
-      await tx.insert(skillSource).values({
-        id: sourceId,
-        sourceType: importedPackage.source.sourceType,
-        canonicalUrl: importedPackage.source.canonicalUrl,
-        repoOwner: importedPackage.source.repoOwner,
-        repoName: importedPackage.source.repoName,
-        repoRef: importedPackage.source.repoRef,
-        subdirPath: importedPackage.source.subdirPath,
-        defaultEntryPath: importedPackage.source.entryFilePath,
-        createdAt: now,
-        updatedAt: now,
-      });
+    if (!resolvedSource) {
+      throw new Error('Failed to resolve imported skill source');
     }
 
-    const skillId = nanoid();
-    const [row] = await tx
-      .insert(agentSkill)
-      .values({
-        id: skillId,
-        userId,
-        name: importedPackage.parsed.name,
-        description: importedPackage.parsed.description ?? `Imported skill: ${importedPackage.parsed.name}`,
-        triggerType: importedPackage.parsed.triggerType,
-        trigger: normaliseTrigger(importedPackage.parsed.triggerType, importedPackage.parsed.trigger),
-        promptFragment: importedPackage.parsed.body,
-        enabledTools: [],
-        sourceUrl: importedPackage.source.sourceUrl,
-        sourceId,
-        skillKind: 'package',
-        activationMode: 'rule',
-        entryFilePath: importedPackage.source.entryFilePath,
-        installedRef: importedPackage.source.repoRef,
-        installedCommitSha: null,
-        upstreamCommitSha: null,
-        syncStatus: 'synced',
-        pinnedToInstalledVersion: false,
-        hasBundledFiles: importedPackage.files.some((file) => file.relativePath !== importedPackage.source.entryFilePath),
-        packageManifest: importedPackage.manifest,
-        lastSyncCheckedAt: now,
-        lastSyncedAt: now,
-        isPublic: false,
+    sourceId = resolvedSource.id;
+  }
+
+  const skillId = nanoid();
+  const [row] = await db
+    .insert(agentSkill)
+    .values({
+      id: skillId,
+      userId,
+      name: importedPackage.parsed.name,
+      description: importedPackage.parsed.description ?? `Imported skill: ${importedPackage.parsed.name}`,
+      triggerType: importedPackage.parsed.triggerType,
+      trigger: normaliseTrigger(importedPackage.parsed.triggerType, importedPackage.parsed.trigger),
+      promptFragment: importedPackage.parsed.body,
+      enabledTools: [],
+      sourceUrl: importedPackage.source.sourceUrl,
+      sourceId,
+      skillKind: 'package',
+      activationMode: 'rule',
+      entryFilePath: importedPackage.source.entryFilePath,
+      installedRef: importedPackage.source.repoRef,
+      installedCommitSha: null,
+      upstreamCommitSha: null,
+      syncStatus: 'synced',
+      pinnedToInstalledVersion: false,
+      hasBundledFiles: importedPackage.files.some((file) => file.relativePath !== importedPackage.source.entryFilePath),
+      packageManifest: importedPackage.manifest,
+      lastSyncCheckedAt: now,
+      lastSyncedAt: now,
+      isPublic: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning();
+
+  if (importedPackage.files.length > 0) {
+    await db.insert(agentSkillFile).values(
+      importedPackage.files.map((file) => ({
+        id: nanoid(),
+        skillId,
+        relativePath: file.relativePath,
+        fileKind: file.fileKind,
+        mediaType: file.mediaType,
+        textContent: file.textContent,
+        sizeBytes: file.sizeBytes,
+        checksum: file.checksum,
         createdAt: now,
         updatedAt: now,
-      })
-      .returning();
+      })),
+    );
+  }
 
-    if (importedPackage.files.length > 0) {
-      await tx.insert(agentSkillFile).values(
-        importedPackage.files.map((file) => ({
-          id: nanoid(),
-          skillId,
-          relativePath: file.relativePath,
-          fileKind: file.fileKind,
-          mediaType: file.mediaType,
-          textContent: file.textContent,
-          sizeBytes: file.sizeBytes,
-          checksum: file.checksum,
-          createdAt: now,
-          updatedAt: now,
-        })),
-      );
-    }
-
-    return mapSkillRow(row!);
-  });
+  return mapSkillRow(row!);
 }
 
 export function detectTriggeredSkills(skills: Skill[], userMessage: string): Skill[] {

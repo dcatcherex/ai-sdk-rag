@@ -67,11 +67,12 @@ export type RichMenuAreaConfig = {
   bgColor: string;
   bounds?: RichMenuBounds;
   action: {
-    type: "message" | "uri" | "postback";
+    type: "message" | "uri" | "postback" | "switch_agent";
     text?: string;
     uri?: string;
     data?: string;
     displayText?: string;
+    agentId?: string; // used by switch_agent
   };
 };
 
@@ -192,4 +193,66 @@ export const lineAccountLink = pgTable("line_account_link", {
 export const lineAccountLinkRelations = relations(lineAccountLink, ({ one }) => ({
   channel: one(lineOaChannel, { fields: [lineAccountLink.channelId], references: [lineOaChannel.id] }),
   user: one(user, { fields: [lineAccountLink.userId], references: [user.id] }),
+}));
+
+/**
+ * Tracks which agent is currently active for each LINE user within a channel.
+ * Applies to ALL users (linked and anonymous). Updated when user taps a
+ * "Switch Agent" rich menu button. Falls back to channel default when null.
+ */
+export const lineUserAgentSession = pgTable("line_user_agent_session", {
+  id: text("id").primaryKey(),
+  channelId: text("channel_id").notNull().references(() => lineOaChannel.id, { onDelete: "cascade" }),
+  lineUserId: text("line_user_id").notNull(),
+  activeAgentId: text("active_agent_id").references(() => agent.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  uniqueIndex("line_user_agent_session_channel_user_idx").on(table.channelId, table.lineUserId),
+  index("line_user_agent_session_channelId_idx").on(table.channelId),
+]);
+
+export const lineUserAgentSessionRelations = relations(lineUserAgentSession, ({ one }) => ({
+  channel: one(lineOaChannel, { fields: [lineUserAgentSession.channelId], references: [lineOaChannel.id] }),
+  agent: one(agent, { fields: [lineUserAgentSession.activeAgentId], references: [agent.id] }),
+}));
+
+// ─── Channel Analytics ──────────────────────────────────────────────────────
+
+/**
+ * Daily aggregate stats per LINE OA channel.
+ * Upserted after every processed message event.
+ */
+export const lineChannelDailyStat = pgTable("line_channel_daily_stat", {
+  id: text("id").primaryKey(),
+  channelId: text("channel_id").notNull().references(() => lineOaChannel.id, { onDelete: "cascade" }),
+  date: text("date").notNull(),           // YYYY-MM-DD
+  messageCount: integer("message_count").notNull().default(0),
+  uniqueUsers: integer("unique_users").notNull().default(0),
+  toolCallCount: integer("tool_call_count").notNull().default(0),
+  imagesSent: integer("images_sent").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  uniqueIndex("line_channel_daily_stat_channel_date_idx").on(table.channelId, table.date),
+  index("line_channel_daily_stat_channelId_idx").on(table.channelId),
+]);
+
+/**
+ * One row per (channel, date, lineUserId) — used to compute uniqueUsers accurately.
+ */
+export const lineChannelDailyUser = pgTable("line_channel_daily_user", {
+  id: text("id").primaryKey(),
+  channelId: text("channel_id").notNull().references(() => lineOaChannel.id, { onDelete: "cascade" }),
+  date: text("date").notNull(),
+  lineUserId: text("line_user_id").notNull(),
+}, (table) => [
+  uniqueIndex("line_channel_daily_user_uniq_idx").on(table.channelId, table.date, table.lineUserId),
+]);
+
+export const lineChannelDailyStatRelations = relations(lineChannelDailyStat, ({ one }) => ({
+  channel: one(lineOaChannel, { fields: [lineChannelDailyStat.channelId], references: [lineOaChannel.id] }),
+}));
+
+export const lineChannelDailyUserRelations = relations(lineChannelDailyUser, ({ one }) => ({
+  channel: one(lineOaChannel, { fields: [lineChannelDailyUser.channelId], references: [lineOaChannel.id] }),
 }));

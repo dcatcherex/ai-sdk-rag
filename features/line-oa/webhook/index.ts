@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { messagingApi, validateSignature } from '@line/bot-sdk';
 import { db } from '@/lib/db';
-import { agent, brandAsset, lineAccountLink, lineOaChannel } from '@/db/schema';
+import { agent, brandAsset, lineAccountLink, lineOaChannel, lineUserAgentSession } from '@/db/schema';
 import { chatModel } from '@/lib/ai';
 import { getSystemPrompt } from '@/lib/prompt';
 import type { AgentRow, LinkedUser, Sender } from './types';
@@ -98,31 +98,53 @@ export async function POST(
       }
 
       if (event.type === 'message') {
-        // Look up account link for this LINE user (non-fatal if absent)
-        let linkedUser: LinkedUser | undefined;
         const lineUserId = event.source?.userId;
-        if (lineUserId) {
-          const linkRows = await db
-            .select({ userId: lineAccountLink.userId, displayName: lineAccountLink.displayName })
-            .from(lineAccountLink)
-            .where(
-              and(
-                eq(lineAccountLink.channelId, channel.id),
-                eq(lineAccountLink.lineUserId, lineUserId),
-              ),
-            )
-            .limit(1);
-          if (linkRows[0]) linkedUser = linkRows[0];
+
+        // Look up account link + active agent session in parallel
+        const [linkRows, sessionRows] = lineUserId
+          ? await Promise.all([
+              db
+                .select({ userId: lineAccountLink.userId, displayName: lineAccountLink.displayName })
+                .from(lineAccountLink)
+                .where(and(eq(lineAccountLink.channelId, channel.id), eq(lineAccountLink.lineUserId, lineUserId)))
+                .limit(1),
+              db
+                .select({ activeAgentId: lineUserAgentSession.activeAgentId })
+                .from(lineUserAgentSession)
+                .where(and(eq(lineUserAgentSession.channelId, channel.id), eq(lineUserAgentSession.lineUserId, lineUserId)))
+                .limit(1),
+            ])
+          : [[], []];
+
+        const linkedUser: LinkedUser | undefined = linkRows[0] ?? undefined;
+
+        // Resolve the effective agent: user's active choice > channel default
+        const activeAgentId = sessionRows[0]?.activeAgentId ?? null;
+        let effectiveAgentRow = agentRow;
+        let effectiveSystemPrompt = systemPrompt;
+        let effectiveModelId = modelId;
+        let effectiveSender = sender;
+
+        if (activeAgentId && activeAgentId !== channel.agentId) {
+          const [userAgent] = await db.select().from(agent).where(eq(agent.id, activeAgentId)).limit(1);
+          if (userAgent) {
+            effectiveAgentRow = userAgent as AgentRow;
+            effectiveSystemPrompt = userAgent.systemPrompt ?? getSystemPrompt('general_assistant');
+            effectiveModelId = userAgent.modelId ?? chatModel;
+            effectiveSender = userAgent.name
+              ? { name: userAgent.name }
+              : undefined;
+          }
         }
 
         await handleMessageEvent(
           event,
           { id: channel.id, userId: channel.userId, name: channel.name, channelAccessToken: channel.channelAccessToken },
           lineClient,
-          agentRow,
-          sender,
-          systemPrompt,
-          modelId,
+          effectiveAgentRow,
+          effectiveSender,
+          effectiveSystemPrompt,
+          effectiveModelId,
           linkedUser,
         );
       }

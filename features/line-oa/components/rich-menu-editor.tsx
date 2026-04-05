@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { BookmarkIcon, ChevronDownIcon, LayoutGridIcon, PlusIcon, Trash2Icon } from 'lucide-react';
+import { BookmarkIcon, BotIcon, ChevronDownIcon, LayoutGridIcon, PlusIcon, Trash2Icon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useAgents } from '@/features/agents/hooks/use-agents';
 import {
   Dialog,
   DialogContent,
@@ -57,6 +58,8 @@ export function RichMenuEditor({ open, menu, onClose, onSubmit, isPending }: Pro
   const [layoutPickerOpen, setLayoutPickerOpen] = useState(false);
 
   const { data: templates = [] } = useMenuTemplates();
+  const { data: agentsData } = useAgents();
+  const myAgents = agentsData?.agents ?? [];
 
   const resetToMenu = (m: RichMenuRecord | null | undefined) => {
     setName(m?.name ?? '');
@@ -93,11 +96,10 @@ export function RichMenuEditor({ open, menu, onClose, onSubmit, isPending }: Pro
   };
 
   const updateAreaAction = (i: number, type: RichMenuAreaInput['action']['type']) => {
-    const base = { type } as RichMenuAreaInput['action'];
-    if (type === 'message') (base as { type: 'message'; text: string }).text = '';
-    if (type === 'uri') (base as { type: 'uri'; uri: string }).uri = 'https://';
-    if (type === 'postback') (base as { type: 'postback'; data: string }).data = '';
-    updateArea(i, { action: base });
+    if (type === 'message') updateArea(i, { action: { type, text: '' } });
+    else if (type === 'uri') updateArea(i, { action: { type, uri: 'https://' } });
+    else if (type === 'postback') updateArea(i, { action: { type, data: '' } });
+    else if (type === 'switch_agent') updateArea(i, { action: { type, agentId: myAgents[0]?.id ?? '' } });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -327,6 +329,7 @@ export function RichMenuEditor({ open, menu, onClose, onSubmit, isPending }: Pro
                       <SelectItem value="message">Send message</SelectItem>
                       <SelectItem value="uri">Open URL</SelectItem>
                       <SelectItem value="postback">Postback</SelectItem>
+                      <SelectItem value="switch_agent">Switch Agent</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -354,6 +357,37 @@ export function RichMenuEditor({ open, menu, onClose, onSubmit, isPending }: Pro
                       onChange={(e) => updateArea(i, { action: { type: 'postback', data: e.target.value } })}
                       placeholder="Postback data (e.g. action=quiz)"
                     />
+                  )}
+                  {area.action.type === 'switch_agent' && (
+                    <div className="space-y-1.5">
+                      <Select
+                        value={(area.action as { type: 'switch_agent'; agentId: string }).agentId}
+                        onValueChange={(v) => updateArea(i, { action: { type: 'switch_agent', agentId: v } })}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Select agent…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="default">
+                            <span className="flex items-center gap-1.5">
+                              <BotIcon className="size-3 text-muted-foreground" />
+                              Channel default
+                            </span>
+                          </SelectItem>
+                          {myAgents.map((a) => (
+                            <SelectItem key={a.id} value={a.id}>
+                              <span className="flex items-center gap-1.5">
+                                <BotIcon className="size-3 text-primary" />
+                                {a.name}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground">
+                        Tapping this button switches the user to the selected agent.
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>

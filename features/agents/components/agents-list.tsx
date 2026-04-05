@@ -5,6 +5,7 @@ import { BotIcon, CopyIcon, GlobeIcon, PencilIcon, PlusIcon, Settings2Icon, Shar
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
+import { ButtonGroup, ButtonGroupSeparator } from '@/components/ui/button-group';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -33,11 +34,16 @@ const GeneralAgentCard = ({
   onConfigure: (agent: Agent | null) => void;
 }) => (
   <div className="relative flex flex-col gap-2 rounded-xl border-2 border-primary/20 bg-primary/5 p-4">
-    <div className="flex items-start justify-between gap-2">
-      <div className="flex items-center gap-2 min-w-0">
-        <SparklesIcon className="size-4 shrink-0 text-primary" />
-        <span className="font-medium truncate">General</span>
-        <Badge className="text-[10px] h-4 px-1.5">Default</Badge>
+    <div className="flex items-start gap-2">
+      <SparklesIcon className="size-4 shrink-0 text-primary mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className="font-medium text-sm">General</p>
+          <Badge className="text-[10px] h-4 px-1.5">Default</Badge>
+        </div>
+        <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+          {generalAgent?.description ?? 'Your default assistant. Configure its tools, model, and instructions.'}
+        </p>
       </div>
       <Button
         variant="ghost"
@@ -49,9 +55,6 @@ const GeneralAgentCard = ({
         <Settings2Icon className="size-3.5" />
       </Button>
     </div>
-    <p className="text-xs text-muted-foreground line-clamp-2">
-      {generalAgent?.description ?? 'Your default assistant. Configure its tools, model, and instructions.'}
-    </p>
     <div className="flex flex-wrap gap-1.5 mt-auto pt-1">
       <Badge variant="secondary" className="text-[11px]">
         {generalAgent?.modelId
@@ -250,7 +253,7 @@ export const AgentsList = () => {
 
             {/* ── My Agents tab ── */}
             <TabsContent value="my-agents">
-              <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+              <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
                 {/* General Agent — always pinned first */}
                 <GeneralAgentCard
                   generalAgent={generalAgent}
@@ -265,42 +268,49 @@ export const AgentsList = () => {
                       key={a.id}
                       className="group relative flex flex-col gap-2 rounded-xl border border-black/5 dark:border-border bg-muted/30 p-4 transition hover:bg-muted/50"
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <BotIcon className="size-4 shrink-0 text-primary" />
-                          <span className="font-medium truncate">{a.name}</span>
-                          {a.templateId && (
-                            <span title="Created from template">
-                              <CopyIcon className="size-3 text-muted-foreground" />
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100 transition">
-                          <Button variant="ghost" size="icon" className="size-7" onClick={() => setShareTarget(a)} title="Share">
+                      {/* Action buttons — absolutely positioned top-right, visible on hover */}
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition z-10">
+                        <ButtonGroup className='border rounded-full bg-background'>
+                          <Button variant="ghost" size="icon" className="size-7 hover:cursor-pointer rounded-full" onClick={() => setShareTarget(a)} title="Share">
                             <Share2Icon className="size-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="size-7" onClick={() => openEdit(a)}>
+                          <Button variant="ghost" size="icon" className="size-7 hover:cursor-pointer rounded-full" onClick={() => openEdit(a)} title="Edit">
                             <PencilIcon className="size-3.5" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="size-7 text-destructive hover:text-destructive"
+                            className="size-7 text-destructive hover:text-destructive hover:cursor-pointer rounded-full"
                             onClick={() => setDeleteTarget(a)}
+                            title="Delete"
                           >
                             <Trash2Icon className="size-3.5" />
                           </Button>
+                        </ButtonGroup>
+                      </div>
+
+                      {/* Header: icon + full-width title */}
+                      <div className="flex items-start gap-2">
+                        <div className="">
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-medium text-sm line-clamp-1">{a.name}</p>
+                            
+                            {a.isPublic && (
+                              <span title="Public">
+                                <GlobeIcon className="size-3 shrink-0 text-muted-foreground" />
+                              </span>
+                            )}
+                          </div>
+                          {a.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{a.description}</p>
+                          )}
                         </div>
                       </div>
 
-                      {a.description && (
-                        <p className="text-xs text-muted-foreground line-clamp-2">{a.description}</p>
-                      )}
-
                       {(withSharing.sharedWith?.length ?? 0) > 0 && (
-                        <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                          <UsersIcon className="size-3 shrink-0 mt-0.5" />
-                          <span className="leading-snug">{withSharing.sharedWith!.map((u) => u.name).join(', ')}</span>
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <UsersIcon className="size-3 shrink-0" />
+                          <span className="truncate">{withSharing.sharedWith!.map((u) => u.name).join(', ')}</span>
                         </div>
                       )}
 
@@ -309,11 +319,6 @@ export const AgentsList = () => {
                         {(a.documentIds?.length ?? 0) > 0 && (
                           <Badge variant="outline" className="text-[11px]">
                             {a.documentIds.length} doc{a.documentIds.length !== 1 ? 's' : ''}
-                          </Badge>
-                        )}
-                        {a.isPublic && (
-                          <Badge variant="secondary" className="text-[11px] gap-1">
-                            <GlobeIcon className="size-2.5" /> Public
                           </Badge>
                         )}
                         {a.enabledTools.map((toolId) => {
@@ -335,16 +340,18 @@ export const AgentsList = () => {
                       key={a.id}
                       className="flex flex-col gap-2 rounded-xl border border-black/5 dark:border-border bg-muted/20 p-4"
                     >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <BotIcon className="size-4 shrink-0 text-muted-foreground" />
-                        <span className="font-medium truncate">{a.name}</span>
+                      <div className="flex items-start gap-2">
+                        <BotIcon className="size-4 shrink-0 text-muted-foreground mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{a.name}</p>
+                          {a.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{a.description}</p>
+                          )}
+                          {withSharing.ownerName && (
+                            <p className="text-xs text-muted-foreground mt-0.5">By {withSharing.ownerName}</p>
+                          )}
+                        </div>
                       </div>
-                      {a.description && (
-                        <p className="text-xs text-muted-foreground line-clamp-2">{a.description}</p>
-                      )}
-                      {withSharing.ownerName && (
-                        <p className="text-xs text-muted-foreground">By {withSharing.ownerName}</p>
-                      )}
                       <div className="flex flex-wrap gap-1.5 mt-auto pt-1">
                         <Badge variant="secondary" className="text-[11px]">{modelName(a.modelId)}</Badge>
                       </div>

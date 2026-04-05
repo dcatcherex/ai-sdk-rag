@@ -9,7 +9,10 @@
       "Bash(pnpm drizzle-kit:*)",
       "Bash(grep -rn \"mediaAsset\\\\|media_asset\" D:/vscode2/nextjs/ai-sdk/features/gallery/ --include=*.ts --include=*.tsx)",
       "Bash(grep -rn \"needsPersist\\\\|persist\\\\|saveToGallery\\\\|media_asset\\\\|mediaAsset\" D:/vscode2/nextjs/ai-sdk/lib/ D:/vscode2/nextjs/ai-sdk/app/ --include=*.ts --include=*.tsx)",
-      "Bash(python -c \"import json,sys; j=json.load\\(sys.stdin\\); print\\(j[''''entries''''][-1]\\)\")"
+      "Bash(python -c \"import json,sys; j=json.load\\(sys.stdin\\); print\\(j[''''entries''''][-1]\\)\")",
+      "Bash(python3 -c ':*)",
+      "Bash(python -c ':*)",
+      "Bash(python:*)"
     ]
   }
 }

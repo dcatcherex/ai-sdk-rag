@@ -10,7 +10,8 @@ export type RichMenuAreaInput = {
   action:
     | { type: 'message'; text: string }
     | { type: 'uri'; uri: string }
-    | { type: 'postback'; data: string; displayText?: string };
+    | { type: 'postback'; data: string; displayText?: string }
+    | { type: 'switch_agent'; agentId: string };
 };
 
 export type RichMenuRecord = {

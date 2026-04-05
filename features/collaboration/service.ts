@@ -9,6 +9,7 @@ import {
   user,
 } from '@/db/schema';
 import { sendEmail } from '@/lib/email';
+import { notifyAssigneeViaLine, notifyRequesterViaLine } from '@/features/line-oa/notifications/approval';
 import type {
   WorkspaceMember,
   WorkspaceMemberRole,
@@ -230,7 +231,15 @@ export async function createApprovalRequest(data: {
     .set({ status: 'in_review' })
     .where(eq(contentPiece.id, data.contentPieceId));
 
-  // Send email notification to assignee if provided
+  // Load content title once for notifications
+  const [piece] = await db
+    .select({ title: contentPiece.title })
+    .from(contentPiece)
+    .where(eq(contentPiece.id, data.contentPieceId))
+    .limit(1);
+  const contentTitle = piece?.title ?? 'Untitled';
+
+  // Send email + LINE notification to assignee if provided
   if (data.assigneeId) {
     try {
       const assignees = await db
@@ -248,6 +257,24 @@ export async function createApprovalRequest(data: {
     } catch (err) {
       console.error('[createApprovalRequest] email notification failed:', err);
     }
+
+    // LINE notification — build a minimal ApprovalRequest shape for the notifier
+    const approvalForNotify: ApprovalRequest = {
+      id,
+      contentPieceId: data.contentPieceId,
+      brandId: data.brandId ?? null,
+      requesterId: data.requesterId,
+      assigneeId: data.assigneeId,
+      status: 'pending',
+      dueAt: data.dueAt ?? null,
+      resolvedAt: null,
+      resolutionNote: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    notifyAssigneeViaLine(data.assigneeId, approvalForNotify, contentTitle).catch((err) =>
+      console.error('[createApprovalRequest] LINE notification failed:', err),
+    );
   }
 
   const requests = await getUserApprovalRequests(data.requesterId);
@@ -312,7 +339,15 @@ export async function resolveApprovalRequest(
     .set({ status: newContentStatus })
     .where(eq(contentPiece.id, current.contentPieceId));
 
-  // Notify requester
+  // Load content title for notifications
+  const [resolvedPiece] = await db
+    .select({ title: contentPiece.title })
+    .from(contentPiece)
+    .where(eq(contentPiece.id, current.contentPieceId))
+    .limit(1);
+  const resolvedContentTitle = resolvedPiece?.title ?? 'Untitled';
+
+  // Notify requester via email + LINE
   try {
     const requesters = await db
       .select({ email: user.email, name: user.name })
@@ -335,6 +370,10 @@ export async function resolveApprovalRequest(
   } catch (err) {
     console.error('[resolveApprovalRequest] email notification failed:', err);
   }
+
+  notifyRequesterViaLine(current.requesterId, resolution, resolvedContentTitle).catch((err) =>
+    console.error('[resolveApprovalRequest] LINE notification failed:', err),
+  );
 
   const updated = await db
     .select({

@@ -21,6 +21,7 @@ export type AgentRow = {
   modelId: string | null;
   brandId: string | null;
   starterPrompts: string[];
+  enabledTools: string[];
 } | null;
 
 // LINE brand green

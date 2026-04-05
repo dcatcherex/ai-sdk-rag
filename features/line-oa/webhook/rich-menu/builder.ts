@@ -53,6 +53,13 @@ function buildAreaAction(area: RichMenuAreaConfig): messagingApi.Action {
         data: area.action.data ?? '',
         displayText: area.action.displayText ?? area.label,
       };
+    case 'switch_agent':
+      return {
+        type: 'postback',
+        label: area.label,
+        data: `switch_agent:${area.action.agentId ?? ''}`,
+        displayText: area.label,
+      };
     default:
       return { type: 'message', label: area.label, text: area.label };
   }

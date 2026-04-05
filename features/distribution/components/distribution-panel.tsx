@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { DownloadIcon, MailIcon, SendIcon, WebhookIcon } from 'lucide-react';
+import { DownloadIcon, MailIcon, MessageCircleIcon, SendIcon, WebhookIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -20,7 +20,8 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs';
-import { useDistributionRecords, useSendEmail, useExportContent, useSendWebhook } from '../hooks/use-distribution';
+import { useDistributionRecords, useSendEmail, useExportContent, useSendWebhook, useSendLineBroadcast } from '../hooks/use-distribution';
+import { useLineOaChannels } from '@/features/line-oa/hooks/use-line-oa';
 import type { DistributionRecord } from '../types';
 
 const STATUS_BADGE: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -70,10 +71,17 @@ export function DistributionPanel({ contentPieceId, defaultBody = '', defaultTit
   const [webhookUrl, setWebhookUrl] = useState('');
   const [webhookError, setWebhookError] = useState('');
 
+  // LINE Broadcast state
+  const [lineChannelId, setLineChannelId] = useState('');
+  const [lineError, setLineError] = useState('');
+  const [lineSentCount, setLineSentCount] = useState<number | null>(null);
+
   const { data: history = [] } = useDistributionRecords(contentPieceId);
+  const { data: lineChannels = [] } = useLineOaChannels();
   const sendEmail = useSendEmail();
   const exportContent = useExportContent();
   const sendWebhook = useSendWebhook();
+  const sendLineBroadcast = useSendLineBroadcast();
 
   const handleSendEmail = () => {
     setEmailError('');
@@ -127,6 +135,22 @@ export function DistributionPanel({ contentPieceId, defaultBody = '', defaultTit
     );
   };
 
+  const handleLineBroadcast = () => {
+    setLineError('');
+    setLineSentCount(null);
+    if (!lineChannelId) { setLineError('Select a LINE OA channel.'); return; }
+    sendLineBroadcast.mutate(
+      { contentPieceId, channelId: lineChannelId },
+      {
+        onSuccess: (record) => {
+          setLineSentCount(record.recipientCount);
+          setLineError('');
+        },
+        onError: (err) => setLineError(err.message),
+      },
+    );
+  };
+
   return (
     <div className="space-y-4">
       <Tabs defaultValue="email">
@@ -135,6 +159,7 @@ export function DistributionPanel({ contentPieceId, defaultBody = '', defaultTit
             { value: 'email', label: 'Email', icon: <MailIcon className="size-3.5" /> },
             { value: 'export', label: 'Export', icon: <DownloadIcon className="size-3.5" /> },
             { value: 'webhook', label: 'Webhook', icon: <WebhookIcon className="size-3.5" /> },
+            { value: 'line', label: 'LINE', icon: <MessageCircleIcon className="size-3.5" /> },
             { value: 'history', label: 'History', icon: <SendIcon className="size-3.5" /> },
           ].map((tab) => (
             <TabsTrigger
@@ -239,6 +264,51 @@ export function DistributionPanel({ contentPieceId, defaultBody = '', defaultTit
             <SendIcon className="size-3.5" />
             {sendWebhook.isPending ? 'Sending…' : 'Send to webhook'}
           </Button>
+        </TabsContent>
+
+        {/* LINE Broadcast */}
+        <TabsContent value="line" className="mt-3 space-y-3">
+          {lineChannels.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No LINE OA channels connected. Go to <span className="font-medium">LINE OA</span> to connect one.
+            </p>
+          ) : (
+            <>
+              <div>
+                <Label className="text-xs">LINE OA Channel</Label>
+                <Select value={lineChannelId} onValueChange={(v) => { setLineChannelId(v); setLineSentCount(null); setLineError(''); }}>
+                  <SelectTrigger className="mt-1 h-8 text-sm">
+                    <SelectValue placeholder="Select a channel…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {lineChannels.map((ch) => (
+                      <SelectItem key={ch.id} value={ch.id}>
+                        {ch.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                The content excerpt (or first 2000 characters) will be broadcast to all followers of the selected channel.
+              </p>
+              {lineError && <p className="text-xs text-destructive">{lineError}</p>}
+              {lineSentCount != null && (
+                <p className="text-xs text-green-600 dark:text-green-400">
+                  Broadcast sent to {lineSentCount ?? 'all'} followers.
+                </p>
+              )}
+              <Button
+                size="sm"
+                onClick={handleLineBroadcast}
+                disabled={sendLineBroadcast.isPending || !lineChannelId}
+                className="gap-1.5"
+              >
+                <MessageCircleIcon className="size-3.5" />
+                {sendLineBroadcast.isPending ? 'Broadcasting…' : 'Broadcast to followers'}
+              </Button>
+            </>
+          )}
         </TabsContent>
 
         {/* History */}
