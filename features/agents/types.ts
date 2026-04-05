@@ -1,4 +1,5 @@
 import type { AgentStructuredBehavior } from '@/lib/agent-structured-behavior';
+import type { AgentSkillAttachment, AgentSkillAttachmentInput } from '@/features/skills/types';
 
 export type Agent = {
   id: string;
@@ -30,6 +31,7 @@ export type CreateAgentInput = {
   enabledTools?: string[];
   documentIds?: string[];
   skillIds?: string[];
+  skillAttachments?: AgentSkillAttachmentInput[];
   brandId?: string | null;
   isPublic?: boolean;
   isDefault?: boolean;
@@ -49,4 +51,5 @@ export type SharedUser = {
 export type AgentWithSharing = Agent & {
   ownerName?: string;
   sharedWith?: SharedUser[];
+  skillAttachments?: AgentSkillAttachment[];
 };

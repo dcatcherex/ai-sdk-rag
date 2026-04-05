@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { BotIcon, CopyIcon, GlobeIcon, PencilIcon, PlusIcon, Settings2Icon, Share2Icon, SparklesIcon, Trash2Icon, UsersIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { ButtonGroup, ButtonGroupSeparator } from '@/components/ui/button-group';
+import { ButtonGroup } from '@/components/ui/button-group';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useSkills } from '@/features/skills/hooks/use-skills';
 import { availableModels } from '@/lib/ai';
 import { TOOL_REGISTRY } from '@/lib/tool-registry';
 import { authClient } from '@/lib/auth-client';
@@ -24,14 +25,53 @@ import { AgentEditorPanel } from './agent-editor-panel';
 import { PublicShareDialog } from './public-share-dialog';
 import type { Agent, AgentWithSharing, CreateAgentInput } from '../types';
 
+const SkillSummaryBadges = ({
+  skillIds,
+  skillNameById,
+}: {
+  skillIds: string[];
+  skillNameById: Record<string, string>;
+}) => {
+  if (skillIds.length === 0) {
+    return null;
+  }
+
+  const namedSkills = skillIds
+    .map((skillId) => skillNameById[skillId])
+    .filter((label): label is string => Boolean(label));
+  const previewSkills = namedSkills.slice(0, 2);
+  const remainingCount = skillIds.length - previewSkills.length;
+
+  return (
+    <>
+      <Badge variant="outline" className="gap-1 text-[11px]">
+        <SparklesIcon className="size-3" />
+        {skillIds.length} skill{skillIds.length !== 1 ? 's' : ''}
+      </Badge>
+      {previewSkills.map((label) => (
+        <Badge key={label} variant="outline" className="text-[11px]">
+          {label}
+        </Badge>
+      ))}
+      {remainingCount > 0 && (
+        <Badge variant="outline" className="text-[11px]">
+          +{remainingCount} more
+        </Badge>
+      )}
+    </>
+  );
+};
+
 // ── General Agent placeholder card ───────────────────────────────────────────
 
 const GeneralAgentCard = ({
   generalAgent,
   onConfigure,
+  skillNameById,
 }: {
   generalAgent: Agent | undefined;
   onConfigure: (agent: Agent | null) => void;
+  skillNameById: Record<string, string>;
 }) => (
   <div className="relative flex flex-col gap-2 rounded-xl border-2 border-primary/20 bg-primary/5 p-4">
     <div className="flex items-start gap-2">
@@ -69,6 +109,7 @@ const GeneralAgentCard = ({
           </Badge>
         ) : null;
       })}
+      <SkillSummaryBadges skillIds={generalAgent?.skillIds ?? []} skillNameById={skillNameById} />
       {!generalAgent && (
         <span className="text-[11px] text-muted-foreground italic">Not configured — using smart defaults</span>
       )}
@@ -82,10 +123,12 @@ const TemplateCard = ({
   template,
   onUse,
   isPending,
+  skillNameById,
 }: {
   template: Agent;
   onUse: (id: string) => void;
   isPending: boolean;
+  skillNameById: Record<string, string>;
 }) => (
   <div className="flex flex-col gap-2 rounded-xl border border-black/5 dark:border-border bg-muted/20 p-4">
     <div className="flex items-start gap-2">
@@ -103,6 +146,7 @@ const TemplateCard = ({
           &ldquo;{p}&rdquo;
         </span>
       ))}
+      <SkillSummaryBadges skillIds={template.skillIds ?? []} skillNameById={skillNameById} />
     </div>
     <Button
       size="sm"
@@ -123,6 +167,7 @@ export const AgentsList = () => {
   const { data, isLoading } = useAgents();
   const agents = data?.agents ?? [];
   const templates = data?.templates ?? [];
+  const { data: userSkills = [] } = useSkills();
 
   const createAgent = useCreateAgent();
   const updateAgent = useUpdateAgent();
@@ -137,6 +182,11 @@ export const AgentsList = () => {
   const [deleteTarget, setDeleteTarget] = useState<Agent | null>(null);
   const [shareTarget, setShareTarget] = useState<Agent | null>(null);
   const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
+
+  const skillNameById = useMemo(
+    () => Object.fromEntries(userSkills.map((skill) => [skill.id, skill.name])),
+    [userSkills],
+  );
 
   const generalAgent = agents.find((a) => a.isDefault && a.userId === currentUserId);
   const myAgents = agents.filter((a) => a.userId === currentUserId && !a.isDefault);
@@ -258,6 +308,7 @@ export const AgentsList = () => {
                 <GeneralAgentCard
                   generalAgent={generalAgent}
                   onConfigure={openConfigureGeneral}
+                  skillNameById={skillNameById}
                 />
 
                 {/* User's custom agents */}
@@ -316,6 +367,7 @@ export const AgentsList = () => {
 
                       <div className="flex flex-wrap gap-1.5 mt-auto pt-1">
                         <Badge variant="secondary" className="text-[11px]">{modelName(a.modelId)}</Badge>
+                        <SkillSummaryBadges skillIds={a.skillIds ?? []} skillNameById={skillNameById} />
                         {(a.documentIds?.length ?? 0) > 0 && (
                           <Badge variant="outline" className="text-[11px]">
                             {a.documentIds.length} doc{a.documentIds.length !== 1 ? 's' : ''}
@@ -354,6 +406,7 @@ export const AgentsList = () => {
                       </div>
                       <div className="flex flex-wrap gap-1.5 mt-auto pt-1">
                         <Badge variant="secondary" className="text-[11px]">{modelName(a.modelId)}</Badge>
+                        <SkillSummaryBadges skillIds={a.skillIds ?? []} skillNameById={skillNameById} />
                       </div>
                     </div>
                   );
@@ -383,6 +436,7 @@ export const AgentsList = () => {
                         template={t}
                         onUse={handleUseTemplate}
                         isPending={pendingTemplateId === t.id}
+                        skillNameById={skillNameById}
                       />
                     ))}
                   </div>

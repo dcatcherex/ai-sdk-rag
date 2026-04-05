@@ -51,7 +51,7 @@ export type ImportedSkillPackage = {
 const GITHUB_API_BASE = 'https://api.github.com';
 const RAW_GITHUB_HOST = 'raw.githubusercontent.com';
 const GITHUB_HOST = 'github.com';
-const ALLOWED_TOP_LEVEL_DIRS = new Set(['references', 'assets', 'scripts']);
+const IGNORED_TOP_LEVEL_DIRS = new Set(['.git', 'node_modules']);
 const MAX_FILE_COUNT = 50;
 const MAX_TEXT_FILE_BYTES = 128 * 1024;
 const TEXT_FILE_EXTENSIONS = new Set([
@@ -164,7 +164,7 @@ function parseGitHubSkillUrl(url: string): GitHubSkillSource {
 
 async function fetchSkillPackageFiles(source: GitHubSkillSource): Promise<ImportedSkillFile[]> {
   const discoveredFiles = await collectDirectoryFiles(source, source.subdirPath);
-  const relevantFiles = discoveredFiles.filter((file) => shouldIncludePath(relativePathFromSource(source, file.path), source.entryFilePath));
+  const relevantFiles = discoveredFiles.filter((file) => shouldIncludePath(relativePathFromSource(source, file.path)));
 
   if (relevantFiles.length === 0) {
     throw new Error('No supported skill files found in the selected directory');
@@ -223,7 +223,7 @@ async function collectDirectoryFiles(source: GitHubSkillSource, directoryPath: s
     }
 
     const topLevelDir = relativePath.split('/')[0] ?? '';
-    if (!ALLOWED_TOP_LEVEL_DIRS.has(topLevelDir)) {
+    if (IGNORED_TOP_LEVEL_DIRS.has(topLevelDir)) {
       continue;
     }
 
@@ -260,17 +260,17 @@ function relativePathFromSource(source: GitHubSkillSource, absolutePath: string)
     : absolutePath;
 }
 
-function shouldIncludePath(relativePath: string, entryFilePath: string): boolean {
+function shouldIncludePath(relativePath: string): boolean {
   if (!isSafeRelativePath(relativePath)) {
     return false;
   }
 
-  if (relativePath === entryFilePath) {
-    return true;
+  const topLevelDir = relativePath.split('/')[0] ?? '';
+  if (IGNORED_TOP_LEVEL_DIRS.has(topLevelDir)) {
+    return false;
   }
 
-  const topLevelDir = relativePath.split('/')[0] ?? '';
-  return ALLOWED_TOP_LEVEL_DIRS.has(topLevelDir);
+  return true;
 }
 
 function inferFileKind(relativePath: string, entryFilePath: string): SkillFileKind {
@@ -366,6 +366,9 @@ function buildManifest(files: ImportedSkillFile[], source: GitHubSkillSource): R
     repoRef: source.repoRef,
     subdirPath: source.subdirPath,
     counts,
+    preservedAdditionalPaths: files
+      .filter((file) => file.fileKind === 'other')
+      .map((file) => file.relativePath),
   };
 }
 

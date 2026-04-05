@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { Brand } from '@/features/brands/types';
-import type { Skill } from '@/features/skills/types';
+import type { AgentSkillAttachmentInput, Skill, SkillActivationMode, SkillTriggerType } from '@/features/skills/types';
 import type { DocumentSummary } from '../hooks/use-agent-documents';
 
 type AgentKnowledgeSectionProps = {
@@ -26,7 +26,13 @@ type AgentKnowledgeSectionProps = {
   onDocSearchChange: (value: string) => void;
   onDocumentToggle: (documentId: string, checked: boolean) => void;
   onSkillToggle: (skillId: string, checked: boolean) => void;
+  onSkillAttachmentChange: (
+    skillId: string,
+    field: 'activationModeOverride' | 'triggerTypeOverride' | 'triggerOverride' | 'priority',
+    value: SkillActivationMode | SkillTriggerType | string | number | null,
+  ) => void;
   skillIds: string[];
+  skillAttachments: AgentSkillAttachmentInput[];
   userDocuments: DocumentSummary[];
   userSkills: Skill[];
 };
@@ -42,7 +48,9 @@ export function AgentKnowledgeSection({
   onDocSearchChange,
   onDocumentToggle,
   onSkillToggle,
+  onSkillAttachmentChange,
   skillIds,
+  skillAttachments,
   userDocuments,
   userSkills,
 }: AgentKnowledgeSectionProps) {
@@ -94,6 +102,7 @@ export function AgentKnowledgeSection({
           <div className="max-h-48 space-y-0.5 overflow-y-auto rounded-md border border-black/5 p-1 dark:border-border">
             {userSkills.map((skill) => {
               const checked = skillIds.includes(skill.id);
+              const attachment = skillAttachments.find((item) => item.skillId === skill.id);
               const triggerLabel =
                 skill.triggerType === 'always'
                   ? 'always'
@@ -120,6 +129,65 @@ export function AgentKnowledgeSection({
                     </label>
                     {skill.description && (
                       <p className="truncate text-xs text-muted-foreground">{skill.description}</p>
+                    )}
+                    {checked && attachment && (
+                      <div className="mt-2 grid gap-2 rounded-md border border-black/5 bg-background/80 p-2 dark:border-border sm:grid-cols-2">
+                        <div className="space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">Activation override</Label>
+                          <Select
+                            value={attachment.activationModeOverride ?? 'inherit'}
+                            onValueChange={(value) => onSkillAttachmentChange(skill.id, 'activationModeOverride', value === 'inherit' ? null : value as SkillActivationMode)}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="inherit">Inherit skill default</SelectItem>
+                              <SelectItem value="rule">Rule-based</SelectItem>
+                              <SelectItem value="model">Model discovered</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">Trigger type override</Label>
+                          <Select
+                            value={attachment.triggerTypeOverride ?? 'inherit'}
+                            onValueChange={(value) => onSkillAttachmentChange(skill.id, 'triggerTypeOverride', value === 'inherit' ? null : value as SkillTriggerType)}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="inherit">Inherit skill default</SelectItem>
+                              <SelectItem value="always">Always active</SelectItem>
+                              <SelectItem value="slash">Slash command</SelectItem>
+                              <SelectItem value="keyword">Keyword match</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">Trigger override</Label>
+                          <Input
+                            value={attachment.triggerOverride ?? ''}
+                            onChange={(event) => onSkillAttachmentChange(skill.id, 'triggerOverride', event.target.value || null)}
+                            placeholder={skill.trigger ?? 'Override trigger'}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">Priority</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={attachment.priority ?? 0}
+                            onChange={(event) => onSkillAttachmentChange(skill.id, 'priority', Number(event.target.value || 0))}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>

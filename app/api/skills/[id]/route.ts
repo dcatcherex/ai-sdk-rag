@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth';
 import { deleteSkill, getSkillById, updateSkill } from '@/features/skills/service';
 
 const updateSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
+  name: z.string().min(1).max(64).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(),
   description: z.string().max(300).optional(),
   activationMode: z.enum(['rule', 'model']).optional(),
   triggerType: z.enum(['slash', 'keyword', 'always']).optional(),

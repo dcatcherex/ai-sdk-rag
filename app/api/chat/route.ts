@@ -30,7 +30,7 @@ import {
   buildAvailableSkillsCatalog,
   detectTriggeredSkills,
   getSkillsForAgent,
-  getRelevantSkillResourcesForPrompt,
+  getResolvedSkillResourcesForPrompt,
   selectModelDiscoveredSkills,
 } from '@/features/skills/service';
 import type { Skill } from '@/features/skills/types';
@@ -192,7 +192,7 @@ export async function POST(req: Request) {
             .limit(1)
         : Promise.resolve([]),
       triggeredSkills.length > 0 && lastUserPrompt
-        ? getRelevantSkillResourcesForPrompt(triggeredSkills, lastUserPrompt)
+        ? getResolvedSkillResourcesForPrompt(triggeredSkills, lastUserPrompt)
         : Promise.resolve(''),
     ]);
 

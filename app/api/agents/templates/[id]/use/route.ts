@@ -5,7 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { agent } from '@/db/schema';
-import { getResolvedSkillIdsByAgentIds, replaceSkillAttachmentsForAgent } from '@/features/skills/service';
+import { getSkillAttachmentsForAgent, replaceSkillAttachmentsForAgent } from '@/features/skills/service';
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -25,8 +25,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: 'Template not found' }, { status: 404 });
   }
 
-  const attachmentMap = await getResolvedSkillIdsByAgentIds([template.id]);
-  const resolvedSkillIds = attachmentMap[template.id] ?? template.skillIds;
+  const resolvedAttachments = await getSkillAttachmentsForAgent(template.id, template.skillIds);
+  const resolvedSkillIds = resolvedAttachments.map((attachment) => attachment.skillId);
 
   const now = new Date();
   const copy = {
@@ -51,7 +51,15 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   };
 
   await db.insert(agent).values(copy);
-  await replaceSkillAttachmentsForAgent(copy.id, resolvedSkillIds);
+  await replaceSkillAttachmentsForAgent(copy.id, resolvedAttachments.map((attachment) => ({
+    skillId: attachment.skillId,
+    isEnabled: attachment.isEnabled,
+    activationModeOverride: attachment.activationModeOverride,
+    triggerTypeOverride: attachment.triggerTypeOverride,
+    triggerOverride: attachment.triggerOverride,
+    priority: attachment.priority,
+    notes: attachment.notes,
+  })));
 
   return NextResponse.json({ agent: copy }, { status: 201 });
 }

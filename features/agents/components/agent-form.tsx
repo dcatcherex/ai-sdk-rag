@@ -11,7 +11,9 @@ import {
 } from '@/lib/agent-structured-behavior';
 import { useSkills } from '@/features/skills/hooks/use-skills';
 import type { Brand } from '@/features/brands/types';
+import type { AgentSkillAttachmentInput, SkillActivationMode, SkillTriggerType } from '@/features/skills/types';
 import { useUserDocuments } from '../hooks/use-agent-documents';
+import { useAgentSkillAttachments } from '../hooks/use-agents';
 import { useUserSearch } from '../hooks/use-user-search';
 import { AgentBehaviorSection } from './agent-behavior-section';
 import { AgentGeneralSection } from './agent-general-section';
@@ -39,6 +41,36 @@ type AgentFormProps = {
 const defaultSystemPrompt = '';
 const toneOptions = ['Warm', 'Professional', 'Encouraging', 'Concise'];
 
+const toAttachmentInput = (skillId: string, priority: number): AgentSkillAttachmentInput => ({
+  skillId,
+  isEnabled: true,
+  priority,
+});
+
+const sortSkillAttachments = (attachments: AgentSkillAttachmentInput[]) =>
+  [...attachments].sort(
+    (a, b) => (a.priority ?? Number.MAX_SAFE_INTEGER) - (b.priority ?? Number.MAX_SAFE_INTEGER) || a.skillId.localeCompare(b.skillId),
+  );
+
+const normalizeSkillAttachmentsForForm = (agent?: Agent | AgentWithSharing | null): AgentSkillAttachmentInput[] => {
+  const existingAttachments = (agent as AgentWithSharing | null)?.skillAttachments ?? [];
+  if (existingAttachments.length > 0) {
+    return sortSkillAttachments(
+      existingAttachments.map((attachment, index) => ({
+        skillId: attachment.skillId,
+        isEnabled: attachment.isEnabled,
+        activationModeOverride: attachment.activationModeOverride,
+        triggerTypeOverride: attachment.triggerTypeOverride,
+        triggerOverride: attachment.triggerOverride,
+        priority: attachment.priority ?? index,
+        notes: attachment.notes,
+      })),
+    );
+  }
+
+  return (agent?.skillIds ?? []).map((skillId, index) => toAttachmentInput(skillId, index));
+};
+
 const getInitialStructuredBehavior = (agent?: Agent | null) => {
   if (!agent) {
     return createDefaultAgentStructuredBehavior();
@@ -57,6 +89,7 @@ const buildFormSnapshot = ({
   name,
   sharedUserIds,
   skillIds,
+  skillAttachments,
   starterPrompts,
   structuredBehavior,
   systemPrompt,
@@ -70,6 +103,7 @@ const buildFormSnapshot = ({
   name: string;
   sharedUserIds: string[];
   skillIds: string[];
+  skillAttachments: AgentSkillAttachmentInput[];
   starterPrompts: string[];
   structuredBehavior: AgentStructuredBehavior;
   systemPrompt: string;
@@ -81,6 +115,7 @@ const buildFormSnapshot = ({
   enabledTools,
   documentIds,
   skillIds,
+  skillAttachments,
   brandId,
   isPublic,
   starterPrompts,
@@ -117,6 +152,7 @@ export function AgentForm({
   const [shareSearch, setShareSearch] = useState('');
   const [brands, setBrands] = useState<Brand[]>([]);
   const [skillIds, setSkillIds] = useState<string[]>([]);
+  const [skillAttachments, setSkillAttachments] = useState<AgentSkillAttachmentInput[]>([]);
   const [behaviorMode, setBehaviorMode] = useState<'structured' | 'raw'>('structured');
   const [structuredRole, setStructuredRole] = useState('');
   const [structuredTones, setStructuredTones] = useState<string[]>([]);
@@ -132,6 +168,8 @@ export function AgentForm({
   const { data: userDocuments = [], isLoading: docsLoading } = useUserDocuments();
   const { data: searchResults = [] } = useUserSearch(shareSearch);
   const { data: userSkills = [] } = useSkills();
+  const { data: loadedSkillAttachments = [] } = useAgentSkillAttachments(agent?.id ?? null);
+  const loadedAttachmentAgentIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -155,6 +193,7 @@ export function AgentForm({
       setIsPublic(agent.isPublic ?? false);
       setSharedWith((agent as AgentWithSharing).sharedWith ?? []);
       setSkillIds(agent.skillIds ?? []);
+      setSkillAttachments(normalizeSkillAttachmentsForForm(agent as AgentWithSharing));
       setStarterPrompts(agent.starterPrompts ?? []);
       setBehaviorMode(agent.structuredBehavior ? 'structured' : agent.systemPrompt.trim() ? 'raw' : 'structured');
       setStructuredRole(persistedStructuredBehavior.role);
@@ -181,6 +220,7 @@ export function AgentForm({
       setIsPublic(false);
       setSharedWith([]);
       setSkillIds([]);
+      setSkillAttachments([]);
       setStarterPrompts([]);
       setBehaviorMode('structured');
       setStructuredRole(emptyStructuredBehavior.role);
@@ -197,7 +237,30 @@ export function AgentForm({
     setDocSearch('');
     setShareSearch('');
     setStructuredInstructionInput('');
+    loadedAttachmentAgentIdRef.current = agent?.id ?? null;
   }, [agent, initialStructuredBehavior, resetKey]);
+
+  useEffect(() => {
+    if (!agent?.id) return;
+    if (loadedAttachmentAgentIdRef.current === `${agent.id}:loaded`) return;
+    if (loadedSkillAttachments.length === 0) return;
+
+    const normalizedAttachments = sortSkillAttachments(
+      loadedSkillAttachments.map((attachment, index) => ({
+        skillId: attachment.skillId,
+        isEnabled: attachment.isEnabled,
+        activationModeOverride: attachment.activationModeOverride,
+        triggerTypeOverride: attachment.triggerTypeOverride,
+        triggerOverride: attachment.triggerOverride,
+        priority: attachment.priority ?? index,
+        notes: attachment.notes,
+      })),
+    );
+
+    setSkillAttachments(normalizedAttachments);
+    setSkillIds(normalizedAttachments.map((attachment) => attachment.skillId));
+    loadedAttachmentAgentIdRef.current = `${agent.id}:loaded`;
+  }, [agent?.id, loadedSkillAttachments]);
 
   const structuredBehaviorDraft = useMemo<AgentStructuredBehavior>(
     () => ({
@@ -255,6 +318,7 @@ export function AgentForm({
         name: agent?.name ?? '',
         sharedUserIds: ((agent as AgentWithSharing | null)?.sharedWith ?? []).map((user) => user.id),
         skillIds: agent?.skillIds ?? [],
+        skillAttachments: normalizeSkillAttachmentsForForm(agent as AgentWithSharing | null),
         starterPrompts: agent?.starterPrompts ?? [],
         structuredBehavior: initialStructuredBehavior,
         systemPrompt: agent?.systemPrompt ?? defaultSystemPrompt,
@@ -274,6 +338,7 @@ export function AgentForm({
         name,
         sharedUserIds: sharedWith.map((user) => user.id),
         skillIds,
+        skillAttachments: sortSkillAttachments(skillAttachments),
         starterPrompts,
         structuredBehavior: structuredBehaviorDraft,
         systemPrompt,
@@ -288,6 +353,7 @@ export function AgentForm({
       name,
       sharedWith,
       skillIds,
+      skillAttachments,
       starterPrompts,
       structuredBehaviorDraft,
       systemPrompt,
@@ -378,6 +444,7 @@ export function AgentForm({
       enabledTools,
       documentIds,
       skillIds,
+      skillAttachments: sortSkillAttachments(skillAttachments),
       brandId: brandId === 'none' ? null : brandId,
       isPublic,
       starterPrompts,
@@ -398,6 +465,41 @@ export function AgentForm({
 
   const removeFromShared = (userId: string) => {
     setSharedWith((prev) => prev.filter((u) => u.id !== userId));
+  };
+
+  const toggleSkillAttachment = (skillId: string, currentlySelected: boolean) => {
+    if (currentlySelected) {
+      setSkillIds((prev) => prev.filter((id) => id !== skillId));
+      setSkillAttachments((prev) => prev.filter((attachment) => attachment.skillId !== skillId));
+      return;
+    }
+
+    setSkillIds((prev) => [...prev, skillId]);
+    setSkillAttachments((prev) => [...prev, toAttachmentInput(skillId, prev.length)]);
+  };
+
+  const updateSkillAttachment = (
+    skillId: string,
+    field: 'activationModeOverride' | 'triggerTypeOverride' | 'triggerOverride' | 'priority',
+    value: SkillActivationMode | SkillTriggerType | string | number | null,
+  ) => {
+    setSkillAttachments((prev) =>
+      sortSkillAttachments(
+        prev.map((attachment) => {
+          if (attachment.skillId !== skillId) return attachment;
+          if (field === 'priority') {
+            return { ...attachment, priority: typeof value === 'number' ? value : undefined };
+          }
+          if (field === 'triggerOverride') {
+            return { ...attachment, triggerOverride: typeof value === 'string' ? value : null };
+          }
+          if (field === 'triggerTypeOverride') {
+            return { ...attachment, triggerTypeOverride: (value as SkillTriggerType | null) ?? null };
+          }
+          return { ...attachment, activationModeOverride: (value as SkillActivationMode | null) ?? null };
+        }),
+      ),
+    );
   };
 
   const generalSection = (
@@ -484,10 +586,10 @@ export function AgentForm({
           checked ? [...prev, documentId] : prev.filter((currentDocumentId) => currentDocumentId !== documentId)
         )
       }
-      onSkillToggle={(skillId, checked) =>
-        setSkillIds((prev) => (checked ? [...prev, skillId] : prev.filter((id) => id !== skillId)))
-      }
+      onSkillToggle={toggleSkillAttachment}
+      onSkillAttachmentChange={updateSkillAttachment}
       skillIds={skillIds}
+      skillAttachments={skillAttachments}
       userDocuments={userDocuments}
       userSkills={userSkills}
     />

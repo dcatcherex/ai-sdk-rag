@@ -17,6 +17,11 @@ export type SkillFile = {
   updatedAt: string | Date;
 };
 
+export type CreateSkillFileInput = {
+  relativePath: string;
+  textContent: string;
+};
+
 export type SkillSource = {
   id: string;
   sourceType: string;
@@ -63,15 +68,45 @@ export type SkillDetail = Skill & {
   source: SkillSource | null;
 };
 
+export type AgentSkillAttachmentInput = {
+  skillId: string;
+  isEnabled?: boolean;
+  activationModeOverride?: SkillActivationMode | null;
+  triggerTypeOverride?: SkillTriggerType | null;
+  triggerOverride?: string | null;
+  priority?: number;
+  notes?: string | null;
+};
+
+export type AgentSkillAttachment = {
+  id: string;
+  agentId: string;
+  skillId: string;
+  isEnabled: boolean;
+  activationModeOverride: SkillActivationMode | null;
+  triggerTypeOverride: SkillTriggerType | null;
+  triggerOverride: string | null;
+  priority: number;
+  notes: string | null;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+  skill?: Skill;
+};
+
 export type CreateSkillInput = {
   name: string;
   description: string;
   activationMode?: SkillActivationMode;
-  triggerType: SkillTriggerType;
+  triggerType?: SkillTriggerType;
   trigger?: string | null;
   promptFragment: string;
   enabledTools?: string[];
   sourceUrl?: string | null;
+  skillKind?: SkillKind;
+  license?: string;
+  compatibility?: string;
+  metadata?: Record<string, string>;
+  files?: CreateSkillFileInput[];
   isPublic?: boolean;
 };
 
