@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { db } from '@/lib/db';
 import { agentSkill, agentSkillFile, skillSource } from '@/db/schema';
-import { loadSkillPackageFromUrl } from './package-import';
+import { fetchLatestGitHubCommitSha, loadSkillPackageFromUrl } from './package-import';
 import { buildCreatedSkillFiles } from './package-files';
 import { buildPackageManifest } from './package-manifest';
 import { mapSkillRow, normaliseTrigger } from './shared';
@@ -164,6 +164,7 @@ export async function importSkillFromUrl(
   rawUrl: string,
 ): Promise<Skill> {
   const importedPackage = await loadSkillPackageFromUrl(rawUrl);
+  const upstreamCommitSha = await fetchLatestGitHubCommitSha(importedPackage.source);
   const now = new Date();
 
   let sourceId: string;
@@ -222,8 +223,8 @@ export async function importSkillFromUrl(
       activationMode: 'rule',
       entryFilePath: importedPackage.source.entryFilePath,
       installedRef: importedPackage.source.repoRef,
-      installedCommitSha: null,
-      upstreamCommitSha: null,
+      installedCommitSha: upstreamCommitSha,
+      upstreamCommitSha,
       syncStatus: 'synced',
       pinnedToInstalledVersion: false,
       hasBundledFiles: importedPackage.files.some((file) => file.relativePath !== importedPackage.source.entryFilePath),

@@ -42,7 +42,6 @@ Already implemented:
 
 Not complete yet:
 
-- package file editing for existing skills
 - upstream sync lifecycle
 - full removal of legacy `agent.skillIds` compatibility
 
@@ -51,7 +50,7 @@ Not complete yet:
 - Phase 1: completed
 - Phase 2: completed
 - Phase 3: completed
-- Phase 4: not started
+- Phase 4: completed
 - Phase 5: not started
 
 ---
@@ -299,11 +298,31 @@ Let imported skills check for upstream updates and apply them safely.
 
 ## Checklist
 
-- [ ] compare installed snapshot with upstream snapshot
-- [ ] store upstream commit metadata
-- [ ] calculate changed file paths
-- [ ] expose sync status in detail views
-- [ ] require explicit apply action for updates
+- [x] compare installed snapshot with upstream snapshot
+- [x] store upstream commit metadata
+- [x] calculate changed file paths
+- [x] expose sync status in detail views
+- [x] require explicit apply action for updates
+
+## Progress update
+
+Completed in this phase:
+
+- sync orchestration now lives in `features/skills/server/sync.ts`
+  - `checkSkillSync()` loads the stored package snapshot, fetches the current upstream package, compares them, and persists `syncStatus`, `upstreamCommitSha`, and `lastSyncCheckedAt`
+  - `applySkillSync()` replaces the stored package snapshot only on explicit user action, then refreshes the installed skill metadata from upstream `SKILL.md`
+- upstream comparison helpers are reused from `features/skills/server/package-import.ts`
+  - stored `skill_source` records are converted back into canonical GitHub package sources
+  - latest upstream commit SHA is fetched during import and sync checks
+- sync diff logic is isolated in `features/skills/server/sync-shared.ts`
+  - changed-file calculation covers added, removed, and modified bundled files
+- API routes now support the full Phase 4 target surface:
+  - `POST /api/skills/:id/sync/check`
+  - `POST /api/skills/:id/sync/apply`
+- skill hooks expose sync mutations in `features/skills/hooks/use-skills.ts`
+- skill detail UI now exposes sync status, commit metadata, changed files, and explicit check/apply actions in `features/skills/components/skills-list.tsx`
+- newly imported GitHub package skills now store `installedCommitSha` and `upstreamCommitSha` immediately when the initial import succeeds
+- focused sync tests were added in `features/skills/server/sync.test.ts`
 
 ## Files to touch
 

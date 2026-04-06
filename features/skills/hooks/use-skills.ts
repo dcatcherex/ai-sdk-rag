@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateSkillInput, Skill, SkillDetail, UpdateSkillInput } from '../types';
+import type { CreateSkillInput, Skill, SkillDetail, SkillSyncApplyResult, SkillSyncCheckResult, UpdateSkillInput } from '../types';
 
 const KEY = ['skills'] as const;
 const skillDetailKey = (skillId: string | null) => [...KEY, skillId] as const;
@@ -182,6 +182,37 @@ export function useDeleteSkillFile() {
       qc.invalidateQueries({ queryKey: skillFilesKey(variables.skillId) });
       qc.invalidateQueries({ queryKey: skillDetailKey(variables.skillId) });
       qc.removeQueries({ queryKey: skillFileContentKey(variables.skillId, variables.path) });
+    },
+  });
+}
+
+export function useCheckSkillSync() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (skillId: string) => {
+      const res = await fetch(`/api/skills/${skillId}/sync/check`, { method: 'POST' });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json() as Promise<SkillSyncCheckResult>;
+    },
+    onSuccess: (_data, skillId) => {
+      qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: skillDetailKey(skillId) });
+    },
+  });
+}
+
+export function useApplySkillSync() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (skillId: string) => {
+      const res = await fetch(`/api/skills/${skillId}/sync/apply`, { method: 'POST' });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json() as Promise<SkillSyncApplyResult>;
+    },
+    onSuccess: (_data, skillId) => {
+      qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: skillDetailKey(skillId) });
+      qc.invalidateQueries({ queryKey: skillFilesKey(skillId) });
     },
   });
 }

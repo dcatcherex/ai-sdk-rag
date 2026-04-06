@@ -40,3 +40,12 @@ export {
 export {
   getResolvedSkillResourcesForPrompt,
 } from './server/resources';
+
+export {
+  applySkillSync,
+  checkSkillSync,
+} from './server/sync';
+
+export {
+  calculateChangedFilePaths,
+} from './server/sync-shared';

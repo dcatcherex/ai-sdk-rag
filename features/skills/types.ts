@@ -133,3 +133,15 @@ export type ImportSkillInput = {
 export type SkillWithOwner = Skill & {
   ownerName?: string;
 };
+
+export type SkillSyncCheckResult = {
+  status: SkillSyncStatus;
+  installedCommitSha: string | null;
+  upstreamCommitSha: string | null;
+  changedFiles: string[];
+  checkedAt: string | Date;
+};
+
+export type SkillSyncApplyResult = SkillSyncCheckResult & {
+  skill: Skill;
+};

@@ -13,7 +13,7 @@ type GitHubContentItem = {
   download_url: string | null;
 };
 
-type GitHubSkillSource = {
+export type GitHubSkillSource = {
   sourceType: 'github_subdir' | 'github_file';
   canonicalUrl: string;
   sourceUrl: string;
@@ -68,6 +68,10 @@ const TEXT_FILE_EXTENSIONS = new Set([
 
 export async function loadSkillPackageFromUrl(url: string): Promise<ImportedSkillPackage> {
   const source = parseGitHubSkillUrl(url);
+  return loadSkillPackageFromSource(source);
+}
+
+export async function loadSkillPackageFromSource(source: GitHubSkillSource): Promise<ImportedSkillPackage> {
   const files = await fetchSkillPackageFiles(source);
   const skillFile = files.find((file) => file.relativePath === source.entryFilePath);
 
@@ -88,6 +92,53 @@ export async function loadSkillPackageFromUrl(url: string): Promise<ImportedSkil
     parsed,
     manifest,
   };
+}
+
+export function buildGitHubSkillSourceFromStoredSource(source: {
+  sourceType: string;
+  canonicalUrl: string;
+  repoOwner: string | null;
+  repoName: string | null;
+  repoRef: string | null;
+  subdirPath: string | null;
+  defaultEntryPath: string;
+}): GitHubSkillSource {
+  if (!source.repoOwner || !source.repoName || !source.repoRef) {
+    throw new Error('Stored skill source is missing GitHub repository metadata');
+  }
+
+  if (source.sourceType !== 'github_subdir' && source.sourceType !== 'github_file') {
+    throw new Error('Only GitHub-backed package skills currently support sync');
+  }
+
+  return {
+    sourceType: source.sourceType as GitHubSkillSource['sourceType'],
+    canonicalUrl: source.canonicalUrl,
+    sourceUrl: source.canonicalUrl,
+    repoOwner: source.repoOwner,
+    repoName: source.repoName,
+    repoRef: source.repoRef,
+    subdirPath: source.subdirPath ?? '',
+    entryFilePath: source.defaultEntryPath,
+  };
+}
+
+export async function fetchLatestGitHubCommitSha(source: Pick<GitHubSkillSource, 'repoOwner' | 'repoName' | 'repoRef' | 'subdirPath'>): Promise<string | null> {
+  const path = source.subdirPath?.trim() ?? '';
+  const apiPath = `/repos/${source.repoOwner}/${source.repoName}/commits?sha=${encodeURIComponent(source.repoRef)}&per_page=1${path ? `&path=${encodeURIComponent(path)}` : ''}`;
+  const res = await fetch(`${GITHUB_API_BASE}${apiPath}`, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'ai-sdk-skill-importer',
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to inspect GitHub commit metadata: HTTP ${res.status}`);
+  }
+
+  const commits = (await res.json()) as Array<{ sha?: string }>;
+  return commits[0]?.sha ?? null;
 }
 
 function parseGitHubSkillUrl(url: string): GitHubSkillSource {

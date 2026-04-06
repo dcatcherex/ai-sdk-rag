@@ -8,8 +8,10 @@ import {
   LinkIcon,
   PencilIcon,
   PlusIcon,
+  RefreshCwIcon,
   SparklesIcon,
   Trash2Icon,
+  UploadIcon,
 } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -33,10 +35,12 @@ import {
   useDeleteSkill,
   useImportSkill,
   useInstallSkill,
+  useCheckSkillSync,
+  useApplySkillSync,
 } from '../hooks/use-skills';
 import { SkillFormDialog } from './skill-form-dialog';
 import { PackageSkillEditorDialog } from './package-skill-editor-dialog';
-import type { CreateSkillInput, Skill, SkillDetail } from '../types';
+import type { CreateSkillInput, Skill, SkillDetail, SkillSyncCheckResult } from '../types';
 
 const TRIGGER_LABELS: Record<string, string> = {
   always: 'Always',
@@ -51,6 +55,8 @@ export const SkillsList = () => {
   const deleteSkill = useDeleteSkill();
   const importSkill = useImportSkill();
   const installSkill = useInstallSkill();
+  const checkSkillSync = useCheckSkillSync();
+  const applySkillSync = useApplySkillSync();
   const { data: sessionData } = authClient.useSession();
   const currentUserId = sessionData?.user?.id;
 
@@ -62,6 +68,8 @@ export const SkillsList = () => {
   const [importUrl, setImportUrl] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [importError, setImportError] = useState('');
+  const [syncResult, setSyncResult] = useState<SkillSyncCheckResult | null>(null);
+  const [syncError, setSyncError] = useState('');
   const { data: detailSkill, isLoading: detailLoading } = useSkillDetail(detailTarget?.id ?? null);
 
   const mySkills = skills.filter((s) => s.userId === currentUserId);
@@ -91,6 +99,33 @@ export const SkillsList = () => {
 
   const openCreate = () => { setEditTarget(null); setFormOpen(true); };
   const openEdit = (skill: Skill) => { setEditTarget(skill); setFormOpen(true); };
+  const isDetailOwner = detailSkill?.userId === currentUserId;
+
+  const handleCheckSync = () => {
+    if (!detailSkill) return;
+    setSyncError('');
+    checkSkillSync.mutate(detailSkill.id, {
+      onSuccess: (result) => setSyncResult(result),
+      onError: (error) => setSyncError(error.message),
+    });
+  };
+
+  const handleApplySync = () => {
+    if (!detailSkill) return;
+    setSyncError('');
+    applySkillSync.mutate(detailSkill.id, {
+      onSuccess: (result) => {
+        setSyncResult({
+          status: result.status,
+          installedCommitSha: result.installedCommitSha,
+          upstreamCommitSha: result.upstreamCommitSha,
+          changedFiles: result.changedFiles,
+          checkedAt: result.checkedAt,
+        });
+      },
+      onError: (error) => setSyncError(error.message),
+    });
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -237,7 +272,13 @@ export const SkillsList = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(detailTarget)} onOpenChange={(open) => { if (!open) setDetailTarget(null); }}>
+      <Dialog open={Boolean(detailTarget)} onOpenChange={(open) => {
+        if (!open) {
+          setDetailTarget(null);
+          setSyncResult(null);
+          setSyncError('');
+        }
+      }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{detailTarget?.name ?? 'Skill details'}</DialogTitle>
@@ -251,7 +292,16 @@ export const SkillsList = () => {
           {detailLoading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : detailSkill ? (
-            <SkillDetailContent skill={detailSkill} />
+            <SkillDetailContent
+              skill={detailSkill}
+              syncResult={syncResult}
+              syncError={syncError}
+              canSync={isDetailOwner && detailSkill.skillKind === 'package' && Boolean(detailSkill.source)}
+              onCheckSync={handleCheckSync}
+              onApplySync={handleApplySync}
+              isCheckingSync={checkSkillSync.isPending}
+              isApplyingSync={applySkillSync.isPending}
+            />
           ) : (
             <p className="text-sm text-muted-foreground">No skill details available.</p>
           )}
@@ -386,7 +436,25 @@ const SkillGrid = ({ skills, isOwner, onEdit, onDelete, onInstall, onView, onMan
   </div>
 );
 
-const SkillDetailContent = ({ skill }: { skill: SkillDetail }) => {
+const SkillDetailContent = ({
+  skill,
+  syncResult,
+  syncError,
+  canSync,
+  onCheckSync,
+  onApplySync,
+  isCheckingSync,
+  isApplyingSync,
+}: {
+  skill: SkillDetail;
+  syncResult: SkillSyncCheckResult | null;
+  syncError: string;
+  canSync: boolean;
+  onCheckSync: () => void;
+  onApplySync: () => void;
+  isCheckingSync: boolean;
+  isApplyingSync: boolean;
+}) => {
   const files = skill.files;
 
   return (
@@ -425,9 +493,69 @@ const SkillDetailContent = ({ skill }: { skill: SkillDetail }) => {
           <div className="rounded-md border border-black/5 bg-muted/30 p-3 text-xs dark:border-border">
             <p>Entry file: {skill.entryFilePath}</p>
             <p className="mt-1">Bundled files: {files.length}</p>
+            {skill.installedCommitSha && <p className="mt-1 break-all">Installed commit: {skill.installedCommitSha}</p>}
+            {skill.upstreamCommitSha && <p className="mt-1 break-all">Upstream commit: {skill.upstreamCommitSha}</p>}
+            {skill.lastSyncCheckedAt && <p className="mt-1">Last checked: {new Date(skill.lastSyncCheckedAt).toLocaleString()}</p>}
+            {skill.lastSyncedAt && <p className="mt-1">Last applied: {new Date(skill.lastSyncedAt).toLocaleString()}</p>}
           </div>
         </div>
       </div>
+
+      {canSync && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-medium">Upstream sync</p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1 text-xs"
+                onClick={onCheckSync}
+                disabled={isCheckingSync || isApplyingSync}
+              >
+                <RefreshCwIcon className="size-3" />
+                {isCheckingSync ? 'Checking…' : 'Check updates'}
+              </Button>
+              <Button
+                size="sm"
+                className="h-8 gap-1 text-xs"
+                onClick={onApplySync}
+                disabled={
+                  isApplyingSync
+                  || isCheckingSync
+                  || (
+                    (syncResult?.changedFiles.length ?? 0) === 0
+                    && skill.syncStatus !== 'update_available'
+                  )
+                }
+              >
+                <UploadIcon className="size-3" />
+                {isApplyingSync ? 'Applying…' : 'Apply update'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-md border border-black/5 bg-muted/30 p-3 text-xs dark:border-border">
+            <p>Status: {(syncResult?.status ?? skill.syncStatus).replace('_', ' ')}</p>
+            {syncResult?.checkedAt && <p className="mt-1">Checked at: {new Date(syncResult.checkedAt).toLocaleString()}</p>}
+            {syncResult && (
+              <>
+                <p className="mt-1 break-all">Installed commit: {syncResult.installedCommitSha ?? 'unknown'}</p>
+                <p className="mt-1 break-all">Upstream commit: {syncResult.upstreamCommitSha ?? 'unknown'}</p>
+                <p className="mt-2 font-medium">Changed files</p>
+                {syncResult.changedFiles.length > 0 ? (
+                  <div className="mt-1 rounded bg-muted/60 p-2 whitespace-pre-wrap">
+                    {syncResult.changedFiles.join('\n')}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-muted-foreground">No upstream changes detected.</p>
+                )}
+              </>
+            )}
+            {syncError && <p className="mt-2 text-destructive">{syncError}</p>}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <p className="text-sm font-medium">Bundled files</p>
