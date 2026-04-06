@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "tsx --test features/skills/server/*.test.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.25",
@@ -42,12 +43,15 @@
     "embla-carousel-react": "^8.6.0",
     "entities": "^6.0.0",
     "jszip": "^3.10.1",
+    "lamejs": "^1.2.1",
     "lucide-react": "^0.563.0",
     "media-chrome": "^4.17.2",
     "motion": "^12.31.0",
     "nanoid": "^5.1.6",
     "next": "16.1.6",
     "pdf-lib": "^1.17.1",
+    "promptpay-qr": "^0.5.0",
+    "qrcode": "^1.5.4",
     "qrcode.react": "^4.2.0",
     "radix-ui": "^1.4.3",
     "react": "19.2.4",
@@ -68,6 +72,7 @@
     "@eslint/eslintrc": "^3.3.3",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/node": "^25.2.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
     "dotenv": "^17.2.3",

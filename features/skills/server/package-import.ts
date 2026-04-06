@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-
-export type SkillTriggerType = 'slash' | 'keyword' | 'always';
-export type SkillFileKind = 'skill' | 'reference' | 'asset' | 'script' | 'other';
+import type { SkillFileKind, SkillPackageManifest, SkillTriggerType } from '../types';
+import { buildPackageManifest, guessSkillFileMediaType, inferSkillFileKind, normalizeReferencedPath } from './package-manifest';
+import { parseSkillMarkdown } from './parser';
 
 type GitHubContentResponse = GitHubContentItem | GitHubContentItem[];
 
@@ -11,14 +11,6 @@ type GitHubContentItem = {
   path: string;
   size?: number;
   download_url: string | null;
-};
-
-type ParsedSkillMd = {
-  name: string;
-  description?: string;
-  triggerType: SkillTriggerType;
-  trigger?: string;
-  body: string;
 };
 
 type GitHubSkillSource = {
@@ -44,8 +36,8 @@ export type ImportedSkillFile = {
 export type ImportedSkillPackage = {
   source: GitHubSkillSource;
   files: ImportedSkillFile[];
-  parsed: ParsedSkillMd;
-  manifest: Record<string, unknown>;
+  parsed: ReturnType<typeof parseSkillMarkdown>;
+  manifest: SkillPackageManifest;
 };
 
 const GITHUB_API_BASE = 'https://api.github.com';
@@ -83,8 +75,12 @@ export async function loadSkillPackageFromUrl(url: string): Promise<ImportedSkil
     throw new Error(`Could not load ${source.entryFilePath} from the selected skill package`);
   }
 
-  const parsed = parseSkillMd(skillFile.textContent);
-  const manifest = buildManifest(files, source);
+  const parsed = parseSkillMarkdown(skillFile.textContent);
+  const manifest = buildPackageManifest(files, {
+    repo: `${source.repoOwner}/${source.repoName}`,
+    repoRef: source.repoRef,
+    subdirPath: source.subdirPath,
+  });
 
   return {
     source,
@@ -177,8 +173,8 @@ async function fetchSkillPackageFiles(source: GitHubSkillSource): Promise<Import
   const files = await Promise.all(
     relevantFiles.map(async (file) => {
       const relativePath = relativePathFromSource(source, file.path);
-      const fileKind = inferFileKind(relativePath, source.entryFilePath);
-      const mediaType = guessMediaType(relativePath);
+      const fileKind = inferSkillFileKind(relativePath, source.entryFilePath);
+      const mediaType = guessSkillFileMediaType(relativePath);
       const shouldInline = shouldInlineText(relativePath, file.size ?? null);
       let textContent: string | null = null;
       let checksum: string | null = null;
@@ -213,7 +209,7 @@ async function collectDirectoryFiles(source: GitHubSkillSource, directoryPath: s
 
   for (const entry of entries) {
     const relativePath = relativePathFromSource(source, entry.path);
-    if (!isSafeRelativePath(relativePath)) {
+    if (!normalizeReferencedPath(relativePath)) {
       continue;
     }
 
@@ -261,7 +257,7 @@ function relativePathFromSource(source: GitHubSkillSource, absolutePath: string)
 }
 
 function shouldIncludePath(relativePath: string): boolean {
-  if (!isSafeRelativePath(relativePath)) {
+  if (!normalizeReferencedPath(relativePath)) {
     return false;
   }
 
@@ -271,15 +267,6 @@ function shouldIncludePath(relativePath: string): boolean {
   }
 
   return true;
-}
-
-function inferFileKind(relativePath: string, entryFilePath: string): SkillFileKind {
-  if (relativePath === entryFilePath) return 'skill';
-  const topLevelDir = relativePath.split('/')[0] ?? '';
-  if (topLevelDir === 'references') return 'reference';
-  if (topLevelDir === 'assets') return 'asset';
-  if (topLevelDir === 'scripts') return 'script';
-  return 'other';
 }
 
 function shouldInlineText(relativePath: string, sizeBytes: number | null): boolean {
@@ -293,132 +280,9 @@ function shouldInlineText(relativePath: string, sizeBytes: number | null): boole
   return true;
 }
 
-function guessMediaType(relativePath: string): string | null {
-  const extension = relativePath.split('.').pop()?.toLowerCase() ?? '';
-
-  switch (extension) {
-    case 'md':
-    case 'mdx':
-      return 'text/markdown';
-    case 'txt':
-      return 'text/plain';
-    case 'json':
-      return 'application/json';
-    case 'yaml':
-    case 'yml':
-      return 'application/yaml';
-    case 'js':
-    case 'mjs':
-    case 'cjs':
-      return 'text/javascript';
-    case 'ts':
-    case 'tsx':
-      return 'text/typescript';
-    case 'jsx':
-      return 'text/jsx';
-    case 'html':
-      return 'text/html';
-    case 'css':
-    case 'scss':
-      return 'text/css';
-    case 'py':
-      return 'text/x-python';
-    case 'sh':
-      return 'application/x-sh';
-    case 'png':
-      return 'image/png';
-    case 'jpg':
-    case 'jpeg':
-      return 'image/jpeg';
-    case 'svg':
-      return 'image/svg+xml';
-    default:
-      return null;
-  }
-}
-
-function isSafeRelativePath(relativePath: string): boolean {
-  return relativePath.length > 0 && !relativePath.startsWith('/') && !relativePath.includes('..');
-}
-
 function encodePath(path: string): string {
   return path
     .split('/')
     .map((segment) => encodeURIComponent(segment))
     .join('/');
-}
-
-function buildManifest(files: ImportedSkillFile[], source: GitHubSkillSource): Record<string, unknown> {
-  const counts = files.reduce(
-    (acc, file) => {
-      if (file.fileKind === 'reference') acc.references += 1;
-      if (file.fileKind === 'asset') acc.assets += 1;
-      if (file.fileKind === 'script') acc.scripts += 1;
-      if (file.fileKind === 'other') acc.other += 1;
-      return acc;
-    },
-    { references: 0, assets: 0, scripts: 0, other: 0 },
-  );
-
-  return {
-    importedFileCount: files.length,
-    repo: `${source.repoOwner}/${source.repoName}`,
-    repoRef: source.repoRef,
-    subdirPath: source.subdirPath,
-    counts,
-    preservedAdditionalPaths: files
-      .filter((file) => file.fileKind === 'other')
-      .map((file) => file.relativePath),
-  };
-}
-
-function parseSkillMd(content: string): ParsedSkillMd {
-  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-  let frontmatter: Record<string, string> = {};
-  let body = content;
-
-  if (fmMatch) {
-    frontmatter = parseYaml(fmMatch[1] ?? '');
-    body = (fmMatch[2] ?? '').trim();
-  }
-
-  const name = frontmatter.name ?? 'Imported Skill';
-  const description = frontmatter.description;
-  let triggerType: SkillTriggerType = 'always';
-  let trigger: string | undefined;
-
-  const rawTrigger = frontmatter.trigger ?? frontmatter['slash-command'] ?? frontmatter.keyword;
-  if (rawTrigger) {
-    if (rawTrigger.startsWith('/')) {
-      triggerType = 'slash';
-      trigger = rawTrigger;
-    } else {
-      triggerType = 'keyword';
-      trigger = rawTrigger;
-    }
-  }
-
-  return { name, description, triggerType, trigger, body };
-}
-
-function parseYaml(yaml: string): Record<string, string> {
-  const result: Record<string, string> = {};
-
-  for (const line of yaml.split('\n')) {
-    const colonIdx = line.indexOf(':');
-    if (colonIdx === -1) continue;
-
-    const key = line.slice(0, colonIdx).trim();
-    let value = line.slice(colonIdx + 1).trim();
-
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
-    }
-
-    if (key) {
-      result[key] = value;
-    }
-  }
-
-  return result;
 }

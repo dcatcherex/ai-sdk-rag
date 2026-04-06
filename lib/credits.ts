@@ -24,7 +24,7 @@ const DEFAULT_CREDIT_COST = 2;
 
 export const SIGNUP_BONUS_CREDITS = 100;
 
-export type TransactionType = 'grant' | 'usage' | 'refund' | 'signup_bonus';
+export type TransactionType = 'grant' | 'usage' | 'refund' | 'signup_bonus' | 'topup';
 
 const KIE_MODELS = [...KIE_AUDIO_MODELS, ...KIE_VIDEO_MODELS, ...KIE_IMAGE_MODELS];
 

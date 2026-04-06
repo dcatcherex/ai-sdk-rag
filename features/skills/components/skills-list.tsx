@@ -421,10 +421,12 @@ const SkillDetailContent = ({ skill }: { skill: SkillDetail }) => {
                   <Badge variant="outline" className="text-[11px]">{file.fileKind}</Badge>
                   {file.mediaType && <span className="text-muted-foreground">{file.mediaType}</span>}
                 </div>
-                {file.textContent && (
+                {file.textContent ? (
                   <div className="rounded bg-muted/60 p-2 whitespace-pre-wrap line-clamp-6">
                     {file.textContent}
                   </div>
+                ) : (
+                  <p className="text-muted-foreground">Content not stored inline for this file.</p>
                 )}
               </div>
             ))}

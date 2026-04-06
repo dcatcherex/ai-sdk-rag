@@ -2,6 +2,8 @@ import { and, eq, gt, isNull } from 'drizzle-orm';
 import { messagingApi } from '@line/bot-sdk';
 import { db } from '@/lib/db';
 import { lineAccountLink, lineAccountLinkToken, lineOaChannel } from '@/db/schema';
+import { user as userTable, account as accountTable } from '@/db/schema/auth';
+import { addCredits, SIGNUP_BONUS_CREDITS } from '@/lib/credits';
 
 // ─── Token generation ──────────────────────────────────────────────────────
 
@@ -236,4 +238,109 @@ export async function pushToAllLinkedUsers(
       messages: [{ type: 'text', text: messageText }],
     });
   }
+}
+
+// ─── LINE-native registration ──────────────────────────────────────────────
+
+export type RegisterLineUserResult =
+  | { ok: true; isNew: true; name: string }
+  | { ok: true; isNew: false }
+  | { ok: false; error: string };
+
+/**
+ * Register a LINE user as a Vaja AI account without any web redirect.
+ *
+ * Uses LINE identity as the sole credential:
+ *   - Display name + profile picture fetched from LINE profile
+ *   - Synthetic internal email (line_{userId}@line.internal) satisfies DB constraint
+ *   - emailVerified = true  (LINE is the authentication — no email link needed)
+ *   - No password — user authenticates by being in LINE
+ *   - Signup bonus credits granted automatically
+ *
+ * Idempotent: returns isNew=false if the LINE user already has an account.
+ */
+export async function registerLineUser(
+  lineUserId: string,
+  channelId: string,
+  lineClient: messagingApi.MessagingApiClient,
+): Promise<RegisterLineUserResult> {
+  // Already linked?
+  const existing = await db
+    .select({ userId: lineAccountLink.userId })
+    .from(lineAccountLink)
+    .where(and(eq(lineAccountLink.channelId, channelId), eq(lineAccountLink.lineUserId, lineUserId)))
+    .limit(1);
+
+  if (existing[0]) return { ok: true, isNew: false };
+
+  // Fetch LINE profile for name + picture
+  let displayName = 'LINE User';
+  let pictureUrl: string | null = null;
+  try {
+    const profile = await lineClient.getProfile(lineUserId);
+    displayName = profile.displayName ?? displayName;
+    pictureUrl = profile.pictureUrl ?? null;
+  } catch {
+    // Non-fatal — proceed with defaults
+  }
+
+  const userId = crypto.randomUUID();
+  // Synthetic email satisfies the unique NOT NULL constraint; never used for login
+  const syntheticEmail = `line_${lineUserId}@line.internal`;
+  const now = new Date();
+
+  try {
+    await db.transaction(async (tx) => {
+      // 1. Create user (emailVerified=true skips verification flow)
+      await tx.insert(userTable).values({
+        id: userId,
+        name: displayName,
+        email: syntheticEmail,
+        emailVerified: true,
+        image: pictureUrl,
+        approved: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // 2. Create Better Auth account row for LINE provider
+      //    Enables future LINE OAuth linking and clean provider tracking
+      await tx.insert(accountTable).values({
+        id: crypto.randomUUID(),
+        accountId: lineUserId,
+        providerId: 'line',
+        userId,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // 3. Link LINE identity to new account
+      await tx.insert(lineAccountLink).values({
+        id: crypto.randomUUID(),
+        userId,
+        channelId,
+        lineUserId,
+        displayName,
+        pictureUrl,
+        linkedAt: now,
+      });
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Duplicate email means this LINE user already registered on another channel
+    if (msg.includes('unique') || msg.includes('duplicate')) {
+      return { ok: false, error: 'มีบัญชีที่เชื่อมต่อกับ LINE นี้อยู่แล้ว' };
+    }
+    return { ok: false, error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' };
+  }
+
+  // Grant signup bonus (outside transaction — non-fatal if it fails)
+  await addCredits({
+    userId,
+    amount: SIGNUP_BONUS_CREDITS,
+    type: 'signup_bonus',
+    description: `Welcome bonus: ${SIGNUP_BONUS_CREDITS} credits`,
+  }).catch((e) => console.warn('[registerLineUser] addCredits failed:', e));
+
+  return { ok: true, isNew: true, name: displayName };
 }

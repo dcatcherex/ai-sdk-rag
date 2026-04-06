@@ -22,6 +22,7 @@ export type AgentRow = {
   brandId: string | null;
   starterPrompts: string[];
   enabledTools: string[];
+  skillIds: string[] | null;
 } | null;
 
 // LINE brand green

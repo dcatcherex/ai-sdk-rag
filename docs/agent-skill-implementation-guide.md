@@ -6,19 +6,20 @@
 
 ---
 
-## 1. Purpose
+## 1. Mission
 
-This document is the practical implementation guide for Agent Skills in this repo.
+Build the repo toward a standard Agent Skills model without breaking existing agents.
 
-Use it when you need to:
+Target end state:
 
-- understand how skills are currently stored and attached to agents
-- extend the package-first skill model
-- add or modify APIs for skill files, imports, and attachments
-- improve runtime skill activation and progressive disclosure
-- avoid breaking compatibility with existing agents and inline skills
+- skills are package-first
+- `SKILL.md` is the canonical entry file
+- bundled files are preserved and editable
+- agent-skill linkage is attachment-first
+- runtime uses progressive disclosure
+- imported skills can be synced safely
 
-This guide is intentionally repo-specific. It complements:
+Use alongside:
 
 - `docs/skills.md`
 - `docs/skills-package-architecture.md`
@@ -27,658 +28,366 @@ This guide is intentionally repo-specific. It complements:
 
 ---
 
-## 2. Product direction
+## 2. Current baseline
 
-The long-term direction is to integrate with the open Agent Skills ecosystem as closely as practical.
+Already implemented:
 
-That means:
+- package-aware schema in `db/schema/skills.ts`
+- package-first creation in `features/skills/service.ts`
+- GitHub package import in `features/skills/server/package-import.ts`
+- bundled file storage in `agent_skill_file`
+- agent attachment storage in `agent_skill_attachment`
+- read endpoints for skill file metadata and content
+- agent editor support for attachment-based skill configuration
 
-- a skill should be treated as a package, not just a flat prompt string
-- `SKILL.md` is the primary entry file
-- additional bundled files should be preserved
-- agent attachments should support per-agent overrides
-- runtime behavior should move toward progressive disclosure instead of unconditional prompt flattening
+Not complete yet:
 
-The repo must still preserve backward compatibility during the migration.
+- package file editing for existing skills
+- runtime progressive disclosure
+- upstream sync lifecycle
+- full removal of legacy `agent.skillIds` compatibility
+
+## Phase progress
+
+- Phase 1: in progress
+- Phase 2: not started
+- Phase 3: not started
+- Phase 4: not started
+- Phase 5: not started
 
 ---
 
-## 3. Current implementation status
+## 3. Do not break
 
-## 3.1 What is already implemented
+These are hard rules.
 
-The repo already has a meaningful package-first foundation.
+- **[name format]** skill names must remain lowercase slug format with numbers and hyphens only
+- **[entry file]** `SKILL.md` remains the default package entry file
+- **[attachment authority]** `agent_skill_attachment` is the real per-agent attachment model
+- **[compatibility]** `agent.skillIds` is compatibility-only until explicitly removed
+- **[path safety]** file paths must be normalized and must never escape the package root
+- **[import exclusions]** `.git` and `node_modules` must stay excluded
+- **[ownership]** skill detail and file endpoints must enforce access checks
+- **[installation]** public skill install must clone into the caller’s library
+- **[scripts]** bundled scripts must never execute automatically
 
-### Storage and schema
+---
 
-Current schema module:
+## 4. Execution order
 
-- `db/schema/skills.ts`
+Implement in this order:
 
-Current tables:
+1. stabilize current package-first foundation
+2. add package file editing
+3. move runtime to progressive disclosure
+4. add sync check/apply
+5. remove legacy compatibility paths
 
-- `skill_source`
-- `agent_skill`
-- `agent_skill_file`
-- `agent_skill_attachment`
+Do not start later phases until the previous phase is stable.
 
-Important current capabilities:
+---
 
-- `agent_skill` supports `skillKind`, `activationMode`, `sourceId`, `entryFilePath`, sync metadata, `hasBundledFiles`, and `packageManifest`
-- `agent_skill_file` stores bundled file snapshots by `relativePath`
-- `agent_skill_attachment` stores per-agent attachment overrides and ordering
-- legacy `agent.skillIds` still exists for compatibility
+## 5. Phase 1 - Stabilize the package-first foundation
 
-### Service layer
+## Goal
 
-Current main service file:
+Make the current package creation/import path safe, testable, and easier to extend.
+
+## Checklist
+
+- [x] split `features/skills/service.ts` into smaller server modules
+- [x] centralize `SKILL.md` parsing and generation helpers
+- [x] document and normalize `packageManifest`
+- [x] add tests for path normalization, file kind inference, and package creation
+- [x] verify file detail rendering when `textContent` is null
+
+## Progress update
+
+Completed in this phase:
+
+- `features/skills/service.ts` is now a thin facade over focused server modules:
+  - `features/skills/server/queries.ts`
+  - `features/skills/server/attachments.ts`
+  - `features/skills/server/mutations.ts`
+  - `features/skills/server/runtime.ts`
+- `SKILL.md` parsing and generation are centralized in `features/skills/server/parser.ts`
+- package path normalization, file-kind inference, media-type inference, and manifest generation are centralized in `features/skills/server/package-manifest.ts`
+- package skill file preparation is centralized in `features/skills/server/package-files.ts`
+- focused tests were added in:
+  - `features/skills/server/package-manifest.test.ts`
+  - `features/skills/server/parser.test.ts`
+- skill detail rendering now shows an explicit fallback when a bundled file does not have inline `textContent`
+
+## `packageManifest` shape
+
+Phase 1 standardizes `packageManifest` as:
+
+```ts
+type SkillPackageManifest = {
+  importedFileCount: number;
+  counts: {
+    references: number;
+    assets: number;
+    scripts: number;
+    other: number;
+  };
+  preservedAdditionalPaths: string[];
+  repo?: string;
+  repoRef?: string;
+  subdirPath?: string;
+};
+```
+
+## Files to touch
 
 - `features/skills/service.ts`
+  - reduce into thin facade or re-export layer
+- `features/skills/server/package-import.ts`
+  - keep path filtering and import rules authoritative
+- `features/skills/types.ts`
+  - keep shared package types stable
+- `features/skills/components/skills-list.tsx`
+  - verify detail rendering for package files
+- `db/schema/skills.ts`
+  - only change if schema gaps are discovered
 
-Implemented service behavior includes:
+## Done when
 
-- package-first creation via `createSkill()`
-- GitHub package import via `importSkillFromUrl()`
-- skill file listing via `getSkillFiles()`
-- skill file content retrieval via `getSkillFileContent()`
-- attachment read/write via `getSkillAttachmentsForAgent()` and `replaceSkillAttachmentsForAgent()`
-- installation cloning via `installSkill()`
+- package create and import work without touching unrelated code
+- file read endpoints behave consistently
+- the service layer has clear module boundaries
 
-### Current API surface
+---
 
-Implemented routes include:
+## 6. Phase 2 - Add package file editing
 
-- `GET /api/skills`
-- `POST /api/skills`
-- `GET /api/skills/:id`
-- `PUT /api/skills/:id`
-- `DELETE /api/skills/:id`
-- `POST /api/skills/import`
-- `POST /api/skills/:id/install`
+## Goal
+
+Allow package skills to be edited after creation.
+
+## Checklist
+
+- [ ] add file mutation endpoints
+- [ ] allow editing `SKILL.md` content safely
+- [ ] allow creating and deleting bundled files safely
+- [ ] add file-tree UI for package skills
+- [ ] keep inline skill editing working
+
+## Files to touch
+
+- `app/api/skills/[id]/files/route.ts`
+  - extend beyond metadata reads if this route owns file creation/deletion
+- `app/api/skills/[id]/files/content/route.ts`
+  - add update behavior or add a sibling mutation route
+- `features/skills/service.ts`
+  - move package file mutation logic into dedicated server functions
+- `features/skills/components/skill-form-dialog.tsx`
+  - keep create flow package-first, do not overload with full edit UI unless explicitly intended
+- `features/skills/components/skills-list.tsx`
+  - add package file browser/editor entry point
+
+## API target
+
 - `GET /api/skills/:id/files`
 - `GET /api/skills/:id/files/content?path=...`
-- `GET /api/agents/:id/skills`
-- `PUT /api/agents/:id/skills`
-
-### UI state
-
-Current UI already supports:
-
-- package-first create flow in `features/skills/components/skill-form-dialog.tsx`
-- attachment-aware agent editor integration
-- skill detail rendering that can show package metadata and files
-
-### Import behavior
-
-Current importer:
-
-- `features/skills/server/package-import.ts`
-
-Implemented behavior:
-
-- supports GitHub tree and blob URLs
-- parses `SKILL.md`
-- preserves standard top-level folders such as `references/`, `assets/`, and `scripts/`
-- preserves additional safe top-level files and folders
-- ignores `.git` and `node_modules`
-- snapshots imported files into `agent_skill_file`
-
----
-
-## 3.2 What is not complete yet
-
-The package-first foundation is present, but the implementation is not complete.
-
-Main gaps:
-
-- runtime still largely uses `promptFragment` injection rather than full progressive disclosure
-- edit mode is still metadata-oriented and not yet a full package file editor
-- package sync flows are not implemented
-- imported or local package files are not yet editable through dedicated mutation endpoints
-- the current service layer is growing large and should be split into focused server modules
-- legacy `agent.skillIds` is still dual-written for compatibility
-
----
-
-## 4. Canonical architecture to target
-
-## 4.1 Core concepts
-
-### Installed skill
-
-A row in `agent_skill` is the user-owned installed skill in the library.
-
-A skill can be:
-
-- `inline`
-- `package`
-
-### Source of truth
-
-For package skills:
-
-- `SKILL.md` is the canonical human-readable instructions file
-- `promptFragment` is a derived compatibility field, not the ideal long-term source of truth
-
-### Attachment
-
-An attachment is the relationship between an agent and a skill.
-
-Use `agent_skill_attachment` for:
-
-- enable/disable
-- priority ordering
-- activation overrides
-- trigger overrides
-- future notes or agent-local behavior
-
-### Skill files
-
-Bundled files are stored in `agent_skill_file`.
-
-Current file kinds:
-
-- `skill`
-- `reference`
-- `asset`
-- `script`
-- `other`
-
----
-
-## 4.2 Package structure expectations
-
-Future implementation should continue to follow the Agent Skills standard as closely as practical.
-
-Expected package shape:
-
-```text
-my-skill/
-  SKILL.md
-  references/
-  assets/
-  scripts/
-  ...additional safe files
-```
-
-Expected `SKILL.md` semantics:
-
-- YAML frontmatter contains package metadata
-- markdown body contains instructions
-- instructions may refer to additional relative files
-
-Recommended frontmatter fields to preserve or generate when available:
-
-- `name`
-- `description`
-- `license`
-- `compatibility`
-- `metadata`
-- `allowed-tools`
-
----
-
-## 5. Current repo touchpoints
-
-## 5.1 Schema
-
-Primary module:
-
-- `db/schema/skills.ts`
-
-Important table responsibilities:
-
-- `skill_source`
-  - canonical source identity for imports
-- `agent_skill`
-  - installed skill metadata and compatibility fields
-- `agent_skill_file`
-  - bundled package files snapshot
-- `agent_skill_attachment`
-  - per-agent overrides and ordering
-
-## 5.2 Type definitions
-
-Primary types file:
-
-- `features/skills/types.ts`
-
-Important types:
-
-- `Skill`
-- `SkillDetail`
-- `SkillFile`
-- `SkillSource`
-- `CreateSkillInput`
-- `CreateSkillFileInput`
-- `AgentSkillAttachment`
-- `AgentSkillAttachmentInput`
-
-## 5.3 API routes
-
-### Skill routes
-
-- `app/api/skills/route.ts`
-- `app/api/skills/[id]/route.ts`
-- `app/api/skills/import/route.ts`
-- `app/api/skills/[id]/files/route.ts`
-- `app/api/skills/[id]/files/content/route.ts`
-
-### Agent attachment route
-
-- `app/api/agents/[id]/skills/route.ts`
-
-## 5.4 UI
-
-Main skill UI:
-
-- `features/skills/components/skills-list.tsx`
-- `features/skills/components/skill-form-dialog.tsx`
-
-Agent-side attachment UI:
-
-- `features/agents/components/agent-form.tsx`
-- `features/agents/components/agent-knowledge-section.tsx`
-
-## 5.5 Runtime integration
-
-Current runtime integration entrypoint:
-
-- `app/api/chat/route.ts`
-
-This route currently:
-
-- loads attached skills for the active agent
-- resolves rule-triggered and model-discovered skills
-- merges skill-enabled tools
-- injects instructions/resources into the prompt pipeline
-
-This remains the most sensitive integration point.
-
----
-
-## 6. Invariants to preserve
-
-Any future implementation must preserve these invariants.
-
-- skill names should follow the standard slug format
-  - lowercase letters, numbers, and single hyphens only
-- `SKILL.md` remains the default package entry file
-- `agent_skill_attachment` is the authoritative per-agent attachment model
-- legacy `agent.skillIds` can be maintained only as a compatibility mirror until fully removed
-- file paths must be normalized and must never escape the package root
-- `.git` and `node_modules` must remain excluded from imported package content
-- package file reads must enforce ownership or visibility checks
-- public skill installation must clone into the user’s own library instead of mutating the source skill
-
----
-
-## 7. Recommended module split
-
-The current `features/skills/service.ts` works, but future work should move logic into focused server modules.
-
-Recommended target structure:
-
-```text
-features/skills/
-  types.ts
-  service.ts
-  server/
-    queries.ts
-    mutations.ts
-    attachments.ts
-    importer.ts
-    package-import.ts
-    parser.ts
-    activation.ts
-    resources.ts
-    sync.ts
-```
-
-Suggested responsibilities:
-
-- `queries.ts`
-  - list/detail/file lookup queries
-- `mutations.ts`
-  - create, update, delete, install, package mutations
-- `attachments.ts`
-  - normalize and persist agent attachment overrides
-- `importer.ts`
-  - orchestrate canonical source resolution and package persistence
-- `parser.ts`
-  - parse and validate `SKILL.md` frontmatter and body
-- `activation.ts`
-  - runtime skill selection and activation behavior
-- `resources.ts`
-  - resolve referenced files for runtime disclosure
-- `sync.ts`
-  - future upstream sync check/apply flows
-
----
-
-## 8. Recommended future phases
-
-## Phase 1: stabilize current package-first foundation
-
-Goal:
-
-- make the existing package-first create/import path safe and maintainable
-
-Recommended tasks:
-
-- split `features/skills/service.ts` into smaller server modules
-- add focused unit coverage around path normalization and `SKILL.md` generation/parsing
-- document the shape of `packageManifest`
-- ensure detail views gracefully handle missing `textContent` for non-inline files
-
-Definition of done:
-
-- package create/import behavior is stable and easy to extend
-- skill file APIs remain backward compatible
-
-## Phase 2: add package editing APIs and UI
-
-Goal:
-
-- make package skills truly editable after creation
-
-Recommended tasks:
-
-- add mutation endpoints for package files
-- allow updating `SKILL.md` and bundled files independently
-- add a file-tree based skill editor UI
-- keep metadata-only edit mode for inline skills or as fallback
-
-Recommended API additions:
-
 - `PUT /api/skills/:id/files/content`
 - `POST /api/skills/:id/files`
 - `DELETE /api/skills/:id/files?path=...`
 
-Important rule:
+## Done when
 
-- package edits must not silently corrupt path structure or overwrite the wrong file
+- a package skill can be created, opened, edited, and saved end-to-end
+- file edits cannot write outside the package root
 
-Definition of done:
+---
 
-- a developer can create, inspect, and edit a package skill end-to-end in the app
+## 7. Phase 3 - Move runtime to progressive disclosure
 
-## Phase 3: move runtime toward progressive disclosure
+## Goal
 
-Goal:
+Stop treating package skills as only flattened `promptFragment` text.
 
-- stop treating package skills as only flattened prompt fragments
+## Checklist
 
-Recommended tasks:
+- [ ] build a compact skill catalog from attachments
+- [ ] separate discovery from activation
+- [ ] disclose full `SKILL.md` only when activated
+- [ ] disclose referenced files only when needed
+- [ ] keep tool enablement working for triggered skills
+- [ ] dedupe rule-triggered and model-selected skills
 
-- build a compact skill catalog from attached skills
-- activate skills by rule or model selection
-- load full `SKILL.md` only when needed
-- resolve additional referenced files only on demand
-- track which resources were disclosed during a request
+## Files to touch
 
-Recommended runtime sequence:
+- `app/api/chat/route.ts`
+  - keep this as the main runtime integration point
+- `features/skills/service.ts`
+  - extract activation/resource logic out of the monolith
+- `features/skills/server/activation.ts`
+  - create this module when phase work starts
+- `features/skills/server/resources.ts`
+  - create this module for referenced file resolution
+- `app/api/agents/[id]/skills/route.ts`
+  - verify attachment contract still supports runtime needs
 
-1. load agent attachments
-2. build skill catalog
-3. run rule and model selection
-4. disclose activated `SKILL.md` instructions
-5. disclose referenced files only if requested or necessary
+## Runtime sequence
+
+1. load attachments for the active agent
+2. build catalog from attached skills
+3. run deterministic triggers and model discovery
+4. disclose activated `SKILL.md`
+5. disclose referenced files only if needed
 6. merge skill-enabled tools
 
-Definition of done:
+## Done when
 
-- runtime uses package structure meaningfully rather than only `promptFragment`
+- runtime meaningfully uses package structure
+- prompt growth stays controlled
+- existing agents still behave acceptably during migration
 
-## Phase 4: add sync lifecycle for imported skills
+---
 
-Goal:
+## 8. Phase 4 - Add sync lifecycle for imported skills
 
-- allow installed imported skills to check for and apply upstream updates safely
+## Goal
 
-Recommended tasks:
+Let imported skills check for upstream updates and apply them safely.
 
-- add upstream snapshot comparison
-- store upstream commit SHA
-- calculate changed file paths
-- add sync status transitions
-- add explicit user-confirmed apply flow
+## Checklist
 
-Recommended API additions:
+- [ ] compare installed snapshot with upstream snapshot
+- [ ] store upstream commit metadata
+- [ ] calculate changed file paths
+- [ ] expose sync status in detail views
+- [ ] require explicit apply action for updates
+
+## Files to touch
+
+- `features/skills/server/package-import.ts`
+  - reuse fetch logic for upstream comparison
+- `features/skills/service.ts`
+  - move sync orchestration into dedicated server functions
+- `features/skills/types.ts`
+  - extend sync response types if needed
+- `app/api/skills/[id]/route.ts`
+  - keep metadata update separate from sync mutation flow
+- `features/skills/components/skills-list.tsx`
+  - surface sync status and actions
+
+## API target
 
 - `POST /api/skills/:id/sync/check`
 - `POST /api/skills/:id/sync/apply`
 
-Definition of done:
+## Done when
 
-- imported skills can detect and apply upstream changes without breaking local ownership boundaries
-
-## Phase 5: retire legacy attachment compatibility
-
-Goal:
-
-- fully standardize on attachment-based agent-skill linking
-
-Recommended tasks:
-
-- migrate all reads to `agent_skill_attachment`
-- stop writing `agent.skillIds` after compatibility window closes
-- remove old code paths from agent forms and runtime
-
-Definition of done:
-
-- attachment table is the only authoritative linking mechanism
+- imported skills can detect updates
+- applying updates does not break ownership boundaries or local library semantics
 
 ---
 
-## 9. API contract guidance
+## 9. Phase 5 - Remove legacy compatibility paths
 
-## 9.1 Create skill
+## Goal
 
-Current direction:
+Make attachment-based linkage the only source of truth.
 
-- `POST /api/skills` is package-first for new skill creation
+## Checklist
 
-Expect the request body to support:
+- [ ] stop dual-writing `agent.skillIds`
+- [ ] remove fallback reads from legacy skill arrays
+- [ ] remove compatibility-only code in agent editor and runtime
+- [ ] update docs to describe the post-migration model only
 
-- base metadata
-- activation fields
-- package metadata
-- bundled files
+## Files to touch
 
-Important implementation rule:
+- `app/api/agents/[id]/skills/route.ts`
+  - stop mirroring into `skillIds`
+- `features/skills/service.ts`
+  - remove fallback attachment generation from `skillIds`
+- `features/agents/components/agent-form.tsx`
+  - remove legacy normalization paths
+- `app/api/chat/route.ts`
+  - stop relying on legacy fallback skill IDs
 
-- generate `SKILL.md` in the backend from normalized input rather than trusting arbitrary client-generated entry content as the only source of truth
+## Done when
 
-## 9.2 Update skill
-
-Current direction:
-
-- `PUT /api/skills/:id` remains a metadata-oriented update route
-
-Do not overload this route with full package file mutation unless the contract is explicitly redesigned.
-
-Prefer separate file mutation endpoints.
-
-## 9.3 File reads
-
-Current routes:
-
-- `GET /api/skills/:id/files`
-- `GET /api/skills/:id/files/content?path=...`
-
-These should remain the primary read contract for file browsing UI.
-
-## 9.4 Agent attachments
-
-Current route:
-
-- `GET /api/agents/:id/skills`
-- `PUT /api/agents/:id/skills`
-
-Current behavior:
-
-- returns attachment records with resolved skill data
-- updates attachment rows
-- mirrors `skillIds` for compatibility
-
-Future rule:
-
-- keep the attachment route authoritative even while legacy mirroring exists
+- attachment table is the only authoritative agent-skill link
+- legacy `skillIds` logic is gone from runtime and editor flows
 
 ---
 
-## 10. Runtime implementation guidance
+## 10. File-by-file ownership map
 
-## 10.1 Current behavior
-
-`app/api/chat/route.ts` already integrates skills into the request lifecycle.
-
-Today it effectively:
-
-- fetches active agent skills
-- determines triggered skills
-- unlocks tool IDs from triggered skills
-- prepares skill instructions/resources for prompt injection
-
-## 10.2 Desired future behavior
-
-The target runtime should align more closely with the Agent Skills specification.
-
-Preferred model:
-
-- discovery first
-- activation second
-- resource disclosure third
-
-Recommended runtime rules:
-
-- `always` skills should always appear in the catalog and normally activate
-- `slash` and `keyword` skills should activate deterministically when matched
-- `model` activation mode should allow discovery without forcing activation until selected
-- scripts should never be blindly executed just because they are bundled
-- resource disclosure should be limited to necessary files only
-
-## 10.3 High-risk runtime areas
-
-Be careful when changing:
-
-- prompt assembly order
-- tool enablement derived from skills
-- deduplication between rule-triggered and model-discovered skills
-- resource injection size growth
-- compatibility for agents that still rely on legacy `skillIds`
+- **[schema]** `db/schema/skills.ts`
+  - owns DB tables and indexes for skills
+- **[shared types]** `features/skills/types.ts`
+  - owns client-safe skill and attachment contracts
+- **[service facade]** `features/skills/service.ts`
+  - should become thin over focused server modules
+- **[importer]** `features/skills/server/package-import.ts`
+  - owns remote package loading and file filtering rules
+- **[skill routes]** `app/api/skills/*`
+  - own HTTP contracts and Zod validation
+- **[agent attachment route]** `app/api/agents/[id]/skills/route.ts`
+  - owns attachment reads/writes
+- **[skill UI]** `features/skills/components/*`
+  - owns create, detail, and future package editing UX
+- **[agent UI]** `features/agents/components/*`
+  - owns attachment editing in the agent workflow
+- **[runtime]** `app/api/chat/route.ts`
+  - owns chat-time activation and disclosure integration
 
 ---
 
-## 11. Security and safety guidance
+## 11. Acceptance checks per change
 
-Always preserve these rules.
+Before merging any Agent Skills change, verify all of these.
 
-- only allow safe, normalized relative paths inside a package root
-- reject path traversal patterns such as `../`
-- exclude noisy or unsafe import roots like `.git` and `node_modules`
-- never execute imported scripts automatically
-- do not trust remote content shape without parsing and validation
-- keep ownership checks on all skill detail and file read endpoints
-- treat imported packages as snapshots, not executable trust bundles
-
----
-
-## 12. Testing strategy
-
-Recommended test coverage for future work:
-
-### Parsing and normalization
-
-- `SKILL.md` frontmatter parsing
-- skill slug normalization
-- path normalization and traversal rejection
-- file kind inference
-- media type inference
-
-### Service behavior
-
-- package skill creation generates `SKILL.md`
-- file rows are inserted with expected `relativePath`
-- install clones files and metadata correctly
-- attachment replacement preserves ordering and overrides
-
-### API behavior
-
-- file list and file content endpoints enforce auth and ownership
-- attachment endpoints return fallback legacy attachments when needed
-- invalid file paths return 400 or 404 appropriately
-
-### Runtime behavior
-
-- rule-triggered skills activate correctly
-- model-discovered skills dedupe correctly
-- skill-enabled tools merge safely
-- progressive disclosure changes do not explode prompt size unexpectedly
+- [ ] package skills still load in detail views
+- [ ] agent attachments still save and reload correctly
+- [ ] public skill install still clones instead of mutating the source skill
+- [ ] file reads still enforce auth and ownership
+- [ ] path traversal is rejected
+- [ ] runtime still merges skill-enabled tools correctly
+- [ ] no change silently breaks inline skills
+- [ ] docs are updated if API or architecture changed
 
 ---
 
-## 13. Recommended implementation checklist for future contributors
+## 12. Minimum test checklist
 
-When implementing a new Agent Skills enhancement, use this checklist.
-
-- confirm whether the change affects inline skills, package skills, or both
-- identify whether `agent.skillIds` compatibility must still be preserved
-- update shared types in `features/skills/types.ts` first
-- keep schema changes in `db/schema/skills.ts`
-- preserve `@/db/schema` barrel imports
-- prefer service-layer changes over route-layer duplication
-- add or update route validation with Zod
-- keep file operations path-safe and ownership-checked
-- verify the change against `app/api/chat/route.ts`
-- verify the change against skill detail rendering and the agent editor
-- update docs when the contract or architecture changes
+- **[parser]** `SKILL.md` frontmatter parse and generation
+- **[paths]** path normalization and traversal rejection
+- **[create]** package creation writes `SKILL.md` and bundled files
+- **[import]** GitHub package import preserves expected files
+- **[files]** metadata and content endpoints enforce ownership
+- **[attachments]** replace flow preserves ordering and overrides
+- **[runtime]** rule-triggered and model-selected skills dedupe correctly
 
 ---
 
-## 14. Immediate recommended next tasks
+## 13. Immediate next tasks
 
-If future work resumes from the current repo state, do these next.
+If work resumes from the current repo state, do these next in order.
 
-### Highest priority
-
-- build a package file editor UI for existing skills
-- add package file mutation endpoints
-- split the large skill service into focused server modules
-
-### Medium priority
-
-- formalize runtime resource disclosure
-- add sync check/apply flows for imported skills
-- document `packageManifest` structure in detail
-
-### Later priority
-
-- remove legacy `skillIds` mirroring after migration is complete
-- support additional import sources beyond GitHub if needed
+1. split `features/skills/service.ts`
+2. add package file mutation endpoints
+3. build package file editor UI
+4. move runtime to progressive disclosure
+5. add sync check/apply
 
 ---
 
-## 15. Summary
+## 14. Short summary
 
-The repo is no longer purely inline-skill based.
+The repo already has the package-first base.
 
-It already has:
-
-- package-aware schema
-- package-first creation
-- GitHub package import
-- packaged file storage
-- attachment-based agent linkage
-- file metadata and content endpoints
-
-The remaining work is to complete the system around that foundation:
+What remains is operational work:
 
 - editable package contents
 - progressive runtime disclosure
 - sync lifecycle
-- final removal of legacy compatibility paths
+- removal of compatibility-only legacy paths
 
 Until that migration is complete, contributors should treat the system as a hybrid:
 

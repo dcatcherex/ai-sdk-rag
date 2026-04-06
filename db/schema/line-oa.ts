@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, numeric, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
 import { agent } from "./agents";
@@ -255,4 +255,43 @@ export const lineChannelDailyStatRelations = relations(lineChannelDailyStat, ({ 
 
 export const lineChannelDailyUserRelations = relations(lineChannelDailyUser, ({ one }) => ({
   channel: one(lineOaChannel, { fields: [lineChannelDailyUser.channelId], references: [lineOaChannel.id] }),
+}));
+
+// ── LINE Payment Orders ────────────────────────────────────────────────────────
+
+/**
+ * One row per PromptPay top-up initiated by a LINE user.
+ * Flow: createOrder → user pays → sends slip → slipok verifies → completePayment
+ */
+export const linePaymentOrder = pgTable("line_payment_order", {
+  id: text("id").primaryKey(),
+  /** App user who owns this order (from lineAccountLink) */
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  channelId: text("channel_id").notNull().references(() => lineOaChannel.id, { onDelete: "cascade" }),
+  /** LINE user who initiated the order */
+  lineUserId: text("line_user_id").notNull(),
+  /** Which package was selected (matches CREDIT_PACKAGES id) */
+  packageId: text("package_id").notNull(),
+  /** Amount in Thai Baht (e.g., "100.00") */
+  amountThb: numeric("amount_thb", { precision: 10, scale: 2 }).notNull(),
+  /** Credits to be granted on success */
+  credits: integer("credits").notNull(),
+  /** pending | verifying | completed | failed | expired */
+  status: text("status").notNull().default("pending"),
+  /** slipok.app transaction reference (populated on verify) */
+  slipRef: text("slip_ref"),
+  /** Sender name returned by slipok (for display) */
+  senderName: text("sender_name"),
+  /** Order expires after 30 minutes */
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  index("line_payment_order_userId_idx").on(table.userId),
+  index("line_payment_order_channelId_lineUserId_idx").on(table.channelId, table.lineUserId),
+  index("line_payment_order_status_idx").on(table.status),
+]);
+
+export const linePaymentOrderRelations = relations(linePaymentOrder, ({ one }) => ({
+  channel: one(lineOaChannel, { fields: [linePaymentOrder.channelId], references: [lineOaChannel.id] }),
 }));

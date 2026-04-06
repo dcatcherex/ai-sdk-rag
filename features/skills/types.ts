@@ -4,6 +4,20 @@ export type SkillActivationMode = 'rule' | 'model';
 export type SkillSyncStatus = 'local' | 'synced' | 'update_available' | 'diverged' | 'error';
 export type SkillFileKind = 'skill' | 'reference' | 'asset' | 'script' | 'other';
 
+export type SkillPackageManifest = {
+  importedFileCount: number;
+  counts: {
+    references: number;
+    assets: number;
+    scripts: number;
+    other: number;
+  };
+  preservedAdditionalPaths: string[];
+  repo?: string;
+  repoRef?: string;
+  subdirPath?: string;
+};
+
 export type SkillFile = {
   id: string;
   skillId: string;
@@ -55,7 +69,7 @@ export type Skill = {
   syncStatus: SkillSyncStatus;
   pinnedToInstalledVersion: boolean;
   hasBundledFiles: boolean;
-  packageManifest: Record<string, unknown> | null;
+  packageManifest: SkillPackageManifest | null;
   lastSyncCheckedAt: string | Date | null;
   lastSyncedAt: string | Date | null;
   isPublic: boolean;

@@ -26,4 +26,15 @@ export const GOOGLE_MODELS: ModelDefinition[] = [
         maxPromptTokens: 30000,
         warningThreshold: 0.8
     },
+    {
+        id: "gemini-2.5-flash-preview-tts",
+        name: "Gemini 2.5 Flash Text-to-Speech",
+        description: "High-fidelity text-to-speech generation with low-latency and cost-efficient audio generation.",
+        provider: 'google',
+        capabilities: ["speech"],
+        isPaid: true,
+        maxPromptLength: 8192,
+        maxPromptTokens: 8192,
+        warningThreshold: 0.8
+    },
 ];
