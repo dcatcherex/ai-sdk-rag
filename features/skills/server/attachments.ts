@@ -1,5 +1,4 @@
 import { and, asc, eq } from 'drizzle-orm';
-import { nanoid } from 'nanoid';
 import { db } from '@/lib/db';
 import { agentSkill, agentSkillAttachment } from '@/db/schema';
 import type {
@@ -9,13 +8,11 @@ import type {
   SkillActivationMode,
   SkillTriggerType,
 } from '../types';
-import { getSkillsByIds } from './queries';
 import { applySkillAttachmentOverrides, normalizeAttachmentTrigger } from './shared';
 import { mapSkillRow } from './shared';
 
 export async function getSkillAttachmentsForAgent(
   agentId: string,
-  fallbackSkillIds: string[],
 ): Promise<AgentSkillAttachment[]> {
   const rows = await db
     .select({
@@ -32,34 +29,16 @@ export async function getSkillAttachmentsForAgent(
     )
     .orderBy(asc(agentSkillAttachment.priority), asc(agentSkillAttachment.createdAt));
 
-  if (rows.length > 0) {
-    return rows.map(({ attachment, skill }) => ({
-      ...attachment,
-      activationModeOverride: attachment.activationModeOverride as SkillActivationMode | null,
-      triggerTypeOverride: attachment.triggerTypeOverride as SkillTriggerType | null,
-      skill: applySkillAttachmentOverrides(mapSkillRow(skill), attachment),
-    }));
-  }
-
-  const fallbackSkills = await getSkillsByIds(fallbackSkillIds);
-  return fallbackSkills.map((skill, index) => ({
-    id: `legacy:${agentId}:${skill.id}`,
-    agentId,
-    skillId: skill.id,
-    isEnabled: true,
-    activationModeOverride: null,
-    triggerTypeOverride: null,
-    triggerOverride: null,
-    priority: index,
-    notes: null,
-    createdAt: skill.createdAt,
-    updatedAt: skill.updatedAt,
-    skill,
+  return rows.map(({ attachment, skill }) => ({
+    ...attachment,
+    activationModeOverride: attachment.activationModeOverride as SkillActivationMode | null,
+    triggerTypeOverride: attachment.triggerTypeOverride as SkillTriggerType | null,
+    skill: applySkillAttachmentOverrides(mapSkillRow(skill), attachment),
   }));
 }
 
-export async function getSkillsForAgent(agentId: string, fallbackSkillIds: string[]): Promise<Skill[]> {
-  const attachments = await getSkillAttachmentsForAgent(agentId, fallbackSkillIds);
+export async function getSkillsForAgent(agentId: string): Promise<Skill[]> {
+  const attachments = await getSkillAttachmentsForAgent(agentId);
   return attachments.flatMap((attachment) => attachment.skill ? [attachment.skill] : []);
 }
 

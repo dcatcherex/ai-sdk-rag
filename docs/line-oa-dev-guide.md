@@ -662,8 +662,8 @@ Skills attached to an agent are now fully active in LINE conversations, matching
 
 ```typescript
 // 1. Load all skills attached to the agent
-//    Handles both attachment-table and legacy skillIds (compatibility mode)
-const agentSkillRows = await getSkillsForAgent(agentId, skillIds ?? []);
+//    Reads attachment-table rows only
+const agentSkillRows = await getSkillsForAgent(agentId);
 
 // 2. Rule-based triggers: always / slash command / keyword
 const ruleTriggered = detectTriggeredSkills(agentSkillRows, userText);
@@ -702,7 +702,7 @@ Tier 3 will be added once `features/skills/server/resources.ts` exists (per `doc
 
 ### Legacy compatibility
 
-`agent.skillIds` is still read as a fallback (compatibility mode). `getSkillsForAgent()` prefers `agent_skill_attachment` rows first. When Phase 5 of the skills roadmap removes `skillIds`, pass `[]` as the second argument — no other LINE webhook change needed.
+`getSkillsForAgent()` now reads only `agent_skill_attachment` rows. `agent.skillIds` is no longer used by the LINE webhook runtime.
 
 ### Skill-enabled tools in LINE
 

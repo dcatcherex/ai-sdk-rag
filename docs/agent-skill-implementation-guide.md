@@ -42,8 +42,7 @@ Already implemented:
 
 Not complete yet:
 
-- upstream sync lifecycle
-- full removal of legacy `agent.skillIds` compatibility
+- none in the current five-phase roadmap
 
 ## Phase progress
 
@@ -51,7 +50,7 @@ Not complete yet:
 - Phase 2: completed
 - Phase 3: completed
 - Phase 4: completed
-- Phase 5: not started
+- Phase 5: completed
 
 ---
 
@@ -357,10 +356,31 @@ Make attachment-based linkage the only source of truth.
 
 ## Checklist
 
-- [ ] stop dual-writing `agent.skillIds`
-- [ ] remove fallback reads from legacy skill arrays
-- [ ] remove compatibility-only code in agent editor and runtime
-- [ ] update docs to describe the post-migration model only
+- [x] stop dual-writing `agent.skillIds`
+- [x] remove fallback reads from legacy skill arrays
+- [x] remove compatibility-only code in agent editor and runtime
+- [x] update docs to describe the post-migration model only
+
+## Progress update
+
+Completed in this phase:
+
+- `features/skills/server/attachments.ts` no longer generates attachments from legacy `agent.skillIds`
+  - `getSkillAttachmentsForAgent()` now reads only `agent_skill_attachment`
+  - `getSkillsForAgent()` now loads skills only from attachment rows
+- agent runtime integration now uses attachment-only skill resolution
+  - `app/api/chat/route.ts`
+  - `features/line-oa/webhook/index.ts`
+- agent attachment routes stopped mirroring skill selections back into `agent.skillIds`
+  - `app/api/agents/[id]/skills/route.ts` only persists attachment rows
+- create/update/template flows no longer treat `skillIds` as writable input
+  - `app/api/agents/route.ts`
+  - `app/api/agents/[id]/route.ts`
+  - `app/api/agents/templates/[id]/use/route.ts`
+- the agent editor now derives selected skills from attachment state instead of legacy skill ID fallbacks
+  - `features/agents/components/agent-form.tsx`
+- agent list and response payloads still expose `skillIds`, but only as values resolved from attachment rows for display compatibility
+- implementation docs now describe the post-migration model as attachment-authoritative
 
 ## Files to touch
 
@@ -434,11 +454,9 @@ Before merging any Agent Skills change, verify all of these.
 
 If work resumes from the current repo state, do these next in order.
 
-1. split `features/skills/service.ts`
-2. add package file mutation endpoints
-3. build package file editor UI
-4. move runtime to progressive disclosure
-5. add sync check/apply
+1. remove or deprecate the unused `agent.skillIds` database column in a follow-up schema cleanup
+2. update broader architecture docs such as `docs/skills.md` to reflect the attachment-first model
+3. add attachment-focused tests around agent create/update/template flows
 
 ---
 
@@ -448,12 +466,11 @@ The repo already has the package-first base.
 
 What remains is operational work:
 
-- editable package contents
-- progressive runtime disclosure
-- sync lifecycle
-- removal of compatibility-only legacy paths
+- follow-up schema cleanup
+- broader docs cleanup outside this implementation guide
+- more end-to-end tests around attachment-based agent flows
 
-Until that migration is complete, contributors should treat the system as a hybrid:
+Contributors should now treat the system as:
 
 - package-first in storage and creation
-- compatibility-aware in editing and runtime
+- attachment-first for all agent linkage and runtime behavior

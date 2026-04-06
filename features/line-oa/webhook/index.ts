@@ -144,10 +144,7 @@ export async function POST(
         // Inject skills into the system prompt (mirrors app/api/chat/route.ts skill injection)
         if (effectiveAgentRow?.id) {
           const userText = event.message?.text ?? '';
-          const agentSkillRows = await getSkillsForAgent(
-            effectiveAgentRow.id,
-            effectiveAgentRow.skillIds ?? [],
-          );
+          const agentSkillRows = await getSkillsForAgent(effectiveAgentRow.id);
 
           if (agentSkillRows.length > 0) {
             const skillRuntime = await resolveSkillRuntimeContext(agentSkillRows, userText);

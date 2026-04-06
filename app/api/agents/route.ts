@@ -7,7 +7,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { agent, agentShare, user as userTable } from '@/db/schema';
 import type { SharedUser } from '@/features/agents/types';
-import { getResolvedSkillIdsByAgentIds, replaceSkillAttachmentsForAgent } from '@/features/skills/service';
+import { getResolvedSkillIdsByAgentIds } from '@/features/skills/service';
 import { agentStructuredBehaviorSchema } from '@/lib/agent-structured-behavior';
 
 const createSchema = z.object({
@@ -18,7 +18,6 @@ const createSchema = z.object({
   modelId: z.string().optional().nullable(),
   enabledTools: z.array(z.string()).optional(),
   documentIds: z.array(z.string()).optional(),
-  skillIds: z.array(z.string()).optional(),
   brandId: z.string().optional().nullable(),
   isPublic: z.boolean().optional(),
   isDefault: z.boolean().optional(),
@@ -135,7 +134,7 @@ export async function GET() {
   const withResolvedSkillIds = <T extends { id: string; skillIds: string[] }>(rows: T[]) =>
     rows.map((row) => ({
       ...row,
-      skillIds: attachmentMap[row.id] ?? row.skillIds,
+      skillIds: attachmentMap[row.id] ?? [],
     }));
 
   return NextResponse.json({
@@ -167,7 +166,7 @@ export async function POST(req: Request) {
     modelId: body.modelId ?? null,
     enabledTools: body.enabledTools ?? [],
     documentIds: body.documentIds ?? [],
-    skillIds: body.skillIds ?? [],
+    skillIds: [],
     brandId: body.brandId ?? null,
     isPublic: body.isPublic ?? false,
     isDefault: body.isDefault ?? false,
@@ -179,7 +178,6 @@ export async function POST(req: Request) {
   };
 
   await db.insert(agent).values(newAgent);
-  await replaceSkillAttachmentsForAgent(newAgent.id, newAgent.skillIds);
 
   if (body.sharedUserIds && body.sharedUserIds.length > 0) {
     await db.insert(agentShare).values(
@@ -191,5 +189,6 @@ export async function POST(req: Request) {
     ).onConflictDoNothing();
   }
 
-  return NextResponse.json({ agent: newAgent }, { status: 201 });
+  const resolvedSkillIdsByAgentId = await getResolvedSkillIdsByAgentIds([newAgent.id]);
+  return NextResponse.json({ agent: { ...newAgent, skillIds: resolvedSkillIdsByAgentId[newAgent.id] ?? [] } }, { status: 201 });
 }

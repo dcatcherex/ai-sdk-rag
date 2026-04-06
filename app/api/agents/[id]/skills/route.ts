@@ -27,7 +27,7 @@ const putSchema = z.object({
 
 async function assertOwnedAgent(agentId: string, userId: string) {
   const rows = await db
-    .select({ id: agent.id, skillIds: agent.skillIds })
+    .select({ id: agent.id })
     .from(agent)
     .where(and(eq(agent.id, agentId), eq(agent.userId, userId)))
     .limit(1);
@@ -47,7 +47,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  const attachments = await getSkillAttachmentsForAgent(id, ownedAgent.skillIds ?? []);
+  const attachments = await getSkillAttachmentsForAgent(id);
   return NextResponse.json({ attachments });
 }
 
@@ -65,15 +65,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
   const body = putSchema.parse(await req.json());
   await replaceSkillAttachmentsForAgent(id, body.attachments);
-
   await db
     .update(agent)
-    .set({
-      skillIds: body.attachments.map((attachment) => attachment.skillId),
-      updatedAt: new Date(),
-    })
+    .set({ updatedAt: new Date() })
     .where(and(eq(agent.id, id), eq(agent.userId, session.user.id)));
 
-  const attachments = await getSkillAttachmentsForAgent(id, body.attachments.map((attachment) => attachment.skillId));
+  const attachments = await getSkillAttachmentsForAgent(id);
   return NextResponse.json({ attachments });
 }

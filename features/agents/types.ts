@@ -30,7 +30,6 @@ export type CreateAgentInput = {
   modelId?: string | null;
   enabledTools?: string[];
   documentIds?: string[];
-  skillIds?: string[];
   skillAttachments?: AgentSkillAttachmentInput[];
   brandId?: string | null;
   isPublic?: boolean;

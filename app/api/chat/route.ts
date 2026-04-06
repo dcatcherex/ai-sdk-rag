@@ -135,7 +135,7 @@ export async function POST(req: Request) {
     // Load skills attached to the active agent
     const agentSkillRows: Skill[] =
       activeAgent
-        ? await getSkillsForAgent(activeAgent.id, activeAgent.skillIds ?? [])
+        ? await getSkillsForAgent(activeAgent.id)
         : [];
     const skillRuntime = agentSkillRows.length > 0 && lastUserPrompt
       ? await resolveSkillRuntimeContext(agentSkillRows, lastUserPrompt)

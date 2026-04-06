@@ -5,7 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { agent } from '@/db/schema';
-import { getSkillAttachmentsForAgent, replaceSkillAttachmentsForAgent } from '@/features/skills/service';
+import { getResolvedSkillIdsByAgentIds, getSkillAttachmentsForAgent, replaceSkillAttachmentsForAgent } from '@/features/skills/service';
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -25,7 +25,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: 'Template not found' }, { status: 404 });
   }
 
-  const resolvedAttachments = await getSkillAttachmentsForAgent(template.id, template.skillIds);
+  const resolvedAttachments = await getSkillAttachmentsForAgent(template.id);
   const resolvedSkillIds = resolvedAttachments.map((attachment) => attachment.skillId);
 
   const now = new Date();
@@ -39,7 +39,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     modelId: template.modelId,
     enabledTools: template.enabledTools,
     documentIds: [],
-    skillIds: resolvedSkillIds,
+    skillIds: [],
     brandId: null,
     isPublic: false,
     starterPrompts: template.starterPrompts,
@@ -61,5 +61,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     notes: attachment.notes,
   })));
 
-  return NextResponse.json({ agent: copy }, { status: 201 });
+  const resolvedSkillIdsByAgentId = await getResolvedSkillIdsByAgentIds([copy.id]);
+  return NextResponse.json({ agent: { ...copy, skillIds: resolvedSkillIdsByAgentId[copy.id] ?? resolvedSkillIds } }, { status: 201 });
 }

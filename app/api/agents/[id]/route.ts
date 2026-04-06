@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { agent, agentShare } from '@/db/schema';
-import { replaceSkillAttachmentsForAgent } from '@/features/skills/service';
+import { getResolvedSkillIdsByAgentIds } from '@/features/skills/service';
 import { agentStructuredBehaviorSchema } from '@/lib/agent-structured-behavior';
 
 const updateSchema = z.object({
@@ -17,7 +17,6 @@ const updateSchema = z.object({
   modelId: z.string().optional().nullable(),
   enabledTools: z.array(z.string()).optional(),
   documentIds: z.array(z.string()).optional(),
-  skillIds: z.array(z.string()).optional(),
   brandId: z.string().optional().nullable(),
   isPublic: z.boolean().optional(),
   isDefault: z.boolean().optional(),
@@ -54,11 +53,6 @@ export async function PUT(
     .set({ ...agentFields, updatedAt: new Date() })
     .where(and(eq(agent.id, id), eq(agent.userId, session.user.id)))
     .returning();
-
-  if (body.skillIds !== undefined) {
-    await replaceSkillAttachmentsForAgent(id, body.skillIds);
-  }
-
   // Replace shares when provided (delete all + re-insert)
   if (sharedUserIds !== undefined) {
     await db.delete(agentShare).where(eq(agentShare.agentId, id));
@@ -73,7 +67,13 @@ export async function PUT(
     }
   }
 
-  return NextResponse.json({ agent: updated[0] });
+  const resolvedSkillIdsByAgentId = await getResolvedSkillIdsByAgentIds([id]);
+  return NextResponse.json({
+    agent: {
+      ...updated[0],
+      skillIds: resolvedSkillIdsByAgentId[id] ?? [],
+    },
+  });
 }
 
 export async function DELETE(
