@@ -27,11 +27,8 @@ import { requestSchema } from '@/features/chat/server/schema';
 import { buildBrandBlock, buildImageBrandSuffix } from '@/features/brands/service';
 import type { Brand } from '@/features/brands/types';
 import {
-  buildAvailableSkillsCatalog,
-  detectTriggeredSkills,
   getSkillsForAgent,
-  getResolvedSkillResourcesForPrompt,
-  selectModelDiscoveredSkills,
+  resolveSkillRuntimeContext,
 } from '@/features/skills/service';
 import type { Skill } from '@/features/skills/types';
 import { getLastUserPrompt } from '@/features/chat/server/thread-utils';
@@ -140,24 +137,22 @@ export async function POST(req: Request) {
       activeAgent
         ? await getSkillsForAgent(activeAgent.id, activeAgent.skillIds ?? [])
         : [];
-    const ruleTriggeredSkills = agentSkillRows.length > 0 && lastUserPrompt
-      ? detectTriggeredSkills(agentSkillRows, lastUserPrompt)
-      : [];
-    const discoveredSkills = agentSkillRows.length > 0 && lastUserPrompt
-      ? selectModelDiscoveredSkills(agentSkillRows, lastUserPrompt)
-      : [];
-    const triggeredSkills = [...new Map(
-      [...ruleTriggeredSkills, ...discoveredSkills].map((skill) => [skill.id, skill]),
-    ).values()];
-    // Tool IDs unlocked by triggered skills (needed before activeToolIds calculation)
-    const skillToolIds = [...new Set(triggeredSkills.flatMap((s) => s.enabledTools))];
+    const skillRuntime = agentSkillRows.length > 0 && lastUserPrompt
+      ? await resolveSkillRuntimeContext(agentSkillRows, lastUserPrompt)
+      : {
+          catalogBlock: '',
+          activatedSkills: [],
+          activeSkillsBlock: '',
+          skillResourcesBlock: '',
+          skillToolIds: [],
+        };
 
     const customPersonaRow = customPersonaRows[0] ?? null;
 
     // ── Stage 3: memory + persona detection + brand in parallel ─────────────
     // Agent's brand takes priority over user's active brand.
     const effectiveBrandId = activeAgent?.brandId ?? brandId ?? null;
-    const [memoryContext, detectedPersona, brandRows, skillResourcesBlock] = await Promise.all([
+    const [memoryContext, detectedPersona, brandRows] = await Promise.all([
       (userPrefs.memoryEnabled && userPrefs.memoryInjectEnabled)
         ? getUserMemoryContext(session.user.id)
         : Promise.resolve(''),
@@ -191,9 +186,6 @@ export async function POST(req: Request) {
             )
             .limit(1)
         : Promise.resolve([]),
-      triggeredSkills.length > 0 && lastUserPrompt
-        ? getResolvedSkillResourcesForPrompt(triggeredSkills, lastUserPrompt)
-        : Promise.resolve(''),
     ]);
 
     const activeBrand = (brandRows[0] ?? null) as Brand | null;
@@ -215,12 +207,12 @@ export async function POST(req: Request) {
       ? activeAgent.enabledTools
       : (userPrefs.enabledToolIds ?? null);
     // Merge in tool IDs unlocked by triggered skills (deduplicated)
-    const activeToolIds = skillToolIds.length > 0
-      ? [...new Set([...(baseToolIds ?? []), ...skillToolIds])]
+    const activeToolIds = skillRuntime.skillToolIds.length > 0
+      ? [...new Set([...(baseToolIds ?? []), ...skillRuntime.skillToolIds])]
       : baseToolIds;
 
     const groundedTools = activeAgent
-      ? createAgentTools(activeAgent.enabledTools, session.user.id, effectiveDocIds)
+      ? createAgentTools(activeToolIds, session.user.id, effectiveDocIds)
       : buildToolSet({
           enabledToolIds: activeToolIds,
           userId: session.user.id,
@@ -242,17 +234,6 @@ export async function POST(req: Request) {
     const brandBlock = activeBrand ? `\n\n${buildBrandBlock(activeBrand)}` : '';
 
     // Tier 1: skill catalog — let the model know what model-discoverable skills are available
-    const skillCatalog = buildAvailableSkillsCatalog(agentSkillRows);
-
-    // Tier 2: full instructions for rule-triggered and model-discovered skills active this turn
-    const skillBlock = triggeredSkills.length > 0
-      ? '\n\n<active_skills>\n' +
-        triggeredSkills
-          .map((s) => `## Skill: ${s.name}\n${s.promptFragment}`)
-          .join('\n\n') +
-        '\n</active_skills>'
-      : '';
-
     const groundedSystemPrompt = activeAgent
       ? activeAgent.systemPrompt +
         (isGrounded
@@ -260,25 +241,25 @@ export async function POST(req: Request) {
           : '') +
         (memoryContext ? `\n\n${memoryContext}` : '') +
         brandBlock +
-        skillCatalog +
-        skillBlock +
-        skillResourcesBlock
+        skillRuntime.catalogBlock +
+        skillRuntime.activeSkillsBlock +
+        skillRuntime.skillResourcesBlock
       : isGrounded
         ? baseSystemPrompt +
           (personaExtraInstructions ? `\n\n<user_instructions>\n${personaExtraInstructions}\n</user_instructions>` : '') +
           '\nIMPORTANT: The user has selected specific documents. You MUST use the searchKnowledge tool to find information before answering. Only respond using information from tool results. If no relevant information is found, say so.' +
           (memoryContext ? `\n\n${memoryContext}` : '') +
           brandBlock +
-          skillCatalog +
-          skillBlock +
-          skillResourcesBlock
+          skillRuntime.catalogBlock +
+          skillRuntime.activeSkillsBlock +
+          skillRuntime.skillResourcesBlock
         : baseSystemPrompt +
           (personaExtraInstructions ? `\n\n<user_instructions>\n${personaExtraInstructions}\n</user_instructions>` : '') +
           (memoryContext ? `\n\n${memoryContext}` : '') +
           brandBlock +
-          skillCatalog +
-          skillBlock +
-          skillResourcesBlock;
+          skillRuntime.catalogBlock +
+          skillRuntime.activeSkillsBlock +
+          skillRuntime.skillResourcesBlock;
 
     // ── Model routing ────────────────────────────────────────────────────────
     const enabledIds =
@@ -360,7 +341,7 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
       : '';
     const systemPrompt = supportsTools
       ? groundedSystemPrompt + examPrepToolInstructions + certificateToolInstructions + quizContextBlock
-      : baseSystemPrompt + (memoryContext ? `\n\n${memoryContext}` : '');
+      : groundedSystemPrompt;
 
     // ── Prompt enhancement ───────────────────────────────────────────────────
     let enhancedPrompt: string | undefined;

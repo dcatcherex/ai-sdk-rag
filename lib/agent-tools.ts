@@ -4,7 +4,7 @@ import { buildToolSet } from './tools/index';
 export { TOOL_REGISTRY, ALL_TOOL_IDS, DEFAULT_TOOL_IDS, type ToolId } from './tool-registry';
 
 export function createAgentTools(
-  enabledTools: string[],
+  enabledTools: string[] | null,
   userId: string,
   documentIds?: string[],
 ): ToolSet {

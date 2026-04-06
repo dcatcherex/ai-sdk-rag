@@ -43,15 +43,14 @@ Already implemented:
 Not complete yet:
 
 - package file editing for existing skills
-- runtime progressive disclosure
 - upstream sync lifecycle
 - full removal of legacy `agent.skillIds` compatibility
 
 ## Phase progress
 
-- Phase 1: in progress
-- Phase 2: not started
-- Phase 3: not started
+- Phase 1: completed
+- Phase 2: completed
+- Phase 3: completed
 - Phase 4: not started
 - Phase 5: not started
 
@@ -167,11 +166,38 @@ Allow package skills to be edited after creation.
 
 ## Checklist
 
-- [ ] add file mutation endpoints
-- [ ] allow editing `SKILL.md` content safely
-- [ ] allow creating and deleting bundled files safely
-- [ ] add file-tree UI for package skills
-- [ ] keep inline skill editing working
+- [x] add file mutation endpoints
+- [x] allow editing `SKILL.md` content safely
+- [x] allow creating and deleting bundled files safely
+- [x] add file-tree UI for package skills
+- [x] keep inline skill editing working
+
+## Progress update
+
+Completed in this phase:
+
+- file mutation logic is centralized in `features/skills/server/file-mutations.ts`
+  - create bundled files safely (no path traversal, no overwriting)
+  - update bundled file content safely
+  - delete bundled files safely (cannot delete the entry file)
+  - recompute `hasBundledFiles` and `packageManifest` on structural changes
+  - editing the entry file keeps `agent_skill` in sync by re-parsing `SKILL.md`
+    - updates `name`, `description`, `triggerType`, `trigger`, and `promptFragment`
+- file mutation functions are exported through the service facade in `features/skills/service.ts`
+- API endpoints now support the full Phase 2 target surface:
+  - `GET /api/skills/:id/files`
+  - `POST /api/skills/:id/files`
+  - `DELETE /api/skills/:id/files?path=...`
+  - `GET /api/skills/:id/files/content?path=...`
+  - `PUT /api/skills/:id/files/content`
+- UI includes a package file browser/editor entry point for owners in `features/skills/components/skills-list.tsx`
+  - editor dialog lives in `features/skills/components/package-skill-editor-dialog.tsx`
+- inline skill editing remains unchanged via `features/skills/components/skill-form-dialog.tsx`
+
+## Notes
+
+- This phase focuses on editing the stored package snapshot only.
+- Upstream sync lifecycle and progressive disclosure runtime remain Phase 3+ work.
 
 ## Files to touch
 
@@ -209,12 +235,31 @@ Stop treating package skills as only flattened `promptFragment` text.
 
 ## Checklist
 
-- [ ] build a compact skill catalog from attachments
-- [ ] separate discovery from activation
-- [ ] disclose full `SKILL.md` only when activated
-- [ ] disclose referenced files only when needed
-- [ ] keep tool enablement working for triggered skills
-- [ ] dedupe rule-triggered and model-selected skills
+- [x] build a compact skill catalog from attachments
+- [x] separate discovery from activation
+- [x] disclose full `SKILL.md` only when activated
+- [x] disclose referenced files only when needed
+- [x] keep tool enablement working for triggered skills
+- [x] dedupe rule-triggered and model-selected skills
+
+## Progress update
+
+Completed in this phase:
+
+- runtime activation is now centralized in `features/skills/server/activation.ts`
+  - deterministic rule triggers and model discovery stay separate
+  - runtime dedupes activations and resolves one canonical skill context per turn
+- package resource resolution now lives in `features/skills/server/resources.ts`
+  - supporting files are loaded only for activated skills
+  - explicitly referenced files are preferred
+  - fallback disclosure stays limited to relevant reference files
+- `app/api/chat/route.ts` now consumes `resolveSkillRuntimeContext()`
+  - Tier 1 catalog remains compact
+  - Tier 2 now injects the full stored entry file for package skills instead of flattening everything to `promptFragment`
+  - Tier 3 resource disclosure is generated from the activated package snapshot
+- `features/line-oa/webhook/index.ts` now mirrors the same progressive-disclosure runtime helper used by web chat
+- skill-enabled tools now merge correctly for active-agent chat runs
+- focused runtime tests were added in `features/skills/server/activation.test.ts`
 
 ## Files to touch
 

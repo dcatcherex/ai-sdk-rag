@@ -35,6 +35,7 @@ import {
   useInstallSkill,
 } from '../hooks/use-skills';
 import { SkillFormDialog } from './skill-form-dialog';
+import { PackageSkillEditorDialog } from './package-skill-editor-dialog';
 import type { CreateSkillInput, Skill, SkillDetail } from '../types';
 
 const TRIGGER_LABELS: Record<string, string> = {
@@ -57,6 +58,7 @@ export const SkillsList = () => {
   const [editTarget, setEditTarget] = useState<Skill | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Skill | null>(null);
   const [detailTarget, setDetailTarget] = useState<Skill | null>(null);
+  const [packageEditorTarget, setPackageEditorTarget] = useState<Skill | null>(null);
   const [importUrl, setImportUrl] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [importError, setImportError] = useState('');
@@ -139,7 +141,7 @@ export const SkillsList = () => {
                 </Button>
               </div>
             ) : (
-              <SkillGrid skills={mySkills} isOwner onEdit={openEdit} onDelete={setDeleteTarget} onView={setDetailTarget} />
+              <SkillGrid skills={mySkills} isOwner onEdit={openEdit} onDelete={setDeleteTarget} onView={setDetailTarget} onManageFiles={setPackageEditorTarget} />
             )}
           </TabsContent>
 
@@ -174,6 +176,12 @@ export const SkillsList = () => {
         onClose={() => { setFormOpen(false); setEditTarget(null); }}
         onSubmit={handleFormSubmit}
         isPending={createSkill.isPending || updateSkill.isPending}
+      />
+
+      <PackageSkillEditorDialog
+        open={Boolean(packageEditorTarget)}
+        skill={packageEditorTarget}
+        onClose={() => setPackageEditorTarget(null)}
       />
 
       {/* Delete confirmation */}
@@ -262,10 +270,11 @@ type SkillGridProps = {
   onDelete?: (skill: Skill) => void;
   onInstall?: (id: string) => void;
   onView?: (skill: Skill) => void;
+  onManageFiles?: (skill: Skill) => void;
   installingId?: string;
 };
 
-const SkillGrid = ({ skills, isOwner, onEdit, onDelete, onInstall, onView, installingId }: SkillGridProps) => (
+const SkillGrid = ({ skills, isOwner, onEdit, onDelete, onInstall, onView, onManageFiles, installingId }: SkillGridProps) => (
   <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
     {skills.map((skill) => (
       <div
@@ -346,6 +355,18 @@ const SkillGrid = ({ skills, isOwner, onEdit, onDelete, onInstall, onView, insta
             <EyeIcon className="size-3" />
             Details
           </Button>
+
+          {isOwner && skill.skillKind === 'package' && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1"
+              onClick={() => onManageFiles?.(skill)}
+            >
+              <PencilIcon className="size-3" />
+              Files
+            </Button>
+          )}
 
           {!isOwner && (
             <Button

@@ -9,10 +9,8 @@ import { handleFollowEvent } from './events/follow';
 import { handleMessageEvent } from './events/message';
 import { handlePostbackEvent } from './events/postback';
 import {
-  buildAvailableSkillsCatalog,
-  detectTriggeredSkills,
   getSkillsForAgent,
-  selectModelDiscoveredSkills,
+  resolveSkillRuntimeContext,
 } from '@/features/skills/service';
 
 export const maxDuration = 30;
@@ -152,28 +150,10 @@ export async function POST(
           );
 
           if (agentSkillRows.length > 0) {
-            const ruleTriggered = detectTriggeredSkills(agentSkillRows, userText);
-            const modelDiscovered = userText
-              ? selectModelDiscoveredSkills(agentSkillRows, userText)
-              : [];
-
-            // Deduplicate by skill id
-            const triggeredSkills = [...new Map(
-              [...ruleTriggered, ...modelDiscovered].map((s) => [s.id, s]),
-            ).values()];
-
-            // Tier 1: catalog of model-discoverable skills
-            effectiveSystemPrompt += buildAvailableSkillsCatalog(agentSkillRows);
-
-            // Tier 2: full prompt fragments for triggered skills
-            if (triggeredSkills.length > 0) {
-              effectiveSystemPrompt +=
-                '\n\n<active_skills>\n' +
-                triggeredSkills
-                  .map((s) => `## Skill: ${s.name}\n${s.promptFragment}`)
-                  .join('\n\n') +
-                '\n</active_skills>';
-            }
+            const skillRuntime = await resolveSkillRuntimeContext(agentSkillRows, userText);
+            effectiveSystemPrompt += skillRuntime.catalogBlock;
+            effectiveSystemPrompt += skillRuntime.activeSkillsBlock;
+            effectiveSystemPrompt += skillRuntime.skillResourcesBlock;
           }
         }
 

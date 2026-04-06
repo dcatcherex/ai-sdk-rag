@@ -22,8 +22,21 @@ export {
 } from './server/mutations';
 
 export {
+  SkillFileMutationError,
+  createSkillFile,
+  updateSkillFileContent,
+  deleteSkillFile,
+} from './server/file-mutations';
+
+export {
   buildAvailableSkillsCatalog,
   detectTriggeredSkills,
-  getResolvedSkillResourcesForPrompt,
+  buildActiveSkillsBlock,
+  resolveActivatedSkills,
+  resolveSkillRuntimeContext,
   selectModelDiscoveredSkills,
-} from './server/runtime';
+} from './server/activation';
+
+export {
+  getResolvedSkillResourcesForPrompt,
+} from './server/resources';
