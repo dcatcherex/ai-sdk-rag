@@ -109,11 +109,11 @@ const MEMBER_MENU_AREAS = [
 ];
 
 try {
-  // 1. Link channel to AgriSpark agent
+  // 1. Link channel to AgriSpark agent (support full UUID or 8-char prefix)
   const result = await sql`
     UPDATE line_oa_channel
     SET agent_id = ${AGENT_ID}
-    WHERE id = ${channelId}
+    WHERE id LIKE ${channelId + '%'}
     RETURNING id, name, agent_id
   `;
 
@@ -121,10 +121,11 @@ try {
     console.error(`Channel ${channelId} not found`);
     process.exit(1);
   }
-  console.log(`✓ Channel linked: "${result[0].name}" → agent ${AGENT_ID}`);
+  const resolvedChannelId = result[0].id;
+  console.log(`✓ Channel linked: "${result[0].name}" (${resolvedChannelId}) → agent ${AGENT_ID}`);
 
   // 2. Remove any existing draft rich menus for this channel
-  await sql`DELETE FROM line_rich_menu WHERE channel_id = ${channelId} AND status = 'draft'`;
+  await sql`DELETE FROM line_rich_menu WHERE channel_id = ${resolvedChannelId} AND status = 'draft'`;
 
   // 3. Create default menu (สมัครสมาชิก bottom)
   const defaultMenuId = nanoid();
@@ -134,7 +135,7 @@ try {
       is_default, status
     ) VALUES (
       ${defaultMenuId},
-      ${channelId},
+      ${resolvedChannelId},
       ${'AgriSpark Default Menu'},
       ${'เมนู AgriSpark'},
       ${JSON.stringify(DEFAULT_MENU_AREAS)},
@@ -153,7 +154,7 @@ try {
       is_default, status
     ) VALUES (
       ${memberMenuId},
-      ${channelId},
+      ${resolvedChannelId},
       ${'AgriSpark Member Menu'},
       ${'เมนู AgriSpark'},
       ${JSON.stringify(MEMBER_MENU_AREAS)},
@@ -172,9 +173,9 @@ try {
   console.log('  4. (Optional) Upload background images to each menu');
   console.log('');
   console.log('Or deploy via API:');
-  console.log(`  POST /api/line-oa/${channelId}/rich-menus/${defaultMenuId}/deploy`);
+  console.log(`  POST /api/line-oa/${resolvedChannelId}/rich-menus/${defaultMenuId}/deploy`);
   console.log(`  Body: { "setAsDefault": true }`);
-  console.log(`  POST /api/line-oa/${channelId}/rich-menus/${memberMenuId}/deploy`);
+  console.log(`  POST /api/line-oa/${resolvedChannelId}/rich-menus/${memberMenuId}/deploy`);
   console.log(`  Body: { "setAsDefault": false }`);
 
 } catch (e) {
