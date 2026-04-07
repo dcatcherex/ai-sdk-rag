@@ -10,6 +10,7 @@ import {
   StarIcon,
   Trash2Icon,
   PencilIcon,
+  UserCheckIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,10 +32,11 @@ import {
   useUploadRichMenuImage,
 } from '../hooks/use-rich-menus';
 import { useSaveMenuTemplate } from '../hooks/use-menu-templates';
+import { useUpdateLineOaChannel } from '../hooks/use-line-oa';
 import { RichMenuEditor } from './rich-menu-editor';
 import type { RichMenuRecord, CreateRichMenuInput } from '../hooks/use-rich-menus';
 
-export function RichMenuPanel({ channelId }: { channelId: string }) {
+export function RichMenuPanel({ channelId, memberRichMenuLineId }: { channelId: string; memberRichMenuLineId: string | null }) {
   const { data: menus = [], isLoading } = useRichMenus(channelId);
   const createMenu = useCreateRichMenu(channelId);
   const updateMenu = useUpdateRichMenu(channelId);
@@ -42,6 +44,7 @@ export function RichMenuPanel({ channelId }: { channelId: string }) {
   const deployMenu = useDeployRichMenu(channelId);
   const uploadImage = useUploadRichMenuImage(channelId);
   const saveTemplate = useSaveMenuTemplate();
+  const updateChannel = useUpdateLineOaChannel();
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<RichMenuRecord | null>(null);
@@ -257,10 +260,28 @@ export function RichMenuPanel({ channelId }: { channelId: string }) {
               Set default
             </Button>
           </div>
+          {/* Member menu assignment */}
+          <Button
+            variant={memberRichMenuLineId === menu.lineMenuId && menu.lineMenuId ? 'default' : 'outline'}
+            size="sm"
+            className="h-7 text-xs gap-1 w-full"
+            disabled={!menu.lineMenuId || updateChannel.isPending}
+            onClick={() => updateChannel.mutate({
+              id: channelId,
+              memberRichMenuLineId: memberRichMenuLineId === menu.lineMenuId ? null : (menu.lineMenuId ?? null),
+            })}
+            title={!menu.lineMenuId ? 'Deploy this menu first before setting it as member menu' : ''}
+          >
+            <UserCheckIcon className="size-3" />
+            {memberRichMenuLineId === menu.lineMenuId && menu.lineMenuId
+              ? 'Member menu (tap to unset)'
+              : 'Set as member menu'}
+          </Button>
         </div>
       ))}
 
       <RichMenuEditor
+        key={editTarget?.id ?? 'new'}
         open={editorOpen}
         menu={editTarget}
         onClose={() => { setEditorOpen(false); setEditTarget(null); }}

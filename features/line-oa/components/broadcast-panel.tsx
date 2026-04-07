@@ -39,6 +39,7 @@ const STATUS_BADGE: Record<
   draft:   { label: 'Draft',   variant: 'secondary' },
   sending: { label: 'Sending…', variant: 'outline' },
   sent:    { label: 'Sent',    variant: 'default' },
+  partial: { label: 'Partial', variant: 'outline' },
   failed:  { label: 'Failed',  variant: 'destructive' },
 };
 

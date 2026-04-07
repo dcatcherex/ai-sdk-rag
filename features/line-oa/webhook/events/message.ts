@@ -19,6 +19,7 @@ import { uploadPublicObject } from '@/lib/r2';
 import { buildContentMarketingLineTools } from '@/features/content-marketing/line-tools';
 import { buildContentPlannerLineTools } from '@/features/content-calendar/line-tools';
 import { buildLineMetricsTools } from '@/features/line-oa/metrics-tools';
+import { FRIENDLY_STICKERS, pickRandom, shouldAddFriendlySticker } from '@/features/line-oa/utils/stickers';
 import { recordMessageEvent } from '@/features/line-oa/analytics';
 import { chatModel } from '@/lib/ai';
 import { SIGNUP_BONUS_CREDITS } from '@/lib/credits';
@@ -49,6 +50,7 @@ type ChannelInfo = {
   userId: string;
   name: string;
   channelAccessToken: string;
+  memberRichMenuLineId?: string | null;
 };
 
 /** Returns true when the user's text is asking to generate an image */
@@ -162,6 +164,33 @@ async function generateVideoPreview(prompt: string): Promise<string | undefined>
     return url;
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * Vision-based PromptPay slip detection.
+ * Returns the detected amount if the image looks like a Thai payment slip, null otherwise.
+ * Uses a cheap Gemini call with JSON mode to keep latency low.
+ */
+async function detectPaymentSlip(base64: string): Promise<number | null> {
+  try {
+    const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+    const response = await genAI.models.generateContent({
+      model: 'gemini-2.5-flash-lite',
+      contents: [{
+        role: 'user',
+        parts: [
+          { inlineData: { mimeType: 'image/jpeg', data: base64 } },
+          { text: 'Is this a Thai PromptPay or bank transfer payment slip? Reply ONLY with valid JSON, no markdown: {"isSlip":true/false,"amountThb":number_or_null}' },
+        ],
+      }],
+      config: { responseMimeType: 'application/json' },
+    });
+    const text = response.text?.trim() ?? '{}';
+    const parsed = JSON.parse(text) as { isSlip?: boolean; amountThb?: number | null };
+    return parsed.isSlip && typeof parsed.amountThb === 'number' ? parsed.amountThb : null;
+  } catch {
+    return null;
   }
 }
 
@@ -322,6 +351,8 @@ export async function handleMessageEvent(
   systemPrompt: string,
   modelId: string,
   linkedUser?: LinkedUser,
+  skillToolIds?: string[],
+  groupId?: string,
 ): Promise<void> {
   if (!event.replyToken) return;
 
@@ -368,6 +399,10 @@ export async function handleMessageEvent(
           `✅ สร้างบัญชีสำเร็จ! ยินดีต้อนรับ ${result.name} 🎉\n\n` +
           `คุณได้รับ ${SIGNUP_BONUS_CREDITS} เครดิตฟรีสำหรับเริ่มต้น\n` +
           `พิมพ์ข้อความเพื่อเริ่มคุยกับ AI ได้เลย`;
+        // Switch new member to the member rich menu if one is configured
+        if (channel.memberRichMenuLineId) {
+          void lineClient.linkRichMenuIdToUser(lineUserId, channel.memberRichMenuLineId);
+        }
       }
 
       await lineClient.replyMessage({
@@ -428,6 +463,7 @@ export async function handleMessageEvent(
     channel.userId,
     lineUserId,
     channel.name,
+    groupId,
   );
 
   const historyRows = await db
@@ -456,7 +492,12 @@ export async function handleMessageEvent(
     'Do NOT use markdown syntax (no **bold**, no # headers, no backticks). ' +
     'Use plain text only. For lists, use • as bullet character.';
 
-  if (linkedUser) {
+  if (groupId) {
+    lineSystemPrompt += '\n\nYou are in a LINE group chat shared by multiple users. Keep replies concise and relevant to the whole group.';
+    if (linkedUser?.displayName) {
+      lineSystemPrompt += ` The member who sent this message is ${linkedUser.displayName}.`;
+    }
+  } else if (linkedUser) {
     if (linkedUser.displayName) {
       lineSystemPrompt += `\n\nThe user you are talking to is named ${linkedUser.displayName}. Address them by name naturally when appropriate.`;
     }
@@ -499,8 +540,7 @@ export async function handleMessageEvent(
       return;
     }
 
-    // If slip verification failed with "no pending order" it's a normal image — fall through to vision
-    // If it failed due to invalid slip, inform the user
+    // If slip verification failed due to invalid/duplicate slip — inform user and stop
     if (slipResult.error && !slipResult.error.includes('ไม่พบคำสั่งซื้อ')) {
       await lineClient.replyMessage({
         replyToken: event.replyToken,
@@ -508,6 +548,62 @@ export async function handleMessageEvent(
       });
       recordMessageEvent(channel.id, lineUserId).catch(() => {});
       return;
+    }
+
+    // No pending order — use vision to check if this looks like a PromptPay slip
+    // If it does, auto-create the matching order and re-verify (removes the "select package first" step)
+    const detectedAmount = await detectPaymentSlip(base64);
+    if (detectedAmount !== null) {
+      const matchedPkg = CREDIT_PACKAGES.find((p) => Math.abs(p.amountThb - detectedAmount) < 1);
+      if (matchedPkg) {
+        const orderResult = await createPaymentOrder(lineUserId, channel.id, matchedPkg.id);
+        if (orderResult.ok) {
+          const autoVerifyResult = await verifySlipAndCredit(lineUserId, channel.id, base64, 'image/jpeg');
+          if (autoVerifyResult.ok) {
+            await lineClient.replyMessage({
+              replyToken: event.replyToken,
+              messages: [{
+                type: 'text',
+                text: [
+                  `✅ ชำระเงินสำเร็จ!`,
+                  ``,
+                  `ผู้ชำระ: ${autoVerifyResult.senderName}`,
+                  `เครดิตที่ได้รับ: +${autoVerifyResult.credits.toLocaleString()} เครดิต`,
+                  ``,
+                  `ขอบคุณที่ใช้บริการ Vaja AI 🙏`,
+                ].join('\n'),
+              }],
+            });
+            recordMessageEvent(channel.id, lineUserId).catch(() => {});
+            return;
+          }
+          // Auto-verify failed — show the error
+          if (autoVerifyResult.error && !autoVerifyResult.error.includes('ไม่พบคำสั่งซื้อ')) {
+            await lineClient.replyMessage({
+              replyToken: event.replyToken,
+              messages: [{ type: 'text', text: `❌ ${autoVerifyResult.error}` }],
+            });
+            recordMessageEvent(channel.id, lineUserId).catch(() => {});
+            return;
+          }
+        }
+      } else {
+        // Amount detected but doesn't match any package
+        await lineClient.replyMessage({
+          replyToken: event.replyToken,
+          messages: [{
+            type: 'text',
+            text: [
+              `⚠️ พบสลิปชำระเงิน ฿${detectedAmount.toLocaleString()} แต่ไม่ตรงกับแพ็กเกจที่มี`,
+              ``,
+              `แพ็กเกจที่รองรับ: ฿100 / ฿300 / ฿500 / ฿1,000`,
+              `พิมพ์ "เติมเครดิต" เพื่อดูรายการแพ็กเกจ`,
+            ].join('\n'),
+          }],
+        });
+        recordMessageEvent(channel.id, lineUserId).catch(() => {});
+        return;
+      }
     }
 
     const { text: rawAnalysis } = await generateText({
@@ -813,7 +909,7 @@ export async function handleMessageEvent(
   }
 
   // ⑥c Standard text → text response (with optional tool use for content agents)
-  const enabledTools = agentRow?.enabledTools ?? [];
+  const enabledTools = [...new Set([...(agentRow?.enabledTools ?? []), ...(skillToolIds ?? [])])];
   const isContentAgent = enabledTools.includes('content_marketing');
   const isPlannerAgent = enabledTools.includes('content_planning');
   const isMetricsAgent = enabledTools.includes('line_analytics');
@@ -902,9 +998,16 @@ export async function handleMessageEvent(
     .slice(0, Math.max(0, 4 - textMessages.length))
     .map((url) => ({ type: 'image', originalContentUrl: url, previewImageUrl: url } as LineMessage));
 
+  // Occasionally append a friendly sticker for short conclusive replies (20% chance)
+  const stickerMessages: LineMessage[] = [];
+  if (toolImageUrls.length === 0 && shouldAddFriendlySticker(replyText)) {
+    const s = pickRandom(FRIENDLY_STICKERS);
+    stickerMessages.push({ type: 'sticker', packageId: s.packageId, stickerId: s.stickerId } as LineMessage);
+  }
+
   await lineClient.replyMessage({
     replyToken: event.replyToken,
-    messages: [...textMessages, ...imageMessages],
+    messages: [...textMessages, ...imageMessages, ...stickerMessages],
   });
 
   // Fire-and-forget: record daily stats for this channel

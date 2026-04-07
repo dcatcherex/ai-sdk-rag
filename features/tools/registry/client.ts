@@ -19,6 +19,7 @@ import { repurposingManifest } from '@/features/repurposing/manifest';
 import { brandGuardrailsManifest } from '@/features/brand-guardrails/manifest';
 import { analyticsManifest } from '@/features/analytics/manifest';
 import { distributionManifest } from '@/features/distribution/manifest';
+import { recordKeeperManifest } from '@/features/record-keeper/manifest';
 
 /** All registered tool manifests */
 export const TOOL_MANIFESTS: ToolManifest[] = [
@@ -36,6 +37,7 @@ export const TOOL_MANIFESTS: ToolManifest[] = [
   brandGuardrailsManifest,
   analyticsManifest,
   distributionManifest,
+  recordKeeperManifest,
 ];
 
 /** Map from tool id → manifest */

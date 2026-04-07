@@ -34,6 +34,8 @@ import { analyticsManifest } from '@/features/analytics/manifest';
 import { createAnalyticsAgentTools } from '@/features/analytics/agent';
 import { distributionManifest } from '@/features/distribution/manifest';
 import { createDistributionAgentTools } from '@/features/distribution/agent';
+import { recordKeeperManifest } from '@/features/record-keeper/manifest';
+import { createRecordKeeperAgentTools } from '@/features/record-keeper/agent';
 
 const SERVER_REGISTRY: RegisteredTool[] = [
   {
@@ -126,6 +128,12 @@ const SERVER_REGISTRY: RegisteredTool[] = [
     getAgentDefinition: (ctx: AgentToolContext) =>
       createDistributionAgentTools({ userId: ctx.userId }),
     getSidebarPageHref: () => `/tools/${distributionManifest.slug}`,
+  },
+  {
+    manifest: recordKeeperManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createRecordKeeperAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${recordKeeperManifest.slug}`,
   },
 ];
 

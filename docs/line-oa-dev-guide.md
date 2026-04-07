@@ -446,6 +446,8 @@ User types: สมัครสมาชิก / สมัคร / /register / re
     → creates account row (providerId='line', accountId=lineUserId)
     → creates lineAccountLink row
     → grants SIGNUP_BONUS_CREDITS
+    → if channel.memberRichMenuLineId is set:
+        → lineClient.linkRichMenuIdToUser(lineUserId, memberRichMenuLineId)  ← fire-and-forget
     → returns { ok, isNew, name }
 ```
 
@@ -454,6 +456,25 @@ User types: สมัครสมาชิก / สมัคร / /register / re
 **Idempotent:** `registerLineUser` returns `{ ok: true, isNew: false }` if already registered.
 
 **Duplicate email error** means the LINE user already registered on another channel — handled gracefully.
+
+### Member Rich Menu (auto-swap on registration)
+
+`lineOaChannel.memberRichMenuLineId` (LINE platform menu ID, not internal UUID) defines the menu to assign to a user immediately after they register.
+
+**Typical use case — 4-button layout (3 top + 1 wide bottom):**
+
+| Menu | Wide bottom button | Who sees it |
+|------|--------------------|-------------|
+| Default (channel default) | สมัครสมาชิก | All new visitors |
+| Member menu (`memberRichMenuLineId`) | เติมเครดิต | After registration |
+
+**Setting the member menu:** In the LINE OA control room → Rich Menus → deploy a menu → click **"Set as member menu"** button. Clicking again unsets it (sets to `null`).
+
+**Implementation notes:**
+- `lineOaChannel.memberRichMenuLineId` stores the LINE platform ID (the `lineMenuId` column on `line_rich_menu`), not our internal UUID
+- The `linkRichMenuIdToUser` call is fire-and-forget — a failure does not block the registration reply
+- A menu must be deployed to LINE first (`lineMenuId` populated) before it can be set as member menu
+- The UI button is disabled until the menu is deployed
 
 ### `lineAccountLink` Usage
 
@@ -576,6 +597,24 @@ A rich menu button can use `data: "switch_agent:<agentId>"` to switch the user t
 - Button "Sales" → `switch_agent:sales-agent-id`
 - Button "Support" → `switch_agent:support-agent-id`
 - Button "Main Menu" → `switch_agent:default`
+
+### Skill Activation via Rich Menu Buttons
+
+Buttons with `type: "message"` send text that flows through the normal message handler, which means they can activate skills just like typed messages. Use this for skill-specific buttons:
+
+```
+Button text "ถามเรื่องโรคพืชและแมลงศัตรูพืช"  →  model-scores → pest-disease-consult activates
+Button text "เช็คสภาพอากาศและความเสี่ยงฟาร์ม"  →  model-scores → weather-farm-risk activates
+Button text "บันทึกกิจกรรมฟาร์มวันนี้"         →  model-scores → farm-record-keeper activates
+```
+
+This keeps all skills on one agent — no `switch_agent` needed.
+
+### Template System
+
+Rich menus can be saved as reusable templates via the "Save as template" (bookmark) icon in the control room. Templates store `name`, `chatBarText`, and all area definitions. Apply a template to any channel via the "Select template" dropdown in the editor — all fields pre-fill in one click.
+
+**Bug fix (2026-04-07):** The rich menu editor showed blank fields when editing an existing menu. Root cause: React `useState` only initializes once on mount. Fixed by adding `key={editTarget?.id ?? 'new'}` to `RichMenuEditor` in `rich-menu-panel.tsx` — forces remount on each open.
 
 ---
 
@@ -947,101 +986,81 @@ Because LINE retries failed webhooks, payment and registration handlers must be 
 
 This section tracks known gaps and planned enhancements. Items are ordered by impact.
 
-### Priority 1 — High Impact, Relatively Small Scope
+### Priority 1 — High Impact, Relatively Small Scope ✅ DONE (2026-04-06)
 
-#### Skill-enabled tools in LINE (not yet wired)
+#### ~~Skill-enabled tools in LINE~~ ✅
 
-When a triggered skill declares `enabledTools`, those tool IDs should be merged into the LINE tool set alongside `agentRow.enabledTools`. Currently only `agentRow.enabledTools` is used.
+`resolveSkillRuntimeContext` returns `skillToolIds`. In `webhook/index.ts` these are now captured and passed as the `skillToolIds` parameter to `handleMessageEvent`. Inside `handleMessageEvent` (`events/message.ts` line 816) `enabledTools` is now merged: `[...new Set([...agentRow.enabledTools, ...skillToolIds])]`.
 
-**File:** `features/line-oa/webhook/index.ts`
-**Change:** Collect `skillToolIds = [...new Set(triggeredSkills.flatMap(s => s.enabledTools))]` and pass the merged list into `handleMessageEvent` as an overridden tool set.
+#### ~~Tier 3 skill resources~~ ✅
 
-#### Tier 3 skill resources
+Already implemented. `resolveSkillRuntimeContext` calls `getResolvedSkillResourcesForPrompt` (in `features/skills/server/resources.ts`) and `webhook/index.ts` appends `skillRuntime.skillResourcesBlock` to `effectiveSystemPrompt`.
 
-The web chat injects `<skill_resources>` (relevant reference files from skill packages). The LINE webhook does not, because `features/skills/server/resources.ts` does not exist yet.
+#### ~~Per-user rich menus not activated~~ ✅
 
-**Prerequisite:** Complete Phase 3 of `docs/agent-skill-implementation-guide.md`.
-**File:** `features/line-oa/webhook/index.ts` — add `getRelevantSkillResourcesForPrompt()` call after skill injection block.
-
-#### Per-user rich menus not activated
-
-`line_user_menu` table exists and `switch_menu:` postback handler writes to it, but no code reads it back to set the user's menu on LINE. The active menu is never restored after a session restart.
-
-**File:** `features/line-oa/webhook/rich-menu/builder.ts`
-**Change:** On each message event, after resolving `lineUserId`, query `line_user_menu` and call `lineClient.linkRichMenuToUser()` if a stored menu differs from the channel default.
+Fixed in `webhook/index.ts`. The message handler now queries `lineUserMenu` and `lineRichMenu` (default menu) in the opening parallel block. If a user has a stored `lineMenuId` that differs from the channel default, `lineClient.linkRichMenuIdToUser()` is called fire-and-forget to restore the preference before generating a reply.
 
 ---
 
-### Priority 2 — Enables New Use Cases
+### Priority 2 — Enables New Use Cases ✅ DONE (2026-04-06)
 
-#### Narrowcast & audience targeting
+#### ~~Narrowcast & audience targeting~~ ✅
 
-Broadcasts currently use `multicast` to all `line_account_link` users. LINE Messaging API supports narrowcast with audience segments (user ID list, retargeting, impression audiences).
+Added `lineAudience` and `lineAudienceUser` tables (`db/schema/line-oa.ts`, migration `0041`). Service functions `createAudience()` and `sendNarrowcast()` in `features/line-oa/broadcast/service.ts` use `manageAudience.ManageAudienceClient` to upload user lists to LINE and `MessagingApiClient.narrowcast()` to send. Routes: `POST /api/line-oa/[id]/audience` and `POST /api/line-oa/[id]/narrowcast/send`.
 
-**Missing schema:** `lineAudience`, `lineAudienceUser` tables.
-**Missing API routes:** `POST /api/line-oa/[id]/audience`, `POST /api/line-oa/[id]/narrowcast/send`.
-**Reference:** LINE Messaging API `/v2/bot/message/narrowcast`, `/v2/bot/audienceGroup`.
+#### ~~Message statistics per broadcast~~ ✅
 
-#### Message statistics per broadcast
+Added `customAggregationUnit: text` to `lineBroadcast`. `sendBroadcast()` now derives the unit from broadcastId (`replace(/-/g,'').slice(0,30)`), stores it before sending, and passes `customAggregationUnits` to LINE. New `getBroadcastStats()` calls LINE insight aggregation API (`/v2/bot/insight/message/event/aggregation`) using stored unit + `sentAt` date. Route: `GET /api/line-oa/[id]/broadcasts/[broadcastId]/stats`.
 
-LINE provides open rate, URL click rate, and video play rate per `customAggregationUnit`. Currently `lineBroadcast` has no `customAggregationUnit` field and stats are never fetched.
+#### ~~API retry on transient failures~~ ✅
 
-**Schema change:** Add `customAggregationUnit: text` to `lineBroadcast`.
-**New API route:** `GET /api/line-oa/[id]/broadcasts/[broadcastId]/stats` — calls `/v2/bot/insight/message/event/aggregation`.
-
-#### API retry on transient failures
-
-`sendBroadcast()` in `broadcast/service.ts` is fire-and-forget with no retry. LINE API can return 429 or 5xx transiently.
-
-**Change:** Wrap `lineClient.multicast()` calls with exponential backoff (3 retries, 1s/2s/4s delays). Update `lineBroadcast.status` to `'partial'` if some batches fail.
+Added `withRetry<T>()` helper in `broadcast/service.ts` — 3 retries with 1s/2s/4s exponential backoff on 429 or 5xx. Wraps `lineClient.broadcast()` in `sendBroadcast()` and `lineClient.narrowcast()` in `sendNarrowcast()`. Added `"partial"` to `BroadcastStatus` type for future batch-level failure tracking.
 
 ---
 
-### Priority 3 — UX & Revenue
+### Priority 3 — UX & Revenue ✅ Partially done (2026-04-06)
 
-#### LINE Pay integration
+#### ~~Sticker message support~~ ✅
 
-PromptPay slip verification works but has friction (user must screenshot and send slip). LINE Pay is the native payment method for Thai LINE OA.
+`features/line-oa/utils/stickers.ts` — `WELCOME_STICKERS`, `FRIENDLY_STICKERS`, `pickRandom()`, `shouldAddFriendlySticker()`.
+- `follow.ts` — welcome reply now includes a random Brown & Cony greeting sticker after the Flex bubble.
+- `message.ts` — short conclusive AI replies (≤80 chars, no question mark, no error) get a friendly sticker ~20% of the time.
 
-**Missing:** LINE Pay API client, `confirmPayment` webhook handler, LINE Pay credential env vars (`LINE_PAY_CHANNEL_ID`, `LINE_PAY_CHANNEL_SECRET`).
-**Impact:** Seamless one-tap payment → higher credit top-up conversion.
+#### ~~Smoother PromptPay UX~~ ✅ (vision-assisted auto-slip detection)
 
-#### Subscription billing
+The old flow required: type "เติมเครดิต" → pick package number → send slip. Now users can just **send the slip directly**.
 
-`linePaymentOrder` supports one-time purchases only. Monthly subscription requires recurring billing infrastructure.
+In `message.ts` image handler: when no pending order exists, `detectPaymentSlip()` uses `gemini-2.5-flash-lite` with JSON mode to check if the image is a Thai PromptPay slip and extract the amount. If the amount matches a package (±฿1), an order is auto-created and `verifySlipAndCredit` is called immediately. On success, credits are added in one step. If the amount doesn't match any package, a helpful message lists the available tiers.
 
-**Missing schema:** `subscriptionPlan`, `userSubscription` tables.
-**Missing:** Recurring charge trigger (cron job or LINE Pay recurring API).
+#### LINE Pay integration — DEFERRED (future plan)
 
-#### Sticker message support
+LINE Pay requires a registered Thai legal entity and a LINE Partner approval process that takes weeks to months. Not suitable for early-stage / public test phase.
 
-LINE users expect stickers. Agents can send stickers using `{ type: 'sticker', packageId, stickerId }`.
+**Future plan:** Once Vaja has a legal entity and has run public tests long enough to justify it, integrate LINE Pay for one-tap payment UX. Required: `LINE_PAY_CHANNEL_ID`, `LINE_PAY_CHANNEL_SECRET` env vars, `confirmPayment` webhook handler, and LINE Pay API client.
 
-**Change:** Add a sticker response option in the follow event welcome message and as an occasional friendly response in short AI replies.
+**Alternative considered:** Omise/Stripe payment link sent via LINE Flex Message button — lower friction than LINE Pay approval, usable without LINE Partner status. Implement via `uri` action in a Flex bubble pointing to `/checkout?package=...`.
+
+#### Subscription billing — DEFERRED (future plan)
+
+Not needed until public test phase completes and recurring users are established. Premature infrastructure for current stage.
+
+**Future plan:** `subscriptionPlan` + `userSubscription` tables, recurring charge via Stripe/Omise on the web dashboard, credit balance reflected in LINE. Cron job (or Stripe webhook) to top up credits on renewal.
 
 ---
 
-### Priority 4 — Platform Expansion
+### Priority 4 — Platform Expansion ✅ DONE (2026-04-06)
 
-#### Group chat support
+#### ~~Group chat support~~ ✅
 
-`lineConversation` assumes 1:1 (userId-based). LINE groups use `groupId` as the source.
+Added `groupId text nullable` to `lineConversation` (migration `0042`). `WebhookEvent.source` now typed with `groupId?`. In `webhook/index.ts`, `event.source.type === 'group'` is detected; `groupId` is used as the conversation key (stored in `lineConversation.lineUserId` for index compatibility, mirrored in `groupId` column). Agent session and rich menu lookups use the group-level key; account link lookup uses the individual sender's `lineUserId`. System prompt in `message.ts` appends a group-chat context note and identifies the individual sender.
 
-**Schema change:** Add nullable `groupId` to `lineConversation`.
-**Webhook change:** Detect `event.source.type === 'group'`, use `groupId` as conversation key, adjust persona (group-aware system prompt).
+#### ~~Beacon / location triggers~~ ✅
 
-#### Beacon / location triggers
+Added `lineBeaconDevice` table (migration `0042`) with `hwid`, `name`, `description`, `enterMessage`. New handler `features/line-oa/webhook/events/beacon.ts` handles `enter` and `banner.click` events — looks up the device by `hwid`, pushes the configured `enterMessage` (or a default greeting) via `pushMessage`. `webhook/index.ts` routes `event.type === 'beacon'` to the handler.
 
-LINE supports hardware beacons that push an event when a user enters range. Useful for agriculture (field alerts) and retail (store promotions).
+#### ~~User profile sync~~ ✅
 
-**Missing:** `beacon` event handler in `webhook/index.ts`, `lineBeaconDevice` table.
-**Webhook change:** Add `if (event.type === 'beacon')` branch.
-
-#### User profile sync
-
-`lineAccountLink` stores `displayName` and `pictureUrl` at link time but never refreshes them. LINE users who change their display name are not updated.
-
-**Change:** On each message from a linked user, call `GET /v2/bot/profile/{userId}` and upsert `lineAccountLink.displayName` and `pictureUrl` if changed. Cache with a 24h TTL to avoid per-message API calls.
+`features/line-oa/link/profile-sync.ts` — `maybeSyncUserProfile()` uses an in-process `Map` as a 24h TTL cache (no schema change needed; resets on cold start which is fine for serverless). On each message from a linked user, it checks the cache; if stale, calls `GET /v2/bot/profile/{userId}` and upserts `displayName` and `pictureUrl` in `lineAccountLink`. Wired in `webhook/index.ts` as fire-and-forget.
 
 ---
 
@@ -1058,20 +1077,20 @@ LINE supports hardware beacons that push an event when a user enters range. Usef
 | Broadcast to all linked users | ✅ Complete |
 | Daily analytics aggregation | ✅ Complete |
 | Content approval postback | ✅ Complete |
-| Skills Engine — Tier 1 + Tier 2 injection | ✅ Complete (2026-04-05) |
-| Per-user rich menu restoration | ⚠️ Table exists, activation missing |
-| Skill-enabled tools merge in LINE | ⚠️ Planned |
-| Skill resources — Tier 3 injection | ⚠️ Blocked on skills Phase 3 |
-| Narrowcast + audience segments | ❌ Not started |
-| Broadcast message statistics | ❌ Not started |
-| API retry on broadcast failures | ❌ Not started |
-| LINE Pay | ❌ Not started |
-| Subscription billing | ❌ Not started |
-| Sticker messages | ❌ Not started |
-| Group chat support | ❌ Not started |
-| Beacon / location triggers | ❌ Not started |
-| User profile sync | ❌ Not started |
+| Skills Engine — Tier 1 + Tier 2 + Tier 3 injection | ✅ Complete (2026-04-06) |
+| Skill-enabled tools merge in LINE | ✅ Complete (2026-04-06) |
+| Per-user rich menu restoration | ✅ Complete (2026-04-06) |
+| Narrowcast + audience segments | ✅ Complete (2026-04-06) |
+| Broadcast message statistics | ✅ Complete (2026-04-06) |
+| API retry on broadcast failures | ✅ Complete (2026-04-06) |
+| Sticker messages | ✅ Complete (2026-04-06) |
+| Vision-assisted PromptPay slip detection | ✅ Complete (2026-04-06) |
+| Group chat support | ✅ Complete (2026-04-06) |
+| Beacon / location triggers | ✅ Complete (2026-04-06) |
+| User profile sync | ✅ Complete (2026-04-06) |
+| LINE Pay | ⏸ Deferred — requires LINE Partner approval |
+| Subscription billing | ⏸ Deferred — post public-test phase |
 
 ---
 
-*Last updated: 2026-04-05. Covers LINE OA webhook, multimodal I/O, account linking, payments, Skills Engine (Tier 1+2), and improvement roadmap.*
+*Last updated: 2026-04-06. All Priority 1–4 items implemented. Remaining deferred: LINE Pay (requires LINE Partner approval) and subscription billing (post public-test phase). Covers webhook, multimodal I/O, account linking, payments, Skills Engine (Tier 1+2+3), narrowcast, group chat, beacons, and profile sync.*

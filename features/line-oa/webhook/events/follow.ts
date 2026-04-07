@@ -2,6 +2,7 @@ import type { messagingApi } from '@line/bot-sdk';
 import type { AgentRow, Sender } from '../types';
 import { buildWelcomeFlex } from '../flex';
 import { buildQuickReplyItem } from '../utils/quick-reply';
+import { WELCOME_STICKERS, pickRandom } from '@/features/line-oa/utils/stickers';
 
 type LineEvent = {
   replyToken: string;
@@ -36,8 +37,13 @@ export async function handleFollowEvent(
     quickReply,
   );
 
+  const welcomeSticker = pickRandom(WELCOME_STICKERS);
+
   await lineClient.replyMessage({
     replyToken: event.replyToken,
-    messages: [welcomeMessage],
+    messages: [
+      welcomeMessage,
+      { type: 'sticker', packageId: welcomeSticker.packageId, stickerId: welcomeSticker.stickerId },
+    ],
   });
 }

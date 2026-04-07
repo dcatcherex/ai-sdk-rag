@@ -178,30 +178,52 @@ Vaja's Contextual Skills Engine loads specialized agricultural knowledge into th
 ### Week 1 — Core Agricultural Skills (Priority 1)
 
 **Tasks:**
-- [ ] Create `pest-disease-consult` SKILL.md with Thai crop database references
-  - File: `skills/pest-disease-consult/SKILL.md`
-  - References: common diseases for rice, cassava, sugarcane, tomato, longan
-- [ ] Create `weather-farm-risk` SKILL.md that uses existing weather tool
-  - File: `skills/weather-farm-risk/SKILL.md`
-  - Connects to: `lib/tools/weather.ts` (already built)
-- [ ] Create `crop-market-advisor` SKILL.md
-  - File: `skills/crop-market-advisor/SKILL.md`
-- [ ] Create `farm-record-keeper` SKILL.md
-  - File: `skills/farm-record-keeper/SKILL.md`
-- [ ] Create a "Farm Assistant" agent pre-loaded with all 4 skills
+- [x] Create `pest-disease-consult` SKILL.md with Thai crop database references
+  - File: `d:/ai/agrispark/pest-disease-consult/SKILL.md`
+  - References: `references/thai-crop-diseases.md`, `references/common-pesticides-thailand.md` ✅
+- [x] Create `weather-farm-risk` SKILL.md that uses existing weather tool
+  - File: `d:/ai/agrispark/weather-farm-risk/SKILL.md`
+  - `allowed-tools: weather` in frontmatter ✅
+- [x] Create `crop-market-advisor` SKILL.md
+  - File: `d:/ai/agrispark/crop-market-advisor/SKILL.md` ✅
+- [x] Create `farm-record-keeper` SKILL.md (rewritten — removed window.storage, uses record_keeper tool)
+  - File: `d:/ai/agrispark/farm-record-keeper/SKILL.md`
+  - `allowed-tools: record_keeper` in frontmatter ✅
+- [x] Build `record_keeper` tool (new platform feature)
+  - Files: `features/record-keeper/` (manifest, schema, service, agent, types)
+  - DB table: `activity_record` — serves farm, class, patient, any profession
+  - Registered in `features/tools/registry/client.ts` + `server.ts` ✅
+- [x] Import all 4 skills from GitHub (`dcatcherex/skills`) into platform ✅
+- [x] Fix YAML block scalar parser (`>` folded descriptions now parse correctly) ✅
+- [x] Fix `allowed-tools` frontmatter parsing — was ignored on import, now stored in `enabledTools` ✅
+- [x] Create "AgriSpark — วาจา เกษตร" agent pre-loaded with all 4 skills
+  - Agent ID: `agrispark-farm-assistant-001`
+  - Tools: `weather` + `record_keeper`
+  - 4 Thai starter prompts ✅
+- [x] Add `{CURRENT_DATE}`, `{THAI_SEASON}`, `{USER_PROVINCE}` template substitution
+  - `resolveSystemPromptTemplate()` in `lib/prompt.ts`, called in `app/api/chat/route.ts` ✅
+- [x] Set skill activation to `model` mode (semantic scoring, not single-keyword matching) ✅
 - [ ] Test full loop: skill activates → correct response → Thai language quality
 
-**Acceptance criteria:** All 4 skills activate correctly from Thai keyword messages in chat.
+**Acceptance criteria:** All 4 skills activate correctly from Thai messages in chat.
 
 ### Week 2 — LINE OA Demo Polish
 
 **Tasks:**
-- [ ] Set up a demo LINE OA account ("Vaja เกษตร Demo")
-- [ ] Configure rich menu with 3 buttons:
-  - "ถามเรื่องโรคพืช/แมลง" → triggers pest-disease context
-  - "เช็คสภาพอากาศฟาร์ม" → triggers weather-risk context
-  - "บันทึกฟาร์ม" → triggers farm-record context
-- [ ] Connect demo LINE OA to Farm Assistant agent with all 4 skills
+- [ ] Set up a dedicated AgriSpark LINE OA account in LINE Developers Console
+- [x] Rich menus prepared (4-button layout, 2 menus, draft in DB)
+  - Script: `scripts/setup-agrispark-line-oa.mjs <channelId>`
+  - Layout: 3 top + 1 wide bottom (canvas 2500×540)
+    - Top row: โรคพืช/แมลง 🌿 | อากาศฟาร์ม 🌤️ | บันทึกฟาร์ม 📋
+    - Bottom wide (default menu): 👤 `สมัครสมาชิก` (new visitors)
+    - Bottom wide (member menu):  💳 `เติมเครดิต` (after registration) ✅
+- [x] "Able Work Bot" channel temporarily connected to AgriSpark agent for testing ✅
+- [x] Rich menu editor bug fixed — blank fields when editing existing menu ✅
+- [x] Member menu auto-swap on registration (new platform feature)
+  - New column `member_rich_menu_line_id` on `line_oa_channel`
+  - After `สมัครสมาชิก` succeeds, user is automatically switched to member menu via `linkRichMenuIdToUser`
+  - Control room UI: "Set as member menu" button on each deployed rich menu card ✅
+- [ ] Deploy both menus → Set Default Menu as Default → Set Member Menu as member menu
 - [ ] Test full demo scenario with real LINE app on phone
 - [ ] Verify Thai language quality across all skill responses
 

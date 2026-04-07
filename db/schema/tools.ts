@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { index, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { date, index, jsonb, numeric, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
 import { chatThread } from "./chat";
@@ -35,6 +35,32 @@ export const toolArtifact = pgTable("tool_artifact", {
 }, (table) => [
   index("tool_artifact_runId_idx").on(table.toolRunId),
 ]);
+
+// ── Activity Record (generic domain log — farm, class, patient, etc.) ─────────
+
+export const activityRecord = pgTable("activity_record", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  contextType: text("context_type").notNull(), // 'farm' | 'class' | 'patient' | ...
+  category: text("category"),                  // 'fertilizer' | 'pesticide' | 'lesson' | ...
+  entity: text("entity"),                      // crop name, student name, patient id
+  date: date("date").notNull(),                // activity date (user-specified, not createdAt)
+  activity: text("activity").notNull(),
+  quantity: text("quantity"),
+  cost: numeric("cost", { precision: 10, scale: 2 }),
+  income: numeric("income", { precision: 10, scale: 2 }),
+  notes: text("notes"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("activity_record_userId_contextType_idx").on(table.userId, table.contextType),
+  index("activity_record_userId_date_idx").on(table.userId, table.date),
+  index("activity_record_entity_idx").on(table.entity),
+]);
+
+export const activityRecordRelations = relations(activityRecord, ({ one }) => ({
+  user: one(user, { fields: [activityRecord.userId], references: [user.id] }),
+}));
 
 export const toolRunRelations = relations(toolRun, ({ one, many }) => ({
   user: one(user, { fields: [toolRun.userId], references: [user.id] }),

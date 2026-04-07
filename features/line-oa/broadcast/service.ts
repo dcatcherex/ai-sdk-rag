@@ -1,9 +1,27 @@
 import { and, desc, eq } from 'drizzle-orm';
-import { messagingApi } from '@line/bot-sdk';
+import { messagingApi, manageAudience } from '@line/bot-sdk';
 import { db } from '@/lib/db';
-import { lineBroadcast, lineOaChannel } from '@/db/schema';
+import { lineBroadcast, lineOaChannel, lineAudience, lineAudienceUser } from '@/db/schema';
 
 type BroadcastRow = typeof lineBroadcast.$inferSelect;
+
+/** Exponential backoff retry for transient LINE API failures (429 / 5xx). */
+async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      const status = (err as { statusCode?: number; status?: number })?.statusCode
+        ?? (err as { statusCode?: number; status?: number })?.status;
+      const isTransient = status === 429 || (status !== undefined && status >= 500);
+      if (!isTransient || attempt === retries) break;
+      await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** attempt));
+    }
+  }
+  throw lastError;
+}
 
 /**
  * Load a broadcast + its channel, verifying ownership.
@@ -145,12 +163,23 @@ export async function sendBroadcast(
     .set({ status: 'sending', updatedAt: new Date() })
     .where(eq(lineBroadcast.id, broadcastId));
 
+  const aggregationUnit = broadcastId.replace(/-/g, '').slice(0, 30);
+
+  await db
+    .update(lineBroadcast)
+    .set({ customAggregationUnit: aggregationUnit, updatedAt: new Date() })
+    .where(eq(lineBroadcast.id, broadcastId));
+
   const lineClient = new messagingApi.MessagingApiClient({ channelAccessToken: accessToken });
 
   try {
-    const result = await lineClient.broadcast({
-      messages: [{ type: 'text', text: broadcast.messageText }],
-    });
+    const broadcastRequest = {
+      messages: [{ type: 'text' as const, text: broadcast.messageText! }],
+      customAggregationUnits: [aggregationUnit],
+    };
+    const result = await withRetry(() =>
+      lineClient.broadcast(broadcastRequest as Parameters<typeof lineClient.broadcast>[0]),
+    );
 
     // broadcastResponse may include requestId in headers; recipient count not in body for broadcast
     const recipientCount = (result as { sentMessages?: { customAggregationUnits?: string[] } })
@@ -162,6 +191,7 @@ export async function sendBroadcast(
         status: 'sent',
         sentAt: new Date(),
         recipientCount: typeof recipientCount === 'number' ? recipientCount : null,
+        customAggregationUnit: aggregationUnit,
         errorMessage: null,
         updatedAt: new Date(),
       })
@@ -176,4 +206,155 @@ export async function sendBroadcast(
       .where(eq(lineBroadcast.id, broadcastId));
     throw err;
   }
+}
+
+export type BroadcastStats = {
+  customAggregationUnit: string | null;
+  delivered: number;
+  uniqueImpression: number;
+  uniqueClick: number;
+  uniqueMediaPlayed: number;
+  uniqueMediaPlayed100Percent: number;
+  from: string;
+  to: string;
+};
+
+export async function getBroadcastStats(
+  broadcastId: string,
+  userId: string,
+): Promise<BroadcastStats | null> {
+  const { broadcast, accessToken } = await loadBroadcastWithChannel(broadcastId, userId);
+
+  if (!broadcast.customAggregationUnit || !broadcast.sentAt) return null;
+
+  const fmt = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, '');
+  const from = fmt(broadcast.sentAt);
+  const to = fmt(new Date(broadcast.sentAt.getTime() + 86_400_000)); // +1 day
+
+  const url = `https://api.line.me/v2/bot/insight/message/event/aggregation`
+    + `?customAggregationUnit=${encodeURIComponent(broadcast.customAggregationUnit)}&from=${from}&to=${to}`;
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!res.ok) {
+    if (res.status === 404) return null;
+    throw new Error(`LINE insight API error: ${res.status}`);
+  }
+
+  const data = await res.json() as {
+    overview?: {
+      delivered?: number;
+      uniqueImpression?: number;
+      uniqueClick?: number;
+      uniqueMediaPlayed?: number;
+      uniqueMediaPlayed100Percent?: number;
+    };
+  };
+
+  const ov = data.overview ?? {};
+  return {
+    customAggregationUnit: broadcast.customAggregationUnit,
+    delivered: ov.delivered ?? 0,
+    uniqueImpression: ov.uniqueImpression ?? 0,
+    uniqueClick: ov.uniqueClick ?? 0,
+    uniqueMediaPlayed: ov.uniqueMediaPlayed ?? 0,
+    uniqueMediaPlayed100Percent: ov.uniqueMediaPlayed100Percent ?? 0,
+    from,
+    to,
+  };
+}
+
+export type AudienceRow = typeof lineAudience.$inferSelect;
+
+export async function createAudience(
+  channelId: string,
+  userId: string,
+  input: { name: string; lineUserIds: string[] },
+): Promise<AudienceRow> {
+  const channelRows = await db
+    .select({ id: lineOaChannel.id, channelAccessToken: lineOaChannel.channelAccessToken })
+    .from(lineOaChannel)
+    .where(and(eq(lineOaChannel.id, channelId), eq(lineOaChannel.userId, userId)))
+    .limit(1);
+
+  const channel = channelRows[0];
+  if (!channel) throw new Error('Channel not found');
+
+  const audienceClient = new manageAudience.ManageAudienceClient({
+    channelAccessToken: channel.channelAccessToken,
+  });
+
+  const lineResult = await audienceClient.createAudienceGroup({
+    description: input.name,
+    isIfaAudience: false,
+    audiences: input.lineUserIds.map((id) => ({ id })),
+  });
+
+  const now = new Date();
+  const id = crypto.randomUUID();
+  await db.insert(lineAudience).values({
+    id,
+    channelId,
+    name: input.name,
+    lineAudienceGroupId: String(lineResult.audienceGroupId),
+    audienceCount: input.lineUserIds.length,
+    status: 'ready',
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  // Persist individual users
+  if (input.lineUserIds.length > 0) {
+    await db.insert(lineAudienceUser).values(
+      input.lineUserIds.map((lineUserId) => ({
+        id: crypto.randomUUID(),
+        audienceId: id,
+        lineUserId,
+        createdAt: now,
+      })),
+    );
+  }
+
+  const rows = await db.select().from(lineAudience).where(eq(lineAudience.id, id)).limit(1);
+  return rows[0]!;
+}
+
+export async function sendNarrowcast(
+  channelId: string,
+  userId: string,
+  input: { audienceId: string; messageText: string },
+): Promise<void> {
+  const channelRows = await db
+    .select({ id: lineOaChannel.id, channelAccessToken: lineOaChannel.channelAccessToken })
+    .from(lineOaChannel)
+    .where(and(eq(lineOaChannel.id, channelId), eq(lineOaChannel.userId, userId)))
+    .limit(1);
+
+  const channel = channelRows[0];
+  if (!channel) throw new Error('Channel not found');
+
+  const audienceRows = await db
+    .select({ lineAudienceGroupId: lineAudience.lineAudienceGroupId })
+    .from(lineAudience)
+    .where(and(eq(lineAudience.id, input.audienceId), eq(lineAudience.channelId, channelId)))
+    .limit(1);
+
+  const audience = audienceRows[0];
+  if (!audience?.lineAudienceGroupId) throw new Error('Audience not found or not ready');
+
+  const lineClient = new messagingApi.MessagingApiClient({
+    channelAccessToken: channel.channelAccessToken,
+  });
+
+  await withRetry(() =>
+    lineClient.narrowcast({
+      messages: [{ type: 'text', text: input.messageText }],
+      recipient: {
+        type: 'audience',
+        audienceGroupId: Number(audience.lineAudienceGroupId),
+      },
+    }),
+  );
 }

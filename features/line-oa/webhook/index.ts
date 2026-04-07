@@ -1,13 +1,15 @@
 import { and, eq } from 'drizzle-orm';
 import { messagingApi, validateSignature } from '@line/bot-sdk';
 import { db } from '@/lib/db';
-import { agent, brandAsset, lineAccountLink, lineOaChannel, lineUserAgentSession } from '@/db/schema';
+import { agent, brandAsset, lineAccountLink, lineOaChannel, lineRichMenu, lineUserAgentSession, lineUserMenu } from '@/db/schema';
 import { chatModel } from '@/lib/ai';
 import { getSystemPrompt } from '@/lib/prompt';
 import type { AgentRow, LinkedUser, Sender } from './types';
 import { handleFollowEvent } from './events/follow';
 import { handleMessageEvent } from './events/message';
 import { handlePostbackEvent } from './events/postback';
+import { handleBeaconEvent } from './events/beacon';
+import { maybeSyncUserProfile } from '@/features/line-oa/link/profile-sync';
 import {
   getSkillsForAgent,
   resolveSkillRuntimeContext,
@@ -18,9 +20,10 @@ export const maxDuration = 30;
 type WebhookEvent = {
   type: string;
   replyToken?: string;
-  source?: { type: string; userId?: string };
+  source?: { type: string; userId?: string; groupId?: string };
   message?: { type: string; text?: string; id: string };
   postback?: { data: string; params?: Record<string, string> };
+  beacon?: { hwid: string; type: string };
 };
 
 export async function POST(
@@ -103,22 +106,45 @@ export async function POST(
 
       if (event.type === 'message') {
         const lineUserId = event.source?.userId;
+        const isGroupChat = event.source?.type === 'group';
+        const groupId = isGroupChat ? event.source?.groupId : undefined;
+        // For group chats the conversation key is the groupId; use it where lineUserId is needed for keying
+        const conversationUserId = groupId ?? lineUserId;
 
-        // Look up account link + active agent session in parallel
-        const [linkRows, sessionRows] = lineUserId
+        // Look up account link (by individual user), agent session + menu (by conversation key), and channel default menu
+        const [linkRows, sessionRows, userMenuRows, defaultMenuRows] = (lineUserId || groupId)
           ? await Promise.all([
+              // Account link is per individual user, even inside groups
+              lineUserId
+                ? db
+                    .select({ userId: lineAccountLink.userId, displayName: lineAccountLink.displayName })
+                    .from(lineAccountLink)
+                    .where(and(eq(lineAccountLink.channelId, channel.id), eq(lineAccountLink.lineUserId, lineUserId)))
+                    .limit(1)
+                : Promise.resolve([]),
+              // Agent session keyed by conversation (groupId for groups, lineUserId for 1:1)
+              conversationUserId
+                ? db
+                    .select({ activeAgentId: lineUserAgentSession.activeAgentId })
+                    .from(lineUserAgentSession)
+                    .where(and(eq(lineUserAgentSession.channelId, channel.id), eq(lineUserAgentSession.lineUserId, conversationUserId)))
+                    .limit(1)
+                : Promise.resolve([]),
+              // Rich menu keyed by conversation
+              conversationUserId
+                ? db
+                    .select({ lineMenuId: lineUserMenu.lineMenuId })
+                    .from(lineUserMenu)
+                    .where(and(eq(lineUserMenu.channelId, channel.id), eq(lineUserMenu.lineUserId, conversationUserId)))
+                    .limit(1)
+                : Promise.resolve([]),
               db
-                .select({ userId: lineAccountLink.userId, displayName: lineAccountLink.displayName })
-                .from(lineAccountLink)
-                .where(and(eq(lineAccountLink.channelId, channel.id), eq(lineAccountLink.lineUserId, lineUserId)))
-                .limit(1),
-              db
-                .select({ activeAgentId: lineUserAgentSession.activeAgentId })
-                .from(lineUserAgentSession)
-                .where(and(eq(lineUserAgentSession.channelId, channel.id), eq(lineUserAgentSession.lineUserId, lineUserId)))
+                .select({ lineMenuId: lineRichMenu.lineMenuId })
+                .from(lineRichMenu)
+                .where(and(eq(lineRichMenu.channelId, channel.id), eq(lineRichMenu.isDefault, true)))
                 .limit(1),
             ])
-          : [[], []];
+          : [[], [], [], []];
 
         const linkedUser: LinkedUser | undefined = linkRows[0] ?? undefined;
 
@@ -141,7 +167,22 @@ export async function POST(
           }
         }
 
+        // Restore per-user/group rich menu if it differs from the channel default (fire-and-forget)
+        const storedMenuId = userMenuRows[0]?.lineMenuId;
+        const defaultMenuId = defaultMenuRows[0]?.lineMenuId;
+        if (storedMenuId && lineUserId && storedMenuId !== defaultMenuId) {
+          lineClient.linkRichMenuIdToUser(lineUserId, storedMenuId).catch((err) => {
+            console.error('[LINE webhook] Failed to restore user rich menu:', err);
+          });
+        }
+
+        // Refresh linked user's display name + picture if stale (24h TTL, fire-and-forget)
+        if (linkedUser && lineUserId) {
+          void maybeSyncUserProfile(lineUserId, channel.id, channel.channelAccessToken);
+        }
+
         // Inject skills into the system prompt (mirrors app/api/chat/route.ts skill injection)
+        let skillToolIds: string[] = [];
         if (effectiveAgentRow?.id) {
           const userText = event.message?.text ?? '';
           const agentSkillRows = await getSkillsForAgent(effectiveAgentRow.id);
@@ -151,18 +192,21 @@ export async function POST(
             effectiveSystemPrompt += skillRuntime.catalogBlock;
             effectiveSystemPrompt += skillRuntime.activeSkillsBlock;
             effectiveSystemPrompt += skillRuntime.skillResourcesBlock;
+            skillToolIds = skillRuntime.skillToolIds;
           }
         }
 
         await handleMessageEvent(
           event,
-          { id: channel.id, userId: channel.userId, name: channel.name, channelAccessToken: channel.channelAccessToken },
+          { id: channel.id, userId: channel.userId, name: channel.name, channelAccessToken: channel.channelAccessToken, memberRichMenuLineId: channel.memberRichMenuLineId },
           lineClient,
           effectiveAgentRow,
           effectiveSender,
           effectiveSystemPrompt,
           effectiveModelId,
           linkedUser,
+          skillToolIds,
+          groupId,
         );
       }
 
@@ -172,6 +216,15 @@ export async function POST(
           lineClient,
           channel.id,
           channel.channelAccessToken,
+        );
+      }
+
+      if (event.type === 'beacon') {
+        await handleBeaconEvent(
+          event,
+          lineClient,
+          { id: channel.id, channelAccessToken: channel.channelAccessToken },
+          sender,
         );
       }
     } catch (eventError) {

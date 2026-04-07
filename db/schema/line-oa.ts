@@ -21,6 +21,8 @@ export const lineOaChannel = pgTable("line_oa_channel", {
   channelSecret: text("channel_secret").notNull(),
   channelAccessToken: text("channel_access_token").notNull(),
   status: text("status").notNull().default("active"),
+  /** LINE platform menu ID to assign to a user after they register as a member. */
+  memberRichMenuLineId: text("member_rich_menu_line_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (table) => [
@@ -35,8 +37,11 @@ export const lineOaChannel = pgTable("line_oa_channel", {
 export const lineConversation = pgTable("line_conversation", {
   id: text("id").primaryKey(),
   channelId: text("channel_id").notNull().references(() => lineOaChannel.id, { onDelete: "cascade" }),
+  /** For 1:1 chats: the LINE user ID. For group chats: the group ID (used as conversation key). */
   lineUserId: text("line_user_id").notNull(),
   threadId: text("thread_id").notNull().references(() => chatThread.id, { onDelete: "cascade" }),
+  /** Populated for group-source events. Null for 1:1. */
+  groupId: text("group_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (table) => [
@@ -129,7 +134,7 @@ export const lineUserMenuRelations = relations(lineUserMenu, ({ one }) => ({
 
 export type BroadcastMessageType = "text" | "flex";
 export type BroadcastTargetType = "all" | "followers";
-export type BroadcastStatus = "draft" | "sending" | "sent" | "failed";
+export type BroadcastStatus = "draft" | "sending" | "sent" | "partial" | "failed";
 
 export const lineBroadcast = pgTable("line_broadcast", {
   id: text("id").primaryKey(),
@@ -143,6 +148,7 @@ export const lineBroadcast = pgTable("line_broadcast", {
   scheduledAt: timestamp("scheduled_at"),
   sentAt: timestamp("sent_at"),
   recipientCount: integer("recipient_count"),
+  customAggregationUnit: text("custom_aggregation_unit"),
   errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
@@ -152,6 +158,45 @@ export const lineBroadcast = pgTable("line_broadcast", {
 
 export const lineBroadcastRelations = relations(lineBroadcast, ({ one }) => ({
   channel: one(lineOaChannel, { fields: [lineBroadcast.channelId], references: [lineOaChannel.id] }),
+}));
+
+// ─── Audience Groups ──────────────────────────────────────────────────────────
+
+/**
+ * LINE audience group created for narrowcast targeting.
+ * One audience = a named list of LINE user IDs uploaded to LINE platform.
+ */
+export const lineAudience = pgTable("line_audience", {
+  id: text("id").primaryKey(),
+  channelId: text("channel_id").notNull().references(() => lineOaChannel.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  /** LINE-side audience group ID (returned by LINE API on creation) */
+  lineAudienceGroupId: text("line_audience_group_id"),
+  audienceCount: integer("audience_count").notNull().default(0),
+  /** creating | ready | expired | error */
+  status: text("status").notNull().default("creating"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  index("line_audience_channelId_idx").on(table.channelId),
+]);
+
+export const lineAudienceUser = pgTable("line_audience_user", {
+  id: text("id").primaryKey(),
+  audienceId: text("audience_id").notNull().references(() => lineAudience.id, { onDelete: "cascade" }),
+  lineUserId: text("line_user_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("line_audience_user_audience_line_user_idx").on(table.audienceId, table.lineUserId),
+]);
+
+export const lineAudienceRelations = relations(lineAudience, ({ one, many }) => ({
+  channel: one(lineOaChannel, { fields: [lineAudience.channelId], references: [lineOaChannel.id] }),
+  users: many(lineAudienceUser),
+}));
+
+export const lineAudienceUserRelations = relations(lineAudienceUser, ({ one }) => ({
+  audience: one(lineAudience, { fields: [lineAudienceUser.audienceId], references: [lineAudience.id] }),
 }));
 
 // ─── Account Linking ───────────────────────────────────────────────────────
@@ -294,4 +339,30 @@ export const linePaymentOrder = pgTable("line_payment_order", {
 
 export const linePaymentOrderRelations = relations(linePaymentOrder, ({ one }) => ({
   channel: one(lineOaChannel, { fields: [linePaymentOrder.channelId], references: [lineOaChannel.id] }),
+}));
+
+// ── LINE Beacon Devices ────────────────────────────────────────────────────────
+
+/**
+ * Registered LINE Beacon hardware devices linked to a channel.
+ * When a user enters beacon range, LINE fires a 'beacon' webhook event with the hwid.
+ */
+export const lineBeaconDevice = pgTable("line_beacon_device", {
+  id: text("id").primaryKey(),
+  channelId: text("channel_id").notNull().references(() => lineOaChannel.id, { onDelete: "cascade" }),
+  /** Hardware ID stamped on the physical beacon unit */
+  hwid: text("hwid").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  /** Optional message pushed to the user when they enter beacon range */
+  enterMessage: text("enter_message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  uniqueIndex("line_beacon_device_channel_hwid_idx").on(table.channelId, table.hwid),
+  index("line_beacon_device_channelId_idx").on(table.channelId),
+]);
+
+export const lineBeaconDeviceRelations = relations(lineBeaconDevice, ({ one }) => ({
+  channel: one(lineOaChannel, { fields: [lineBeaconDevice.channelId], references: [lineOaChannel.id] }),
 }));

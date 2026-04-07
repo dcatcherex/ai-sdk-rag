@@ -155,6 +155,20 @@
       "when": 1775100000000,
       "tag": "0028_agent_starter_prompts",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1775463314628,
+      "tag": "0029_spotty_molly_hayes",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1775541003272,
+      "tag": "0030_blue_spyke",
+      "breakpoints": true
     }
   ]
 }

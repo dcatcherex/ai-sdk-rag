@@ -110,6 +110,39 @@ export function getSystemPrompt(
 // Backward compatibility for existing imports (used in app/api/chat/route.ts)
 export const systemPrompt = systemPrompts.general_assistant;
 
+// ── System prompt template substitution ──────────────────────────────────────
+// Replaces {CURRENT_DATE}, {THAI_SEASON}, {USER_PROVINCE} placeholders in
+// agent system prompts at request time. Safe to call on any prompt —
+// prompts without placeholders are returned unchanged.
+
+function getThaiSeason(month: number): string {
+  if (month >= 5 && month <= 7) return 'ต้นฤดูฝน (Early Wet Season, May–Jul)';
+  if (month >= 8 && month <= 10) return 'กลาง/ปลายฤดูฝน (Late Wet Season, Aug–Oct) — harvest prep, typhoon risk';
+  return 'ฤดูแล้ง (Dry Season, Nov–Apr) — off-season crops, drought risk';
+}
+
+export function resolveSystemPromptTemplate(
+  prompt: string,
+  context: { userProvince?: string | null } = {},
+): string {
+  if (!prompt.includes('{')) return prompt; // fast path — no placeholders
+
+  const now = new Date();
+  const month = now.getMonth() + 1; // 1-based
+
+  const thaiDate = now.toLocaleDateString('th-TH', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'Asia/Bangkok',
+  });
+
+  return prompt
+    .replace(/\{CURRENT_DATE\}/g, thaiDate)
+    .replace(/\{THAI_SEASON\}/g, getThaiSeason(month))
+    .replace(/\{USER_PROVINCE\}/g, context.userProvince ?? 'ไม่ทราบ (ask the user)');
+}
+
 // Optional: convenient list for UI selection or switching
 export const systemPromptList: Array<{
   key: SystemPromptKey;

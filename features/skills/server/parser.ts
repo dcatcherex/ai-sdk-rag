@@ -5,6 +5,7 @@ export type ParsedSkillMarkdown = {
   description?: string;
   triggerType: SkillTriggerType;
   trigger?: string;
+  enabledTools: string[];
   body: string;
 };
 
@@ -64,7 +65,13 @@ export function parseSkillMarkdown(content: string): ParsedSkillMarkdown {
     }
   }
 
-  return { name, description, triggerType, trigger, body };
+  // Parse allowed-tools: space-separated tool IDs (e.g. "weather record_keeper")
+  const rawAllowedTools = frontmatter['allowed-tools'];
+  const enabledTools = rawAllowedTools
+    ? rawAllowedTools.split(/\s+/).filter(Boolean)
+    : [];
+
+  return { name, description, triggerType, trigger, enabledTools, body };
 }
 
 function escapeFrontmatterValue(value: string): string {
@@ -75,21 +82,47 @@ function escapeFrontmatterValue(value: string): string {
 
 function parseSimpleYaml(yaml: string): Record<string, string> {
   const result: Record<string, string> = {};
+  const lines = yaml.split('\n');
+  let i = 0;
 
-  for (const line of yaml.split('\n')) {
+  while (i < lines.length) {
+    const line = lines[i]!;
     const colonIdx = line.indexOf(':');
-    if (colonIdx === -1) continue;
+
+    // Skip indented lines (continuation) and lines without a colon
+    if (colonIdx === -1 || line.startsWith(' ') || line.startsWith('\t')) {
+      i++;
+      continue;
+    }
 
     const key = line.slice(0, colonIdx).trim();
     let value = line.slice(colonIdx + 1).trim();
+    i++;
 
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    if (!key) continue;
+
+    // Handle YAML block scalars: > (folded) and | (literal)
+    if (value === '>' || value === '|-' || value === '>-' || value === '|') {
+      const blockLines: string[] = [];
+      const foldNewlines = value === '>' || value === '>-';
+
+      while (i < lines.length) {
+        const next = lines[i]!;
+        // Continuation lines must be indented
+        if (next.startsWith(' ') || next.startsWith('\t')) {
+          blockLines.push(next.trim());
+          i++;
+        } else {
+          break;
+        }
+      }
+
+      value = foldNewlines ? blockLines.join(' ').replace(/\s+/g, ' ').trim() : blockLines.join('\n').trim();
+    } else if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
       value = value.slice(1, -1);
     }
 
-    if (key) {
-      result[key] = value;
-    }
+    result[key] = value;
   }
 
   return result;

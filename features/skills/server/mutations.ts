@@ -216,7 +216,7 @@ export async function importSkillFromUrl(
       triggerType: importedPackage.parsed.triggerType,
       trigger: normaliseTrigger(importedPackage.parsed.triggerType, importedPackage.parsed.trigger),
       promptFragment: importedPackage.parsed.body,
-      enabledTools: [],
+      enabledTools: importedPackage.parsed.enabledTools,
       sourceUrl: importedPackage.source.sourceUrl,
       sourceId,
       skillKind: 'package',

@@ -13,6 +13,7 @@ const updateSchema = z.object({
   channelAccessToken: z.string().min(1).optional(),
   agentId: z.string().nullable().optional(),
   status: z.enum(['active', 'inactive']).optional(),
+  memberRichMenuLineId: z.string().nullable().optional(),
 });
 
 export async function PATCH(
@@ -48,6 +49,7 @@ export async function PATCH(
       ...(body.channelAccessToken !== undefined && { channelAccessToken: body.channelAccessToken }),
       ...('agentId' in body && { agentId: body.agentId ?? null }),
       ...(body.status !== undefined && { status: body.status }),
+      ...('memberRichMenuLineId' in body && { memberRichMenuLineId: body.memberRichMenuLineId ?? null }),
       updatedAt: new Date(),
     })
     .where(and(eq(lineOaChannel.id, id), eq(lineOaChannel.userId, session.user.id)))

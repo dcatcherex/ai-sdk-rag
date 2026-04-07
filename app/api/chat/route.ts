@@ -13,7 +13,7 @@ import { db } from '@/lib/db';
 import { agent, agentShare, brand, brandShare, chatThread, customPersona, personaCustomization, user as userTable, userPreferences } from '@/db/schema';
 import { VALID_PERSONA_KEYS } from '@/lib/persona-detection';
 import { availableModels, maxSteps } from '@/lib/ai';
-import { getSystemPrompt } from '@/lib/prompt';
+import { getSystemPrompt, resolveSystemPromptTemplate } from '@/lib/prompt';
 import { detectPersona } from '@/lib/persona-detection';
 import { enhancePrompt } from '@/lib/prompt-enhance';
 import { summarizeConversation, SUMMARY_THRESHOLD } from '@/lib/conversation-summary';
@@ -225,11 +225,12 @@ export async function POST(req: Request) {
 
     const personaExtraInstructions = !activeAgent ? (personaCustomMap[detectedPersona] ?? '') : '';
     // Base system prompt: agent > custom persona > built-in persona
-    const baseSystemPrompt = activeAgent
+    const rawSystemPrompt = activeAgent
       ? activeAgent.systemPrompt
       : customPersonaRow
         ? customPersonaRow.systemPrompt
         : getSystemPrompt(detectedPersona);
+    const baseSystemPrompt = resolveSystemPromptTemplate(rawSystemPrompt);
 
     const brandBlock = activeBrand ? `\n\n${buildBrandBlock(activeBrand)}` : '';
 

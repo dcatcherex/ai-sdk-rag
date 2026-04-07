@@ -8,14 +8,18 @@ export async function getOrCreateConversation(
   userId: string,
   lineUserId: string,
   channelName: string,
+  groupId?: string,
 ): Promise<{ threadId: string }> {
+  // For group chats the conversation key is the groupId; lineUserId is the individual sender
+  const conversationKey = groupId ?? lineUserId;
+
   const existing = await db
     .select({ threadId: lineConversation.threadId })
     .from(lineConversation)
     .where(
       and(
         eq(lineConversation.channelId, channelId),
-        eq(lineConversation.lineUserId, lineUserId),
+        eq(lineConversation.lineUserId, conversationKey),
       ),
     )
     .limit(1);
@@ -24,11 +28,12 @@ export async function getOrCreateConversation(
 
   const threadId = nanoid();
   const now = new Date();
+  const title = groupId ? `LINE Group: ${channelName}` : `LINE: ${channelName}`;
 
   await db.insert(chatThread).values({
     id: threadId,
     userId,
-    title: `LINE: ${channelName}`,
+    title,
     preview: '',
     createdAt: now,
     updatedAt: now,
@@ -37,8 +42,9 @@ export async function getOrCreateConversation(
   await db.insert(lineConversation).values({
     id: crypto.randomUUID(),
     channelId,
-    lineUserId,
+    lineUserId: conversationKey,
     threadId,
+    groupId: groupId ?? null,
     createdAt: now,
     updatedAt: now,
   });

@@ -206,7 +206,7 @@ export const LineOaList = () => {
                 </div>
 
                 {/* Rich menus */}
-                <RichMenuPanel channelId={channel.id} />
+                <RichMenuPanel channelId={channel.id} memberRichMenuLineId={channel.memberRichMenuLineId ?? null} />
 
                 {/* Broadcasts */}
                 <div className="border-t pt-3 mt-1">

@@ -5,6 +5,7 @@ export type LineOaChannel = {
   agentId: string | null;
   agentName: string | null;
   status: 'active' | 'inactive';
+  memberRichMenuLineId: string | null;
   createdAt: string | Date;
   updatedAt: string | Date;
 };
@@ -18,4 +19,6 @@ export type CreateLineOaChannelInput = {
   status?: 'active' | 'inactive';
 };
 
-export type UpdateLineOaChannelInput = Partial<CreateLineOaChannelInput>;
+export type UpdateLineOaChannelInput = Partial<CreateLineOaChannelInput> & {
+  memberRichMenuLineId?: string | null;
+};
