@@ -14,7 +14,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -136,19 +135,6 @@ export function PublicShareDialog({ agentId, agentName, open, onClose }: Props) 
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Active toggle */}
-            <div className="flex items-center justify-between rounded-lg border border-black/5 dark:border-border px-4 py-3 bg-muted/30">
-              <div>
-                <Label className="text-sm font-medium">Link active</Label>
-                <p className="text-xs text-muted-foreground">Disable to pause access</p>
-              </div>
-              <Switch
-                checked={share.isActive}
-                onCheckedChange={(v) => updateShare.mutate({ isActive: v })}
-                disabled={updateShare.isPending}
-              />
-            </div>
-
             {/* Stats */}
             <div className="grid grid-cols-4 gap-2">
               <div className="rounded-lg bg-muted/40 px-2 py-2 text-center">

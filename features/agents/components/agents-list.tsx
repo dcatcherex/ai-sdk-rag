@@ -1,12 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { BotIcon, CopyIcon, GlobeIcon, PencilIcon, PlusIcon, Settings2Icon, Share2Icon, SparklesIcon, Trash2Icon, UsersIcon } from 'lucide-react';
+import { useState } from 'react';
+import { CopyIcon, PlusIcon } from 'lucide-react';
+import { AgentCard } from './agent-card';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { ButtonGroup } from '@/components/ui/button-group';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
@@ -16,106 +15,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useSkills } from '@/features/skills/hooks/use-skills';
-import { availableModels } from '@/lib/ai';
-import { TOOL_REGISTRY } from '@/lib/tool-registry';
 import { authClient } from '@/lib/auth-client';
 import { useAgents, useCreateAgent, useUpdateAgent, useDeleteAgent, useUseTemplate } from '../hooks/use-agents';
+import { usePublicShare, useUpdatePublicShare } from '../hooks/use-public-share';
 import { AgentEditorPanel } from './agent-editor-panel';
 import { PublicShareDialog } from './public-share-dialog';
 import type { Agent, AgentWithSharing, CreateAgentInput } from '../types';
 
-const SkillSummaryBadges = ({
-  skillIds,
-  skillNameById,
-}: {
-  skillIds: string[];
-  skillNameById: Record<string, string>;
-}) => {
-  if (skillIds.length === 0) {
-    return null;
-  }
-
-  const namedSkills = skillIds
-    .map((skillId) => skillNameById[skillId])
-    .filter((label): label is string => Boolean(label));
-  const previewSkills = namedSkills.slice(0, 2);
-  const remainingCount = skillIds.length - previewSkills.length;
-
-  return (
-    <>
-      <Badge variant="outline" className="gap-1 text-[11px]">
-        <SparklesIcon className="size-3" />
-        {skillIds.length} skill{skillIds.length !== 1 ? 's' : ''}
-      </Badge>
-      {previewSkills.map((label) => (
-        <Badge key={label} variant="outline" className="text-[11px]">
-          {label}
-        </Badge>
-      ))}
-      {remainingCount > 0 && (
-        <Badge variant="outline" className="text-[11px]">
-          +{remainingCount} more
-        </Badge>
-      )}
-    </>
-  );
-};
-
-// ── General Agent placeholder card ───────────────────────────────────────────
-
-const GeneralAgentCard = ({
-  generalAgent,
-  onConfigure,
-  skillNameById,
-}: {
-  generalAgent: Agent | undefined;
-  onConfigure: (agent: Agent | null) => void;
-  skillNameById: Record<string, string>;
-}) => (
-  <div className="relative flex flex-col gap-2 rounded-xl border-2 border-primary/20 bg-primary/5 p-4">
-    <div className="flex items-start gap-2">
-      <SparklesIcon className="size-4 shrink-0 text-primary mt-0.5" />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <p className="font-medium text-sm">General</p>
-          <Badge className="text-[10px] h-4 px-1.5">Default</Badge>
-        </div>
-        <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
-          {generalAgent?.description ?? 'Your default assistant. Configure its tools, model, and instructions.'}
-        </p>
-      </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-7 shrink-0"
-        onClick={() => onConfigure(generalAgent ?? null)}
-        title="Configure general agent"
-      >
-        <Settings2Icon className="size-3.5" />
-      </Button>
-    </div>
-    <div className="flex flex-wrap gap-1.5 mt-auto pt-1">
-      <Badge variant="secondary" className="text-[11px]">
-        {generalAgent?.modelId
-          ? (availableModels.find((m) => m.id === generalAgent.modelId)?.name ?? generalAgent.modelId)
-          : 'Auto'}
-      </Badge>
-      {(generalAgent?.enabledTools ?? []).map((toolId) => {
-        const meta = TOOL_REGISTRY[toolId as keyof typeof TOOL_REGISTRY];
-        return meta ? (
-          <Badge key={toolId} variant="outline" className="text-[11px]">
-            {meta.label}
-          </Badge>
-        ) : null;
-      })}
-      <SkillSummaryBadges skillIds={generalAgent?.skillIds ?? []} skillNameById={skillNameById} />
-      {!generalAgent && (
-        <span className="text-[11px] text-muted-foreground italic">Not configured — using smart defaults</span>
-      )}
-    </div>
-  </div>
-);
 
 // ── Template card ─────────────────────────────────────────────────────────────
 
@@ -123,43 +29,57 @@ const TemplateCard = ({
   template,
   onUse,
   isPending,
-  skillNameById,
 }: {
   template: Agent;
   onUse: (id: string) => void;
   isPending: boolean;
-  skillNameById: Record<string, string>;
 }) => (
-  <div className="flex flex-col gap-2 rounded-xl border border-black/5 dark:border-border bg-muted/20 p-4">
-    <div className="flex items-start gap-2">
-      <BotIcon className="size-4 shrink-0 text-muted-foreground mt-0.5" />
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm truncate">{template.name}</p>
-        {template.description && (
-          <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{template.description}</p>
-        )}
-      </div>
-    </div>
-    <div className="flex flex-wrap gap-1.5 mt-1">
-      {template.starterPrompts.slice(0, 2).map((p, i) => (
-        <span key={i} className="text-[10px] text-muted-foreground bg-muted rounded px-1.5 py-0.5 line-clamp-1 max-w-[180px]">
-          &ldquo;{p}&rdquo;
-        </span>
-      ))}
-      <SkillSummaryBadges skillIds={template.skillIds ?? []} skillNameById={skillNameById} />
-    </div>
-    <Button
-      size="sm"
-      variant="outline"
-      className="mt-auto gap-1.5 text-xs"
-      onClick={() => onUse(template.id)}
-      disabled={isPending}
-    >
-      <CopyIcon className="size-3.5" />
-      {isPending ? 'Copying…' : 'Use template'}
-    </Button>
-  </div>
+  <AgentCard
+    name={template.name}
+    description={template.description}
+    footer={
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full gap-1.5 text-xs"
+        onClick={() => onUse(template.id)}
+        disabled={isPending}
+      >
+        <CopyIcon className="size-3.5" />
+        {isPending ? 'Copying…' : 'Use template'}
+      </Button>
+    }
+  />
 );
+
+// ── MyAgentCard — wraps AgentCard with share-link active toggle ───────────────
+
+const MyAgentCard = ({
+  agent,
+  onEdit,
+  onDelete,
+  onShare,
+}: {
+  agent: Agent;
+  onEdit: () => void;
+  onDelete: () => void;
+  onShare: () => void;
+}) => {
+  const { data: share } = usePublicShare(agent.id);
+  const updateShare = useUpdatePublicShare(agent.id);
+  return (
+    <AgentCard
+      name={agent.name}
+      description={agent.description}
+      isActive={share?.isActive ?? false}
+      isPublic={agent.isPublic}
+      onToggleActive={share ? () => updateShare.mutate({ isActive: !share.isActive }) : undefined}
+      onEdit={onEdit}
+      onDelete={onDelete}
+      onShare={onShare}
+    />
+  );
+};
 
 // ── AgentsList ────────────────────────────────────────────────────────────────
 
@@ -167,8 +87,6 @@ export const AgentsList = () => {
   const { data, isLoading } = useAgents();
   const agents = data?.agents ?? [];
   const templates = data?.templates ?? [];
-  const { data: userSkills = [] } = useSkills();
-
   const createAgent = useCreateAgent();
   const updateAgent = useUpdateAgent();
   const deleteAgent = useDeleteAgent();
@@ -182,11 +100,6 @@ export const AgentsList = () => {
   const [deleteTarget, setDeleteTarget] = useState<Agent | null>(null);
   const [shareTarget, setShareTarget] = useState<Agent | null>(null);
   const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
-
-  const skillNameById = useMemo(
-    () => Object.fromEntries(userSkills.map((skill) => [skill.id, skill.name])),
-    [userSkills],
-  );
 
   const generalAgent = agents.find((a) => a.isDefault && a.userId === currentUserId);
   const myAgents = agents.filter((a) => a.userId === currentUserId && !a.isDefault);
@@ -253,9 +166,6 @@ export const AgentsList = () => {
     });
   };
 
-  const modelName = (modelId: string | null) =>
-    modelId ? (availableModels.find((m) => m.id === modelId)?.name ?? modelId) : 'Auto';
-
   if (mode !== 'list') {
     const editorAgent = mode === 'configure-general'
       ? (generalAgent ?? null)
@@ -305,110 +215,33 @@ export const AgentsList = () => {
             <TabsContent value="my-agents">
               <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
                 {/* General Agent — always pinned first */}
-                <GeneralAgentCard
-                  generalAgent={generalAgent}
-                  onConfigure={openConfigureGeneral}
-                  skillNameById={skillNameById}
+                <AgentCard
+                  name="General"
+                  description={generalAgent?.description ?? 'Your default assistant. Configure its tools, model, and instructions.'}
+                  isActive
+                  onEdit={() => openConfigureGeneral(generalAgent ?? null)}
                 />
 
                 {/* User's custom agents */}
-                {myAgents.map((a) => {
-                  const withSharing = a as AgentWithSharing;
-                  return (
-                    <div
-                      key={a.id}
-                      className="group relative flex flex-col gap-2 rounded-xl border border-black/5 dark:border-border bg-muted/30 p-4 transition hover:bg-muted/50"
-                    >
-                      {/* Action buttons — absolutely positioned top-right, visible on hover */}
-                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition z-10">
-                        <ButtonGroup className='border rounded-full bg-background'>
-                          <Button variant="ghost" size="icon" className="size-7 hover:cursor-pointer rounded-full" onClick={() => setShareTarget(a)} title="Share">
-                            <Share2Icon className="size-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="size-7 hover:cursor-pointer rounded-full" onClick={() => openEdit(a)} title="Edit">
-                            <PencilIcon className="size-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-7 text-destructive hover:text-destructive hover:cursor-pointer rounded-full"
-                            onClick={() => setDeleteTarget(a)}
-                            title="Delete"
-                          >
-                            <Trash2Icon className="size-3.5" />
-                          </Button>
-                        </ButtonGroup>
-                      </div>
-
-                      {/* Header: icon + full-width title */}
-                      <div className="flex items-start gap-2">
-                        <div className="">
-                          <div className="flex items-center gap-1.5">
-                            <p className="font-medium text-sm line-clamp-1">{a.name}</p>
-                            
-                            {a.isPublic && (
-                              <span title="Public">
-                                <GlobeIcon className="size-3 shrink-0 text-muted-foreground" />
-                              </span>
-                            )}
-                          </div>
-                          {a.description && (
-                            <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{a.description}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {(withSharing.sharedWith?.length ?? 0) > 0 && (
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <UsersIcon className="size-3 shrink-0" />
-                          <span className="truncate">{withSharing.sharedWith!.map((u) => u.name).join(', ')}</span>
-                        </div>
-                      )}
-
-                      <div className="flex flex-wrap gap-1.5 mt-auto pt-1">
-                        <Badge variant="secondary" className="text-[11px]">{modelName(a.modelId)}</Badge>
-                        <SkillSummaryBadges skillIds={a.skillIds ?? []} skillNameById={skillNameById} />
-                        {(a.documentIds?.length ?? 0) > 0 && (
-                          <Badge variant="outline" className="text-[11px]">
-                            {a.documentIds.length} doc{a.documentIds.length !== 1 ? 's' : ''}
-                          </Badge>
-                        )}
-                        {a.enabledTools.map((toolId) => {
-                          const meta = TOOL_REGISTRY[toolId as keyof typeof TOOL_REGISTRY];
-                          return meta ? (
-                            <Badge key={toolId} variant="outline" className="text-[11px]">{meta.label}</Badge>
-                          ) : null;
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
+                {myAgents.map((a) => (
+                  <MyAgentCard
+                    key={a.id}
+                    agent={a}
+                    onEdit={() => openEdit(a)}
+                    onDelete={() => setDeleteTarget(a)}
+                    onShare={() => setShareTarget(a)}
+                  />
+                ))}
 
                 {/* Shared agents (from others) */}
                 {sharedAgents.map((a) => {
                   const withSharing = a as AgentWithSharing;
                   return (
-                    <div
+                    <AgentCard
                       key={a.id}
-                      className="flex flex-col gap-2 rounded-xl border border-black/5 dark:border-border bg-muted/20 p-4"
-                    >
-                      <div className="flex items-start gap-2">
-                        <BotIcon className="size-4 shrink-0 text-muted-foreground mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{a.name}</p>
-                          {a.description && (
-                            <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{a.description}</p>
-                          )}
-                          {withSharing.ownerName && (
-                            <p className="text-xs text-muted-foreground mt-0.5">By {withSharing.ownerName}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 mt-auto pt-1">
-                        <Badge variant="secondary" className="text-[11px]">{modelName(a.modelId)}</Badge>
-                        <SkillSummaryBadges skillIds={a.skillIds ?? []} skillNameById={skillNameById} />
-                      </div>
-                    </div>
+                      name={a.name}
+                      description={withSharing.ownerName ? `${a.description ?? ''}\nBy ${withSharing.ownerName}`.trim() : a.description}
+                    />
                   );
                 })}
               </div>
@@ -436,7 +269,6 @@ export const AgentsList = () => {
                         template={t}
                         onUse={handleUseTemplate}
                         isPending={pendingTemplateId === t.id}
-                        skillNameById={skillNameById}
                       />
                     ))}
                   </div>
