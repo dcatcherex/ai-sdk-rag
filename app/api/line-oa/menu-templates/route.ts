@@ -7,10 +7,18 @@ import { db } from '@/lib/db';
 import { lineRichMenuTemplate } from '@/db/schema';
 import type { RichMenuAreaConfig } from '@/features/line-oa/webhook/rich-menu';
 
+const boundsSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number(),
+});
+
 const areaSchema = z.object({
   label: z.string().min(1).max(30),
   emoji: z.string().min(1).max(10),
   bgColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+  bounds: boundsSchema.optional(),
   action: z.union([
     z.object({ type: z.literal('message'), text: z.string() }),
     z.object({ type: z.literal('uri'), uri: z.string().url() }),
