@@ -36,6 +36,9 @@ export async function GET() {
 
   const firstImageByThread = new Map<string, string>();
   imageAssets.forEach((asset) => {
+    if (!asset.threadId) {
+      return;
+    }
     if (!firstImageByThread.has(asset.threadId)) {
       firstImageByThread.set(asset.threadId, asset.thumbnailUrl ?? asset.url);
     }

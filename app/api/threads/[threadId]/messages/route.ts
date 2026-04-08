@@ -80,7 +80,7 @@ export async function GET(
   const messageIds = rows.map((row) => row.id);
   let assetRows: Array<{
     id: string;
-    messageId: string;
+    messageId: string | null;
     url: string;
     thumbnailUrl: string | null;
     width: number | null;
@@ -153,6 +153,9 @@ export async function GET(
     >
   >();
   assetRows.forEach((asset) => {
+    if (!asset.messageId) {
+      return;
+    }
     if (!assetsByMessage.has(asset.messageId)) {
       assetsByMessage.set(asset.messageId, new Map());
     }

@@ -6,8 +6,8 @@ export type MediaAsset = {
   width?: number | null;
   height?: number | null;
   mimeType: string;
-  threadId: string;
-  messageId: string;
+  threadId: string | null;
+  messageId: string | null;
   parentAssetId?: string | null;
   rootAssetId?: string | null;
   version?: number | null;

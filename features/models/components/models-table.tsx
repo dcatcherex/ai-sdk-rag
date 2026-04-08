@@ -82,6 +82,7 @@ const providerMeta: Record<Provider, { label: string; bg: string; text: string; 
   alibaba:    { label: 'Alibaba',    bg: '#FF6A00', text: '#fff', abbr: 'Q'  },
   minimax:    { label: 'MiniMax',    bg: '#ec4899', text: '#fff', abbr: 'MM' },
   zai:        { label: 'ZAI',        bg: '#ca8a04', text: '#fff', abbr: 'Z'  },
+  xiaomi:     { label: 'Xiaomi',     bg: '#FF6900', text: '#fff', abbr: 'XI' },
 };
 
 function ProviderIcon({ provider }: { provider: Provider }) {

@@ -52,6 +52,10 @@ export const useImageEditor = () => {
       setSubmitError('Please describe the edit.');
       throw new Error('empty prompt');
     }
+    if (!selectedAsset.threadId) {
+      setSubmitError('This image is not attached to a chat thread.');
+      throw new Error('missing thread');
+    }
 
     setIsSubmitting(true);
     setSubmitError(null);
