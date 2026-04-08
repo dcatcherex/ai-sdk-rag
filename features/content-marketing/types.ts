@@ -27,6 +27,7 @@ export type SocialPostRecord = {
   media: PostMedia[];
   status: PostStatus;
   scheduledAt: Date | null;
+  scheduledRunId: string | null;
   publishedAt: Date | null;
   brandId: string | null;
   campaignId: string | null;
@@ -104,6 +105,8 @@ export type PublishPostInput = {
   userId: string;
   /** Limit publishing to specific platforms (defaults to all on the post) */
   platforms?: SocialPlatform[];
+  /** Trigger.dev run id when the publish is coming from a scheduled workflow */
+  triggerRunId?: string;
 };
 
 export type PublishResult = {

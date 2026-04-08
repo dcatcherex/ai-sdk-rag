@@ -16,6 +16,10 @@ const envSchema = z.object({
   BETTER_AUTH_URL: z.string().optional(),
   /** Secret used to authorize cron job requests (set automatically by Vercel) */
   CRON_SECRET: z.string().optional(),
+  /** Trigger.dev secret key for scheduling background tasks */
+  TRIGGER_SECRET_KEY: z.string().optional(),
+  /** Trigger.dev project ref used by the CLI and deploy config */
+  TRIGGER_PROJECT_REF: z.string().optional(),
   /** Apify API token for social trend scraping */
   APIFY_API_TOKEN: z.string().optional(),
   /** Set to 'true' to use mock trend data instead of calling Apify (for local dev/testing) */

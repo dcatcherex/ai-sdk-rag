@@ -1,9 +1,8 @@
 /**
- * Vercel Cron job — publishes all scheduled posts that are due.
- * Runs every minute. Protected by CRON_SECRET (set automatically by Vercel).
+ * Manual recovery endpoint for publishing due posts in bulk.
+ * Production scheduling now uses Trigger.dev per post.
  *
- * Schedule is configured in vercel.json:
- *   { "path": "/api/cron/publish-scheduled", "schedule": "* * * * *" }
+ * Protected by CRON_SECRET when configured.
  */
 
 import { env } from '@/lib/env';
@@ -13,7 +12,6 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 export async function GET(req: Request) {
-  // Verify request is from Vercel Cron (or a local call with the secret)
   const authHeader = req.headers.get('authorization');
   if (env.CRON_SECRET && authHeader !== `Bearer ${env.CRON_SECRET}`) {
     return new Response('Unauthorized', { status: 401 });

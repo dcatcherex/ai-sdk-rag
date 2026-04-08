@@ -8,6 +8,7 @@ import { nanoid } from 'nanoid';
 import { eq, and, desc, lte } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { socialPost, contentPiece, distributionRecord, contentCalendarEntry } from '@/db/schema';
+import { cancelScheduledPostRun, createScheduledPostRun } from './scheduler';
 import { getAccountsWithTokenByPlatform } from './social-account-service';
 import type {
   SocialPlatform,
@@ -135,12 +136,44 @@ export async function createPost(input: CreatePostInput): Promise<SocialPostReco
     media,
     status,
     scheduledAt: scheduledAt ?? null,
+    scheduledRunId: null,
     brandId: brandId ?? null,
     campaignId: campaignId ?? null,
     calendarEntryId,
   });
 
-  return getPost(id, userId) as Promise<SocialPostRecord>;
+  const createdPost = await getPost(id, userId);
+  if (!createdPost) {
+    throw new Error('Failed to load created post');
+  }
+
+  if (!createdPost.scheduledAt) {
+    return createdPost;
+  }
+
+  try {
+    const scheduledRunId = await createScheduledPostRun(createdPost);
+
+    try {
+      await db
+        .update(socialPost)
+        .set({ scheduledRunId })
+        .where(and(eq(socialPost.id, id), eq(socialPost.userId, userId)));
+    } catch (error) {
+      await cancelScheduledPostRun(scheduledRunId);
+      throw error;
+    }
+
+    return (await getPost(id, userId)) as SocialPostRecord;
+  } catch (error) {
+    await db.delete(socialPost).where(and(eq(socialPost.id, id), eq(socialPost.userId, userId)));
+
+    if (calendarEntryId) {
+      await db.delete(contentCalendarEntry).where(eq(contentCalendarEntry.id, calendarEntryId));
+    }
+
+    throw error;
+  }
 }
 
 export async function getPost(
@@ -178,6 +211,19 @@ export async function getUserPosts(
 
 export async function updatePost(input: UpdatePostInput): Promise<SocialPostRecord> {
   const { postId, userId, ...updates } = input;
+  const existingPost = await getPost(postId, userId);
+  if (!existingPost) {
+    throw new Error('Post not found');
+  }
+
+  const nextScheduledAt =
+    updates.scheduledAt !== undefined ? updates.scheduledAt : existingPost.scheduledAt;
+  const nextStatus =
+    updates.status !== undefined ? updates.status : existingPost.status;
+  const shouldBeScheduled = nextStatus === 'scheduled' && nextScheduledAt !== null;
+  const scheduleChanged =
+    existingPost.scheduledAt?.getTime() !== nextScheduledAt?.getTime()
+    || existingPost.status !== nextStatus;
 
   const updateData: Partial<typeof socialPost.$inferInsert> = {};
   if (updates.caption !== undefined) updateData.caption = updates.caption;
@@ -188,24 +234,57 @@ export async function updatePost(input: UpdatePostInput): Promise<SocialPostReco
   if (updates.status !== undefined) updateData.status = updates.status;
   if (updates.campaignId !== undefined) updateData.campaignId = updates.campaignId;
 
-  await db
-    .update(socialPost)
-    .set(updateData)
-    .where(and(eq(socialPost.id, postId), eq(socialPost.userId, userId)));
+  let nextScheduledRunId = existingPost.scheduledRunId;
+  let replacementRunId: string | null = null;
+
+  if (shouldBeScheduled && nextScheduledAt && (scheduleChanged || !existingPost.scheduledRunId)) {
+    replacementRunId = await createScheduledPostRun({
+      ...existingPost,
+      ...updates,
+      scheduledAt: nextScheduledAt,
+      status: nextStatus,
+      scheduledRunId: existingPost.scheduledRunId,
+    });
+    nextScheduledRunId = replacementRunId;
+  } else if (!shouldBeScheduled) {
+    nextScheduledRunId = null;
+  }
+
+  updateData.scheduledRunId = nextScheduledRunId;
+
+  try {
+    await db
+      .update(socialPost)
+      .set(updateData)
+      .where(and(eq(socialPost.id, postId), eq(socialPost.userId, userId)));
+  } catch (error) {
+    if (replacementRunId) {
+      await cancelScheduledPostRun(replacementRunId);
+    }
+    throw error;
+  }
+
+  if (existingPost.scheduledRunId && existingPost.scheduledRunId !== replacementRunId) {
+    await cancelScheduledPostRun(existingPost.scheduledRunId);
+  }
 
   return getPost(postId, userId) as Promise<SocialPostRecord>;
 }
 
 export async function deletePost(postId: string, userId: string): Promise<void> {
+  const existingPost = await getPost(postId, userId);
+
   await db
     .delete(socialPost)
     .where(and(eq(socialPost.id, postId), eq(socialPost.userId, userId)));
+
+  await cancelScheduledPostRun(existingPost?.scheduledRunId);
 }
 
 // ── Publishing ────────────────────────────────────────────────────────────────
 
 export async function publishPost(input: PublishPostInput): Promise<PublishResult[]> {
-  const { postId, userId, platforms: limitToPlatforms } = input;
+  const { postId, userId, platforms: limitToPlatforms, triggerRunId } = input;
 
   const post = await getPost(postId, userId);
   if (!post) throw new Error('Post not found');
@@ -276,11 +355,16 @@ export async function publishPost(input: PublishPostInput): Promise<PublishResul
     .update(socialPost)
     .set({
       status: newStatus,
+      scheduledRunId: null,
       publishedAt,
       error: errors.length > 0 ? errors.join('; ') : null,
       ...(createdContentPieceId ? { contentPieceId: createdContentPieceId } : {}),
     })
     .where(and(eq(socialPost.id, postId), eq(socialPost.userId, userId)));
+
+  if (post.scheduledRunId && post.scheduledRunId !== triggerRunId) {
+    await cancelScheduledPostRun(post.scheduledRunId);
+  }
 
   return results;
 }
@@ -503,6 +587,7 @@ function mapRow(row: typeof socialPost.$inferSelect): SocialPostRecord {
     media: (row.media ?? []) as PostMedia[],
     status: row.status as PostStatus,
     scheduledAt: row.scheduledAt,
+    scheduledRunId: row.scheduledRunId,
     publishedAt: row.publishedAt,
     brandId: row.brandId,
     campaignId: row.campaignId ?? null,

@@ -16,6 +16,7 @@ export const socialPost = pgTable("social_post", {
   media: jsonb("media").notNull().default(sql`'[]'::jsonb`),
   status: text("status").notNull().default("draft"),
   scheduledAt: timestamp("scheduled_at"),
+  scheduledRunId: text("scheduled_run_id"),
   publishedAt: timestamp("published_at"),
   brandId: text("brand_id").references(() => brand.id, { onDelete: "set null" }),
   campaignId: text("campaign_id").references(() => campaignBrief.id, { onDelete: "set null" }),
