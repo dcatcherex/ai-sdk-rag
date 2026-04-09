@@ -9,6 +9,9 @@ export type AgentCardProps = {
   name: string;
   description?: string | null;
   imageUrl?: string | null;
+  /** Custom icon component rendered in the avatar section. Defaults to BotIcon. */
+  icon?: React.ElementType;
+  /** When provided, shows an active/inactive status dot in the top-left. */
   isActive?: boolean;
   isPublic?: boolean;
   /** Called when the active toggle circle is clicked */
@@ -31,7 +34,8 @@ export const AgentCard = ({
   name,
   description,
   imageUrl,
-  isActive = true,
+  icon: Icon = BotIcon,
+  isActive,
   isPublic,
   onToggleActive,
   onEdit,
@@ -59,22 +63,24 @@ export const AgentCard = ({
           />
         ) : (
           <div className="flex flex-col items-center gap-2 select-none">
-            <BotIcon className="size-16 text-violet-300 dark:text-zinc-500" strokeWidth={1.2} />
+            <Icon className="size-16 text-violet-300 dark:text-zinc-500" strokeWidth={1.2} />
             <span className="text-xs font-semibold text-violet-300 dark:text-zinc-500 tracking-widest">{initials}</span>
           </div>
         )}
 
-        {/* Active/inactive toggle — top-left */}
-        <button
-          type="button"
-          onClick={onToggleActive}
-          title={isActive ? 'Active — click to deactivate' : 'Inactive — click to activate'}
-          className={cn(
-            'absolute top-3 left-3 size-4 rounded-full border-2 border-white shadow transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            onToggleActive ? 'cursor-pointer hover:scale-110' : 'cursor-default',
-            isActive ? 'bg-green-500' : 'bg-zinc-400',
-          )}
-        />
+        {/* Active/inactive toggle — top-left (only rendered when isActive is explicitly provided) */}
+        {isActive !== undefined && (
+          <button
+            type="button"
+            onClick={onToggleActive}
+            title={isActive ? 'Active — click to deactivate' : 'Inactive — click to activate'}
+            className={cn(
+              'absolute top-3 left-3 size-4 rounded-full border-2 border-white shadow transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              onToggleActive ? 'cursor-pointer hover:scale-110' : 'cursor-default',
+              isActive ? 'bg-green-500' : 'bg-zinc-400',
+            )}
+          />
+        )}
 
         {/* Public globe indicator */}
         {isPublic && (

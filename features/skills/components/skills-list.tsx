@@ -2,11 +2,10 @@
 
 import { useState } from 'react';
 import {
-  EyeIcon,
   DownloadIcon,
+  EyeIcon,
   GlobeIcon,
   LinkIcon,
-  PencilIcon,
   PlusIcon,
   RefreshCwIcon,
   SparklesIcon,
@@ -27,6 +26,7 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { authClient } from '@/lib/auth-client';
+import { AgentCard } from '@/features/agents/components/agent-card';
 import {
   useSkills,
   useCreateSkill,
@@ -318,115 +318,83 @@ type SkillGridProps = {
   installingId?: string;
 };
 
+const SkillBadges = ({ skill, isOwner }: { skill: Skill; isOwner: boolean }) => (
+  <div className="flex flex-wrap gap-1.5">
+    <Badge variant="secondary" className="text-[11px]">
+      {TRIGGER_LABELS[skill.triggerType] ?? skill.triggerType}
+      {skill.trigger ? `: ${skill.trigger}` : ''}
+    </Badge>
+    {skill.skillKind === 'package' && (
+      <Badge variant="outline" className="text-[11px]">Package</Badge>
+    )}
+    {skill.isPublic && isOwner && (
+      <Badge variant="secondary" className="text-[11px] gap-1">
+        <GlobeIcon className="size-2.5" /> Public
+      </Badge>
+    )}
+    {skill.sourceUrl && (
+      <Badge variant="outline" className="text-[11px] gap-1">
+        <LinkIcon className="size-2.5" /> Imported
+      </Badge>
+    )}
+    {skill.syncStatus !== 'local' && (
+      <Badge variant="outline" className="text-[11px]">
+        {skill.syncStatus.replace('_', ' ')}
+      </Badge>
+    )}
+  </div>
+);
+
 const SkillGrid = ({ skills, isOwner, onEdit, onDelete, onInstall, onView, installingId }: SkillGridProps) => (
-  <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-    {skills.map((skill) => (
-      <div
-        key={skill.id}
-        className="group relative flex flex-col gap-2 rounded-xl border border-black/5 dark:border-border bg-muted/30 p-4 transition hover:bg-muted/50"
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <SparklesIcon className="size-4 shrink-0 text-primary" />
-            <span className="font-medium truncate text-sm">{skill.name}</span>
-          </div>
-          {isOwner && (
-            <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100 transition">
-              <Button variant="ghost" size="icon" className="size-7" onClick={() => onEdit?.(skill)}>
-                <PencilIcon className="size-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 text-destructive hover:text-destructive"
-                onClick={() => onDelete?.(skill)}
-              >
-                <Trash2Icon className="size-3.5" />
-              </Button>
-            </div>
-          )}
-        </div>
+  <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
+    {skills.map((skill) => {
+      const ownerName = (skill as Skill & { ownerName?: string }).ownerName;
+      const description = !isOwner && ownerName
+        ? `${skill.description ?? ''}\nBy ${ownerName}`.trim()
+        : skill.description;
 
-        {skill.description && (
-          <p className="text-xs text-muted-foreground line-clamp-2">{skill.description}</p>
-        )}
-
-        {!isOwner && (skill as Skill & { ownerName?: string }).ownerName && (
-          <p className="text-xs text-muted-foreground">
-            By {(skill as Skill & { ownerName?: string }).ownerName}
-          </p>
-        )}
-
-        <div className="flex flex-wrap gap-1.5 mt-auto pt-1">
-          <Badge variant="secondary" className="text-[11px]">
-            {TRIGGER_LABELS[skill.triggerType] ?? skill.triggerType}
-            {skill.trigger ? `: ${skill.trigger}` : ''}
-          </Badge>
-          {skill.skillKind === 'package' && (
-            <Badge variant="outline" className="text-[11px]">
-              Package
-            </Badge>
-          )}
-          {skill.isPublic && isOwner && (
-            <Badge variant="secondary" className="text-[11px] gap-1">
-              <GlobeIcon className="size-2.5" /> Public
-            </Badge>
-          )}
-          {skill.sourceUrl && (
-            <Badge variant="outline" className="text-[11px] gap-1">
-              <LinkIcon className="size-2.5" /> Imported
-            </Badge>
-          )}
-          {skill.hasBundledFiles && (
-            <Badge variant="outline" className="text-[11px]">
-              Bundled files
-            </Badge>
-          )}
-          {skill.syncStatus !== 'local' && (
-            <Badge variant="outline" className="text-[11px]">
-              {skill.syncStatus.replace('_', ' ')}
-            </Badge>
-          )}
-        </div>
-
-        <div className="mt-1 flex gap-2">
-          {isOwner ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 px-2 text-xs gap-1"
-              onClick={() => onEdit?.(skill)}
-            >
-              <PencilIcon className="size-3" />
-              Edit
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 px-2 text-xs gap-1"
-              onClick={() => onView?.(skill)}
-            >
-              <EyeIcon className="size-3" />
-              Details
-            </Button>
-          )}
-
-          {!isOwner && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs gap-1"
-              onClick={() => onInstall?.(skill.id)}
-              disabled={installingId === skill.id}
-            >
-              <DownloadIcon className="size-3" />
-              {installingId === skill.id ? 'Installing…' : 'Install'}
-            </Button>
-          )}
-        </div>
-      </div>
-    ))}
+      return (
+        <AgentCard
+          key={skill.id}
+          icon={SparklesIcon}
+          name={skill.name}
+          description={description}
+          isPublic={skill.isPublic && isOwner}
+          onEdit={isOwner ? () => onEdit?.(skill) : undefined}
+          onDelete={isOwner ? () => onDelete?.(skill) : undefined}
+          footer={
+            isOwner ? (
+              <SkillBadges skill={skill} isOwner={isOwner} />
+            ) : (
+              <div className="flex flex-col gap-2">
+                <SkillBadges skill={skill} isOwner={isOwner} />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 flex-1 text-xs gap-1"
+                    onClick={() => onView?.(skill)}
+                  >
+                    <EyeIcon className="size-3" />
+                    Details
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 flex-1 text-xs gap-1"
+                    onClick={() => onInstall?.(skill.id)}
+                    disabled={installingId === skill.id}
+                  >
+                    <DownloadIcon className="size-3" />
+                    {installingId === skill.id ? 'Installing…' : 'Install'}
+                  </Button>
+                </div>
+              </div>
+            )
+          }
+        />
+      );
+    })}
   </div>
 );
 
