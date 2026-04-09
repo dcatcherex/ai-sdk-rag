@@ -1,8 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeftIcon,
+  CheckIcon,
+  ClipboardCopyIcon,
+  Code2Icon,
+  EyeIcon,
   FileIcon,
   FolderPlusIcon,
   PlusIcon,
@@ -10,6 +14,9 @@ import {
   SparklesIcon,
   Trash2Icon,
 } from 'lucide-react';
+import { MarkdownText } from '@/components/message-renderer/markdown-text';
+import { ButtonGroup } from '@/components/ui/button-group';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -98,6 +105,24 @@ const DetailsForm = ({ skill, onBack, onSubmit, isPending }: DetailsFormProps) =
   const [metadataText, setMetadataText] = useState('');
   const [files, setFiles] = useState<CreateSkillFileInput[]>(createDefaultFiles);
   const [isPublic, setIsPublic] = useState(false);
+  const [promptViewMode, setPromptViewMode] = useState<'edit' | 'preview'>(isEdit ? 'preview' : 'edit');
+  const [promptCopied, setPromptCopied] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const copyPrompt = async () => {
+    await navigator.clipboard.writeText(promptFragment);
+    setPromptCopied(true);
+    setTimeout(() => setPromptCopied(false), 2000);
+  };
+
+  // Auto-grow textarea so ScrollArea controls scrolling (not the textarea itself)
+  useEffect(() => {
+    if (promptViewMode === 'edit' && textareaRef.current) {
+      const el = textareaRef.current;
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight}px`;
+    }
+  }, [promptFragment, promptViewMode]);
 
   useEffect(() => {
     if (skill) {
@@ -298,14 +323,69 @@ const DetailsForm = ({ skill, onBack, onSubmit, isPending }: DetailsFormProps) =
           <p className="text-xs text-muted-foreground">
             This becomes the body of <code>SKILL.md</code>. Keep it focused and move deeper material into bundled reference files.
           </p>
-          <Textarea
-            id="skill-prompt"
-            value={promptFragment}
-            onChange={(e) => setPromptFragment(e.target.value)}
-            placeholder="Explain when to use the skill, the workflow to follow, supporting files to read, and any scripts to run."
-            className="min-h-48 resize-none"
-            required
-          />
+          <div className="relative rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring">
+            {/* Toolbar */}
+            <div className="absolute top-2 right-2 z-10">
+              <ButtonGroup className="border rounded-full bg-background/90 backdrop-blur-sm shadow-sm">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={`size-7 rounded-full ${promptViewMode === 'preview' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => setPromptViewMode('preview')}
+                  title="Preview rendered markdown"
+                >
+                  <EyeIcon className="size-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={`size-7 rounded-full ${promptViewMode === 'edit' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => setPromptViewMode('edit')}
+                  title="Edit raw markdown"
+                >
+                  <Code2Icon className="size-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 rounded-full text-muted-foreground hover:text-foreground"
+                  onClick={copyPrompt}
+                  title="Copy to clipboard"
+                >
+                  {promptCopied
+                    ? <CheckIcon className="size-3.5 text-green-500" />
+                    : <ClipboardCopyIcon className="size-3.5" />}
+                </Button>
+              </ButtonGroup>
+            </div>
+
+            <ScrollArea className="h-[32rem]">
+              {promptViewMode === 'edit' ? (
+                <textarea
+                  ref={textareaRef}
+                  id="skill-prompt"
+                  value={promptFragment}
+                  onChange={(e) => {
+                    setPromptFragment(e.target.value);
+                    e.target.style.height = 'auto';
+                    e.target.style.height = `${e.target.scrollHeight}px`;
+                  }}
+                  placeholder="Explain when to use the skill, the workflow to follow, supporting files to read, and any scripts to run."
+                  className="w-full min-h-48 resize-none overflow-hidden bg-transparent px-3 py-2 pr-32 text-sm outline-none placeholder:text-muted-foreground"
+                  required
+                />
+              ) : (
+                <div className="min-h-48 px-3 py-2 pr-32 text-sm">
+                  {promptFragment.trim()
+                    ? <MarkdownText content={promptFragment} />
+                    : <p className="text-muted-foreground italic text-xs">Nothing to preview yet.</p>}
+                </div>
+              )}
+            </ScrollArea>
+          </div>
         </div>
 
         {!isEdit && (

@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { PlusIcon, Trash2Icon } from 'lucide-react';
+import { CheckIcon, ClipboardCopyIcon, Code2Icon, EyeIcon, PlusIcon, Trash2Icon } from 'lucide-react';
+import { MarkdownText } from '@/components/message-renderer/markdown-text';
+import { ButtonGroup } from '@/components/ui/button-group';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -86,6 +89,14 @@ export const SkillFormDialog = ({ open, skill, onClose, onSubmit, isPending }: P
   const [metadataText, setMetadataText] = useState('');
   const [files, setFiles] = useState<CreateSkillFileInput[]>(createDefaultFiles);
   const [isPublic, setIsPublic] = useState(false);
+  const [promptViewMode, setPromptViewMode] = useState<'edit' | 'preview'>('edit');
+  const [promptCopied, setPromptCopied] = useState(false);
+
+  const copyPrompt = async () => {
+    await navigator.clipboard.writeText(promptFragment);
+    setPromptCopied(true);
+    setTimeout(() => setPromptCopied(false), 2000);
+  };
 
   useEffect(() => {
     if (skill) {
@@ -297,14 +308,64 @@ export const SkillFormDialog = ({ open, skill, onClose, onSubmit, isPending }: P
             <p className="text-xs text-muted-foreground">
               This becomes the body of <code>SKILL.md</code>. Keep it focused and move deeper material into bundled reference files.
             </p>
-            <Textarea
-              id="skill-prompt"
-              value={promptFragment}
-              onChange={(e) => setPromptFragment(e.target.value)}
-              placeholder="Explain when to use the skill, the workflow to follow, supporting files to read, and any scripts to run."
-              className="min-h-32 resize-none"
-              required
-            />
+            <div className="relative rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring">
+              {/* Toolbar */}
+              <div className="absolute top-2 right-2 z-10">
+                <ButtonGroup className="border rounded-full bg-background/90 backdrop-blur-sm shadow-sm">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={`size-7 rounded-full ${promptViewMode === 'preview' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                    onClick={() => setPromptViewMode('preview')}
+                    title="Preview rendered markdown"
+                  >
+                    <EyeIcon className="size-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={`size-7 rounded-full ${promptViewMode === 'edit' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                    onClick={() => setPromptViewMode('edit')}
+                    title="Edit raw markdown"
+                  >
+                    <Code2Icon className="size-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 rounded-full text-muted-foreground hover:text-foreground"
+                    onClick={copyPrompt}
+                    title="Copy to clipboard"
+                  >
+                    {promptCopied
+                      ? <CheckIcon className="size-3.5 text-green-500" />
+                      : <ClipboardCopyIcon className="size-3.5" />}
+                  </Button>
+                </ButtonGroup>
+              </div>
+
+              <ScrollArea className="max-h-96">
+                {promptViewMode === 'edit' ? (
+                  <textarea
+                    id="skill-prompt"
+                    value={promptFragment}
+                    onChange={(e) => setPromptFragment(e.target.value)}
+                    placeholder="Explain when to use the skill, the workflow to follow, supporting files to read, and any scripts to run."
+                    className="w-full min-h-32 resize-none bg-transparent px-3 py-2 pr-32 text-sm outline-none placeholder:text-muted-foreground"
+                    required
+                  />
+                ) : (
+                  <div className="min-h-32 px-3 py-2 pr-32 text-sm">
+                    {promptFragment.trim()
+                      ? <MarkdownText content={promptFragment} />
+                      : <p className="text-muted-foreground italic text-xs">Nothing to preview yet.</p>}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
           </div>
 
           {!skill && (
