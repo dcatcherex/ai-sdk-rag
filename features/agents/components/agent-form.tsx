@@ -1,14 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import {
-  buildStructuredSystemPrompt,
-  createDefaultAgentStructuredBehavior,
-  createLegacyCompatibleStructuredBehavior,
-  type AgentStructuredBehavior,
-} from '@/lib/agent-structured-behavior';
 import { useSkills } from '@/features/skills/hooks/use-skills';
 import type { Brand } from '@/features/brands/types';
 import type { AgentSkillAttachmentInput, SkillActivationMode, SkillTriggerType } from '@/features/skills/types';
@@ -38,15 +32,6 @@ type AgentFormProps = {
   submitLabel: string;
 };
 
-const defaultSystemPrompt = '';
-const toneOptions = ['Warm', 'Professional', 'Encouraging', 'Concise'];
-
-const toAttachmentInput = (skillId: string, priority: number): AgentSkillAttachmentInput => ({
-  skillId,
-  isEnabled: true,
-  priority,
-});
-
 const sortSkillAttachments = (attachments: AgentSkillAttachmentInput[]) =>
   [...attachments].sort(
     (a, b) => (a.priority ?? Number.MAX_SAFE_INTEGER) - (b.priority ?? Number.MAX_SAFE_INTEGER) || a.skillId.localeCompare(b.skillId),
@@ -67,55 +52,6 @@ const normalizeSkillAttachmentsForForm = (agent?: Agent | AgentWithSharing | nul
   );
 };
 
-const getInitialStructuredBehavior = (agent?: Agent | null) => {
-  if (!agent) {
-    return createDefaultAgentStructuredBehavior();
-  }
-
-  return agent.structuredBehavior ?? createLegacyCompatibleStructuredBehavior();
-};
-
-const buildFormSnapshot = ({
-  brandId,
-  description,
-  documentIds,
-  enabledTools,
-  isPublic,
-  modelId,
-  name,
-  sharedUserIds,
-  skillAttachments,
-  starterPrompts,
-  structuredBehavior,
-  systemPrompt,
-}: {
-  brandId: string;
-  description: string;
-  documentIds: string[];
-  enabledTools: string[];
-  isPublic: boolean;
-  modelId: string;
-  name: string;
-  sharedUserIds: string[];
-  skillAttachments: AgentSkillAttachmentInput[];
-  starterPrompts: string[];
-  structuredBehavior: AgentStructuredBehavior;
-  systemPrompt: string;
-}) => JSON.stringify({
-  name,
-  description,
-  systemPrompt,
-  modelId,
-  enabledTools,
-  documentIds,
-  skillAttachments,
-  brandId,
-  isPublic,
-  starterPrompts,
-  sharedUserIds,
-  structuredBehavior,
-});
-
 export function AgentForm({
   activeSection,
   agent,
@@ -128,10 +64,9 @@ export function AgentForm({
   resetKey,
   submitLabel,
 }: AgentFormProps) {
-  const initialStructuredBehavior = useMemo(() => getInitialStructuredBehavior(agent), [agent, resetKey]);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [systemPrompt, setSystemPrompt] = useState(defaultSystemPrompt);
+  const [systemPrompt, setSystemPrompt] = useState('');
   const [modelId, setModelId] = useState<string>('auto');
   const [enabledTools, setEnabledTools] = useState<string[]>([]);
   const [documentIds, setDocumentIds] = useState<string[]>([]);
@@ -145,17 +80,6 @@ export function AgentForm({
   const [shareSearch, setShareSearch] = useState('');
   const [brands, setBrands] = useState<Brand[]>([]);
   const [skillAttachments, setSkillAttachments] = useState<AgentSkillAttachmentInput[]>([]);
-  const [behaviorMode, setBehaviorMode] = useState<'structured' | 'raw'>('structured');
-  const [structuredRole, setStructuredRole] = useState('');
-  const [structuredTones, setStructuredTones] = useState<string[]>([]);
-  const [structuredLanguageThai, setStructuredLanguageThai] = useState(true);
-  const [structuredLanguageEnglish, setStructuredLanguageEnglish] = useState(true);
-  const [structuredLanguageMobileFriendly, setStructuredLanguageMobileFriendly] = useState(true);
-  const [structuredInstructions, setStructuredInstructions] = useState<string[]>([]);
-  const [structuredInstructionInput, setStructuredInstructionInput] = useState('');
-  const [structuredContext, setStructuredContext] = useState('');
-  const [structuredExampleReplies, setStructuredExampleReplies] = useState('');
-  const [rawPromptCustomized, setRawPromptCustomized] = useState(false);
 
   const { data: userDocuments = [], isLoading: docsLoading } = useUserDocuments();
   const { data: searchResults = [] } = useUserSearch(shareSearch);
@@ -164,13 +88,9 @@ export function AgentForm({
   const loadedAttachmentAgentIdRef = useRef<string | null>(null);
   const isInitializedRef = useRef(false);
   const hasUserEditedRef = useRef(false);
-  // Lazily captured baseline — set to currentSnapshot the first time everything is settled.
-  // Reset to null whenever agent/skills reload so it re-captures after the new data arrives.
   const initialSnapshotRef = useRef<string | null>(null);
-  const selectedSkillIds = useMemo(
-    () => sortSkillAttachments(skillAttachments).map((attachment) => attachment.skillId),
-    [skillAttachments],
-  );
+
+  const selectedSkillIds = sortSkillAttachments(skillAttachments).map((a) => a.skillId);
 
   useEffect(() => {
     void (async () => {
@@ -184,9 +104,6 @@ export function AgentForm({
     hasUserEditedRef.current = false;
     initialSnapshotRef.current = null;
     if (agent) {
-      const persistedStructuredBehavior = initialStructuredBehavior;
-      const persistedGeneratedPrompt = buildStructuredSystemPrompt(persistedStructuredBehavior);
-
       setName(agent.name);
       setDescription(agent.description ?? '');
       setSystemPrompt(agent.systemPrompt);
@@ -198,24 +115,10 @@ export function AgentForm({
       setSharedWith((agent as AgentWithSharing).sharedWith ?? []);
       setSkillAttachments(normalizeSkillAttachmentsForForm(agent as AgentWithSharing));
       setStarterPrompts(agent.starterPrompts ?? []);
-      setBehaviorMode(agent.structuredBehavior ? 'structured' : agent.systemPrompt.trim() ? 'raw' : 'structured');
-      setStructuredRole(persistedStructuredBehavior.role);
-      setStructuredTones(persistedStructuredBehavior.tones);
-      setStructuredLanguageThai(persistedStructuredBehavior.languageRules.replyInThaiWhenUserUsesThai);
-      setStructuredLanguageEnglish(persistedStructuredBehavior.languageRules.replyInEnglishWhenUserUsesEnglish);
-      setStructuredLanguageMobileFriendly(persistedStructuredBehavior.languageRules.keepRepliesMobileFriendly);
-      setStructuredInstructions(persistedStructuredBehavior.keyInstructions);
-      setStructuredContext(persistedStructuredBehavior.context);
-      setStructuredExampleReplies(persistedStructuredBehavior.exampleReplies);
-      setRawPromptCustomized(
-        agent.structuredBehavior ? agent.systemPrompt.trim() !== persistedGeneratedPrompt.trim() : Boolean(agent.systemPrompt.trim())
-      );
     } else {
-      const emptyStructuredBehavior = initialStructuredBehavior;
-
       setName('');
       setDescription('');
-      setSystemPrompt(defaultSystemPrompt);
+      setSystemPrompt('');
       setModelId('auto');
       setEnabledTools([]);
       setDocumentIds([]);
@@ -224,24 +127,13 @@ export function AgentForm({
       setSharedWith([]);
       setSkillAttachments([]);
       setStarterPrompts([]);
-      setBehaviorMode('structured');
-      setStructuredRole(emptyStructuredBehavior.role);
-      setStructuredTones(emptyStructuredBehavior.tones);
-      setStructuredLanguageThai(emptyStructuredBehavior.languageRules.replyInThaiWhenUserUsesThai);
-      setStructuredLanguageEnglish(emptyStructuredBehavior.languageRules.replyInEnglishWhenUserUsesEnglish);
-      setStructuredLanguageMobileFriendly(emptyStructuredBehavior.languageRules.keepRepliesMobileFriendly);
-      setStructuredInstructions(emptyStructuredBehavior.keyInstructions);
-      setStructuredContext(emptyStructuredBehavior.context);
-      setStructuredExampleReplies(emptyStructuredBehavior.exampleReplies);
-      setRawPromptCustomized(false);
     }
     setStarterInput('');
     setDocSearch('');
     setShareSearch('');
-    setStructuredInstructionInput('');
     loadedAttachmentAgentIdRef.current = agent?.id ?? null;
     isInitializedRef.current = true;
-  }, [agent, initialStructuredBehavior, resetKey]);
+  }, [agent, resetKey]);
 
   useEffect(() => {
     if (!agent?.id) return;
@@ -263,109 +155,29 @@ export function AgentForm({
     setSkillAttachments(normalizedAttachments);
     loadedAttachmentAgentIdRef.current = `${agent.id}:loaded`;
     if (!hasUserEditedRef.current) {
-      // Re-capture the baseline after skills settle so the diff is clean.
       initialSnapshotRef.current = null;
     }
   }, [agent?.id, loadedSkillAttachments]);
 
-  const markUserEdited = () => {
-    hasUserEditedRef.current = true;
-  };
+  const markUserEdited = () => { hasUserEditedRef.current = true; };
 
-  const structuredBehaviorDraft = useMemo<AgentStructuredBehavior>(
-    () => ({
-      version: 1,
-      role: structuredRole,
-      tones: structuredTones,
-      languageRules: {
-        replyInThaiWhenUserUsesThai: structuredLanguageThai,
-        replyInEnglishWhenUserUsesEnglish: structuredLanguageEnglish,
-        keepRepliesMobileFriendly: structuredLanguageMobileFriendly,
-      },
-      keyInstructions: structuredInstructions,
-      context: structuredContext,
-      exampleReplies: structuredExampleReplies,
-    }),
-    [
-      structuredContext,
-      structuredExampleReplies,
-      structuredInstructions,
-      structuredLanguageEnglish,
-      structuredLanguageMobileFriendly,
-      structuredLanguageThai,
-      structuredRole,
-      structuredTones,
-    ]
-  );
-
-  const hasStructuredBehavior = useMemo(
-    () =>
-      structuredBehaviorDraft.role.trim().length > 0 ||
-      structuredBehaviorDraft.tones.length > 0 ||
-      structuredBehaviorDraft.languageRules.replyInThaiWhenUserUsesThai ||
-      structuredBehaviorDraft.languageRules.replyInEnglishWhenUserUsesEnglish ||
-      structuredBehaviorDraft.languageRules.keepRepliesMobileFriendly ||
-      structuredBehaviorDraft.keyInstructions.length > 0 ||
-      structuredBehaviorDraft.context.trim().length > 0 ||
-      structuredBehaviorDraft.exampleReplies.trim().length > 0,
-    [structuredBehaviorDraft]
-  );
-
-  const generatedPrompt = useMemo(
-    () => buildStructuredSystemPrompt(structuredBehaviorDraft),
-    [structuredBehaviorDraft]
-  );
-
-  const effectiveSystemPrompt = rawPromptCustomized ? systemPrompt : generatedPrompt;
-
-  const currentSnapshot = useMemo(
-    () =>
-      buildFormSnapshot({
-        brandId,
-        description,
-        documentIds,
-        enabledTools,
-        isPublic,
-        modelId,
-        name,
-        sharedUserIds: sharedWith.map((user) => user.id),
-        skillAttachments: sortSkillAttachments(skillAttachments),
-        starterPrompts,
-        structuredBehavior: structuredBehaviorDraft,
-        systemPrompt: effectiveSystemPrompt,
-      }),
-    [
-      brandId,
-      description,
-      documentIds,
-      enabledTools,
-      isPublic,
-      modelId,
-      name,
-      sharedWith,
-      skillAttachments,
-      starterPrompts,
-      structuredBehaviorDraft,
-      effectiveSystemPrompt,
-    ]
-  );
+  // Dirty tracking
+  const currentSnapshot = JSON.stringify({
+    name, description, systemPrompt, modelId, enabledTools, documentIds,
+    brandId, isPublic, starterPrompts,
+    sharedUserIds: sharedWith.map((u) => u.id),
+    skillAttachments: sortSkillAttachments(skillAttachments),
+  });
 
   useEffect(() => {
     if (!isInitializedRef.current) return;
     if (initialSnapshotRef.current === null) {
-      // First stable render after (re)load — capture baseline, not dirty yet.
       initialSnapshotRef.current = currentSnapshot;
       onDirtyChange?.(false);
       return;
     }
     onDirtyChange?.(hasUserEditedRef.current && currentSnapshot !== initialSnapshotRef.current);
   }, [currentSnapshot, onDirtyChange]);
-
-  useEffect(() => {
-    if (!rawPromptCustomized) {
-      setSystemPrompt(generatedPrompt);
-    }
-  }, [generatedPrompt, rawPromptCustomized]);
 
   const filteredDocuments = docSearch.trim()
     ? userDocuments.filter((d) => {
@@ -377,12 +189,9 @@ export function AgentForm({
   const unaddedResults = searchResults.filter((u) => !sharedWith.find((s) => s.id === u.id));
   const showNoResults = shareSearch.trim().length >= 2 && searchResults.length === 0;
   const isValid = name.trim().length > 0 && systemPrompt.trim().length > 0;
-  const systemPromptChars = systemPrompt.length;
-  const systemPromptLines = systemPrompt.length === 0 ? 0 : systemPrompt.split(/\r?\n/).length;
-  const estimatedTokens = Math.ceil(systemPrompt.trim().length / 4);
   const isPanel = layout === 'panel';
   const resolvedActiveSection = activeSection ?? 'general';
-  const activeSectionMeta = AGENT_EDITOR_SECTIONS.find((section) => section.id === resolvedActiveSection);
+  const activeSectionMeta = AGENT_EDITOR_SECTIONS.find((s) => s.id === resolvedActiveSection);
 
   const addStarterPrompt = () => {
     const value = starterInput.trim();
@@ -391,66 +200,6 @@ export function AgentForm({
     setStarterPrompts((prev) => [...prev, value]);
     setStarterInput('');
     starterInputRef.current?.focus();
-  };
-
-  const addStructuredInstruction = () => {
-    const value = structuredInstructionInput.trim();
-    if (!value) return;
-    markUserEdited();
-    setStructuredInstructions((prev) => [...prev, value]);
-    setStructuredInstructionInput('');
-  };
-
-  const toggleStructuredTone = (tone: string) => {
-    markUserEdited();
-    setStructuredTones((prev) =>
-      prev.includes(tone) ? prev.filter((currentTone) => currentTone !== tone) : [...prev, tone]
-    );
-  };
-
-  const applyGeneratedPrompt = () => {
-    markUserEdited();
-    setRawPromptCustomized(false);
-    setSystemPrompt(generatedPrompt);
-  };
-
-  const handleRawPromptChange = (value: string) => {
-    markUserEdited();
-    setRawPromptCustomized(value.trim() !== generatedPrompt.trim());
-    setSystemPrompt(value);
-  };
-
-  const behaviorSyncState = useMemo<'empty' | 'legacy' | 'synced' | 'diverged'>(
-    () => {
-      if (agent && !agent.structuredBehavior && agent.systemPrompt.trim()) {
-        return 'legacy';
-      }
-
-      if (!hasStructuredBehavior || !generatedPrompt.trim()) {
-        return 'empty';
-      }
-
-      return rawPromptCustomized ? 'diverged' : 'synced';
-    },
-    [agent, generatedPrompt, hasStructuredBehavior, rawPromptCustomized]
-  );
-
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    onSubmit({
-      name: name.trim(),
-      description: description.trim() || undefined,
-      systemPrompt: systemPrompt.trim(),
-      structuredBehavior: hasStructuredBehavior ? structuredBehaviorDraft : null,
-      modelId: modelId === 'auto' ? null : modelId,
-      enabledTools,
-      documentIds,
-      skillAttachments: sortSkillAttachments(skillAttachments),
-      brandId: brandId === 'none' ? null : brandId,
-      isPublic,
-      starterPrompts,
-      sharedUserIds: sharedWith.map((u) => u.id),
-    });
   };
 
   const toggleTool = (toolId: string) => {
@@ -474,11 +223,10 @@ export function AgentForm({
   const toggleSkillAttachment = (skillId: string, currentlySelected: boolean) => {
     markUserEdited();
     if (currentlySelected) {
-      setSkillAttachments((prev) => prev.filter((attachment) => attachment.skillId !== skillId));
+      setSkillAttachments((prev) => prev.filter((a) => a.skillId !== skillId));
       return;
     }
-
-    setSkillAttachments((prev) => [...prev, toAttachmentInput(skillId, prev.length)]);
+    setSkillAttachments((prev) => [...prev, { skillId, isEnabled: true, priority: prev.length }]);
   };
 
   const updateSkillAttachment = (
@@ -491,44 +239,47 @@ export function AgentForm({
       sortSkillAttachments(
         prev.map((attachment) => {
           if (attachment.skillId !== skillId) return attachment;
-          if (field === 'priority') {
-            return { ...attachment, priority: typeof value === 'number' ? value : undefined };
-          }
-          if (field === 'triggerOverride') {
-            return { ...attachment, triggerOverride: typeof value === 'string' ? value : null };
-          }
-          if (field === 'triggerTypeOverride') {
-            return { ...attachment, triggerTypeOverride: (value as SkillTriggerType | null) ?? null };
-          }
+          if (field === 'priority') return { ...attachment, priority: typeof value === 'number' ? value : undefined };
+          if (field === 'triggerOverride') return { ...attachment, triggerOverride: typeof value === 'string' ? value : null };
+          if (field === 'triggerTypeOverride') return { ...attachment, triggerTypeOverride: (value as SkillTriggerType | null) ?? null };
           return { ...attachment, activationModeOverride: (value as SkillActivationMode | null) ?? null };
         }),
       ),
     );
   };
 
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    onSubmit({
+      name: name.trim(),
+      description: description.trim() || undefined,
+      systemPrompt: systemPrompt.trim(),
+      structuredBehavior: null,
+      modelId: modelId === 'auto' ? null : modelId,
+      enabledTools,
+      documentIds,
+      skillAttachments: sortSkillAttachments(skillAttachments),
+      brandId: brandId === 'none' ? null : brandId,
+      isPublic,
+      starterPrompts,
+      sharedUserIds: sharedWith.map((u) => u.id),
+    });
+  };
+
   const generalSection = (
     <AgentGeneralSection
       description={description}
       name={name}
-      onDescriptionChange={(value) => {
-        markUserEdited();
-        setDescription(value);
-      }}
-      onNameChange={(value) => {
-        markUserEdited();
-        setName(value);
-      }}
+      onDescriptionChange={(value) => { markUserEdited(); setDescription(value); }}
+      onNameChange={(value) => { markUserEdited(); setName(value); }}
       onStarterAdd={addStarterPrompt}
       onStarterInputChange={setStarterInput}
       onStarterInputKeyDown={(event) => {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          addStarterPrompt();
-        }
+        if (event.key === 'Enter') { event.preventDefault(); addStarterPrompt(); }
       }}
       onStarterRemove={(index) => {
         markUserEdited();
-        setStarterPrompts((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+        setStarterPrompts((prev) => prev.filter((_, i) => i !== index));
       }}
       starterInput={starterInput}
       starterInputRef={starterInputRef}
@@ -538,79 +289,15 @@ export function AgentForm({
 
   const behaviorSection = (
     <AgentBehaviorSection
-      behaviorMode={behaviorMode}
-      contextValue={structuredContext}
-      estimatedTokens={estimatedTokens}
-      exampleRepliesValue={structuredExampleReplies}
-      generatedPrompt={generatedPrompt}
-      hasStructuredBehavior={hasStructuredBehavior}
-      isPanel={isPanel}
-      isRawCustomized={hasStructuredBehavior && rawPromptCustomized}
-      keyInstructionsValue={structuredInstructions}
-      languageEnglish={structuredLanguageEnglish}
-      languageMobileFriendly={structuredLanguageMobileFriendly}
-      languageThai={structuredLanguageThai}
-      onBehaviorModeChange={setBehaviorMode}
-      onContextChange={(value) => {
-        markUserEdited();
-        setStructuredContext(value);
-      }}
-      onExampleRepliesChange={(value) => {
-        markUserEdited();
-        setStructuredExampleReplies(value);
-      }}
-      onKeyInstructionAdd={addStructuredInstruction}
-      onKeyInstructionChange={(index, value) =>
-        {
-          markUserEdited();
-          setStructuredInstructions((prev) =>
-            prev.map((instruction, itemIndex) => (itemIndex === index ? value : instruction))
-          );
-        }
-      }
-      onKeyInstructionInputChange={setStructuredInstructionInput}
-      onKeyInstructionRemove={(index) => {
-        markUserEdited();
-        setStructuredInstructions((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
-      }}
-      onLanguageEnglishChange={(value) => {
-        markUserEdited();
-        setStructuredLanguageEnglish(value);
-      }}
-      onLanguageMobileFriendlyChange={(value) => {
-        markUserEdited();
-        setStructuredLanguageMobileFriendly(value);
-      }}
-      onLanguageThaiChange={(value) => {
-        markUserEdited();
-        setStructuredLanguageThai(value);
-      }}
-      onResetFromStructured={applyGeneratedPrompt}
-      onRoleChange={(value) => {
-        markUserEdited();
-        setStructuredRole(value);
-      }}
-      onSystemPromptChange={handleRawPromptChange}
-      onToneToggle={toggleStructuredTone}
-      onUseGeneratedPrompt={applyGeneratedPrompt}
-      roleValue={structuredRole}
-      selectedTones={structuredTones}
-      syncState={behaviorSyncState}
       systemPrompt={systemPrompt}
-      systemPromptChars={systemPromptChars}
-      systemPromptLines={systemPromptLines}
-      toneOptions={toneOptions}
-      workingInstructionValue={structuredInstructionInput}
+      onSystemPromptChange={(value) => { markUserEdited(); setSystemPrompt(value); }}
     />
   );
 
   const modelSection = (
     <AgentModelSection
       modelId={modelId}
-      onModelChange={(value) => {
-        markUserEdited();
-        setModelId(value);
-      }}
+      onModelChange={(value) => { markUserEdited(); setModelId(value); }}
     />
   );
 
@@ -624,19 +311,14 @@ export function AgentForm({
       docsLoading={docsLoading}
       documentIds={documentIds}
       filteredDocuments={filteredDocuments}
-      onBrandChange={(value) => {
-        markUserEdited();
-        setBrandId(value);
-      }}
+      onBrandChange={(value) => { markUserEdited(); setBrandId(value); }}
       onDocSearchChange={setDocSearch}
-      onDocumentToggle={(documentId, checked) =>
-        {
-          markUserEdited();
-          setDocumentIds((prev) =>
-            checked ? [...prev, documentId] : prev.filter((currentDocumentId) => currentDocumentId !== documentId)
-          );
-        }
-      }
+      onDocumentToggle={(documentId, checked) => {
+        markUserEdited();
+        setDocumentIds((prev) =>
+          checked ? [...prev, documentId] : prev.filter((id) => id !== documentId)
+        );
+      }}
       onSkillToggle={toggleSkillAttachment}
       onSkillAttachmentChange={updateSkillAttachment}
       skillIds={selectedSkillIds}
@@ -649,10 +331,7 @@ export function AgentForm({
   const sharingSection = (
     <AgentSharingSection
       isPublic={isPublic}
-      onIsPublicChange={(value) => {
-        markUserEdited();
-        setIsPublic(value);
-      }}
+      onIsPublicChange={(value) => { markUserEdited(); setIsPublic(value); }}
       onShareSearchChange={setShareSearch}
       onSharedUserAdd={addToShared}
       onSharedUserRemove={removeFromShared}
