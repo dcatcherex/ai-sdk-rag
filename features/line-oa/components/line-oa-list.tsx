@@ -11,11 +11,12 @@ import {
   PencilIcon,
   PlusIcon,
   Trash2Icon,
-  XCircleIcon,
 } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
+import { ButtonGroup } from '@/components/ui/button-group';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -41,10 +42,12 @@ const ChannelCard = ({
   channel,
   onEdit,
   onDelete,
+  onToggleActive,
 }: {
   channel: LineOaChannel;
   onEdit: () => void;
   onDelete: () => void;
+  onToggleActive: () => void;
 }) => {
   const { data: menus = [] } = useRichMenus(channel.id);
   const { data: broadcasts = [] } = useBroadcasts(channel.id);
@@ -61,89 +64,94 @@ const ChannelCard = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const initials = channel.name.slice(0, 2).toUpperCase();
+  const isActive = channel.status === 'active';
+
   return (
-    <div className="group relative flex flex-col gap-3 rounded-xl border border-black/5 dark:border-border bg-muted/30 p-4 transition hover:bg-muted/50">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <MessageCircleIcon className="size-4 shrink-0 text-[#06c755]" />
-          <span className="font-medium truncate">{channel.name}</span>
+    <div className="group relative flex flex-col rounded-2xl border-2 border-black/5 dark:border-border bg-white dark:bg-zinc-900 overflow-hidden transition hover:border-primary/50">
+      {/* ── Top image section ── */}
+      <div className="relative h-32 bg-background dark:bg-zinc-800 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-2 select-none">
+          <MessageCircleIcon className="size-14 text-[#06c755]/40 dark:text-[#06c755]/30" strokeWidth={1.2} />
+          <span className="text-xs font-semibold text-[#06c755]/40 dark:text-[#06c755]/30 tracking-widest">{initials}</span>
         </div>
-        <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100 transition">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7 text-destructive hover:text-destructive"
-            onClick={onDelete}
-          >
-            <Trash2Icon className="size-3.5" />
-          </Button>
-        </div>
-      </div>
 
-      {/* Badges */}
-      <div className="flex flex-wrap gap-1.5">
-        <Badge
-          variant={channel.status === 'active' ? 'default' : 'secondary'}
-          className="text-[11px] gap-1"
-        >
-          {channel.status === 'active' ? (
-            <CheckCircleIcon className="size-2.5" />
-          ) : (
-            <XCircleIcon className="size-2.5" />
-          )}
-          {channel.status === 'active' ? 'Active' : 'Inactive'}
-        </Badge>
-        {channel.agentName && (
-          <Badge variant="outline" className="text-[11px] gap-1">
-            <BotIcon className="size-2.5" />
-            {channel.agentName}
-          </Badge>
-        )}
-        <Badge variant="secondary" className="text-[11px] font-mono">
-          ID: {channel.lineChannelId}
-        </Badge>
-      </div>
-
-      {/* Webhook URL */}
-      <div className="flex items-center gap-2 rounded-lg bg-background/60 border px-3 py-2">
-        <code className="text-[10px] text-muted-foreground flex-1 truncate">{webhookUrl}</code>
+        {/* Active / inactive dot — top-left (clickable toggle) */}
         <button
           type="button"
-          onClick={copyWebhook}
-          className="shrink-0 text-muted-foreground hover:text-foreground transition"
-          title="Copy webhook URL"
-        >
-          {copied ? (
-            <CheckCircleIcon className="size-3.5 text-green-500" />
-          ) : (
-            <ClipboardCopyIcon className="size-3.5" />
+          onClick={onToggleActive}
+          title={isActive ? 'Active — click to deactivate' : 'Inactive — click to activate'}
+          className={cn(
+            'absolute top-3 left-3 size-4 rounded-full border-2 border-white shadow cursor-pointer hover:scale-110 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            isActive ? 'bg-green-500' : 'bg-zinc-400',
           )}
-        </button>
+        />
+
+        {/* Hover actions — top-right */}
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition z-10">
+          <ButtonGroup className="border rounded-full bg-white/90 dark:bg-zinc-800/90 backdrop-blur-sm shadow">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 rounded-full hover:cursor-pointer"
+              onClick={copyWebhook}
+              title="Copy webhook URL"
+            >
+              {copied
+                ? <CheckCircleIcon className="size-3.5 text-green-500" />
+                : <ClipboardCopyIcon className="size-3.5" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 rounded-full hover:cursor-pointer"
+              onClick={onEdit}
+              title="Edit channel"
+            >
+              <PencilIcon className="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 rounded-full text-destructive hover:text-destructive hover:cursor-pointer"
+              onClick={onDelete}
+              title="Disconnect"
+            >
+              <Trash2Icon className="size-3.5" />
+            </Button>
+          </ButtonGroup>
+        </div>
       </div>
 
-      {/* Summary counts */}
-      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <LayoutGridIcon className="size-3" />
-          {menus.length} rich menu{menus.length !== 1 ? 's' : ''}
-        </span>
-        <span className="flex items-center gap-1">
-          <MegaphoneIcon className="size-3" />
-          {broadcasts.length} broadcast{broadcasts.length !== 1 ? 's' : ''}
-        </span>
-      </div>
+      {/* ── Text section ── */}
+      <div className="flex flex-col gap-2 p-4">
+        <p className="font-semibold text-sm truncate">{channel.name}</p>
 
-      {/* Edit button */}
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-7 text-xs gap-1 w-full mt-1"
-        onClick={onEdit}
-      >
-        <PencilIcon className="size-3" />
-        Edit channel
-      </Button>
+        {/* Badges */}
+        <div className="flex flex-wrap gap-1.5">
+          {channel.agentName && (
+            <Badge variant="outline" className="text-[11px] gap-1">
+              <BotIcon className="size-2.5" />
+              {channel.agentName}
+            </Badge>
+          )}
+          <Badge variant="secondary" className="text-[11px] font-mono">
+            ID: {channel.lineChannelId}
+          </Badge>
+        </div>
+
+        {/* Summary counts — icon + number only */}
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1" title={`${menus.length} rich menu${menus.length !== 1 ? 's' : ''}`}>
+            <LayoutGridIcon className="size-3" />
+            {menus.length}
+          </span>
+          <span className="flex items-center gap-1" title={`${broadcasts.length} broadcast${broadcasts.length !== 1 ? 's' : ''}`}>
+            <MegaphoneIcon className="size-3" />
+            {broadcasts.length}
+          </span>
+        </div>
+      </div>
     </div>
   );
 };
@@ -243,6 +251,12 @@ export const LineOaList = () => {
                   channel={channel}
                   onEdit={() => openEdit(channel)}
                   onDelete={() => setDeleteTarget(channel)}
+                  onToggleActive={() =>
+                    updateChannel.mutate({
+                      id: channel.id,
+                      status: channel.status === 'active' ? 'inactive' : 'active',
+                    })
+                  }
                 />
               ))}
             </div>

@@ -6,7 +6,6 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
@@ -42,7 +41,6 @@ const SettingsForm = ({ channel, onBack, onSubmit, isPending }: SettingsFormProp
   const [channelSecret, setChannelSecret] = useState('');
   const [channelAccessToken, setChannelAccessToken] = useState('');
   const [agentId, setAgentId] = useState<string>('none');
-  const [isActive, setIsActive] = useState(true);
   const [showSecret, setShowSecret] = useState(false);
   const [showToken, setShowToken] = useState(false);
 
@@ -53,14 +51,12 @@ const SettingsForm = ({ channel, onBack, onSubmit, isPending }: SettingsFormProp
       setChannelSecret('');
       setChannelAccessToken('');
       setAgentId(channel.agentId ?? 'none');
-      setIsActive(channel.status === 'active');
     } else {
       setName('');
       setLineChannelId('');
       setChannelSecret('');
       setChannelAccessToken('');
       setAgentId('none');
-      setIsActive(true);
     }
     setShowSecret(false);
     setShowToken(false);
@@ -81,7 +77,7 @@ const SettingsForm = ({ channel, onBack, onSubmit, isPending }: SettingsFormProp
       channelSecret: channelSecret.trim(),
       channelAccessToken: channelAccessToken.trim(),
       agentId: agentId === 'none' ? null : agentId,
-      status: isActive ? 'active' : 'inactive',
+      status: channel?.status ?? 'active',
     });
   };
 
@@ -182,17 +178,6 @@ const SettingsForm = ({ channel, onBack, onSubmit, isPending }: SettingsFormProp
           </p>
         </div>
 
-        <div className="flex items-center justify-between rounded-lg border border-black/5 dark:border-border p-3">
-          <div className="space-y-0.5">
-            <Label htmlFor="loa-active" className="text-sm font-medium cursor-pointer">
-              Active
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              When inactive, incoming LINE messages will not be processed by the agent.
-            </p>
-          </div>
-          <Switch id="loa-active" checked={isActive} onCheckedChange={setIsActive} />
-        </div>
       </div>
 
       <div className="flex items-center justify-end gap-2 border-t px-6 py-3">
