@@ -1,6 +1,7 @@
 'use client';
 
-import { Building2Icon, SparklesIcon } from 'lucide-react';
+import { useState } from 'react';
+import { Building2Icon, ChevronDownIcon, ChevronUpIcon, SparklesIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -36,6 +37,111 @@ type AgentKnowledgeSectionProps = {
   userDocuments: DocumentSummary[];
   userSkills: Skill[];
 };
+
+type SkillRowProps = {
+  skill: Skill;
+  checked: boolean;
+  attachment: AgentSkillAttachmentInput | undefined;
+  onToggle: () => void;
+  onAttachmentChange: (
+    field: 'activationModeOverride' | 'triggerTypeOverride' | 'triggerOverride' | 'priority',
+    value: SkillActivationMode | SkillTriggerType | string | number | null,
+  ) => void;
+};
+
+function SkillRow({ skill, checked, attachment, onToggle, onAttachmentChange }: SkillRowProps) {
+  const [expanded, setExpanded] = useState(false);
+  const triggerLabel =
+    skill.triggerType === 'always' ? 'always' : skill.trigger ? `${skill.trigger}` : skill.triggerType;
+
+  return (
+    <div className="rounded px-2 py-1.5 hover:bg-muted/50">
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id={`skill-${skill.id}`}
+          checked={checked}
+          onChange={onToggle}
+          className="size-3.5 cursor-pointer rounded border accent-primary shrink-0"
+        />
+        <label
+          htmlFor={`skill-${skill.id}`}
+          className="flex flex-1 cursor-pointer items-center gap-1.5 text-xs font-medium leading-none min-w-0"
+        >
+          <SparklesIcon className="size-3 shrink-0 text-primary" />
+          <span className="truncate">{skill.name}</span>
+          <span className="font-normal text-muted-foreground shrink-0">· {triggerLabel}</span>
+        </label>
+        {checked && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="shrink-0 text-muted-foreground hover:text-foreground transition p-0.5 rounded"
+            title={expanded ? 'Hide options' : 'Show options'}
+          >
+            {expanded ? <ChevronUpIcon className="size-3.5" /> : <ChevronDownIcon className="size-3.5" />}
+          </button>
+        )}
+      </div>
+
+      {checked && expanded && attachment && (
+        <div className="mt-2 grid gap-2 rounded-md border border-black/5 bg-background/80 p-2 dark:border-border sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label className="text-[11px] text-muted-foreground">Activation override</Label>
+            <Select
+              value={attachment.activationModeOverride ?? 'inherit'}
+              onValueChange={(value) => onAttachmentChange('activationModeOverride', value === 'inherit' ? null : value as SkillActivationMode)}
+            >
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="inherit">Inherit skill default</SelectItem>
+                <SelectItem value="rule">Rule-based</SelectItem>
+                <SelectItem value="model">Model discovered</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-[11px] text-muted-foreground">Trigger type override</Label>
+            <Select
+              value={attachment.triggerTypeOverride ?? 'inherit'}
+              onValueChange={(value) => onAttachmentChange('triggerTypeOverride', value === 'inherit' ? null : value as SkillTriggerType)}
+            >
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="inherit">Inherit skill default</SelectItem>
+                <SelectItem value="always">Always active</SelectItem>
+                <SelectItem value="slash">Slash command</SelectItem>
+                <SelectItem value="keyword">Keyword match</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-[11px] text-muted-foreground">Trigger override</Label>
+            <Input
+              value={attachment.triggerOverride ?? ''}
+              onChange={(e) => onAttachmentChange('triggerOverride', e.target.value || null)}
+              placeholder={skill.trigger ?? 'Override trigger'}
+              className="h-8 text-xs"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-[11px] text-muted-foreground">Priority</Label>
+            <Input
+              type="number"
+              min={0}
+              value={attachment.priority ?? 0}
+              onChange={(e) => onAttachmentChange('priority', Number(e.target.value || 0))}
+              className="h-8 text-xs"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function AgentKnowledgeSection({
   brandId,
@@ -91,9 +197,6 @@ export function AgentKnowledgeSection({
 
       <div className="space-y-2">
         <Label>Skills</Label>
-        <p className="text-xs text-muted-foreground">
-          Skills extend this agent with reusable prompt behaviors triggered by slash commands or keywords.
-        </p>
         {userSkills.length === 0 ? (
           <p className="text-xs italic text-muted-foreground">
             No skills yet. Create skills in the Skills section.
@@ -103,94 +206,15 @@ export function AgentKnowledgeSection({
             {userSkills.map((skill) => {
               const checked = skillIds.includes(skill.id);
               const attachment = skillAttachments.find((item) => item.skillId === skill.id);
-              const triggerLabel =
-                skill.triggerType === 'always'
-                  ? 'always'
-                  : skill.trigger
-                    ? `${skill.trigger}`
-                    : skill.triggerType;
               return (
-                <div key={skill.id} className="flex items-start gap-2 rounded px-2 py-1.5 hover:bg-muted/50">
-                  <input
-                    type="checkbox"
-                    id={`skill-${skill.id}`}
-                    checked={checked}
-                    onChange={() => onSkillToggle(skill.id, checked)}
-                    className="mt-0.5 size-3.5 cursor-pointer rounded border accent-primary"
-                  />
-                  <div className="min-w-0 space-y-0.5">
-                    <label
-                      htmlFor={`skill-${skill.id}`}
-                      className="flex cursor-pointer items-center gap-1.5 text-xs font-medium leading-none"
-                    >
-                      <SparklesIcon className="size-3 shrink-0 text-primary" />
-                      {skill.name}
-                      <span className="font-normal text-muted-foreground">· {triggerLabel}</span>
-                    </label>
-                    {skill.description && (
-                      <p className="truncate text-xs text-muted-foreground">{skill.description}</p>
-                    )}
-                    {checked && attachment && (
-                      <div className="mt-2 grid gap-2 rounded-md border border-black/5 bg-background/80 p-2 dark:border-border sm:grid-cols-2">
-                        <div className="space-y-1">
-                          <Label className="text-[11px] text-muted-foreground">Activation override</Label>
-                          <Select
-                            value={attachment.activationModeOverride ?? 'inherit'}
-                            onValueChange={(value) => onSkillAttachmentChange(skill.id, 'activationModeOverride', value === 'inherit' ? null : value as SkillActivationMode)}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="inherit">Inherit skill default</SelectItem>
-                              <SelectItem value="rule">Rule-based</SelectItem>
-                              <SelectItem value="model">Model discovered</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-[11px] text-muted-foreground">Trigger type override</Label>
-                          <Select
-                            value={attachment.triggerTypeOverride ?? 'inherit'}
-                            onValueChange={(value) => onSkillAttachmentChange(skill.id, 'triggerTypeOverride', value === 'inherit' ? null : value as SkillTriggerType)}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="inherit">Inherit skill default</SelectItem>
-                              <SelectItem value="always">Always active</SelectItem>
-                              <SelectItem value="slash">Slash command</SelectItem>
-                              <SelectItem value="keyword">Keyword match</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-[11px] text-muted-foreground">Trigger override</Label>
-                          <Input
-                            value={attachment.triggerOverride ?? ''}
-                            onChange={(event) => onSkillAttachmentChange(skill.id, 'triggerOverride', event.target.value || null)}
-                            placeholder={skill.trigger ?? 'Override trigger'}
-                            className="h-8 text-xs"
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-[11px] text-muted-foreground">Priority</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            value={attachment.priority ?? 0}
-                            onChange={(event) => onSkillAttachmentChange(skill.id, 'priority', Number(event.target.value || 0))}
-                            className="h-8 text-xs"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <SkillRow
+                  key={skill.id}
+                  skill={skill}
+                  checked={checked}
+                  attachment={attachment}
+                  onToggle={() => onSkillToggle(skill.id, checked)}
+                  onAttachmentChange={(field, value) => onSkillAttachmentChange(skill.id, field, value)}
+                />
               );
             })}
           </div>
