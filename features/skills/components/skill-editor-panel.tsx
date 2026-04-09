@@ -94,18 +94,21 @@ type DetailsFormProps = {
 const DetailsForm = ({ skill, onBack, onSubmit, isPending }: DetailsFormProps) => {
   const isEdit = Boolean(skill);
 
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [activationMode, setActivationMode] = useState<SkillActivationMode>('model');
-  const [triggerType, setTriggerType] = useState<SkillTriggerType>('always');
-  const [trigger, setTrigger] = useState('');
-  const [promptFragment, setPromptFragment] = useState('');
+  // State is initialized directly from props. The parent passes key={skill?.id ?? 'new'}
+  // so React remounts this component when switching between create/edit, eliminating
+  // the need for a useEffect-based form reset.
+  const [name, setName] = useState(skill?.name ?? '');
+  const [description, setDescription] = useState(skill?.description ?? '');
+  const [activationMode, setActivationMode] = useState<SkillActivationMode>(skill?.activationMode ?? 'model');
+  const [triggerType, setTriggerType] = useState<SkillTriggerType>(skill?.triggerType ?? 'always');
+  const [trigger, setTrigger] = useState(skill?.trigger ?? '');
+  const [promptFragment, setPromptFragment] = useState(skill?.promptFragment ?? '');
   const [license, setLicense] = useState('');
   const [compatibility, setCompatibility] = useState('');
   const [metadataText, setMetadataText] = useState('');
   const [files, setFiles] = useState<CreateSkillFileInput[]>(createDefaultFiles);
-  const [isPublic, setIsPublic] = useState(false);
-  const [promptViewMode, setPromptViewMode] = useState<'edit' | 'preview'>(isEdit ? 'preview' : 'edit');
+  const [isPublic, setIsPublic] = useState(skill?.isPublic ?? false);
+  const [promptViewMode, setPromptViewMode] = useState<'edit' | 'preview'>('preview');
   const [promptCopied, setPromptCopied] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -123,30 +126,6 @@ const DetailsForm = ({ skill, onBack, onSubmit, isPending }: DetailsFormProps) =
       el.style.height = `${el.scrollHeight}px`;
     }
   }, [promptFragment, promptViewMode]);
-
-  useEffect(() => {
-    if (skill) {
-      setName(skill.name);
-      setDescription(skill.description ?? '');
-      setActivationMode(skill.activationMode);
-      setTriggerType(skill.triggerType);
-      setTrigger(skill.trigger ?? '');
-      setPromptFragment(skill.promptFragment);
-      setIsPublic(skill.isPublic);
-    } else {
-      setName('');
-      setDescription('');
-      setActivationMode('model');
-      setTriggerType('always');
-      setTrigger('');
-      setPromptFragment('');
-      setLicense('');
-      setCompatibility('');
-      setMetadataText('');
-      setFiles(createDefaultFiles());
-      setIsPublic(false);
-    }
-  }, [skill]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -318,15 +297,12 @@ const DetailsForm = ({ skill, onBack, onSubmit, isPending }: DetailsFormProps) =
           </div>
         )}
 
-        <div className="space-y-1.5">
-          <Label htmlFor="skill-prompt">Prompt instructions *</Label>
-          <p className="text-xs text-muted-foreground">
-            This becomes the body of <code>SKILL.md</code>. Keep it focused and move deeper material into bundled reference files.
-          </p>
-          <div className="relative rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring">
-            {/* Toolbar */}
-            <div className="absolute top-2 right-2 z-10">
-              <ButtonGroup className="border rounded-full bg-background/90 backdrop-blur-sm shadow-sm">
+        <div className="space-y-2">
+          {/* Header row: label + toolbar */}
+          <div className="flex items-center gap-3">
+            <Label htmlFor="skill-prompt" className="shrink-0">Prompt instructions *</Label>
+            <div className="ml-auto">
+              <ButtonGroup className="border rounded-full bg-muted/50 shadow-sm">
                 <Button
                   type="button"
                   variant="ghost"
@@ -361,7 +337,9 @@ const DetailsForm = ({ skill, onBack, onSubmit, isPending }: DetailsFormProps) =
                 </Button>
               </ButtonGroup>
             </div>
+          </div>
 
+          <div className="rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring">
             <ScrollArea className="h-[32rem]">
               {promptViewMode === 'edit' ? (
                 <textarea
@@ -374,11 +352,11 @@ const DetailsForm = ({ skill, onBack, onSubmit, isPending }: DetailsFormProps) =
                     e.target.style.height = `${e.target.scrollHeight}px`;
                   }}
                   placeholder="Explain when to use the skill, the workflow to follow, supporting files to read, and any scripts to run."
-                  className="w-full min-h-48 resize-none overflow-hidden bg-transparent px-3 py-2 pr-32 text-sm outline-none placeholder:text-muted-foreground"
+                  className="w-full min-h-48 resize-none overflow-hidden bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
                   required
                 />
               ) : (
-                <div className="min-h-48 px-3 py-2 pr-32 text-sm">
+                <div className="min-h-48 px-3 py-2 text-sm">
                   {promptFragment.trim()
                     ? <MarkdownText content={promptFragment} />
                     : <p className="text-muted-foreground italic text-xs">Nothing to preview yet.</p>}
@@ -718,14 +696,14 @@ export const SkillEditorPanel = ({ skill, onBack, onSubmit, isPending }: SkillEd
             </TabsList>
           </div>
           <TabsContent value="details" className="flex min-h-0 flex-1 flex-col mt-0">
-            <DetailsForm skill={skill} onBack={onBack} onSubmit={onSubmit} isPending={isPending} />
+            <DetailsForm key={skill?.id ?? 'new'} skill={skill} onBack={onBack} onSubmit={onSubmit} isPending={isPending} />
           </TabsContent>
           <TabsContent value="files" className="flex min-h-0 flex-1 flex-col mt-0">
             <FilesTab skill={skill!} />
           </TabsContent>
         </Tabs>
       ) : (
-        <DetailsForm skill={skill} onBack={onBack} onSubmit={onSubmit} isPending={isPending} />
+        <DetailsForm key={skill?.id ?? 'new'} skill={skill} onBack={onBack} onSubmit={onSubmit} isPending={isPending} />
       )}
     </div>
   );

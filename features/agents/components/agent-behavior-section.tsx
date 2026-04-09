@@ -14,7 +14,7 @@ type AgentBehaviorSectionProps = {
 };
 
 export function AgentBehaviorSection({ systemPrompt, onSystemPromptChange }: AgentBehaviorSectionProps) {
-  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
+  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('preview');
   const [copied, setCopied] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -28,7 +28,6 @@ export function AgentBehaviorSection({ systemPrompt, onSystemPromptChange }: Age
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Auto-grow textarea so ScrollArea handles scrolling
   useEffect(() => {
     if (viewMode === 'edit' && textareaRef.current) {
       const el = textareaRef.current;
@@ -38,20 +37,15 @@ export function AgentBehaviorSection({ systemPrompt, onSystemPromptChange }: Age
   }, [systemPrompt, viewMode]);
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <Label>System Prompt *</Label>
+    <div className="space-y-2">
+      {/* Header row: label + stats + toolbar */}
+      <div className="flex items-center gap-3">
+        <Label className="shrink-0">System Prompt *</Label>
         <span className="text-xs text-muted-foreground">
           {chars} chars · ~{tokens} tokens · {lines} lines
         </span>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Write the agent&apos;s instructions in markdown. The agent follows these on every message.
-      </p>
-      <div className="relative rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring">
-        {/* Toolbar */}
-        <div className="absolute top-2 right-2 z-10">
-          <ButtonGroup className="border rounded-full bg-background/90 backdrop-blur-sm shadow-sm">
+        <div className="ml-auto">
+          <ButtonGroup className="border rounded-full bg-muted/50 shadow-sm">
             <Button
               type="button"
               variant="ghost"
@@ -86,7 +80,10 @@ export function AgentBehaviorSection({ systemPrompt, onSystemPromptChange }: Age
             </Button>
           </ButtonGroup>
         </div>
+      </div>
 
+      {/* Content */}
+      <div className="rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring">
         <ScrollArea className="h-[32rem]">
           {viewMode === 'edit' ? (
             <textarea
@@ -98,11 +95,11 @@ export function AgentBehaviorSection({ systemPrompt, onSystemPromptChange }: Age
                 e.target.style.height = `${e.target.scrollHeight}px`;
               }}
               placeholder="You are an expert..."
-              className="w-full min-h-48 resize-none overflow-hidden bg-transparent px-3 py-2 pr-32 text-sm font-mono leading-6 outline-none placeholder:text-muted-foreground"
+              className="w-full min-h-48 resize-none overflow-hidden bg-transparent px-3 py-2 text-sm font-mono leading-6 outline-none placeholder:text-muted-foreground"
               required
             />
           ) : (
-            <div className="min-h-48 px-3 py-2 pr-32 text-sm">
+            <div className="min-h-48 px-3 py-2 text-sm">
               {systemPrompt.trim()
                 ? <MarkdownText content={systemPrompt} />
                 : <p className="text-muted-foreground italic text-xs">Nothing to preview yet.</p>}
