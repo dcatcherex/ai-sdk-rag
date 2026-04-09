@@ -38,8 +38,7 @@ import {
   useCheckSkillSync,
   useApplySkillSync,
 } from '../hooks/use-skills';
-import { SkillFormDialog } from './skill-form-dialog';
-import { PackageSkillEditorDialog } from './package-skill-editor-dialog';
+import { SkillEditorPanel } from './skill-editor-panel';
 import type { CreateSkillInput, Skill, SkillDetail, SkillSyncCheckResult } from '../types';
 
 const TRIGGER_LABELS: Record<string, string> = {
@@ -60,11 +59,10 @@ export const SkillsList = () => {
   const { data: sessionData } = authClient.useSession();
   const currentUserId = sessionData?.user?.id;
 
-  const [formOpen, setFormOpen] = useState(false);
+  const [mode, setMode] = useState<'list' | 'create' | 'edit'>('list');
   const [editTarget, setEditTarget] = useState<Skill | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Skill | null>(null);
   const [detailTarget, setDetailTarget] = useState<Skill | null>(null);
-  const [packageEditorTarget, setPackageEditorTarget] = useState<Skill | null>(null);
   const [importUrl, setImportUrl] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [importError, setImportError] = useState('');
@@ -79,10 +77,10 @@ export const SkillsList = () => {
     if (editTarget) {
       updateSkill.mutate(
         { id: editTarget.id, ...data },
-        { onSuccess: () => { setFormOpen(false); setEditTarget(null); } },
+        { onSuccess: () => { setMode('list'); setEditTarget(null); } },
       );
     } else {
-      createSkill.mutate(data, { onSuccess: () => setFormOpen(false) });
+      createSkill.mutate(data, { onSuccess: () => setMode('list') });
     }
   };
 
@@ -97,8 +95,9 @@ export const SkillsList = () => {
     });
   };
 
-  const openCreate = () => { setEditTarget(null); setFormOpen(true); };
-  const openEdit = (skill: Skill) => { setEditTarget(skill); setFormOpen(true); };
+  const openCreate = () => { setEditTarget(null); setMode('create'); };
+  const openEdit = (skill: Skill) => { setEditTarget(skill); setMode('edit'); };
+  const closeEditor = () => { setMode('list'); setEditTarget(null); };
   const isDetailOwner = detailSkill?.userId === currentUserId;
 
   const handleCheckSync = () => {
@@ -126,6 +125,17 @@ export const SkillsList = () => {
       onError: (error) => setSyncError(error.message),
     });
   };
+
+  if (mode !== 'list') {
+    return (
+      <SkillEditorPanel
+        skill={mode === 'edit' ? editTarget : null}
+        onBack={closeEditor}
+        onSubmit={handleFormSubmit}
+        isPending={createSkill.isPending || updateSkill.isPending}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -176,7 +186,7 @@ export const SkillsList = () => {
                 </Button>
               </div>
             ) : (
-              <SkillGrid skills={mySkills} isOwner onEdit={openEdit} onDelete={setDeleteTarget} onView={setDetailTarget} onManageFiles={setPackageEditorTarget} />
+              <SkillGrid skills={mySkills} isOwner onEdit={openEdit} onDelete={setDeleteTarget} onView={setDetailTarget} />
             )}
           </TabsContent>
 
@@ -203,21 +213,6 @@ export const SkillsList = () => {
           </TabsContent>
         </Tabs>
       </div>
-
-      {/* Create / Edit dialog */}
-      <SkillFormDialog
-        open={formOpen}
-        skill={editTarget}
-        onClose={() => { setFormOpen(false); setEditTarget(null); }}
-        onSubmit={handleFormSubmit}
-        isPending={createSkill.isPending || updateSkill.isPending}
-      />
-
-      <PackageSkillEditorDialog
-        open={Boolean(packageEditorTarget)}
-        skill={packageEditorTarget}
-        onClose={() => setPackageEditorTarget(null)}
-      />
 
       {/* Delete confirmation */}
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
@@ -320,11 +315,10 @@ type SkillGridProps = {
   onDelete?: (skill: Skill) => void;
   onInstall?: (id: string) => void;
   onView?: (skill: Skill) => void;
-  onManageFiles?: (skill: Skill) => void;
   installingId?: string;
 };
 
-const SkillGrid = ({ skills, isOwner, onEdit, onDelete, onInstall, onView, onManageFiles, installingId }: SkillGridProps) => (
+const SkillGrid = ({ skills, isOwner, onEdit, onDelete, onInstall, onView, installingId }: SkillGridProps) => (
   <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
     {skills.map((skill) => (
       <div
@@ -396,25 +390,25 @@ const SkillGrid = ({ skills, isOwner, onEdit, onDelete, onInstall, onView, onMan
         </div>
 
         <div className="mt-1 flex gap-2">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 px-2 text-xs gap-1"
-            onClick={() => onView?.(skill)}
-          >
-            <EyeIcon className="size-3" />
-            Details
-          </Button>
-
-          {isOwner && skill.skillKind === 'package' && (
+          {isOwner ? (
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-xs gap-1"
-              onClick={() => onManageFiles?.(skill)}
+              className="h-7 px-2 text-xs gap-1"
+              onClick={() => onEdit?.(skill)}
             >
               <PencilIcon className="size-3" />
-              Files
+              Edit
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs gap-1"
+              onClick={() => onView?.(skill)}
+            >
+              <EyeIcon className="size-3" />
+              Details
             </Button>
           )}
 
