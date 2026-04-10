@@ -21,6 +21,7 @@ import { ChipInput } from './chip-input';
 import { ColorPaletteEditor } from './color-palette-editor';
 import { StrategyTab } from './strategy-tab';
 import { GuardrailEditor } from '@/features/brand-guardrails/components/guardrail-editor';
+import { BrandMemoryTab } from '@/features/memory/components/brand-memory-tab';
 
 // ── Form state ────────────────────────────────────────────────────────────────
 
@@ -219,9 +220,11 @@ export function BrandEditorSheet({ brand, open, onOpenChange, onSaved }: Props) 
 
   const tabs = brand?.isOwner !== false
     ? brand
-      ? [...BASE_TABS, { value: 'knowledge', label: 'Knowledge' }, { value: 'assets', label: 'Assets' }, { value: 'sharing', label: 'Sharing' }]
+      ? [...BASE_TABS, { value: 'memory', label: 'Memory' }, { value: 'knowledge', label: 'Knowledge' }, { value: 'assets', label: 'Assets' }, { value: 'sharing', label: 'Sharing' }]
       : BASE_TABS
-    : BASE_TABS;
+    : brand
+      ? [...BASE_TABS, { value: 'memory', label: 'Memory' }]
+      : BASE_TABS;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -384,6 +387,12 @@ export function BrandEditorSheet({ brand, open, onOpenChange, onSaved }: Props) 
             {brand && (
               <TabsContent value="guardrails" className="mt-0">
                 <GuardrailEditor brandId={brand.id} />
+              </TabsContent>
+            )}
+
+            {brand && (
+              <TabsContent value="memory" className="mt-0">
+                <BrandMemoryTab brandId={brand.id} />
               </TabsContent>
             )}
 

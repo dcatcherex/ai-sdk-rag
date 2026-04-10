@@ -526,9 +526,11 @@ export async function handleMessageEvent(
   const lineSystemPrompt = assembleSystemPrompt({
     base: lineBase,
     conversationSummaryBlock: '',
+    threadWorkingMemoryBlock: '',
     isGrounded: false,
     activeBrand: null,
     memoryContext,
+    sharedMemoryBlock: '',
     skillRuntime: { catalogBlock: '', activeSkillsBlock: '', skillResourcesBlock: '' },
     examPrepBlock: '',
     certBlock: '',

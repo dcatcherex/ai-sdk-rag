@@ -1,62 +1,72 @@
 # Memory Implementation Guide
 
-This document describes the memory system that is currently shipped in Vaja AI.
+This document describes the memory system currently shipped in Vaja AI.
 
-Use it as the source of truth for the existing behavior before changing chat memory, LINE memory behavior, memory settings, or prompt assembly.
+Use it as the source of truth before changing:
+- profile memory in `lib/memory.ts`
+- shared brand memory in `features/memory/service.ts`
+- thread working memory in `features/memory/service.ts`
+- prompt assembly in `features/chat/server/prompt-assembly.ts`
+- memory-related UI or APIs
 
-Important framing:
+Read this together with:
+- `docs/prompt-architecture.md`
+- `docs/memory-recommendation.md`
 
-- The current implementation is a `user profile memory` system.
-- It is useful and worth keeping.
-- It is not yet the full memory architecture required by the Vaja vision in `docs/vaja-vision.md`.
-
-If you are designing the future system, read this together with `docs/memory-recommendation.md`.
+---
 
 ## What Exists Today
 
-The shipped memory system stores small durable facts about a user and injects them back into future prompts so responses can feel more personalized and context-aware.
+Vaja now ships three memory layers:
 
-Today it is:
+1. `user profile memory`
+2. `shared brand memory`
+3. `thread working memory`
 
-- user-scoped, not workspace-scoped
-- fact-based, not search-based
-- prompt-injected, not retrieved by relevance
-- shared across web chat and linked LINE OA conversations
-- backed by Postgres via Drizzle
+What is still not shipped:
+- workspace memory
+- project memory
+- continuity archive retrieval across threads
+- prompt-injected agent-authored notes
+- vector-backed memory retrieval
 
-Today it is not:
-
-- semantic memory
-- vector memory
-- agent-scoped business memory
-- project or workspace memory
-- durable thread working memory
-- autonomous agent-note memory
+---
 
 ## Current Position in the Vaja Stack
 
-The current system should be understood as one memory layer only:
+### Layer 1: User profile memory
 
-- `user profile memory`
+Purpose:
+- personalization
+- stable user context across web and LINE
+- small durable facts about the individual
 
-It helps with:
+### Layer 2: Shared brand memory
 
-- user preferences
-- user expertise
-- stable personal context
-- long-running personal goals
+Purpose:
+- durable business knowledge shared across chats for a brand
+- approved terminology, voice rules, process rules, constraints
 
-It does not yet provide:
+Current scope:
+- `brand` only
 
-- long-term memory of a business or brand
-- shared memory across agents and teams
-- selective memory retrieval by relevance
-- durable working memory for long sessions
-- agent-authored operating notes
+### Layer 3: Thread working memory
+
+Purpose:
+- preserve current thread state without replaying the full transcript every turn
+- maintain objective, decisions, open questions, and recent artifacts
+
+Behavior:
+- system-managed
+- persisted per thread
+- inspectable and clearable in the chat UI
+- not user-editable
+
+---
 
 ## Canonical Files
 
-### Core implementation
+### User profile memory
 
 - `lib/memory.ts`
   - `resolveMemoryPreferences(...)`
@@ -66,368 +76,326 @@ It does not yet provide:
   - `extractAndStoreLineUserMemory(...)`
   - `mergeLineMemoryToUser(...)`
 
+### Shared memory and working memory
+
+- `features/memory/service.ts`
+  - `listBrandMemory(...)`
+  - `createBrandMemory(...)`
+  - `updateBrandMemory(...)`
+  - `approveBrandMemory(...)`
+  - `rejectBrandMemory(...)`
+  - `archiveBrandMemory(...)`
+  - `deleteBrandMemory(...)`
+  - `buildBrandMemoryPromptBlock(...)`
+  - `buildThreadWorkingMemoryPromptBlock(...)`
+  - `refreshThreadWorkingMemory(...)`
+  - `refreshThreadWorkingMemoryFromMessages(...)`
+  - `clearThreadWorkingMemory(...)`
+
 ### Database
 
 - `db/schema/users.ts`
   - `userPreferences`
   - `userMemory`
+- `db/schema/memory.ts`
+  - `memoryRecord`
+  - `threadWorkingMemory`
 
 ### Runtime integration
 
 - `app/api/chat/route.ts`
 - `features/line-oa/webhook/events/message.ts`
-- `app/api/compare/route.ts`
 - `features/chat/server/prompt-assembly.ts`
 
 ### User-facing APIs and UI
 
-- `app/api/user/preferences/route.ts`
 - `app/api/user/memory/route.ts`
 - `app/api/user/memory/[id]/route.ts`
+- `app/api/brands/[id]/memory/route.ts`
+- `app/api/brands/[id]/memory/[memoryId]/route.ts`
+- `app/api/brands/[id]/memory/[memoryId]/approve/route.ts`
+- `app/api/brands/[id]/memory/[memoryId]/reject/route.ts`
+- `app/api/brands/[id]/memory/[memoryId]/archive/route.ts`
+- `app/api/threads/[threadId]/working-memory/route.ts`
+- `app/api/threads/[threadId]/working-memory/refresh/route.ts`
 - `features/settings/components/memory-section.tsx`
+- `features/memory/components/brand-memory-tab.tsx`
+- `features/memory/components/thread-working-memory-sheet.tsx`
 
-### Related context-management code
-
-- `lib/conversation-summary.ts`
-
-This is not durable memory storage. It is temporary conversation compaction used to reduce prompt size inside a request.
+---
 
 ## Data Model
 
-Memory is stored in the `user_memory` table in `db/schema/users.ts`.
+### 1. `user_memory`
 
-Current fields:
+This remains the profile-memory table in `db/schema/users.ts`.
 
-- `id`: primary key
-- `userId`: owning Vaja user
-- `lineUserId`: owning LINE user for unlinked accounts
-- `category`: category string
-- `fact`: stored fact text
-- `sourceThreadId`: optional origin thread
-- `createdAt`: insert timestamp
-
-Current indexes:
-
-- `user_memory_userId_idx`
-- `user_memory_lineUserId_idx`
-
-## User Preference Flags
-
-Memory behavior is controlled by three flags on `user_preferences`:
-
-- `memoryEnabled`
-- `memoryInjectEnabled`
-- `memoryExtractEnabled`
-
-Meaning:
-
-- `memoryEnabled`: master switch
-- `memoryInjectEnabled`: allow prompt injection
-- `memoryExtractEnabled`: allow background extraction
-
-Default behavior when no preference row exists:
-
-- all three behave as `true`
-
-The canonical resolver is:
-
-- `resolveMemoryPreferences(...)` in `lib/memory.ts`
-
-All entry points should use that helper for linked users.
-
-## High-Level Runtime Flow
-
-### Web chat flow
-
-1. `app/api/chat/route.ts` loads user preferences.
-2. If memory injection is enabled, it calls `getUserMemoryContext(userId)`.
-3. The returned block is appended to the system prompt via `assembleSystemPrompt(...)`.
-4. The model responds.
-5. After persistence completes, `extractAndStoreMemory(...)` runs in the background if extraction is enabled.
-
-### LINE OA flow
-
-1. `features/line-oa/webhook/events/message.ts` resolves the linked app user, if any.
-2. For a linked Vaja user, it resolves preferences with `resolveMemoryPreferences(...)`.
-3. If injection is enabled, it loads `getUserMemoryContext(userId)`.
-4. For an unlinked LINE user, it loads `getLineUserMemoryContext(lineUserId)` and treats memory as enabled by default.
-5. The memory block is appended to the LINE system prompt via `assembleSystemPrompt(...)`.
-6. After the AI reply is generated, extraction runs in the background when enabled.
-
-### Compare flow
-
-1. `app/api/compare/route.ts` loads user preferences.
-2. If memory injection is enabled, it loads `getUserMemoryContext(userId)`.
-3. Memory is currently used for prompt enhancement only.
-4. Compare mode does not extract new memory.
-
-## Prompt Format
-
-`getUserMemoryContext()` and `getLineUserMemoryContext()` render memory as:
-
-```xml
-<user_context>
-[context] Works on an AI cowork platform for Thai users
-[expertise] Senior React and Next.js developer
-[preference] Prefers concise answers
-</user_context>
-```
-
-Formatting behavior:
-
-- facts are fetched newest first
-- injection is capped by character budget, not only by row count
-- injection is capped per category to avoid one category dominating
-- if no memory exists, an empty string is returned
-
-Current prompt guards in `lib/memory.ts`:
-
-- storage limit: `MAX_FACTS_PER_USER = 50`
-- injection budget: `INJECTION_MAX_CHARS = 2400`
-- category cap: `INJECTION_MAX_FACTS_PER_CATEGORY = 8`
-
-## Extraction Pipeline
-
-`extractAndStoreMemory(...)` in `lib/memory.ts` is the only canonical extractor for linked users.
-
-`extractAndStoreLineUserMemory(...)` is the parallel entry point for unlinked LINE users.
-
-### Input shaping
-
-- only `user` and `assistant` messages are considered
-- only the last `10` messages are used
-- each message is truncated to `500` characters
-- text is collected from `parts[]` when present, otherwise from `content`
-
-### Extraction model
-
-The extractor currently uses:
-
-- `google/gemini-2.5-flash-lite`
-
-### Allowed categories
-
-The extractor prompt requests these categories:
-
-- `preference`
-- `expertise`
-- `context`
-- `goal`
-
-### Extractor rules
-
-The model is instructed to:
-
-- extract facts about the user only
-- skip assistant facts
-- return only new facts not already in the injected memory block
-- return JSON array output
-- return at most `5` facts per call
-
-### Validation and dedup
-
-After generation:
-
-- JSON is parsed from the first array-looking substring
-- rows with missing category or fact are dropped
-- facts shorter than `6` characters are dropped
-- stored facts are normalized with lowercase plus non-alphanumeric stripping
-- exact and simple substring duplicates are skipped
-
-### Retention
-
-- at most `50` rows are kept per owner
-- oldest rows are deleted first when a new insert would overflow
-
-### Persistence
-
-Each saved row currently stores:
-
-- generated `id`
-- `userId` or `lineUserId`
+Fields:
+- `id`
+- `userId`
+- `lineUserId`
 - `category`
 - `fact`
 - `sourceThreadId`
+- `createdAt`
 
-## Account Linking Behavior
+Use it only for user-level personalization.
 
-The system supports memory continuity between unlinked LINE users and linked Vaja accounts.
+### 2. `memory_record`
 
-When a LINE user later links their account:
+This is the new scoped durable-memory table in `db/schema/memory.ts`.
 
-- `mergeLineMemoryToUser(lineUserId, userId)` migrates their LINE-keyed memory rows into the Vaja user scope
+Fields:
+- `id`
+- `scopeType`
+- `scopeId`
+- `memoryType`
+- `status`
+- `title`
+- `content`
+- `summary`
+- `category`
+- `sourceType`
+- `sourceThreadId`
+- `createdByUserId`
+- `approvedByUserId`
+- `rejectedByUserId`
+- `confidence`
+- `metadata`
+- `createdAt`
+- `updatedAt`
+- `approvedAt`
+- `rejectedAt`
+- `archivedAt`
+- `lastReferencedAt`
 
-This gives Vaja a useful continuity bridge between:
+Current usage:
+- `scopeType = brand`
+- `memoryType = shared_fact`
 
-- LINE as the front door
-- web chat as the control room
+Current status rules:
+- `pending_review` does not enter prompts
+- `approved` may enter prompts
+- `rejected` does not enter prompts
+- `archived` does not enter prompts
 
-## Manual Memory Management
+### 3. `thread_working_memory`
 
-Users can manage current profile memory through the settings UI.
+This stores the persisted working state for a single chat thread.
 
-### API routes
+Fields:
+- `id`
+- `threadId`
+- `brandId`
+- `summary`
+- `currentObjective`
+- `decisions`
+- `openQuestions`
+- `importantContext`
+- `recentArtifacts`
+- `lastMessageId`
+- `refreshStatus`
+- `createdAt`
+- `updatedAt`
+- `refreshedAt`
+- `clearedAt`
 
-- `GET /api/user/memory`
-  - list all facts for the current user
-- `POST /api/user/memory`
-  - create one fact manually
-- `DELETE /api/user/memory`
-  - delete all facts for the current user
-- `PATCH /api/user/memory/[id]`
-  - update `fact` and/or `category`
-- `DELETE /api/user/memory/[id]`
-  - delete one fact
+---
 
-### Settings UI
+## Prompt Behavior
 
-`features/settings/components/memory-section.tsx` currently provides:
+Current prompt order:
 
-- grouped fact display by category
-- add fact
-- edit fact
-- delete fact
-- clear all facts
-- toggles for injection and extraction
+1. base system prompt
+2. conversation summary
+3. thread working memory
+4. grounding instruction
+5. user profile memory
+6. shared brand memory
+7. brand context
+8. skill blocks
+9. tool guidance
+10. quiz context
+
+### User profile memory format
+
+```xml
+<user_context>
+[preference] Prefers concise answers
+[context] Runs an AI cowork platform for Thai users
+</user_context>
+```
+
+### Shared brand memory format
+
+```xml
+<shared_memory scope="brand">
+[voice] Brand voice: Keep the tone warm and practical
+[process] Review rule: Campaign copy needs approval before publishing
+</shared_memory>
+```
+
+### Thread working memory format
+
+```xml
+<thread_working_memory>
+Summary: ...
+
+Current objective: ...
+
+Decisions:
+- ...
+</thread_working_memory>
+```
+
+---
+
+## Runtime Flow
+
+### Web chat flow
+
+1. `app/api/chat/route.ts` loads preferences, thread, agent, and brand.
+2. If profile-memory injection is enabled, it loads `getUserMemoryContext(userId)`.
+3. It loads `buildThreadWorkingMemoryPromptBlock(threadId)`.
+4. If there is an active brand, it loads `buildBrandMemoryPromptBlock(userId, brandId, lastUserPrompt)`.
+5. All three memory layers are assembled into the system prompt.
+6. After persistence completes, `refreshThreadWorkingMemoryFromMessages(...)` runs.
+7. If profile-memory extraction is enabled, `extractAndStoreMemory(...)` runs in the background.
+
+### LINE OA flow
+
+Current LINE behavior:
+- injects profile memory only
+- uses the same assembly function
+- passes shared memory and thread working memory as empty blocks today
+
+### Shared brand memory flow
+
+1. Brand owner or workspace admin creates or edits a record.
+2. New and edited records enter `pending_review`.
+3. Only after approval do they become eligible for prompt injection.
+4. Retrieval is relevance-biased against the latest user prompt, with recency fallback.
+
+### Thread working memory flow
+
+1. Chat completes and messages are persisted.
+2. `refreshThreadWorkingMemoryFromMessages(...)` summarizes current thread state into structured fields.
+3. Subsequent turns inject that state through `<thread_working_memory>`.
+4. Users can inspect, refresh, or clear the stored object from the chat UI.
+
+---
+
+## Permissions
+
+### Shared brand memory
+
+Read access:
+- brand owner
+- users with `brand_share`
+- workspace members
+
+Write and approval access:
+- brand owner
+- `workspace_member.role = 'admin'`
+
+### Thread working memory
+
+Access is restricted to the owning chat-thread user.
+
+---
+
+## User-Facing Surfaces
+
+### Settings memory section
+
+Current role:
+- manage profile memory only
+
+### Brand editor memory tab
+
+Current role:
+- list approved, pending, rejected, and archived brand memory
+- create, edit, approve, reject, archive, restore, and delete when permitted
+- read-only for non-admin collaborators
+
+### Chat working-memory sheet
+
+Current role:
+- inspect stored thread working memory
+- refresh it manually
+- clear it
+
+---
 
 ## Important Behavioral Notes
 
-### 1. Memory is user-level, not thread-level
+### 1. Profile memory, shared memory, and working memory are intentionally separate
 
-All chat threads for the same user share the same memory pool.
+Do not collapse them into one table or one prompt block.
 
-### 2. Memory is user-level, not agent-level
+### 2. Shared memory is approval-gated
 
-Different agents currently see the same injected user profile memory.
+Manual creation alone is not enough for prompt injection. Status must be `approved`.
 
-### 3. Memory is appended to the system prompt
+### 3. Editing an approved shared-memory record resets it to review
 
-This means it participates as prompt context, not as a retrieval tool result.
+This keeps trust and prompt behavior aligned. Edited content does not stay live automatically.
 
-### 4. Extraction is fire-and-forget
+### 4. Working memory is not a continuity archive
 
-Runtime integrations call extraction with `void`, so failures do not block the reply path.
+It is current-thread state, not a cross-thread searchable history layer.
 
-### 5. Existing context is passed back into extraction
+### 5. Conversation summaries still exist
 
-The extractor receives the already injected memory block so it can avoid obvious duplicates before DB-level dedup runs.
+`lib/conversation-summary.ts` still compacts long threads for a single request.
 
-### 6. Conversation summaries are not durable memory
+That summary is different from persisted `thread_working_memory`.
 
-`lib/conversation-summary.ts` helps with prompt compaction only.
-
-It does not currently create:
-
-- persistent thread memory
-- searchable continuity archive
-- reusable decision memory
+---
 
 ## Current Strengths
 
 The shipped design is strongest in these areas:
+- clear separation of memory layers
+- shared brand knowledge with explicit approval
+- durable thread coherence without replaying the full transcript
+- stable user continuity across web and LINE
+- one canonical prompt assembly path
 
-- simple mental model
-- clear code ownership
-- low operational complexity
-- useful personalization wins
-- web and LINE continuity for linked users
-- manual review and editing
+---
 
-These are good properties and should be preserved when the system evolves.
+## Current Gaps
 
-## Current Gaps and Risks
+Still missing:
+- `workspace` memory
+- `project` memory
+- continuity archive retrieval across threads
+- vector or hybrid retrieval for larger shared memory sets
+- autonomous agent-note write paths
+- richer trust metadata such as extractor version and expiry
 
-These are the main limitations of the shipped implementation.
-
-### 1. This is profile memory, not business memory
-
-The system stores facts about a person, not durable shared knowledge about:
-
-- a workspace
-- a brand
-- a project
-- an agent team
-
-### 2. No agent or team scope
-
-The current table cannot cleanly answer:
-
-- what should only this agent remember?
-- what should all marketing agents share?
-- what belongs to the business rather than the user?
-
-### 3. No selective retrieval
-
-Current memory is injected wholesale within a small prompt budget. There is no semantic or relevance-based retrieval path.
-
-### 4. No durable working memory
-
-Long conversations are summarized ephemerally, but that summary is not persisted as a reusable thread memory object.
-
-### 5. No trust or review metadata
-
-Every fact is treated roughly the same. The schema does not record:
-
-- confidence
-- review status
-- source message ID
-- extractor version
-- visibility
-- expiry
-- supersession
-
-### 6. Manual APIs are weakly validated
-
-Manual memory writes currently accept free-form categories and facts without a shared Zod contract.
-
-### 7. No distinction between memory types
-
-The current system does not separate:
-
-- user-confirmed facts
-- model-extracted profile facts
-- shared business knowledge
-- agent-authored notes
-
-That distinction matters for trust and for future product UX.
+---
 
 ## Rules for Future Changes
 
-### If you are changing shipped profile-memory behavior
+### If you are changing profile memory
 
-- update `lib/memory.ts` first
-- keep linked-user and unlinked-LINE behavior explicit
-- do not duplicate extraction logic in route handlers
-- verify web, LINE, and compare still follow the same preference contract for linked users
+- update `lib/memory.ts`
+- preserve linked-user and unlinked-LINE behavior
+- keep preference handling consistent through `resolveMemoryPreferences(...)`
 
-### If you need new memory scopes
+### If you are changing shared memory
 
-Do not overload `user_memory` to hold workspace, brand, project, or team memory.
+- keep approval status explicit
+- do not inject unapproved records
+- keep business memory separate from brand-profile fields
 
-Add separate tables or an explicit scoped memory model.
+### If you are changing working memory
 
-### If you need long-session continuity
+- treat it as current-thread state only
+- preserve the inspect / refresh / clear workflow
+- do not silently turn it into a cross-thread archive
 
-Do not treat prompt summarization as long-term memory.
+### If you need workspace or project scope
 
-Add a dedicated working-memory or continuity layer.
-
-### If you need semantic search
-
-Do not bolt embeddings onto the current prompt-injection path invisibly.
-
-Add a separate retrieval layer with clear interfaces and observability.
-
-## Relationship to the Recommended Future System
-
-The recommended future architecture for Vaja should be layered:
-
-1. user profile memory
-2. workspace or project memory
-3. thread working memory
-4. continuity archive and retrieval
-5. agent-authored notes
-
-The current implementation only covers layer 1, plus temporary conversation compaction.
-
-That is an acceptable v1, but it should not be mistaken for the end-state memory architecture needed to support the Vaja vision.
+Add a new scoped-memory implementation on top of `memory_record`. Do not overload `user_memory`.

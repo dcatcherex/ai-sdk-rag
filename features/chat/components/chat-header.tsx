@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import {
   BookOpenIcon,
+  BrainCircuitIcon,
   DownloadIcon,
   FileTextIcon,
   HeadsetIcon,
@@ -14,9 +15,18 @@ import {
   TableOfContentsIcon,
   Trash2Icon,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+
 import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,16 +37,9 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { ChatStatus } from 'ai';
+
 import type { ThreadItem, RoutingMetadata } from '../types';
 import type { FontSize } from './message-list';
 
@@ -45,7 +48,6 @@ const FONT_SIZES: FontSize[] = ['sm', 'base', 'lg', 'xl'];
 type ChatHeaderProps = {
   activeThread: ThreadItem | undefined;
   status: ChatStatus;
-  // Routing
   lastRouting: RoutingMetadata | null;
   lastRoutingModel:
     | {
@@ -53,21 +55,18 @@ type ChatHeaderProps = {
         name: string;
       }
     | undefined;
-  // Actions
   onDeleteThread: (threadId: string) => void;
   isDeleting: boolean;
   onExport: (format: 'json' | 'markdown') => void;
-  // Knowledge
   knowledgePanelOpen: boolean;
   onToggleKnowledgePanel: () => void;
   docCount: number;
-  // Outline
+  workingMemoryOpen: boolean;
+  onToggleWorkingMemory: () => void;
   outlinePanelOpen: boolean;
   onToggleOutlinePanel: () => void;
-  // Wide mode
   widenMode: boolean;
   onToggleWidenMode: () => void;
-  // Font size
   fontSize: FontSize;
   onChangeFontSize: (size: FontSize) => void;
   onOpenMobileSidebar?: () => void;
@@ -84,6 +83,8 @@ export const ChatHeader = ({
   knowledgePanelOpen,
   onToggleKnowledgePanel,
   docCount,
+  workingMemoryOpen,
+  onToggleWorkingMemory,
   outlinePanelOpen,
   onToggleOutlinePanel,
   widenMode,
@@ -103,9 +104,8 @@ export const ChatHeader = ({
   const fontSizeIndex = FONT_SIZES.indexOf(fontSize);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 dark:border-border px-3 py-2 md:gap-3 md:px-6 md:py-1.5">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 px-3 py-2 dark:border-border md:gap-3 md:px-6 md:py-1.5">
       <div className="flex items-center gap-2">
-        {/* Mobile hamburger */}
         <Button
           size="icon"
           variant="ghost"
@@ -122,7 +122,6 @@ export const ChatHeader = ({
       </div>
 
       <div className="flex items-center gap-1">
-        {/* Wide mode */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -139,7 +138,6 @@ export const ChatHeader = ({
           </Tooltip>
         </TooltipProvider>
 
-        {/* Outline */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -156,7 +154,6 @@ export const ChatHeader = ({
           </Tooltip>
         </TooltipProvider>
 
-        {/* Knowledge base — stays visible because of the badge */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -170,7 +167,7 @@ export const ChatHeader = ({
                 {docCount > 0 && (
                   <Badge
                     variant="secondary"
-                    className="absolute -top-1.5 -right-1.5 size-4 justify-center p-0 text-[9px]"
+                    className="absolute -right-1.5 -top-1.5 size-4 justify-center p-0 text-[9px]"
                   >
                     {docCount}
                   </Badge>
@@ -181,7 +178,23 @@ export const ChatHeader = ({
           </Tooltip>
         </TooltipProvider>
 
-        {/* More menu */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant={workingMemoryOpen ? 'default' : 'ghost'}
+                onClick={onToggleWorkingMemory}
+                className="size-8 hover:cursor-pointer"
+                disabled={!activeThread || status === 'submitted'}
+              >
+                <BrainCircuitIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Thread working memory</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
         <DropdownMenu>
           <TooltipProvider>
             <Tooltip>
@@ -205,7 +218,6 @@ export const ChatHeader = ({
 
             <DropdownMenuSeparator />
 
-            {/* Font size */}
             <DropdownMenuItem
               onClick={() => onChangeFontSize(FONT_SIZES[Math.max(0, fontSizeIndex - 1)])}
               disabled={fontSizeIndex === 0}
@@ -225,7 +237,6 @@ export const ChatHeader = ({
               <>
                 <DropdownMenuSeparator />
 
-                {/* Export submenu */}
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
                     <DownloadIcon className="mr-2 size-4" />
@@ -245,7 +256,6 @@ export const ChatHeader = ({
 
                 <DropdownMenuSeparator />
 
-                {/* Delete */}
                 <DropdownMenuItem
                   onClick={() => setIsDeleteDialogOpen(true)}
                   disabled={isDeleting}

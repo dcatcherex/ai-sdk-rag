@@ -22,9 +22,11 @@ import { useComparePreset } from '@/features/chat/hooks/use-compare-preset';
 import { CompareGrid, type ComparePrompt } from '@/features/chat/components/compare-grid';
 import type { ChatMessage, QuizFollowUpContext, RoutingMetadata } from '@/features/chat/types';
 import type { PromptInputMessage } from '@/components/ai-elements/prompt-input';
+import { ThreadWorkingMemorySheet } from '@/features/memory/components/thread-working-memory-sheet';
 
 export default function Chat() {
   const [knowledgePanelOpen, setKnowledgePanelOpen] = useState(false);
+  const [workingMemoryOpen, setWorkingMemoryOpen] = useState(false);
   const [outlinePanelOpen, setOutlinePanelOpen] = useState(false);
   const [widenMode, setWidenMode] = useState(false);
   const [fontSize, setFontSize] = useState<FontSize>(() => {
@@ -323,6 +325,8 @@ export default function Chat() {
                 onExport={handleExportConversation}
                 knowledgePanelOpen={knowledgePanelOpen}
                 onToggleKnowledgePanel={() => setKnowledgePanelOpen((v) => !v)}
+                workingMemoryOpen={workingMemoryOpen}
+                onToggleWorkingMemory={() => setWorkingMemoryOpen((v) => !v)}
                 outlinePanelOpen={outlinePanelOpen}
                 onToggleOutlinePanel={() => setOutlinePanelOpen((v) => !v)}
                 widenMode={widenMode}
@@ -392,6 +396,13 @@ export default function Chat() {
                 onToggleCompareMode={handleToggleCompareMode}
                 onToggleCompareModel={toggleCompareModel}
                 onClearComparePreset={clearPreset}
+              />
+
+              <ThreadWorkingMemorySheet
+                open={workingMemoryOpen}
+                onOpenChange={setWorkingMemoryOpen}
+                threadId={activeThreadId || null}
+                threadTitle={activeThread?.title}
               />
             </>
           )}

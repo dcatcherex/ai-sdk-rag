@@ -22,6 +22,22 @@ The most important shift is conceptual:
 - stop treating memory as one table plus one prompt block
 - start treating memory as product infrastructure
 
+## Implementation Status
+
+The first shipped slice of this recommendation now exists:
+
+- `user profile memory` remains in `lib/memory.ts`
+- `shared brand memory` now exists as approval-gated scoped memory in `memory_record`
+- `thread working memory` now exists as persisted per-thread state in `thread_working_memory`
+
+Still deferred:
+
+- `workspace` memory
+- `project` memory
+- continuity archive retrieval
+- agent-authored notes
+- vector-backed retrieval for larger shared memory stores
+
 ## What Memory Must Do for the Vaja Vision
 
 The Vaja vision says users collaborate with agents that have roles, memory, and skills, and that Vaja should provide long-term memory of the user's business, not just the current session.
@@ -642,6 +658,144 @@ If the team wants a clear direction, the recommended decision is:
 3. Commit to a layered memory architecture.
 4. Prioritize shared business memory next.
 5. Add working memory, continuity retrieval, and agent notes in later phases.
+
+## Appendix: Mapping the Oracle Notebook to Vaja
+
+The Oracle notebook on memory and context engineering is a useful reference model.
+
+It is not a drop-in architecture for Vaja, but it does validate the direction of a layered memory system.
+
+The notebook is strongest as a reference for:
+
+- memory taxonomy
+- context compaction
+- just-in-time retrieval
+- entity extraction
+- procedural or workflow memory
+- semantic tool retrieval
+
+It is weaker as a direct product blueprint because it assumes:
+
+- a mostly single-agent runtime
+- a local engineering-oriented environment
+- looser separation between memory, tools, and knowledge systems
+- less emphasis on scope, permissions, and shared-business governance
+
+### Notebook Memory Types vs Vaja Memory Types
+
+| Oracle notebook type | Best Vaja interpretation | Notes |
+|---|---|---|
+| `Conversational` | thread working memory + continuity archive | Good fit, but Vaja should separate current-thread state from long-term searchable continuity |
+| `Knowledge Base` | RAG or knowledge layer, not core memory | Useful, but should stay conceptually distinct from memory whenever possible |
+| `Workflow` | procedural memory | Strong fit for reusable agent or team patterns |
+| `Toolbox` | tool discovery layer | Valuable pattern, but better treated as tool-selection infrastructure than business memory |
+| `Entity` | structured extracted memory | Strong fit for people, brands, systems, projects, channels, and customer entities |
+| `Summary` | working-memory compaction + JIT recall | Strong fit for thread-level compaction and later continuity retrieval |
+
+### What Vaja Should Borrow
+
+The strongest ideas to borrow are:
+
+- multiple memory types instead of one generic memory bucket
+- summaries as compact context with on-demand expansion
+- entity extraction as a first-class enrichment step
+- workflow memory for reusable procedures and successful patterns
+- semantic tool retrieval to avoid passing too many tools into the prompt
+- explicit context-window management instead of relying only on raw transcript replay
+
+### What Vaja Should Not Copy Directly
+
+Vaja should not directly copy these parts:
+
+- treating all durable memory as vector memory
+- treating RAG documents and memory as the same layer
+- treating toolbox retrieval as part of business memory
+- assuming one agent or one operator trust model
+- skipping explicit scope, visibility, and review rules
+
+The biggest product difference is that Vaja is:
+
+- multi-user
+- multi-agent
+- shared-memory capable
+- LINE-first
+- business-facing
+
+That means Vaja needs stronger rules for:
+
+- ownership
+- visibility
+- privacy
+- approval
+- attribution
+- channel boundaries
+
+### Practical Interpretation for Vaja
+
+Using the notebook as inspiration, the clean Vaja translation is:
+
+1. `Conversational` becomes:
+   - persisted thread working memory
+   - continuity archive for later recall
+2. `Workflow` becomes:
+   - reusable procedural memory for agents, teams, and recurring tasks
+3. `Entity` becomes:
+   - extracted structured memory tied to scopes like user, brand, project, LINE contact, or workspace
+4. `Summary` becomes:
+   - compacted thread history with optional expand-on-demand behavior
+5. `Toolbox` becomes:
+   - semantically retrieved tool manifests, not business memory
+6. `Knowledge Base` becomes:
+   - RAG or knowledge search, not a substitute for memory design
+
+### Recommended Vaja Taxonomy Inspired by the Notebook
+
+If we adapt the notebook ideas cleanly, Vaja's near- to mid-term memory taxonomy should be:
+
+- `user profile memory`
+- `shared business memory`
+- `thread working memory`
+- `continuity archive`
+- `procedural memory`
+- `entity memory`
+- `agent notes`
+
+And adjacent but separate systems should be:
+
+- `knowledge base / RAG`
+- `tool discovery / toolbox retrieval`
+
+### Suggested Build Order Influenced by the Notebook
+
+The Oracle notebook most strongly supports this implementation order for Vaja:
+
+1. strengthen current user profile memory
+2. add persisted thread working memory and summary compaction
+3. add entity extraction and storage with explicit scopes
+4. add procedural memory for reusable workflows
+5. add continuity retrieval across sessions
+6. add semantic tool retrieval where tool count makes it worthwhile
+7. add agent-authored notes last
+
+### Bottom Line
+
+The notebook confirms that Vaja should think in terms of:
+
+- layered memory
+- compact active context
+- on-demand expansion
+- structured extraction
+- procedural learning
+
+But Vaja still needs its own product architecture on top of those ideas because memory in Vaja is not only an agent-runtime problem.
+
+It is also a:
+
+- collaboration problem
+- trust problem
+- channel problem
+- governance problem
+- product UX problem
 
 ## Final Recommendation
 

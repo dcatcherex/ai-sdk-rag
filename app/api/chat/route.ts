@@ -26,6 +26,11 @@ import { buildImageBrandSuffix } from '@/features/brands/service';
 import { assembleSystemPrompt } from '@/features/chat/server/prompt-assembly';
 import type { Brand } from '@/features/brands/types';
 import {
+  buildBrandMemoryPromptBlock,
+  buildThreadWorkingMemoryPromptBlock,
+  refreshThreadWorkingMemoryFromMessages,
+} from '@/features/memory/service';
+import {
   getSkillsForAgent,
   resolveSkillRuntimeContext,
 } from '@/features/skills/service';
@@ -160,6 +165,10 @@ export async function POST(req: Request) {
     ]);
 
     const activeBrand = (brandRows[0] ?? null) as Brand | null;
+    const [threadWorkingMemoryBlock, sharedMemoryBlock] = await Promise.all([
+      buildThreadWorkingMemoryPromptBlock(threadId),
+      buildBrandMemoryPromptBlock(session.user.id, activeBrand?.id ?? null, lastUserPrompt ?? ''),
+    ]);
 
     // Merge agent pre-associated docs + user-selected docs (union, deduplicated)
     const agentDocIds = activeAgent?.documentIds ?? [];
@@ -330,9 +339,11 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
     const effectiveSystemPrompt = assembleSystemPrompt({
       base: baseSystemPrompt,
       conversationSummaryBlock,
+      threadWorkingMemoryBlock,
       isGrounded,
       activeBrand,
       memoryContext,
+      sharedMemoryBlock,
       skillRuntime,
       examPrepBlock: examPrepToolInstructions,
       certBlock: certificateToolInstructions,
@@ -379,6 +390,16 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
           totalTokens: imageResult.usage.totalTokens,
         },
       });
+
+      await refreshThreadWorkingMemoryFromMessages({
+        threadId,
+        brandId: activeBrand?.id ?? null,
+        messages: [...messages, assistantMessage] as Array<{
+          id?: string;
+          role: string;
+          parts?: Array<{ type?: string; text?: string }>;
+        }>,
+      }).catch((error) => console.error('Failed to refresh thread working memory:', error));
 
       return createUIMessageStreamResponse({
         stream: createUIMessageStream<ChatMessage>({
@@ -450,6 +471,16 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
           brandId: activeBrand?.id ?? null,
           tokenUsageData: usage,
         });
+
+        await refreshThreadWorkingMemoryFromMessages({
+          threadId,
+          brandId: activeBrand?.id ?? null,
+          messages: messagesWithSuggestions as Array<{
+            id?: string;
+            role: string;
+            parts?: Array<{ type?: string; text?: string }>;
+          }>,
+        }).catch((error) => console.error('Failed to refresh thread working memory:', error));
 
         if (userPrefs.memoryEnabled && userPrefs.memoryExtractEnabled) {
           void extractAndStoreMemory(

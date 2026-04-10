@@ -97,6 +97,9 @@ export const useChatSession = ({
         await queryClient.invalidateQueries({
           queryKey: ['threads', threadId, 'messages'],
         });
+        await queryClient.invalidateQueries({
+          queryKey: ['threads', threadId, 'working-memory'],
+        });
 
         if (followUpSuggestionsEnabled) {
           setIsSyncingFollowUpSuggestions(true);
