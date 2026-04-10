@@ -658,6 +658,27 @@ if (!result.success) return new Response('Bad Request', { status: 400 });
 
 ---
 
+## Media Uploads
+
+All user-uploaded images go through a standard pipeline — **never write a new upload flow from scratch.**
+
+```
+File → uploadImage() → Sharp (WebP, resize) → R2 → public URL
+```
+
+Key files:
+- `lib/storage/uploadImage.ts` — standard entry point, call this in every API route
+- `lib/storage/imageOptimization.ts` — Sharp pipeline (used internally by uploadImage)
+- `lib/r2.ts` — raw S3 client (only for non-image / generated-image flows)
+
+R2 key pattern: `{entity-type}/{scope-id}/{nanoid}.webp`
+
+Existing endpoints: `POST /api/agents/image`, `POST /api/brands/[id]/assets`
+
+Full guide with code templates: `docs/media-upload-guide.md`
+
+---
+
 ## What NOT to Do
 
 - Do not use `npm` or `bun` — always `pnpm`

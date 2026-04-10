@@ -12,6 +12,7 @@ const createSchema = z.object({
   channelSecret: z.string().min(1),
   channelAccessToken: z.string().min(1),
   agentId: z.string().optional().nullable(),
+  imageUrl: z.string().url().optional().nullable(),
   status: z.enum(['active', 'inactive']).optional(),
 });
 
@@ -69,6 +70,7 @@ export async function POST(req: Request) {
     channelSecret: body.channelSecret,
     channelAccessToken: body.channelAccessToken,
     agentId: body.agentId ?? null,
+    imageUrl: body.imageUrl ?? null,
     status: body.status ?? 'active',
     createdAt: new Date(),
     updatedAt: new Date(),

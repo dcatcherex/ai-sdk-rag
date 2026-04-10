@@ -21,6 +21,7 @@ export const lineOaChannel = pgTable("line_oa_channel", {
   channelSecret: text("channel_secret").notNull(),
   channelAccessToken: text("channel_access_token").notNull(),
   status: text("status").notNull().default("active"),
+  imageUrl: text("image_url"),
   /** LINE platform menu ID to assign to a user after they register as a member. */
   memberRichMenuLineId: text("member_rich_menu_line_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

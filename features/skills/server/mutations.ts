@@ -31,6 +31,7 @@ export async function createSkill(userId: string, data: CreateSkillInput): Promi
       pinnedToInstalledVersion: false,
       hasBundledFiles: skillKind === 'package' && createdFiles.some((file) => file.relativePath !== 'SKILL.md'),
       packageManifest: skillKind === 'package' ? buildPackageManifest(createdFiles) : null,
+      imageUrl: data.imageUrl ?? null,
       isPublic: data.isPublic ?? false,
       createdAt: now,
       updatedAt: now,
@@ -75,6 +76,7 @@ export async function updateSkill(
       ...(data.promptFragment !== undefined && { promptFragment: data.promptFragment }),
       ...(data.enabledTools !== undefined && { enabledTools: data.enabledTools }),
       ...(data.sourceUrl !== undefined && { sourceUrl: data.sourceUrl ?? null }),
+      ...(data.imageUrl !== undefined && { imageUrl: data.imageUrl ?? null }),
       ...(data.isPublic !== undefined && { isPublic: data.isPublic }),
     })
     .where(and(eq(agentSkill.id, skillId), eq(agentSkill.userId, userId)))

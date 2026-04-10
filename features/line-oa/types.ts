@@ -4,6 +4,7 @@ export type LineOaChannel = {
   lineChannelId: string;
   agentId: string | null;
   agentName: string | null;
+  imageUrl: string | null;
   status: 'active' | 'inactive';
   memberRichMenuLineId: string | null;
   createdAt: string | Date;
@@ -16,6 +17,7 @@ export type CreateLineOaChannelInput = {
   channelSecret: string;
   channelAccessToken: string;
   agentId?: string | null;
+  imageUrl?: string | null;
   status?: 'active' | 'inactive';
 };
 

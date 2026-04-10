@@ -71,10 +71,18 @@ const ChannelCard = ({
     <div className="group relative flex flex-col rounded-2xl border-2 border-black/5 dark:border-border bg-white dark:bg-zinc-900 overflow-hidden transition hover:border-primary/50">
       {/* ── Top image section ── */}
       <div className="relative h-32 bg-background dark:bg-zinc-800 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-2 select-none">
-          <MessageCircleIcon className="size-14 text-[#06c755]/40 dark:text-[#06c755]/30" strokeWidth={1.2} />
-          <span className="text-xs font-semibold text-[#06c755]/40 dark:text-[#06c755]/30 tracking-widest">{initials}</span>
-        </div>
+        {channel.imageUrl ? (
+          <img
+            src={channel.imageUrl}
+            alt={channel.name}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex flex-col items-center gap-2 select-none">
+            <MessageCircleIcon className="size-14 text-[#06c755]/40 dark:text-[#06c755]/30" strokeWidth={1.2} />
+            <span className="text-xs font-semibold text-[#06c755]/40 dark:text-[#06c755]/30 tracking-widest">{initials}</span>
+          </div>
+        )}
 
         {/* Active / inactive dot — top-left (clickable toggle) */}
         <button

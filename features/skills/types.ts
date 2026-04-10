@@ -72,6 +72,7 @@ export type Skill = {
   packageManifest: SkillPackageManifest | null;
   lastSyncCheckedAt: string | Date | null;
   lastSyncedAt: string | Date | null;
+  imageUrl: string | null;
   isPublic: boolean;
   createdAt: string | Date;
   updatedAt: string | Date;
@@ -121,6 +122,7 @@ export type CreateSkillInput = {
   compatibility?: string;
   metadata?: Record<string, string>;
   files?: CreateSkillFileInput[];
+  imageUrl?: string | null;
   isPublic?: boolean;
 };
 

@@ -1,9 +1,10 @@
 'use client';
 
-import { useRef, useState, type KeyboardEvent, type RefObject } from 'react';
-import { ImageIcon, PlusIcon, UploadIcon, XIcon } from 'lucide-react';
+import { type KeyboardEvent, type RefObject } from 'react';
+import { PlusIcon, XIcon } from 'lucide-react';
 import { availableModels } from '@/lib/ai';
 import { Button } from '@/components/ui/button';
+import { ImageUploadZone } from '@/components/ui/image-upload-zone';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -32,6 +33,15 @@ type AgentGeneralSectionProps = {
   starterPrompts: string[];
 };
 
+async function uploadAgentCover(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch('/api/agents/image', { method: 'POST', body: formData });
+  const json = await res.json() as { url?: string; error?: string };
+  if (!res.ok) throw new Error(json.error ?? 'Upload failed');
+  return json.url ?? '';
+}
+
 export function AgentGeneralSection({
   description,
   imageUrl,
@@ -49,89 +59,15 @@ export function AgentGeneralSection({
   starterInputRef,
   starterPrompts,
 }: AgentGeneralSectionProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadError(null);
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/agents/image', { method: 'POST', body: formData });
-      const json = await res.json() as { url?: string; error?: string };
-      if (!res.ok) {
-        setUploadError(json.error ?? 'Upload failed');
-        return;
-      }
-      onImageUrlChange(json.url ?? '');
-    } catch {
-      setUploadError('Upload failed');
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
   return (
     <div className="space-y-5">
       {/* Image upload */}
-      <div className="space-y-1.5">
-        <Label>Cover image <span className="font-normal text-muted-foreground">(optional)</span></Label>
-        <div className="flex items-start gap-3">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="relative size-20 shrink-0 rounded-xl border-2 border-dashed border-input bg-muted/30 hover:bg-muted/60 transition overflow-hidden flex items-center justify-center group"
-          >
-            {imageUrl ? (
-              <img src={imageUrl} alt="Agent cover" className="w-full h-full object-cover" />
-            ) : (
-              <ImageIcon className="size-7 text-muted-foreground group-hover:text-foreground transition" />
-            )}
-            <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition">
-              <UploadIcon className="size-5 text-white" />
-            </div>
-          </button>
-          <div className="flex flex-col gap-1.5 pt-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={uploading}
-              onClick={() => fileInputRef.current?.click()}
-              className="w-fit"
-            >
-              {uploading ? 'Uploading…' : imageUrl ? 'Change image' : 'Upload image'}
-            </Button>
-            {imageUrl && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="w-fit text-destructive hover:text-destructive"
-                onClick={() => onImageUrlChange('')}
-              >
-                <XIcon className="size-3.5 mr-1" /> Remove
-              </Button>
-            )}
-            <p className="text-xs text-muted-foreground">JPEG, PNG, WebP · max 2 MB</p>
-            {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
-          </div>
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/gif"
-          className="hidden"
-          onChange={handleFileChange}
-        />
-      </div>
+      <ImageUploadZone
+        label="Cover image"
+        value={imageUrl}
+        onChange={onImageUrlChange}
+        onUpload={uploadAgentCover}
+      />
 
       {/* Name */}
       <div className="space-y-1.5">

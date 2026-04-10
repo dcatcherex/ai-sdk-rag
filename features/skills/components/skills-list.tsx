@@ -285,6 +285,7 @@ const SkillGrid = ({
           icon={SparklesIcon}
           name={skill.name}
           description={description}
+          imageUrl={skill.imageUrl}
           isPublic={skill.isPublic && isOwner}
           onEdit={isOwner ? () => onEdit?.(skill) : undefined}
           onDelete={isOwner ? () => onDelete?.(skill) : undefined}

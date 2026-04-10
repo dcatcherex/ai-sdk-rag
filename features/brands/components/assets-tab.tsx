@@ -1,7 +1,8 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { ImageIcon, Trash2Icon, UploadIcon } from 'lucide-react';
+import { ImageIcon, Trash2Icon, UploadCloudIcon, UploadIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,6 +26,8 @@ export function AssetsTab({ brandId }: { brandId: string }) {
   const [kind, setKind] = useState<BrandAssetKind>('creative');
   const [collection, setCollection] = useState('');
   const [title, setTitle] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleUpload = (file: File) => {
@@ -36,6 +39,26 @@ export function AssetsTab({ brandId }: { brandId: string }) {
     uploadMutation.mutate(fd, { onSuccess: () => setTitle('') });
   };
 
+  const onDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current++;
+    if (e.dataTransfer.items.length > 0) setIsDragging(true);
+  };
+  const onDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current--;
+    if (dragCounter.current === 0) setIsDragging(false);
+  };
+  const onDragOver = (e: React.DragEvent) => e.preventDefault();
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current = 0;
+    setIsDragging(false);
+    if (uploadMutation.isPending) return;
+    const file = e.dataTransfer.files[0];
+    if (file) handleUpload(file);
+  };
+
   const grouped = assets.reduce<Record<string, typeof assets>>((acc, a) => {
     const key = a.collection ?? 'General';
     return { ...acc, [key]: [...(acc[key] ?? []), a] };
@@ -44,9 +67,26 @@ export function AssetsTab({ brandId }: { brandId: string }) {
   return (
     <div className="space-y-4">
       {/* Upload controls */}
-      <div className="rounded-lg border border-black/8 dark:border-border p-3 space-y-3">
+      <div
+        className={cn(
+          'relative rounded-lg border-2 border-dashed p-3 space-y-3 transition-colors',
+          isDragging
+            ? 'border-primary bg-primary/5'
+            : 'border-black/8 dark:border-border hover:border-muted-foreground/30',
+        )}
+        onDragEnter={onDragEnter}
+        onDragLeave={onDragLeave}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+      >
+        {isDragging && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1.5 rounded-md bg-primary/10 pointer-events-none">
+            <UploadCloudIcon className="size-6 text-primary" />
+            <span className="text-xs font-medium text-primary">Drop to upload</span>
+          </div>
+        )}
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Upload asset
+          Upload asset · drag & drop or choose file
         </p>
         <div className="grid grid-cols-2 gap-2">
           <div>

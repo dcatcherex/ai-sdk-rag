@@ -31,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ImageUploadZone } from '@/components/ui/image-upload-zone';
 import {
   useCreateSkillFile,
   useDeleteSkillFile,
@@ -97,6 +98,7 @@ const DetailsForm = ({ skill, onBack, onSubmit, isPending }: DetailsFormProps) =
   // State is initialized directly from props. The parent passes key={skill?.id ?? 'new'}
   // so React remounts this component when switching between create/edit, eliminating
   // the need for a useEffect-based form reset.
+  const [imageUrl, setImageUrl] = useState(skill?.imageUrl ?? '');
   const [name, setName] = useState(skill?.name ?? '');
   const [description, setDescription] = useState(skill?.description ?? '');
   const [activationMode, setActivationMode] = useState<SkillActivationMode>(skill?.activationMode ?? 'model');
@@ -138,6 +140,7 @@ const DetailsForm = ({ skill, onBack, onSubmit, isPending }: DetailsFormProps) =
         triggerType,
         trigger: activationMode === 'rule' && triggerType !== 'always' ? trigger.trim() || undefined : undefined,
         promptFragment: promptFragment.trim(),
+        imageUrl: imageUrl || null,
         isPublic,
       });
       return;
@@ -158,6 +161,7 @@ const DetailsForm = ({ skill, onBack, onSubmit, isPending }: DetailsFormProps) =
       files: files
         .map((f) => ({ relativePath: f.relativePath.trim(), textContent: f.textContent }))
         .filter((f) => f.relativePath.length > 0),
+      imageUrl: imageUrl || null,
       isPublic,
     });
   };
@@ -171,9 +175,26 @@ const DetailsForm = ({ skill, onBack, onSubmit, isPending }: DetailsFormProps) =
 
   const triggerPlaceholder = triggerType === 'slash' ? '/email, /report …' : 'email, report …';
 
+  const uploadSkillCover = async (file: File): Promise<string> => {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch('/api/skills/image', { method: 'POST', body: form });
+    if (!res.ok) throw new Error('Upload failed');
+    const json = await res.json() as { url: string };
+    return json.url;
+  };
+
   return (
     <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        <ImageUploadZone
+          value={imageUrl}
+          onChange={setImageUrl}
+          onUpload={uploadSkillCover}
+          label="Cover image"
+          hint="Optional. Shown on the skill card."
+        />
+
         <div className="space-y-1.5">
           <Label htmlFor="skill-name">Name *</Label>
           <Input

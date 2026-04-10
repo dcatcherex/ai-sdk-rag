@@ -71,6 +71,7 @@ const MyAgentCard = ({
     <AgentCard
       name={agent.name}
       description={agent.description}
+      imageUrl={agent.imageUrl}
       isActive={share?.isActive ?? false}
       isPublic={agent.isPublic}
       onToggleActive={share ? () => updateShare.mutate({ isActive: !share.isActive }) : undefined}
@@ -218,6 +219,7 @@ export const AgentsList = () => {
                 <AgentCard
                   name="General"
                   description={generalAgent?.description ?? 'Your default assistant. Configure its tools, model, and instructions.'}
+                  imageUrl={generalAgent?.imageUrl}
                   isActive
                   onEdit={() => openConfigureGeneral(generalAgent ?? null)}
                 />
@@ -241,6 +243,7 @@ export const AgentsList = () => {
                       key={a.id}
                       name={a.name}
                       description={withSharing.ownerName ? `${a.description ?? ''}\nBy ${withSharing.ownerName}`.trim() : a.description}
+                      imageUrl={a.imageUrl}
                     />
                   );
                 })}

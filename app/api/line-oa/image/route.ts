@@ -1,8 +1,7 @@
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-
 import { auth } from '@/lib/auth';
-import { uploadImage, UploadError } from '@/lib/storage/uploadImage';
+import { uploadImage } from '@/lib/storage/uploadImage';
 
 export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -12,22 +11,20 @@ export async function POST(req: Request) {
 
   const formData = await req.formData();
   const file = formData.get('file');
-
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'No file provided' }, { status: 400 });
   }
 
   try {
     const result = await uploadImage(file, {
-      prefix: `agent-covers/${session.user.id}`,
+      prefix: `line-oa-covers/${session.user.id}`,
       optimization: { format: 'webp', quality: 85, maxWidth: 1200 },
+      maxSizeBytes: 5 * 1024 * 1024,
     });
-
     return NextResponse.json({ url: result.url });
   } catch (err) {
-    if (err instanceof UploadError) {
-      return NextResponse.json({ error: err.message }, { status: err.status });
-    }
-    throw err;
+    const message = err instanceof Error ? err.message : 'Upload failed';
+    const status = (err as { status?: number }).status ?? 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

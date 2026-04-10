@@ -12,6 +12,7 @@ const updateSchema = z.object({
   channelSecret: z.string().min(1).optional(),
   channelAccessToken: z.string().min(1).optional(),
   agentId: z.string().nullable().optional(),
+  imageUrl: z.string().url().optional().nullable(),
   status: z.enum(['active', 'inactive']).optional(),
   memberRichMenuLineId: z.string().nullable().optional(),
 });

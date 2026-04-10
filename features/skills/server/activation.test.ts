@@ -31,6 +31,7 @@ const baseSkill = (overrides: Partial<Skill>): Skill => ({
   packageManifest: null,
   lastSyncCheckedAt: null,
   lastSyncedAt: null,
+  imageUrl: null,
   isPublic: false,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),

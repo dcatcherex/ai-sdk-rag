@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeftIcon, EyeIcon, EyeOffIcon, MessageCircleIcon } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
+import { ImageUploadZone } from '@/components/ui/image-upload-zone';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -36,6 +37,7 @@ const SettingsForm = ({ channel, onBack, onSubmit, isPending }: SettingsFormProp
 
   const isEdit = Boolean(channel);
 
+  const [imageUrl, setImageUrl] = useState('');
   const [name, setName] = useState('');
   const [lineChannelId, setLineChannelId] = useState('');
   const [channelSecret, setChannelSecret] = useState('');
@@ -46,12 +48,14 @@ const SettingsForm = ({ channel, onBack, onSubmit, isPending }: SettingsFormProp
 
   useEffect(() => {
     if (channel) {
+      setImageUrl(channel.imageUrl ?? '');
       setName(channel.name);
       setLineChannelId(channel.lineChannelId);
       setChannelSecret('');
       setChannelAccessToken('');
       setAgentId(channel.agentId ?? 'none');
     } else {
+      setImageUrl('');
       setName('');
       setLineChannelId('');
       setChannelSecret('');
@@ -77,13 +81,31 @@ const SettingsForm = ({ channel, onBack, onSubmit, isPending }: SettingsFormProp
       channelSecret: channelSecret.trim(),
       channelAccessToken: channelAccessToken.trim(),
       agentId: agentId === 'none' ? null : agentId,
+      imageUrl: imageUrl || null,
       status: channel?.status ?? 'active',
     });
+  };
+
+  const uploadChannelCover = async (file: File): Promise<string> => {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch('/api/line-oa/image', { method: 'POST', body: form });
+    if (!res.ok) throw new Error('Upload failed');
+    const json = await res.json() as { url: string };
+    return json.url;
   };
 
   return (
     <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
       <div className="flex-1 overflow-y-auto p-6 space-y-5 max-w-lg">
+        <ImageUploadZone
+          value={imageUrl}
+          onChange={setImageUrl}
+          onUpload={uploadChannelCover}
+          label="Cover image"
+          hint="Optional. Shown on the channel card."
+        />
+
         <div className="space-y-1.5">
           <Label htmlFor="loa-name">Display name</Label>
           <Input

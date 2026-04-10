@@ -20,6 +20,7 @@ const createSchema = z.object({
     relativePath: z.string().min(1).max(300),
     textContent: z.string(),
   })).optional(),
+  imageUrl: z.string().url().optional().nullable(),
 });
 
 export async function GET(req: Request) {

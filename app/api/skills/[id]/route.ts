@@ -11,6 +11,7 @@ const updateSchema = z.object({
   trigger: z.string().max(100).nullable().optional(),
   promptFragment: z.string().min(1).optional(),
   enabledTools: z.array(z.string()).optional(),
+  imageUrl: z.string().url().optional().nullable(),
   isPublic: z.boolean().optional(),
 });
 

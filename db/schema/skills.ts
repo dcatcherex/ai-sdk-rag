@@ -43,6 +43,7 @@ export const agentSkill = pgTable("agent_skill", {
   packageManifest: jsonb("package_manifest").$type<Record<string, unknown>>(),
   lastSyncCheckedAt: timestamp("last_sync_checked_at"),
   lastSyncedAt: timestamp("last_synced_at"),
+  imageUrl: text("image_url"),
   isPublic: boolean("is_public").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
