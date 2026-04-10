@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import type { ChatStatus } from 'ai';
 import { toast } from 'sonner';
-import { BookOpenIcon, CheckIcon, GlobeIcon, LibraryIcon } from 'lucide-react';
+import { BookOpenIcon, CheckIcon, Columns2Icon, GlobeIcon, LibraryIcon } from 'lucide-react';
 import { useLiveVoice, type VoiceHistoryTurn, type VoiceState } from '@/features/chat/hooks/use-live-voice';
 import { AiModeSelector } from './ai-mode-selector';
 import type { Agent } from '@/features/agents/types';
@@ -252,7 +252,7 @@ export function ChatComposer({
         </div>
       )}
       <PromptInputProvider>
-        <PromptInput onSubmit={(message) => onSubmit(message)}>
+        <PromptInput globalDrop onSubmit={(message) => onSubmit(message)}>
           <PromptInputHeader>
             <ComposerAttachments />
           </PromptInputHeader>
@@ -289,6 +289,16 @@ export function ChatComposer({
                       {useWebSearch && <CheckIcon className="ml-auto size-3.5 text-primary" />}
                     </PromptInputActionMenuItem>
                   )}
+                  <PromptInputActionMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      onToggleCompareMode();
+                    }}
+                  >
+                    <Columns2Icon className="mr-2 size-4" />
+                    Compare models
+                    {compareMode && <CheckIcon className="ml-auto size-3.5 text-primary" />}
+                  </PromptInputActionMenuItem>
                 </PromptInputActionMenuContent>
               </PromptInputActionMenu>
               {!compareMode && (
@@ -349,15 +359,34 @@ export function ChatComposer({
                   </ModelSelectorContent>
                 </ModelSelector>
               )}
-              <CompareModelPicker
-                compareMode={compareMode}
-                comparePresetIds={comparePresetIds}
-                comparePresetMode={comparePresetMode}
-                selectorModels={selectorModels}
-                onToggleCompareMode={onToggleCompareMode}
-                onToggleCompareModel={onToggleCompareModel}
-                onClearComparePreset={onClearComparePreset}
-              />
+              {compareMode && (
+                <div className="flex items-center rounded-md bg-primary text-primary-foreground">
+                  <button
+                    type="button"
+                    onClick={onToggleCompareMode}
+                    title="Cancel compare"
+                    className="flex h-8 items-center gap-1.5 rounded-l-md px-2.5 text-[13px] font-medium text-primary-foreground hover:bg-white/15 transition-colors"
+                  >
+                    <Columns2Icon className="size-4" />
+                    {comparePresetIds.length > 0 && (
+                      <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold leading-none">
+                        {comparePresetIds.length}
+                      </span>
+                    )}
+                  </button>
+                  <div className="w-px self-stretch bg-white/20" />
+                  <CompareModelPicker
+                    hideToggle
+                    compareMode={compareMode}
+                    comparePresetIds={comparePresetIds}
+                    comparePresetMode={comparePresetMode}
+                    selectorModels={selectorModels}
+                    onToggleCompareMode={onToggleCompareMode}
+                    onToggleCompareModel={onToggleCompareModel}
+                    onClearComparePreset={onClearComparePreset}
+                  />
+                </div>
+              )}
             </PromptInputTools>
             <ComposerActionButtons
               status={status}

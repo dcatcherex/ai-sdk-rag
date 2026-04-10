@@ -17,6 +17,8 @@ export type CompareModelPickerProps = {
   onToggleCompareMode: () => void;
   onToggleCompareModel: (modelId: string) => void;
   onClearComparePreset: () => void;
+  /** When true, only render the model picker popover (no toggle button). */
+  hideToggle?: boolean;
 };
 
 export const CompareModelPicker = ({
@@ -27,6 +29,7 @@ export const CompareModelPicker = ({
   onToggleCompareMode,
   onToggleCompareModel,
   onClearComparePreset,
+  hideToggle,
 }: CompareModelPickerProps) => {
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -169,6 +172,10 @@ export const CompareModelPicker = ({
       </PopoverContent>
     </Popover>
   );
+
+  if (hideToggle) {
+    return ModelPickerPopover;
+  }
 
   return (
     <div className={`flex items-center rounded-md transition-colors ${compareMode ? 'bg-primary text-primary-foreground' : ''}`}>
