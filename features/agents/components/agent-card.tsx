@@ -1,6 +1,7 @@
 'use client';
 
-import { BotIcon, GlobeIcon, PencilIcon, Share2Icon, Trash2Icon } from 'lucide-react';
+import type { KeyboardEvent } from 'react';
+import { BotIcon, GlobeIcon, Share2Icon, Trash2Icon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
 import { cn } from '@/lib/utils';
@@ -19,6 +20,7 @@ export type AgentCardProps = {
   onEdit?: () => void;
   onDelete?: () => void;
   onShare?: () => void;
+  onClick?: () => void;
   /** Extra content rendered below the description (e.g. badges) */
   footer?: React.ReactNode;
   className?: string;
@@ -41,15 +43,31 @@ export const AgentCard = ({
   onEdit,
   onDelete,
   onShare,
+  onClick,
   footer,
   className,
 }: AgentCardProps) => {
   const initials = name.slice(0, 2).toUpperCase();
+  const cardAction = onClick ?? onEdit;
+  const isClickable = Boolean(cardAction);
+
+  const handleCardKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!cardAction) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      cardAction();
+    }
+  };
 
   return (
     <div
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      onClick={cardAction}
+      onKeyDown={handleCardKeyDown}
       className={cn(
         'group relative flex flex-col rounded-2xl border-2 border-black/5 dark:border-border bg-white dark:bg-zinc-900 overflow-hidden transition hover:border-primary/50',
+        isClickable && 'cursor-pointer',
         className,
       )}
     >
@@ -72,7 +90,10 @@ export const AgentCard = ({
         {isActive !== undefined && (
           <button
             type="button"
-            onClick={onToggleActive}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleActive?.();
+            }}
             title={isActive ? 'Active — click to deactivate' : 'Inactive — click to activate'}
             className={cn(
               'absolute top-3 left-3 size-4 rounded-full border-2 border-white shadow transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -98,21 +119,13 @@ export const AgentCard = ({
                   variant="ghost"
                   size="icon"
                   className="size-7 rounded-full hover:cursor-pointer"
-                  onClick={onShare}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onShare();
+                  }}
                   title="Share"
                 >
                   <Share2Icon className="size-3.5" />
-                </Button>
-              )}
-              {onEdit && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-7 rounded-full hover:cursor-pointer"
-                  onClick={onEdit}
-                  title="Edit"
-                >
-                  <PencilIcon className="size-3.5" />
                 </Button>
               )}
               {onDelete && (
@@ -120,7 +133,10 @@ export const AgentCard = ({
                   variant="ghost"
                   size="icon"
                   className="size-7 rounded-full text-destructive hover:text-destructive hover:cursor-pointer"
-                  onClick={onDelete}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDelete();
+                  }}
                   title="Delete"
                 >
                   <Trash2Icon className="size-3.5" />
@@ -137,7 +153,15 @@ export const AgentCard = ({
         {/* {description && (
           <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">{description}</p>
         )} */}
-        {/* {footer && <div className="mt-auto pt-2">{footer}</div>} */}
+        {footer && (
+          <div
+            className="mt-auto pt-2"
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+          >
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );

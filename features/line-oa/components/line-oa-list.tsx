@@ -8,7 +8,6 @@ import {
   LayoutGridIcon,
   MegaphoneIcon,
   MessageCircleIcon,
-  PencilIcon,
   PlusIcon,
   Trash2Icon,
 } from 'lucide-react';
@@ -68,7 +67,18 @@ const ChannelCard = ({
   const isActive = channel.status === 'active';
 
   return (
-    <div className="group relative flex flex-col rounded-2xl border-2 border-black/5 dark:border-border bg-white dark:bg-zinc-900 overflow-hidden transition hover:border-primary/50">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onEdit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onEdit();
+        }
+      }}
+      className="group relative flex flex-col rounded-2xl border-2 border-black/5 dark:border-border bg-white dark:bg-zinc-900 overflow-hidden transition hover:border-primary/50 cursor-pointer"
+    >
       {/* ── Top image section ── */}
       <div className="relative aspect-square bg-background dark:bg-zinc-800 flex items-center justify-center overflow-hidden">
         {channel.imageUrl ? (
@@ -87,7 +97,10 @@ const ChannelCard = ({
         {/* Active / inactive dot — top-left (clickable toggle) */}
         <button
           type="button"
-          onClick={onToggleActive}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleActive();
+          }}
           title={isActive ? 'Active — click to deactivate' : 'Inactive — click to activate'}
           className={cn(
             'absolute top-3 left-3 size-4 rounded-full border-2 border-white shadow cursor-pointer hover:scale-110 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -102,7 +115,10 @@ const ChannelCard = ({
               variant="ghost"
               size="icon"
               className="size-7 rounded-full hover:cursor-pointer"
-              onClick={copyWebhook}
+              onClick={(event) => {
+                event.stopPropagation();
+                void copyWebhook();
+              }}
               title="Copy webhook URL"
             >
               {copied
@@ -112,17 +128,11 @@ const ChannelCard = ({
             <Button
               variant="ghost"
               size="icon"
-              className="size-7 rounded-full hover:cursor-pointer"
-              onClick={onEdit}
-              title="Edit channel"
-            >
-              <PencilIcon className="size-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
               className="size-7 rounded-full text-destructive hover:text-destructive hover:cursor-pointer"
-              onClick={onDelete}
+              onClick={(event) => {
+                event.stopPropagation();
+                onDelete();
+              }}
               title="Disconnect"
             >
               <Trash2Icon className="size-3.5" />
