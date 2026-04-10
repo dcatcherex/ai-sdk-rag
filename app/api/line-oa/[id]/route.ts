@@ -50,6 +50,7 @@ export async function PATCH(
       ...(body.channelAccessToken !== undefined && { channelAccessToken: body.channelAccessToken }),
       ...('agentId' in body && { agentId: body.agentId ?? null }),
       ...(body.status !== undefined && { status: body.status }),
+      ...('imageUrl' in body && { imageUrl: body.imageUrl ?? null }),
       ...('memberRichMenuLineId' in body && { memberRichMenuLineId: body.memberRichMenuLineId ?? null }),
       updatedAt: new Date(),
     })

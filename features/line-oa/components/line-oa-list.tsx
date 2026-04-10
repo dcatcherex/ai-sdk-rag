@@ -70,7 +70,7 @@ const ChannelCard = ({
   return (
     <div className="group relative flex flex-col rounded-2xl border-2 border-black/5 dark:border-border bg-white dark:bg-zinc-900 overflow-hidden transition hover:border-primary/50">
       {/* ── Top image section ── */}
-      <div className="relative h-32 bg-background dark:bg-zinc-800 flex items-center justify-center">
+      <div className="relative aspect-square bg-background dark:bg-zinc-800 flex items-center justify-center overflow-hidden">
         {channel.imageUrl ? (
           <img
             src={channel.imageUrl}
@@ -136,7 +136,7 @@ const ChannelCard = ({
         <p className="font-semibold text-sm truncate">{channel.name}</p>
 
         {/* Badges */}
-        <div className="flex flex-wrap gap-1.5">
+        {/* <div className="flex flex-wrap gap-1.5">
           {channel.agentName && (
             <Badge variant="outline" className="text-[11px] gap-1">
               <BotIcon className="size-2.5" />
@@ -146,7 +146,7 @@ const ChannelCard = ({
           <Badge variant="secondary" className="text-[11px] font-mono">
             ID: {channel.lineChannelId}
           </Badge>
-        </div>
+        </div> */}
 
         {/* Summary counts — icon + number only */}
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -188,6 +188,7 @@ export const LineOaList = () => {
         lineChannelId: data.lineChannelId,
         agentId: data.agentId,
         status: data.status,
+        imageUrl: data.imageUrl ?? null,
       };
       if (data.channelSecret) updateData.channelSecret = data.channelSecret;
       if (data.channelAccessToken) updateData.channelAccessToken = data.channelAccessToken;
@@ -252,7 +253,7 @@ export const LineOaList = () => {
           </div>
         ) : (
           <>
-            <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-4">
               {channels.map((channel) => (
                 <ChannelCard
                   key={channel.id}

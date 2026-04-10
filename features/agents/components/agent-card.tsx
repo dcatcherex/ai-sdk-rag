@@ -54,7 +54,7 @@ export const AgentCard = ({
       )}
     >
       {/* ── Image section ── */}
-      <div className="relative h-44 bg-background dark:bg-zinc-800 flex items-center justify-center overflow-hidden">
+      <div className="relative aspect-square bg-background dark:bg-zinc-800 flex items-center justify-center overflow-hidden">
         {imageUrl ? (
           <img
             src={imageUrl}
@@ -133,11 +133,11 @@ export const AgentCard = ({
 
       {/* ── Text section ── */}
       <div className="flex flex-col gap-1 p-4 flex-1 min-w-0 overflow-hidden">
-        <p className="font-semibold text-sm truncate pb-2">{name}</p>
-        {description && (
+        <p className="font-semibold text-sm truncate">{name}</p>
+        {/* {description && (
           <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">{description}</p>
-        )}
-        {footer && <div className="mt-auto pt-2">{footer}</div>}
+        )} */}
+        {/* {footer && <div className="mt-auto pt-2">{footer}</div>} */}
       </div>
     </div>
   );

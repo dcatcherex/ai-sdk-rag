@@ -28,6 +28,7 @@ export async function GET() {
       name: lineOaChannel.name,
       lineChannelId: lineOaChannel.lineChannelId,
       agentId: lineOaChannel.agentId,
+      imageUrl: lineOaChannel.imageUrl,
       status: lineOaChannel.status,
       memberRichMenuLineId: lineOaChannel.memberRichMenuLineId,
       createdAt: lineOaChannel.createdAt,

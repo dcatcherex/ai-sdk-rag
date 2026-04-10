@@ -5,7 +5,7 @@ import { deleteSkill, getSkillById, updateSkill } from '@/features/skills/servic
 
 const updateSchema = z.object({
   name: z.string().min(1).max(64).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(),
-  description: z.string().max(300).optional(),
+  description: z.string().max(1024).optional(),
   activationMode: z.enum(['rule', 'model']).optional(),
   triggerType: z.enum(['slash', 'keyword', 'always']).optional(),
   trigger: z.string().max(100).nullable().optional(),

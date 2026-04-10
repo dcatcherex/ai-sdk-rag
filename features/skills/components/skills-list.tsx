@@ -271,7 +271,7 @@ const SkillGrid = ({
   onView,
   installingId,
 }: SkillGridProps) => (
-  <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
+  <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
     {skills.map((skill) => {
       const ownerName = (skill as Skill & { ownerName?: string }).ownerName;
       const description =

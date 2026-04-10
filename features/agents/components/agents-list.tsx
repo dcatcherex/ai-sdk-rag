@@ -214,7 +214,7 @@ export const AgentsList = () => {
 
             {/* ── My Agents tab ── */}
             <TabsContent value="my-agents">
-              <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
+              <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
                 {/* General Agent — always pinned first */}
                 <AgentCard
                   name="General"
