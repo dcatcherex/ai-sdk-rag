@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { ChatStatus } from 'ai';
 import { toast } from 'sonner';
-import { BookOpenIcon, CheckIcon, Columns2Icon, GlobeIcon, LibraryIcon } from 'lucide-react';
+import { BookOpenIcon, CheckIcon, Columns2Icon, GlobeIcon, ImageIcon, LibraryIcon } from 'lucide-react';
 import { useLiveVoice, type VoiceHistoryTurn, type VoiceState } from '@/features/chat/hooks/use-live-voice';
 import { AiModeSelector } from './ai-mode-selector';
 import type { Agent } from '@/features/agents/types';
@@ -221,6 +221,8 @@ export function ChatComposer({
   onClearComparePreset,
 }: ChatComposerProps) {
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounter = useRef(0);
 
   const { voiceState, transcript, micLevel, speakAloud, disconnect, toggleSpeakAloud } =
     useLiveVoice({
@@ -240,8 +242,42 @@ export function ChatComposer({
     setVoiceOpen(false);
   }, [disconnect]);
 
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    dragCounter.current += 1;
+    if (dragCounter.current === 1) setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    dragCounter.current -= 1;
+    if (dragCounter.current === 0) setIsDragOver(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    dragCounter.current = 0;
+    setIsDragOver(false);
+    // Actual file handling is done by PromptInput's globalDrop handler
+  }, []);
+
   return (
-    <div className="relative border-t border-black/5 dark:border-border px-3 py-3 md:px-6 md:py-4">
+    <div
+      className="relative border-t border-black/5 dark:border-border px-3 py-3 md:px-6 md:py-4"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {isDragOver && (
+        <div className="pointer-events-none absolute inset-0 z-10 m-2 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/50 bg-primary/5 backdrop-blur-[2px]">
+          <ImageIcon className="size-6 text-primary/70" />
+          <p className="text-sm font-medium text-primary/80">Drop to attach</p>
+        </div>
+      )}
       {selectedDocCount > 0 && (
         <div className="mb-2 flex items-center gap-1.5 text-xs text-primary">
           <BookOpenIcon className="size-3.5" />
