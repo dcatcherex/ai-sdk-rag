@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { KnowledgePanel } from '@/components/knowledge/knowledge-panel';
+import { KnowledgeSheet } from '@/components/knowledge/knowledge-sheet';
 import { useDocumentStats } from '@/lib/hooks/use-documents';
 import { useThreads } from '@/features/chat/hooks/use-threads';
 import { useModelSelector } from '@/features/chat/hooks/use-model-selector';
@@ -23,11 +23,12 @@ import { CompareGrid, type ComparePrompt } from '@/features/chat/components/comp
 import type { ChatMessage, QuizFollowUpContext, RoutingMetadata } from '@/features/chat/types';
 import type { PromptInputMessage } from '@/components/ai-elements/prompt-input';
 import { ThreadWorkingMemorySheet } from '@/features/memory/components/thread-working-memory-sheet';
+import { consumePendingChatIntent } from '@/features/chat/lib/pending-chat-intent';
 
 export default function Chat() {
   const [knowledgePanelOpen, setKnowledgePanelOpen] = useState(false);
   const [workingMemoryOpen, setWorkingMemoryOpen] = useState(false);
-  const [outlinePanelOpen, setOutlinePanelOpen] = useState(false);
+  const [outlinePanelOpen, setOutlinePanelOpen] = useState(true);
   const [widenMode, setWidenMode] = useState(false);
   const [fontSize, setFontSize] = useState<FontSize>(() => {
     if (typeof window === 'undefined') return 'base';
@@ -65,7 +66,7 @@ export default function Chat() {
   }, []);
 
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(() => consumePendingChatIntent()?.agentId ?? null);
   const latestQuizContextRef = useRef<QuizFollowUpContext | null>(null);
   const selectedDocIdsRef = useRef(selectedDocIds);
   selectedDocIdsRef.current = selectedDocIds;
@@ -286,7 +287,7 @@ export default function Chat() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f2f0fa,#e8e4f5_55%,#dddaf0_100%)] dark:bg-[radial-gradient(circle_at_top,#1c1a2e,#181628_55%,#141220_100%)] dark:font-light">
-      <div className={`mx-auto flex min-h-screen w-full gap-3 px-2 py-2 md:gap-6 md:px-4 md:py-6 transition-all duration-300 ${widenMode || (knowledgePanelOpen && outlinePanelOpen) ? 'w-full' : knowledgePanelOpen || outlinePanelOpen ? 'max-w-360' : 'max-w-6xl'}`}>
+      <div className={`mx-auto flex min-h-screen w-full gap-3 px-2 py-2 transition-all duration-300 md:gap-6 md:px-4 md:py-6 ${widenMode ? 'w-full' : outlinePanelOpen ? 'max-w-360' : 'max-w-6xl'}`}>
         <ChatSidebar
           activeThreadId={activeThreadId}
           threads={threads}
@@ -404,6 +405,14 @@ export default function Chat() {
                 threadId={activeThreadId || null}
                 threadTitle={activeThread?.title}
               />
+
+              <KnowledgeSheet
+                open={knowledgePanelOpen}
+                onOpenChange={setKnowledgePanelOpen}
+                selectedDocIds={selectedDocIds}
+                onToggleSelect={handleToggleSelectDoc}
+                totalDocuments={docStats?.totalDocuments}
+              />
             </>
           )}
         </main>
@@ -411,15 +420,6 @@ export default function Chat() {
         {outlinePanelOpen && (
           <div className="hidden lg:block">
             <ConversationOutline messages={messages} />
-          </div>
-        )}
-
-        {knowledgePanelOpen && (
-          <div className="hidden h-[calc(100vh-3rem)] lg:block">
-            <KnowledgePanel
-              selectedDocIds={selectedDocIds}
-              onToggleSelect={handleToggleSelectDoc}
-            />
           </div>
         )}
       </div>

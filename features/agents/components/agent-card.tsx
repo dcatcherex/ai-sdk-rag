@@ -1,7 +1,7 @@
 'use client';
 
 import type { KeyboardEvent } from 'react';
-import { BotIcon, GlobeIcon, Share2Icon, Trash2Icon } from 'lucide-react';
+import { BotIcon, GlobeIcon, MessageSquareIcon, Share2Icon, Trash2Icon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
 import { cn } from '@/lib/utils';
@@ -20,6 +20,7 @@ export type AgentCardProps = {
   onEdit?: () => void;
   onDelete?: () => void;
   onShare?: () => void;
+  onChat?: () => void;
   onClick?: () => void;
   /** Extra content rendered below the description (e.g. badges) */
   footer?: React.ReactNode;
@@ -43,6 +44,7 @@ export const AgentCard = ({
   onEdit,
   onDelete,
   onShare,
+  onChat,
   onClick,
   footer,
   className,
@@ -111,9 +113,23 @@ export const AgentCard = ({
         )}
 
         {/* Hover actions — top-right */}
-        {(onEdit || onShare || onDelete) && (
+        {(onChat || onShare || onDelete) && (
           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition z-10">
             <ButtonGroup className="border rounded-full bg-white/90 dark:bg-zinc-800/90 backdrop-blur-sm shadow">
+              {onChat && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 rounded-full hover:cursor-pointer"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onChat();
+                  }}
+                  title="Chat"
+                >
+                  <MessageSquareIcon className="size-3.5" />
+                </Button>
+              )}
               {onShare && (
                 <Button
                   variant="ghost"

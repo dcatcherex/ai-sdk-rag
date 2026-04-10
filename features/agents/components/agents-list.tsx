@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { CopyIcon, PlusIcon } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { AgentCard } from './agent-card';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/page-header';
@@ -21,6 +22,8 @@ import { usePublicShare, useUpdatePublicShare } from '../hooks/use-public-share'
 import { AgentEditorPanel } from './agent-editor-panel';
 import { PublicShareDialog } from './public-share-dialog';
 import type { Agent, AgentWithSharing, CreateAgentInput } from '../types';
+import { setNewChatIntent } from '@/features/chat/hooks/use-threads';
+import { setPendingChatIntent } from '@/features/chat/lib/pending-chat-intent';
 
 
 // ── Template card ─────────────────────────────────────────────────────────────
@@ -59,11 +62,13 @@ const MyAgentCard = ({
   onEdit,
   onDelete,
   onShare,
+  onChat,
 }: {
   agent: Agent;
   onEdit: () => void;
   onDelete: () => void;
   onShare: () => void;
+  onChat: () => void;
 }) => {
   const { data: share } = usePublicShare(agent.id);
   const updateShare = useUpdatePublicShare(agent.id);
@@ -78,6 +83,7 @@ const MyAgentCard = ({
       onEdit={onEdit}
       onDelete={onDelete}
       onShare={onShare}
+      onChat={onChat}
     />
   );
 };
@@ -85,6 +91,7 @@ const MyAgentCard = ({
 // ── AgentsList ────────────────────────────────────────────────────────────────
 
 export const AgentsList = () => {
+  const router = useRouter();
   const { data, isLoading } = useAgents();
   const agents = data?.agents ?? [];
   const templates = data?.templates ?? [];
@@ -149,6 +156,12 @@ export const AgentsList = () => {
   const closeEditor = () => {
     setMode('list');
     setEditTarget(null);
+  };
+
+  const startChatWithAgent = (agentId: string | null) => {
+    setPendingChatIntent({ agentId });
+    setNewChatIntent();
+    router.push('/');
   };
 
   const confirmDelete = () => {
@@ -222,6 +235,7 @@ export const AgentsList = () => {
                   imageUrl={generalAgent?.imageUrl}
                   isActive
                   onEdit={() => openConfigureGeneral(generalAgent ?? null)}
+                  onChat={() => startChatWithAgent(generalAgent?.id ?? null)}
                 />
 
                 {/* User's custom agents */}
@@ -232,6 +246,7 @@ export const AgentsList = () => {
                     onEdit={() => openEdit(a)}
                     onDelete={() => setDeleteTarget(a)}
                     onShare={() => setShareTarget(a)}
+                    onChat={() => startChatWithAgent(a.id)}
                   />
                 ))}
 
@@ -244,6 +259,7 @@ export const AgentsList = () => {
                       name={a.name}
                       description={withSharing.ownerName ? `${a.description ?? ''}\nBy ${withSharing.ownerName}`.trim() : a.description}
                       imageUrl={a.imageUrl}
+                      onChat={() => startChatWithAgent(a.id)}
                     />
                   );
                 })}

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { SearchIcon, ExternalLinkIcon, LayersIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -16,9 +17,10 @@ const RERANK_CHUNK_THRESHOLD = 3000;
 interface KnowledgePanelProps {
   selectedDocIds?: Set<string>;
   onToggleSelect?: (docId: string) => void;
+  className?: string;
 }
 
-export function KnowledgePanel({ selectedDocIds, onToggleSelect }: KnowledgePanelProps) {
+export function KnowledgePanel({ selectedDocIds, onToggleSelect, className }: KnowledgePanelProps) {
   const [search, setSearch] = useState('');
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -32,7 +34,12 @@ export function KnowledgePanel({ selectedDocIds, onToggleSelect }: KnowledgePane
   const WIDTH = 'w-70';
 
   return (
-    <aside className={`flex h-full ${WIDTH} shrink-0 flex-col rounded-3xl border border-black/5 dark:border-border bg-white/70 dark:bg-card/80 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_60px_-40px_rgba(0,0,0,0.6)] backdrop-blur`}>
+    <aside
+      className={cn(
+        `flex h-full ${WIDTH} shrink-0 flex-col rounded-3xl border border-black/5 bg-white/70 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] backdrop-blur dark:border-border dark:bg-card/80 dark:shadow-[0_20px_60px_-40px_rgba(0,0,0,0.6)]`,
+        className
+      )}
+    >
       {/* Header */}
       <div className="px-4 py-3.5">
         <div className="flex items-center justify-between">

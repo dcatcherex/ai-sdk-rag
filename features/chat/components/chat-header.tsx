@@ -8,10 +8,9 @@ import {
   DownloadIcon,
   FileTextIcon,
   HeadsetIcon,
-  Maximize2Icon,
   MenuIcon,
-  Minimize2Icon,
   MoreHorizontalIcon,
+  PanelRightOpenIcon,
   TableOfContentsIcon,
   Trash2Icon,
 } from 'lucide-react';
@@ -127,22 +126,6 @@ export const ChatHeader = ({
             <TooltipTrigger asChild>
               <Button
                 size="icon"
-                variant={widenMode ? 'default' : 'ghost'}
-                onClick={onToggleWidenMode}
-                className="size-8 hover:cursor-pointer"
-              >
-                {widenMode ? <Minimize2Icon className="size-4" /> : <Maximize2Icon className="size-4" />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{widenMode ? 'Exit wide mode' : 'Wide mode'}</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
                 variant={outlinePanelOpen ? 'default' : 'ghost'}
                 onClick={onToggleOutlinePanel}
                 className="size-8 hover:cursor-pointer"
@@ -231,6 +214,10 @@ export const ChatHeader = ({
             >
               <span className="mr-2 text-sm font-bold">A+</span>
               Increase font size
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onToggleWidenMode}>
+              <PanelRightOpenIcon className="mr-2 size-4" />
+              {widenMode ? 'Exit wide mode' : 'Enter wide mode'}
             </DropdownMenuItem>
 
             {activeThread && (
