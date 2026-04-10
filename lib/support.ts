@@ -932,7 +932,7 @@ export const generateSupportReply = async (options: {
     .join('\n');
 
   const system = [
-    activeAgent?.systemPrompt ?? getSystemPrompt('general_assistant'),
+    activeAgent?.systemPrompt ?? getSystemPrompt(),
     'You are replying to a customer inside a LINE official account support inbox.',
     'Reply in the same language as the customer when practical.',
     'Be concise, polite, and action-oriented.',

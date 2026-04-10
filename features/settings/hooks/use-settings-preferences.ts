@@ -7,7 +7,6 @@ const DEFAULT_PREFS: Preferences = {
   memoryEnabled: true,
   memoryInjectEnabled: true,
   memoryExtractEnabled: true,
-  personaDetectionEnabled: true,
   promptEnhancementEnabled: true,
   followUpSuggestionsEnabled: true,
   enabledToolIds: null,
@@ -17,19 +16,15 @@ const DEFAULT_PREFS: Preferences = {
 
 export function useSettingsPreferences() {
   const [prefs, setPrefs] = useState<Preferences>(DEFAULT_PREFS);
-  const [personaInstructions, setPersonaInstructions] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    void (async () => {
-      const [prefsRes, personaRes] = await Promise.all([
-        fetch('/api/user/preferences'),
-        fetch('/api/user/persona-instructions'),
-      ]);
-      if (prefsRes.ok) setPrefs(await prefsRes.json());
-      if (personaRes.ok) setPersonaInstructions(await personaRes.json());
-      setIsLoading(false);
-    })();
+    void fetch('/api/user/preferences')
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data) setPrefs(data);
+        setIsLoading(false);
+      });
   }, []);
 
   const updatePref = async (patch: Partial<Preferences>) => {
@@ -42,5 +37,5 @@ export function useSettingsPreferences() {
     });
   };
 
-  return { prefs, updatePref, personaInstructions, setPersonaInstructions, isLoading };
+  return { prefs, updatePref, isLoading };
 }

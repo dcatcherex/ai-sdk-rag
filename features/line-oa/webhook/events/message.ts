@@ -525,7 +525,6 @@ export async function handleMessageEvent(
 
   const lineSystemPrompt = assembleSystemPrompt({
     base: lineBase,
-    personaExtraInstructions: '',
     conversationSummaryBlock: '',
     isGrounded: false,
     activeBrand: null,

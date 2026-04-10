@@ -2,10 +2,8 @@ import { buildBrandBlock } from '@/features/brands/service';
 import type { Brand } from '@/features/brands/types';
 
 export type SystemPromptInput = {
-  /** Base system prompt (agent | custom persona | built-in persona). No leading newline. */
+  /** Base system prompt (agent | default). No leading newline. */
   base: string;
-  /** Persona customisation text. Wrapped in <user_instructions> when non-empty. */
-  personaExtraInstructions: string;
   /** Compacted summary of earlier turns. Already '\n\n<conversation_summary>...' or ''. */
   conversationSummaryBlock: string;
   /** Whether RAG documents are selected for this request. */
@@ -36,8 +34,7 @@ const GROUNDING_INSTRUCTION =
  *
  * Order:
  *   1  Base system prompt
- *   2  Persona / style instructions
- *   3  Conversation working memory (summary of earlier turns)
+ *   2  Conversation working memory (summary of earlier turns)
  *   4  Grounding instruction (when RAG docs are selected)
  *   5  User profile memory
  *   6  Brand context
@@ -51,10 +48,6 @@ const GROUNDING_INSTRUCTION =
  * separator, so no extra spacing is applied here.
  */
 export function assembleSystemPrompt(input: SystemPromptInput): string {
-  const personaBlock = input.personaExtraInstructions
-    ? `\n\n<user_instructions>\n${input.personaExtraInstructions}\n</user_instructions>`
-    : '';
-
   const groundingBlock = input.isGrounded ? GROUNDING_INSTRUCTION : '';
 
   const memoryBlock = input.memoryContext ? `\n\n${input.memoryContext}` : '';
@@ -65,7 +58,6 @@ export function assembleSystemPrompt(input: SystemPromptInput): string {
 
   return (
     input.base
-    + personaBlock
     + input.conversationSummaryBlock
     + groundingBlock
     + memoryBlock

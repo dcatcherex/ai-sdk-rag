@@ -18,11 +18,9 @@ import { ConversationOutline } from '@/features/chat/components/conversation-out
 import { ImageEditor } from '@/features/gallery/components/image-editor/image-editor';
 import { useImageEditor } from '@/features/gallery/hooks/use-image-editor';
 import { useAgents } from '@/features/agents/hooks/use-agents';
-import { useCustomPersonas } from '@/features/chat/hooks/use-custom-personas';
 import { useComparePreset } from '@/features/chat/hooks/use-compare-preset';
 import { CompareGrid, type ComparePrompt } from '@/features/chat/components/compare-grid';
 import type { ChatMessage, QuizFollowUpContext, RoutingMetadata } from '@/features/chat/types';
-import type { SystemPromptKey } from '@/lib/prompt';
 import type { PromptInputMessage } from '@/components/ai-elements/prompt-input';
 
 export default function Chat() {
@@ -66,7 +64,6 @@ export default function Chat() {
 
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(null);
   const latestQuizContextRef = useRef<QuizFollowUpContext | null>(null);
   const selectedDocIdsRef = useRef(selectedDocIds);
   selectedDocIdsRef.current = selectedDocIds;
@@ -74,13 +71,10 @@ export default function Chat() {
   useWebSearchRef.current = useWebSearch;
   const selectedAgentIdRef = useRef(selectedAgentId);
   selectedAgentIdRef.current = selectedAgentId;
-  const selectedPersonaIdRef = useRef(selectedPersonaId);
-  selectedPersonaIdRef.current = selectedPersonaId;
 
   const { data: agentsData } = useAgents();
   const agents = agentsData?.agents ?? [];
   const selectedAgent = agents.find((a) => a.id === selectedAgentId) ?? null;
-  const { data: customPersonas = [] } = useCustomPersonas();
 
   const { data: docStats } = useDocumentStats();
 
@@ -139,7 +133,6 @@ export default function Chat() {
     ensureThread,
     useWebSearchRef,
     selectedAgentIdRef,
-    selectedPersonaIdRef,
     followUpSuggestionsEnabled,
     latestQuizContextRef,
   });
@@ -154,16 +147,6 @@ export default function Chat() {
       const message = messages[index];
       if (message.role === 'assistant' && message.metadata?.routing) {
         return message.metadata.routing;
-      }
-    }
-    return null;
-  }, [messages]);
-
-  const lastPersona = useMemo((): string | null => {
-    for (let index = messages.length - 1; index >= 0; index -= 1) {
-      const message = messages[index];
-      if (message.role === 'assistant' && message.metadata?.persona) {
-        return message.metadata.persona ?? null;
       }
     }
     return null;
@@ -199,6 +182,16 @@ export default function Chat() {
       setModelSelectorOpen(false);
     },
     [setSelectedModel, setModelSelectorOpen]
+  );
+
+  // Reset model to 'auto' when activating an agent so the agent's configured
+  // model isn't silently bypassed by a previously pinned manual selection.
+  const handleSelectAgent = useCallback(
+    (id: string | null) => {
+      setSelectedAgentId(id);
+      if (id !== null) setSelectedModel('auto');
+    },
+    [setSelectedModel]
   );
 
   const handleToggleWebSearch = useCallback(() => {
@@ -325,7 +318,6 @@ export default function Chat() {
                 status={status}
                 lastRouting={lastRouting}
                 lastRoutingModel={lastRoutingModel}
-                lastPersona={lastPersona}
                 onDeleteThread={(threadId) => deleteThreadMutation.mutate(threadId)}
                 isDeleting={deleteThreadMutation.isPending}
                 onExport={handleExportConversation}
@@ -383,10 +375,7 @@ export default function Chat() {
                 useWebSearch={useWebSearch}
                 agents={agents}
                 selectedAgentId={selectedAgentId}
-                onSelectAgent={setSelectedAgentId}
-                customPersonas={customPersonas}
-                selectedPersonaId={selectedPersonaId}
-                onSelectPersona={setSelectedPersonaId}
+                onSelectAgent={handleSelectAgent}
                 onStop={stop}
                 onModelSelectorOpenChange={setModelSelectorOpen}
                 onSelectModel={handleSelectModel}

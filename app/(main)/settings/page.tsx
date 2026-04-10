@@ -9,7 +9,6 @@ import {
   MessageCircleQuestionIcon,
   PaletteIcon,
   PlusIcon,
-  ScanTextIcon,
   SparklesIcon,
   WrenchIcon,
   ZapIcon,
@@ -20,8 +19,6 @@ import { SettingsShell, type SettingsShellItem } from '@/components/settings-she
 import { ModelsTable } from '@/features/models/components/models-table';
 import { useSettingsPreferences } from '@/features/settings/hooks/use-settings-preferences';
 import { MemorySection } from '@/features/settings/components/memory-section';
-import { PersonaInstructionsSection } from '@/features/settings/components/persona-instructions-section';
-import { CustomPersonasSection } from '@/features/settings/components/custom-personas-section';
 import { ToolsSection } from '@/features/settings/components/tools-section';
 import { ToggleSection } from '@/features/settings/components/toggle-section';
 import { VoiceSection } from '@/features/settings/components/voice-section';
@@ -29,7 +26,7 @@ import { BrandsSection } from '@/features/brands/components/brands-section';
 import { AppearanceSection } from '@/features/settings/components/appearance-section';
 import { ALL_TOOL_IDS, type ToolId } from '@/lib/tool-registry';
 
-type TabId = 'general' | 'ai-behavior' | 'memory' | 'tools' | 'models' | 'brands' | 'appearance';
+type TabId = 'general' | 'memory' | 'tools' | 'models' | 'brands' | 'appearance';
 
 const TABS: SettingsShellItem<TabId>[] = [
   {
@@ -37,12 +34,6 @@ const TABS: SettingsShellItem<TabId>[] = [
     label: 'General',
     icon: ZapIcon,
     description: 'Chat experience preferences',
-  },
-  {
-    id: 'ai-behavior',
-    label: 'AI Behavior',
-    icon: ScanTextIcon,
-    description: 'Personas and response style',
   },
   {
     id: 'memory',
@@ -80,7 +71,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>('general');
   const [isCreatingBrand, setIsCreatingBrand] = useState(false);
   const [showBrandImport, setShowBrandImport] = useState(false);
-  const { prefs, updatePref, personaInstructions, setPersonaInstructions } = useSettingsPreferences();
+  const { prefs, updatePref } = useSettingsPreferences();
 
   const effectiveToolIds = prefs.enabledToolIds ?? ALL_TOOL_IDS;
 
@@ -89,20 +80,6 @@ export default function SettingsPage() {
       ? [...effectiveToolIds, toolId]
       : effectiveToolIds.filter((id) => id !== toolId);
     await updatePref({ enabledToolIds: next.length === ALL_TOOL_IDS.length ? null : next });
-  };
-
-  const savePersonaInstructions = async (key: string, value: string) => {
-    await fetch('/api/user/persona-instructions', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ personaKey: key, extraInstructions: value }),
-    });
-    setPersonaInstructions((prev) => {
-      const next = { ...prev };
-      if (value) next[key] = value;
-      else delete next[key];
-      return next;
-    });
   };
 
   const activeTabMeta = TABS.find((t) => t.id === activeTab)!;
@@ -158,26 +135,6 @@ export default function SettingsPage() {
                 selectedVoice={prefs.selectedVoice}
                 onSelect={(voice) => void updatePref({ selectedVoice: voice })}
               />
-            </>
-          )}
-
-          {activeTab === 'ai-behavior' && (
-            <>
-              <ToggleSection
-                id="persona-toggle"
-                icon={ScanTextIcon}
-                title="Auto Persona"
-                description="Automatically detects the intent of your message (coding, research, writing, etc.) and switches the AI's system prompt to match. When off, the AI always uses the general assistant persona."
-                checked={prefs.personaDetectionEnabled}
-                onCheckedChange={(v) => void updatePref({ personaDetectionEnabled: v })}
-              />
-
-              <PersonaInstructionsSection
-                personaInstructions={personaInstructions}
-                onSave={savePersonaInstructions}
-              />
-
-              <CustomPersonasSection />
             </>
           )}
 

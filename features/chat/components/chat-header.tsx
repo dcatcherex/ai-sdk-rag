@@ -38,23 +38,9 @@ import {
 } from '@/components/ui/dialog';
 import type { ChatStatus } from 'ai';
 import type { ThreadItem, RoutingMetadata } from '../types';
-import type { SystemPromptKey } from '@/lib/prompt';
 import type { FontSize } from './message-list';
 
 const FONT_SIZES: FontSize[] = ['sm', 'base', 'lg', 'xl'];
-
-const PERSONA_LABELS: Record<SystemPromptKey, string> = {
-  general_assistant: 'General',
-  coding_copilot: 'Coding Copilot',
-  product_manager: 'Product Manager',
-  friendly_tutor: 'Friendly Tutor',
-  data_analyst: 'Data Analyst',
-  summarizer_editor: 'Summarizer',
-  security_privacy_guard: 'Security Guard',
-  research_librarian: 'Research Librarian',
-  translation_localization: 'Translator',
-  troubleshooting_debugger: 'Debugger',
-};
 
 type ChatHeaderProps = {
   activeThread: ThreadItem | undefined;
@@ -67,7 +53,6 @@ type ChatHeaderProps = {
         name: string;
       }
     | undefined;
-  lastPersona?: string | null;
   // Actions
   onDeleteThread: (threadId: string) => void;
   isDeleting: boolean;
@@ -93,7 +78,6 @@ export const ChatHeader = ({
   status,
   lastRouting,
   lastRoutingModel,
-  lastPersona,
   onDeleteThread,
   isDeleting,
   onExport,

@@ -19,7 +19,6 @@ export type RoutingMetadata = {
 
 export type ChatMessageMetadata = {
   routing?: RoutingMetadata;
-  persona?: import('@/lib/prompt').SystemPromptKey | string;
   enhancedPrompt?: string;
   followUpSuggestions?: string[];
   // Compare mode

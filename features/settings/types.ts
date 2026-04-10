@@ -9,7 +9,6 @@ export type Preferences = {
   memoryEnabled: boolean;
   memoryInjectEnabled: boolean;
   memoryExtractEnabled: boolean;
-  personaDetectionEnabled: boolean;
   promptEnhancementEnabled: boolean;
   followUpSuggestionsEnabled: boolean;
   enabledToolIds: string[] | null; // null = all tools enabled

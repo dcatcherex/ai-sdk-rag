@@ -76,7 +76,7 @@ export async function POST(
       )[0]?.url ?? undefined
     : undefined;
 
-  const systemPrompt = agentRow?.systemPrompt ?? getSystemPrompt('general_assistant');
+  const systemPrompt = agentRow?.systemPrompt ?? getSystemPrompt();
   const modelId = agentRow?.modelId ?? chatModel;
 
   // ② Sender shown on every message bubble
@@ -159,7 +159,7 @@ export async function POST(
           const [userAgent] = await db.select().from(agent).where(eq(agent.id, activeAgentId)).limit(1);
           if (userAgent) {
             effectiveAgentRow = userAgent as AgentRow;
-            effectiveSystemPrompt = userAgent.systemPrompt ?? getSystemPrompt('general_assistant');
+            effectiveSystemPrompt = userAgent.systemPrompt ?? getSystemPrompt();
             effectiveModelId = userAgent.modelId ?? chatModel;
             effectiveSender = userAgent.name
               ? { name: userAgent.name }

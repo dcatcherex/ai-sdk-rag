@@ -10,11 +10,9 @@ import { headers } from 'next/headers';
 import { and, eq, exists, or } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { agent, agentShare, brand, brandShare, chatThread, customPersona, personaCustomization, user as userTable, userPreferences } from '@/db/schema';
-import { VALID_PERSONA_KEYS } from '@/lib/persona-detection';
+import { agent, agentShare, brand, brandShare, chatThread, user as userTable, userPreferences } from '@/db/schema';
 import { availableModels, maxSteps, isStrongModel } from '@/lib/ai';
 import { getSystemPrompt, resolveSystemPromptTemplate } from '@/lib/prompt';
-import { detectPersona } from '@/lib/persona-detection';
 import { enhancePrompt } from '@/lib/prompt-enhance';
 import { summarizeConversation, SUMMARY_THRESHOLD } from '@/lib/conversation-summary';
 import { getUserModelScores } from '@/lib/model-scores';
@@ -36,7 +34,6 @@ import { getLastUserPrompt } from '@/features/chat/server/thread-utils';
 import { toolDisabledModels, isImageOnlyModel, getModelByIntent } from '@/features/chat/server/routing';
 import { persistChatResult } from '@/features/chat/server/persistence';
 import type { ChatMessage, ChatMessageMetadata, RoutingMetadata } from '@/features/chat/types';
-import type { SystemPromptKey } from '@/lib/prompt';
 
 export { type ChatMessage };
 export const maxDuration = 30;
@@ -52,15 +49,11 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { messages, threadId, model, useWebSearch, selectedDocumentIds, enabledModelIds, agentId, personaId, brandId, quizContext } =
+    const { messages, threadId, model, useWebSearch, selectedDocumentIds, enabledModelIds, agentId, brandId, quizContext } =
       requestSchema.parse(rawBody);
 
-    // Determine if personaId refers to a built-in key or a custom persona DB row
-    const isBuiltinPersona = personaId ? (VALID_PERSONA_KEYS as string[]).includes(personaId) : false;
-    const isCustomPersonaId = personaId && !isBuiltinPersona;
-
     // ── Stage 2: all independent DB queries in parallel ──────────────────────
-    const [userRow, threadRows, prefsRows, balance, activeAgentRows, personaCustomRows, customPersonaRows] = await Promise.all([
+    const [userRow, threadRows, prefsRows, balance, activeAgentRows] = await Promise.all([
       db
         .select({ approved: userTable.approved })
         .from(userTable)
@@ -103,17 +96,6 @@ export async function POST(req: Request) {
             )
             .limit(1)
         : Promise.resolve([]),
-      db
-        .select({ personaKey: personaCustomization.personaKey, extraInstructions: personaCustomization.extraInstructions })
-        .from(personaCustomization)
-        .where(eq(personaCustomization.userId, session.user.id)),
-      isCustomPersonaId
-        ? db
-            .select({ id: customPersona.id, name: customPersona.name, systemPrompt: customPersona.systemPrompt })
-            .from(customPersona)
-            .where(and(eq(customPersona.id, personaId!), eq(customPersona.userId, session.user.id)))
-            .limit(1)
-        : Promise.resolve([]),
     ]);
 
     if (!userRow[0]?.approved) {
@@ -127,10 +109,8 @@ export async function POST(req: Request) {
     }
 
     const currentTitle = threadRows[0]!.title ?? 'New chat';
-    const userPrefs = prefsRows[0] ?? { memoryEnabled: true, memoryInjectEnabled: true, memoryExtractEnabled: true, personaDetectionEnabled: true, promptEnhancementEnabled: true, followUpSuggestionsEnabled: true, enabledToolIds: null, rerankEnabled: false };
+    const userPrefs = prefsRows[0] ?? { memoryEnabled: true, memoryInjectEnabled: true, memoryExtractEnabled: true, promptEnhancementEnabled: true, followUpSuggestionsEnabled: true, enabledToolIds: null, rerankEnabled: false };
     const activeAgent = activeAgentRows[0] ?? null;
-    const personaCustomMap: Record<string, string> = {};
-    for (const row of personaCustomRows) personaCustomMap[row.personaKey] = row.extraInstructions;
     const lastUserPrompt = getLastUserPrompt(messages);
 
     // Load skills attached to the active agent
@@ -148,23 +128,13 @@ export async function POST(req: Request) {
           skillToolIds: [],
         };
 
-    const customPersonaRow = customPersonaRows[0] ?? null;
-
-    // ── Stage 3: memory + persona detection + brand in parallel ─────────────
+    // ── Stage 3: memory + brand in parallel ──────────────────────────────────
     // Agent's brand takes priority over user's active brand.
     const effectiveBrandId = activeAgent?.brandId ?? brandId ?? null;
-    const [memoryContext, detectedPersona, brandRows] = await Promise.all([
+    const [memoryContext, brandRows] = await Promise.all([
       (userPrefs.memoryEnabled && userPrefs.memoryInjectEnabled)
         ? getUserMemoryContext(session.user.id)
         : Promise.resolve(''),
-      // personaId overrides auto-detection: built-in key used directly, custom persona resolved above
-      isBuiltinPersona
-        ? Promise.resolve(personaId as SystemPromptKey)
-        : isCustomPersonaId
-          ? Promise.resolve('general_assistant' as SystemPromptKey) // placeholder; custom prompt used below
-          : (userPrefs.personaDetectionEnabled ?? true) && lastUserPrompt
-            ? detectPersona(lastUserPrompt)
-            : Promise.resolve('general_assistant' as SystemPromptKey),
       effectiveBrandId
         ? db
             .select()
@@ -224,13 +194,8 @@ export async function POST(req: Request) {
     const examPrepToolEnabled = activeToolIds === null || activeToolIds.includes('exam_prep');
     const certificateToolEnabled = activeToolIds === null || activeToolIds.includes('certificate');
 
-    const personaExtraInstructions = !activeAgent ? (personaCustomMap[detectedPersona] ?? '') : '';
-    // Base system prompt: agent > custom persona > built-in persona
-    const rawSystemPrompt = activeAgent
-      ? activeAgent.systemPrompt
-      : customPersonaRow
-        ? customPersonaRow.systemPrompt
-        : getSystemPrompt(detectedPersona);
+    // Base system prompt: agent > default
+    const rawSystemPrompt = activeAgent ? activeAgent.systemPrompt : getSystemPrompt();
     const baseSystemPrompt = resolveSystemPromptTemplate(rawSystemPrompt);
 
 
@@ -364,7 +329,6 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
     // ── System prompt assembly ───────────────────────────────────────────────
     const effectiveSystemPrompt = assembleSystemPrompt({
       base: baseSystemPrompt,
-      personaExtraInstructions,
       conversationSummaryBlock,
       isGrounded,
       activeBrand,
@@ -377,7 +341,6 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
 
     const messageMetadata = (): ChatMessageMetadata => ({
       routing: routingMetadata,
-      persona: customPersonaRow ? `custom:${customPersonaRow.name}` : detectedPersona,
       ...(enhancedPrompt ? { enhancedPrompt } : {}),
     });
 

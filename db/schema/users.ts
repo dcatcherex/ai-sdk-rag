@@ -8,7 +8,6 @@ export const userPreferences = pgTable("user_preferences", {
   memoryEnabled: boolean("memory_enabled").default(true).notNull(),
   memoryInjectEnabled: boolean("memory_inject_enabled").default(true).notNull(),
   memoryExtractEnabled: boolean("memory_extract_enabled").default(true).notNull(),
-  personaDetectionEnabled: boolean("persona_detection_enabled").default(true).notNull(),
   promptEnhancementEnabled: boolean("prompt_enhancement_enabled").default(true).notNull(),
   followUpSuggestionsEnabled: boolean("follow_up_suggestions_enabled").default(true).notNull(),
   enabledToolIds: text("enabled_tool_ids").array(),
@@ -16,25 +15,6 @@ export const userPreferences = pgTable("user_preferences", {
   selectedVoice: text("selected_voice"),
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
 });
-
-export const customPersona = pgTable("custom_persona", {
-  id: text("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  systemPrompt: text("system_prompt").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (table) => [index("custom_persona_userId_idx").on(table.userId)]);
-
-export const personaCustomization = pgTable("persona_customization", {
-  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
-  personaKey: text("persona_key").notNull(),
-  extraInstructions: text("extra_instructions").notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (table) => [
-  { name: "persona_customization_pkey", columns: [table.userId, table.personaKey] },
-  index("persona_customization_userId_idx").on(table.userId),
-]);
 
 export const userMemory = pgTable("user_memory", {
   id: text("id").primaryKey(),

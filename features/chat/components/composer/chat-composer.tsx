@@ -7,7 +7,6 @@ import { BookOpenIcon, CheckIcon, Columns2Icon, GlobeIcon, ImageIcon, LibraryIco
 import { useLiveVoice, type VoiceHistoryTurn, type VoiceState } from '@/features/chat/hooks/use-live-voice';
 import { AiModeSelector } from './ai-mode-selector';
 import type { Agent } from '@/features/agents/types';
-import type { CustomPersona } from '@/features/chat/types/custom-persona';
 import type { ComparePresetMode } from '@/features/chat/hooks/use-compare-preset';
 import { availableModels } from '@/lib/ai';
 import {
@@ -86,9 +85,6 @@ export type ChatComposerProps = {
   agents: Agent[];
   selectedAgentId: string | null;
   onSelectAgent: (id: string | null) => void;
-  customPersonas: CustomPersona[];
-  selectedPersonaId: string | null;
-  onSelectPersona: (id: string | null) => void;
   onStop: () => void;
   onModelSelectorOpenChange: (open: boolean) => void;
   onSelectModel: (modelId: string) => void;
@@ -108,17 +104,18 @@ export type ChatComposerProps = {
   onClearComparePreset: () => void;
 };
 
-// ── Prompt picker button (must live inside PromptInputProvider) ───────────────
+// ── Prompt picker menu item (must live inside PromptInputProvider) ────────────
 
-const PromptPickerButton = () => {
+const PromptPickerMenuItem = () => {
   const [open, setOpen] = useState(false);
   const controller = usePromptInputController();
 
   return (
     <>
-      <PromptInputButton onClick={() => setOpen(true)} title="Prompt library">
-        <LibraryIcon className="size-4" />
-      </PromptInputButton>
+      <PromptInputActionMenuItem onSelect={(e) => { e.preventDefault(); setOpen(true); }}>
+        <LibraryIcon className="mr-2 size-4" />
+        Prompt library
+      </PromptInputActionMenuItem>
       <PromptPickerModal
         open={open}
         onOpenChange={setOpen}
@@ -201,9 +198,6 @@ export function ChatComposer({
   agents,
   selectedAgentId,
   onSelectAgent,
-  customPersonas,
-  selectedPersonaId,
-  onSelectPersona,
   onStop,
   onModelSelectorOpenChange,
   onSelectModel,
@@ -266,7 +260,7 @@ export function ChatComposer({
 
   return (
     <div
-      className="relative border-t border-black/5 dark:border-border px-3 py-3 md:px-6 md:py-4"
+      className="relative border-t border-black/5 dark:border-border px-3 py-2 md:px-4 md:py-2.5"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -288,7 +282,7 @@ export function ChatComposer({
         </div>
       )}
       <PromptInputProvider>
-        <PromptInput globalDrop onSubmit={(message) => onSubmit(message)}>
+        <PromptInput globalDrop className="rounded-xl" onSubmit={(message) => onSubmit(message)}>
           <PromptInputHeader>
             <ComposerAttachments />
           </PromptInputHeader>
@@ -297,22 +291,22 @@ export function ChatComposer({
               <VoiceInlineDisplay voiceState={voiceState} micLevel={micLevel} />
             ) : (
               <PromptInputTextarea
-                className="max-h-[40vh] overflow-y-auto leading-6"
+                className="min-h-9 max-h-[40vh] overflow-y-auto leading-6 px-3 pt-2.5 pb-2"
                 placeholder={
                   compareMode
                     ? 'Type a prompt to compare across models…'
-                    : 'Ask anything or drop files to ground the response.'
+                    : 'Ask anything'
                 }
               />
             )}
           </PromptInputBody>
-          <PromptInputFooter>
+          <PromptInputFooter className="py-2 px-2">
             <PromptInputTools>
-              <PromptPickerButton />
               <PromptInputActionMenu>
                 <PromptInputActionMenuTrigger />
                 <PromptInputActionMenuContent>
                   <PromptInputActionAddAttachments />
+                  <PromptPickerMenuItem />
                   {!compareMode && (
                     <PromptInputActionMenuItem
                       onSelect={(e) => {
@@ -340,11 +334,8 @@ export function ChatComposer({
               {!compareMode && (
                 <AiModeSelector
                   agents={agents}
-                  customPersonas={customPersonas}
                   selectedAgentId={selectedAgentId}
-                  selectedPersonaId={selectedPersonaId}
                   onSelectAgent={onSelectAgent}
-                  onSelectPersona={onSelectPersona}
                 />
               )}
               {!compareMode && selectedAgentId === null && (

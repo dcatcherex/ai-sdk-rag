@@ -4,18 +4,6 @@ import { useState } from 'react';
 import { ChevronDownIcon, SparklesIcon } from 'lucide-react';
 import type { ChatMessageMetadata } from '@/features/chat/types';
 
-const PERSONA_LABELS: Record<string, string> = {
-  general_assistant: 'General',
-  coding_copilot: 'Coding',
-  product_manager: 'Product',
-  friendly_tutor: 'Tutor',
-  data_analyst: 'Data Analysis',
-  summarizer_editor: 'Summarizer',
-  security_privacy_guard: 'Security',
-  research_librarian: 'Research',
-  translation_localization: 'Translation',
-  troubleshooting_debugger: 'Debugger',
-};
 
 export const EnhancedPromptChip = ({ text }: { text: string }) => {
   const [open, setOpen] = useState(false);
@@ -41,7 +29,7 @@ export const EnhancedPromptChip = ({ text }: { text: string }) => {
 
 export const GenerationDetails = ({ metadata }: { metadata: ChatMessageMetadata }) => {
   const [promptOpen, setPromptOpen] = useState(false);
-  const { routing, persona, enhancedPrompt } = metadata;
+  const { routing, enhancedPrompt } = metadata;
   if (!routing) return null;
 
   return (
@@ -60,12 +48,7 @@ export const GenerationDetails = ({ metadata }: { metadata: ChatMessageMetadata 
             <span className="text-[11px] text-muted-foreground">{routing.reason}</span>
           </div>
         )}
-        {persona && persona !== 'general_assistant' && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Persona</span>
-            <span className="text-[11px] text-muted-foreground">{PERSONA_LABELS[persona] ?? persona}</span>
-          </div>
-        )}
+
       </div>
       {enhancedPrompt && (
         <div>

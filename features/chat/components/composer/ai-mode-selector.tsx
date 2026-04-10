@@ -18,57 +18,35 @@ import {
   CommandSeparator,
 } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
-import { systemPromptList } from '@/lib/prompt';
 import type { Agent } from '@/features/agents/types';
-import type { CustomPersona } from '@/features/chat/types/custom-persona';
 
 type AiModeSelectorProps = {
   agents: Agent[];
-  customPersonas: CustomPersona[];
   selectedAgentId: string | null;
-  selectedPersonaId: string | null;
   onSelectAgent: (id: string | null) => void;
-  onSelectPersona: (id: string | null) => void;
 };
 
 export const AiModeSelector = ({
   agents,
-  customPersonas,
   selectedAgentId,
-  selectedPersonaId,
   onSelectAgent,
-  onSelectPersona,
 }: AiModeSelectorProps) => {
   const [open, setOpen] = useState(false);
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId) ?? null;
-  const selectedCustomPersona = customPersonas.find((p) => p.id === selectedPersonaId) ?? null;
-  const selectedBuiltinPersona = systemPromptList.find((p) => p.key === selectedPersonaId) ?? null;
 
-  const label =
-    selectedAgent?.name ??
-    selectedCustomPersona?.name ??
-    selectedBuiltinPersona?.label ??
-    'General';
+  const label = selectedAgent?.name ?? 'General';
 
-  const isDefault = !selectedAgentId && !selectedPersonaId;
+  const isDefault = !selectedAgentId;
   const isAgent = !!selectedAgentId;
 
   const handleSelectAgent = (id: string) => {
     onSelectAgent(id);
-    onSelectPersona(null);
-    setOpen(false);
-  };
-
-  const handleSelectStyle = (id: string | null) => {
-    onSelectPersona(id);
-    onSelectAgent(null);
     setOpen(false);
   };
 
   const handleSelectGeneral = () => {
     onSelectAgent(null);
-    onSelectPersona(null);
     setOpen(false);
   };
 
@@ -137,52 +115,6 @@ export const AiModeSelector = ({
               </>
             )}
 
-            {/* Styles: custom personas first, then built-in */}
-            <CommandSeparator />
-            <CommandGroup heading="Styles">
-              {customPersonas.map((p) => (
-                <CommandItem
-                  key={p.id}
-                  value={p.id}
-                  onSelect={() => handleSelectStyle(p.id)}
-                  className="text-xs"
-                >
-                  <span
-                    className={cn(
-                      'truncate',
-                      selectedPersonaId === p.id ? 'font-medium' : '',
-                    )}
-                  >
-                    {p.name}
-                  </span>
-                  {selectedPersonaId === p.id && (
-                    <CheckIcon className="ml-auto size-3.5" />
-                  )}
-                </CommandItem>
-              ))}
-              {systemPromptList.map((p) => (
-                <CommandItem
-                  key={p.key}
-                  value={p.key}
-                  onSelect={() => handleSelectStyle(p.key)}
-                  className="text-xs"
-                >
-                  <span
-                    className={cn(
-                      'truncate',
-                      selectedPersonaId === p.key
-                        ? 'font-medium'
-                        : 'text-muted-foreground',
-                    )}
-                  >
-                    {p.label}
-                  </span>
-                  {selectedPersonaId === p.key && (
-                    <CheckIcon className="ml-auto size-3.5" />
-                  )}
-                </CommandItem>
-              ))}
-            </CommandGroup>
           </CommandList>
         </Command>
       </PopoverContent>
