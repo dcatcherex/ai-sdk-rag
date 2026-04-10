@@ -3,7 +3,7 @@ import { Geist, Geist_Mono, Inter, Playfair_Display, Noto_Sans_Thai, Sarabun,IBM
 import "./globals.css";
 import Providers from "@/app/providers";
 import { Toaster } from "sonner";
-import FontSwitcher from "@/components/font-switcher";
+import { FontApplier } from "@/components/font-applier";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -75,7 +75,7 @@ export default function RootLayout({
       <body className="antialiased">
         <Providers>{children}</Providers>
         <Toaster richColors position="bottom-center" />
-        <FontSwitcher />
+        <FontApplier />
       </body>
     </html>
   );

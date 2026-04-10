@@ -1,54 +1,70 @@
 # Memory Implementation Guide
 
-This document explains how user memory currently works in Vaja AI, where it is implemented, and how future contributors should extend it safely.
+This document describes the memory system that is currently shipped in Vaja AI.
 
-Use this as the source of truth before changing chat memory, LINE memory behavior, memory settings, or memory-related prompts.
+Use it as the source of truth for the existing behavior before changing chat memory, LINE memory behavior, memory settings, or prompt assembly.
 
-## Purpose
+Important framing:
 
-The current memory system stores small long-term facts about a user and injects them back into future prompts so responses can feel personalized and context-aware.
+- The current implementation is a `user profile memory` system.
+- It is useful and worth keeping.
+- It is not yet the full memory architecture required by the Vaja vision in `docs/vaja-vision.md`.
+
+If you are designing the future system, read this together with `docs/memory-recommendation.md`.
+
+## What Exists Today
+
+The shipped memory system stores small durable facts about a user and injects them back into future prompts so responses can feel more personalized and context-aware.
 
 Today it is:
 
-- User-scoped, not agent-scoped
-- Fact-based, not summary-based
-- Text-first, with light categorization
-- Shared between web chat and linked LINE OA conversations
-- Backed by Postgres via Drizzle
+- user-scoped, not workspace-scoped
+- fact-based, not search-based
+- prompt-injected, not retrieved by relevance
+- shared across web chat and linked LINE OA conversations
+- backed by Postgres via Drizzle
 
-It is not yet a semantic memory or vector memory system.
+Today it is not:
 
-## High-Level Flow
+- semantic memory
+- vector memory
+- agent-scoped business memory
+- project or workspace memory
+- durable thread working memory
+- autonomous agent-note memory
 
-### Web chat flow
+## Current Position in the Vaja Stack
 
-1. `app/api/chat/route.ts` loads user preferences.
-2. If memory injection is enabled, it calls `getUserMemoryContext(userId)`.
-3. The returned memory block is appended to the system prompt.
-4. The model responds.
-5. After the response is persisted, `extractAndStoreMemory(...)` runs in the background.
-6. New user facts are inserted into `user_memory`.
+The current system should be understood as one memory layer only:
 
-### LINE OA flow
+- `user profile memory`
 
-1. `features/line-oa/webhook/events/message.ts` resolves the linked app user.
-2. If a linked user exists, it loads memory with `getUserMemoryContext(userId)`.
-3. That memory is appended to the LINE system prompt.
-4. After the AI reply is generated, `extractAndStoreMemory(...)` runs in the background.
+It helps with:
 
-### Compare flow
+- user preferences
+- user expertise
+- stable personal context
+- long-running personal goals
 
-1. `app/api/compare/route.ts` loads memory with `getUserMemoryContext(userId)`.
-2. Memory is currently used only for prompt enhancement.
-3. Compare mode does not extract new memory.
+It does not yet provide:
+
+- long-term memory of a business or brand
+- shared memory across agents and teams
+- selective memory retrieval by relevance
+- durable working memory for long sessions
+- agent-authored operating notes
 
 ## Canonical Files
 
 ### Core implementation
 
 - `lib/memory.ts`
+  - `resolveMemoryPreferences(...)`
   - `getUserMemoryContext(userId)`
-  - `extractAndStoreMemory(userId, messages, threadId, existingContext)`
+  - `getLineUserMemoryContext(lineUserId)`
+  - `extractAndStoreMemory(...)`
+  - `extractAndStoreLineUserMemory(...)`
+  - `mergeLineMemoryToUser(...)`
 
 ### Database
 
@@ -61,6 +77,7 @@ It is not yet a semantic memory or vector memory system.
 - `app/api/chat/route.ts`
 - `features/line-oa/webhook/events/message.ts`
 - `app/api/compare/route.ts`
+- `features/chat/server/prompt-assembly.ts`
 
 ### User-facing APIs and UI
 
@@ -69,22 +86,30 @@ It is not yet a semantic memory or vector memory system.
 - `app/api/user/memory/[id]/route.ts`
 - `features/settings/components/memory-section.tsx`
 
+### Related context-management code
+
+- `lib/conversation-summary.ts`
+
+This is not durable memory storage. It is temporary conversation compaction used to reduce prompt size inside a request.
+
 ## Data Model
 
-Memory is stored in the `user_memory` table defined in `db/schema/users.ts`.
+Memory is stored in the `user_memory` table in `db/schema/users.ts`.
 
-Fields:
+Current fields:
 
 - `id`: primary key
-- `userId`: owning user
-- `category`: memory category string
+- `userId`: owning Vaja user
+- `lineUserId`: owning LINE user for unlinked accounts
+- `category`: category string
 - `fact`: stored fact text
 - `sourceThreadId`: optional origin thread
 - `createdAt`: insert timestamp
 
-There is currently one index:
+Current indexes:
 
-- `user_memory_userId_idx` on `userId`
+- `user_memory_userId_idx`
+- `user_memory_lineUserId_idx`
 
 ## User Preference Flags
 
@@ -94,19 +119,51 @@ Memory behavior is controlled by three flags on `user_preferences`:
 - `memoryInjectEnabled`
 - `memoryExtractEnabled`
 
-Intended meaning:
+Meaning:
 
-- `memoryEnabled`: global master switch
+- `memoryEnabled`: master switch
 - `memoryInjectEnabled`: allow prompt injection
 - `memoryExtractEnabled`: allow background extraction
 
 Default behavior when no preference row exists:
 
-- all three are treated as `true`
+- all three behave as `true`
 
-## Current Prompt Format
+The canonical resolver is:
 
-`getUserMemoryContext()` returns a prompt block like:
+- `resolveMemoryPreferences(...)` in `lib/memory.ts`
+
+All entry points should use that helper for linked users.
+
+## High-Level Runtime Flow
+
+### Web chat flow
+
+1. `app/api/chat/route.ts` loads user preferences.
+2. If memory injection is enabled, it calls `getUserMemoryContext(userId)`.
+3. The returned block is appended to the system prompt via `assembleSystemPrompt(...)`.
+4. The model responds.
+5. After persistence completes, `extractAndStoreMemory(...)` runs in the background if extraction is enabled.
+
+### LINE OA flow
+
+1. `features/line-oa/webhook/events/message.ts` resolves the linked app user, if any.
+2. For a linked Vaja user, it resolves preferences with `resolveMemoryPreferences(...)`.
+3. If injection is enabled, it loads `getUserMemoryContext(userId)`.
+4. For an unlinked LINE user, it loads `getLineUserMemoryContext(lineUserId)` and treats memory as enabled by default.
+5. The memory block is appended to the LINE system prompt via `assembleSystemPrompt(...)`.
+6. After the AI reply is generated, extraction runs in the background when enabled.
+
+### Compare flow
+
+1. `app/api/compare/route.ts` loads user preferences.
+2. If memory injection is enabled, it loads `getUserMemoryContext(userId)`.
+3. Memory is currently used for prompt enhancement only.
+4. Compare mode does not extract new memory.
+
+## Prompt Format
+
+`getUserMemoryContext()` and `getLineUserMemoryContext()` render memory as:
 
 ```xml
 <user_context>
@@ -116,23 +173,31 @@ Default behavior when no preference row exists:
 </user_context>
 ```
 
-Details:
+Formatting behavior:
 
-- Memories are ordered by newest first
-- At most `50` facts are included
-- Categories are shown inline as `[category] fact`
-- If no memory exists, an empty string is returned
+- facts are fetched newest first
+- injection is capped by character budget, not only by row count
+- injection is capped per category to avoid one category dominating
+- if no memory exists, an empty string is returned
+
+Current prompt guards in `lib/memory.ts`:
+
+- storage limit: `MAX_FACTS_PER_USER = 50`
+- injection budget: `INJECTION_MAX_CHARS = 2400`
+- category cap: `INJECTION_MAX_FACTS_PER_CATEGORY = 8`
 
 ## Extraction Pipeline
 
-`extractAndStoreMemory()` in `lib/memory.ts` is the only canonical extractor.
+`extractAndStoreMemory(...)` in `lib/memory.ts` is the only canonical extractor for linked users.
+
+`extractAndStoreLineUserMemory(...)` is the parallel entry point for unlinked LINE users.
 
 ### Input shaping
 
-- Only `user` and `assistant` messages are considered
-- Only the last `10` messages are used
-- Each rendered message is truncated to `500` characters
-- Text is collected from `parts[]` when present, otherwise from `content`
+- only `user` and `assistant` messages are considered
+- only the last `10` messages are used
+- each message is truncated to `500` characters
+- text is collected from `parts[]` when present, otherwise from `content`
 
 ### Extraction model
 
@@ -142,7 +207,7 @@ The extractor currently uses:
 
 ### Allowed categories
 
-The prompt instructs the model to return only:
+The extractor prompt requests these categories:
 
 - `preference`
 - `expertise`
@@ -151,42 +216,55 @@ The prompt instructs the model to return only:
 
 ### Extractor rules
 
-The model is asked to:
+The model is instructed to:
 
 - extract facts about the user only
 - skip assistant facts
-- return only new facts not already in context
+- return only new facts not already in the injected memory block
 - return JSON array output
-- return at most 5 facts per call
+- return at most `5` facts per call
 
 ### Validation and dedup
 
 After generation:
 
 - JSON is parsed from the first array-looking substring
-- facts with missing category or fact are dropped
-- facts shorter than 6 characters are dropped
-- stored facts are normalized with lowercase + non-alphanumeric stripping
+- rows with missing category or fact are dropped
+- facts shorter than `6` characters are dropped
+- stored facts are normalized with lowercase plus non-alphanumeric stripping
 - exact and simple substring duplicates are skipped
 
 ### Retention
 
-- `MAX_FACTS_PER_USER = 50`
-- if a new insert would exceed the limit, oldest rows are deleted first
+- at most `50` rows are kept per owner
+- oldest rows are deleted first when a new insert would overflow
 
 ### Persistence
 
-Each saved fact stores:
+Each saved row currently stores:
 
 - generated `id`
-- `userId`
+- `userId` or `lineUserId`
 - `category`
-- `fact` trimmed to `500` chars
+- `fact`
 - `sourceThreadId`
+
+## Account Linking Behavior
+
+The system supports memory continuity between unlinked LINE users and linked Vaja accounts.
+
+When a LINE user later links their account:
+
+- `mergeLineMemoryToUser(lineUserId, userId)` migrates their LINE-keyed memory rows into the Vaja user scope
+
+This gives Vaja a useful continuity bridge between:
+
+- LINE as the front door
+- web chat as the control room
 
 ## Manual Memory Management
 
-Users can manage memory through the settings UI.
+Users can manage current profile memory through the settings UI.
 
 ### API routes
 
@@ -203,14 +281,13 @@ Users can manage memory through the settings UI.
 
 ### Settings UI
 
-`features/settings/components/memory-section.tsx` provides:
+`features/settings/components/memory-section.tsx` currently provides:
 
 - grouped fact display by category
 - add fact
 - edit fact
 - delete fact
 - clear all facts
-- client-side duplicate consolidation
 - toggles for injection and extraction
 
 ## Important Behavioral Notes
@@ -221,148 +298,136 @@ All chat threads for the same user share the same memory pool.
 
 ### 2. Memory is user-level, not agent-level
 
-Different agents see the same user memory if memory injection is enabled.
+Different agents currently see the same injected user profile memory.
 
 ### 3. Memory is appended to the system prompt
 
-This means memory participates as prompt context, not as tool output or retrieval output.
+This means it participates as prompt context, not as a retrieval tool result.
 
 ### 4. Extraction is fire-and-forget
 
-`extractAndStoreMemory(...)` is called with `void` in runtime integrations, so failures do not block the response path.
+Runtime integrations call extraction with `void`, so failures do not block the reply path.
 
-### 5. Existing context is passed into extraction
+### 5. Existing context is passed back into extraction
 
-The extractor prompt receives the already-injected memory block so the model can avoid obvious duplicates before the DB dedup step runs.
+The extractor receives the already injected memory block so it can avoid obvious duplicates before DB-level dedup runs.
+
+### 6. Conversation summaries are not durable memory
+
+`lib/conversation-summary.ts` helps with prompt compaction only.
+
+It does not currently create:
+
+- persistent thread memory
+- searchable continuity archive
+- reusable decision memory
+
+## Current Strengths
+
+The shipped design is strongest in these areas:
+
+- simple mental model
+- clear code ownership
+- low operational complexity
+- useful personalization wins
+- web and LINE continuity for linked users
+- manual review and editing
+
+These are good properties and should be preserved when the system evolves.
 
 ## Current Gaps and Risks
 
-These are important to understand before extending the system.
+These are the main limitations of the shipped implementation.
 
-### Preference mismatches across entry points
+### 1. This is profile memory, not business memory
 
-Web chat respects:
+The system stores facts about a person, not durable shared knowledge about:
 
-- `memoryEnabled`
-- `memoryInjectEnabled`
-- `memoryExtractEnabled`
+- a workspace
+- a brand
+- a project
+- an agent team
 
-Compare route currently loads memory directly and does not check the memory toggles before using it for prompt enhancement.
+### 2. No agent or team scope
 
-LINE OA currently loads and extracts memory for linked users without reading `user_preferences`, so it does not fully respect the same toggles as web chat.
+The current table cannot cleanly answer:
 
-If you change memory behavior, make sure all entry points follow the same contract.
+- what should only this agent remember?
+- what should all marketing agents share?
+- what belongs to the business rather than the user?
 
-### Category values are not enforced at the database layer
+### 3. No selective retrieval
 
-The extractor prompt prefers four categories, but manual APIs can store any string category. The settings UI already handles unknown categories by grouping them as `other`.
+Current memory is injected wholesale within a small prompt budget. There is no semantic or relevance-based retrieval path.
 
-If stricter behavior is needed, add validation in the API layer or schema design.
+### 4. No durable working memory
 
-### Dedup is heuristic only
+Long conversations are summarized ephemerally, but that summary is not persisted as a reusable thread memory object.
 
-Current dedup works for obvious string duplicates but not semantic duplicates.
+### 5. No trust or review metadata
 
-Examples that may still duplicate:
+Every fact is treated roughly the same. The schema does not record:
 
-- "Prefers short answers"
-- "Likes concise responses"
+- confidence
+- review status
+- source message ID
+- extractor version
+- visibility
+- expiry
+- supersession
 
-### Memory injection can grow prompt size
+### 6. Manual APIs are weakly validated
 
-The cap is only row-count based, not token-aware. Fifty long facts can still be expensive in prompt space.
+Manual memory writes currently accept free-form categories and facts without a shared Zod contract.
 
-### No confidence, freshness, or archival state
+### 7. No distinction between memory types
 
-Every saved fact is treated equally. There is no score, confirmation flag, expiry, or soft-delete.
+The current system does not separate:
 
-### No structured audit trail
+- user-confirmed facts
+- model-extracted profile facts
+- shared business knowledge
+- agent-authored notes
 
-Only `sourceThreadId` is stored. There is no source message ID, extraction timestamp metadata, or extractor version.
+That distinction matters for trust and for future product UX.
 
 ## Rules for Future Changes
 
-### If you need to change extraction behavior
+### If you are changing shipped profile-memory behavior
 
-- Update `lib/memory.ts` first
-- Keep extraction logic centralized there
-- Do not duplicate extraction logic in route handlers
+- update `lib/memory.ts` first
+- keep linked-user and unlinked-LINE behavior explicit
+- do not duplicate extraction logic in route handlers
+- verify web, LINE, and compare still follow the same preference contract for linked users
 
-### If you need a new memory consumer
+### If you need new memory scopes
 
-- Reuse `getUserMemoryContext()` unless you intentionally need a different memory view
-- Document why a different formatter is required before introducing it
+Do not overload `user_memory` to hold workspace, brand, project, or team memory.
 
-### If you need richer memory types
+Add separate tables or an explicit scoped memory model.
 
-Prefer extending the schema deliberately instead of overloading `fact`.
+### If you need long-session continuity
 
-Examples:
+Do not treat prompt summarization as long-term memory.
 
-- `confidence`
-- `updatedAt`
-- `sourceMessageId`
-- `visibility`
-- `expiresAt`
-- `confirmedByUser`
+Add a dedicated working-memory or continuity layer.
 
-### If you need agent-scoped memory
+### If you need semantic search
 
-Do not mix it into `user_memory` without a clear ownership model. Add a separate table or explicit scoping fields so user-global memory and agent-specific memory stay understandable.
+Do not bolt embeddings onto the current prompt-injection path invisibly.
 
-### If you need semantic dedup or retrieval
+Add a separate retrieval layer with clear interfaces and observability.
 
-Do not bolt that into the current string-based path implicitly. Introduce a second layer with clear naming, such as:
+## Relationship to the Recommended Future System
 
-- memory embeddings
-- memory search
-- memory consolidation jobs
+The recommended future architecture for Vaja should be layered:
 
-## Recommended Implementation Checklist
+1. user profile memory
+2. workspace or project memory
+3. thread working memory
+4. continuity archive and retrieval
+5. agent-authored notes
 
-Use this checklist when changing memory behavior.
+The current implementation only covers layer 1, plus temporary conversation compaction.
 
-1. Update `lib/memory.ts` if extraction or formatting logic changes.
-2. Check `app/api/chat/route.ts`, `app/api/compare/route.ts`, and `features/line-oa/webhook/events/message.ts` for contract consistency.
-3. Update `app/api/user/preferences/route.ts` if preference semantics change.
-4. Update `features/settings/components/memory-section.tsx` if the UX contract changes.
-5. Add or update migrations if schema changes.
-6. Verify manual CRUD still works for old and new records.
-7. Verify chat, LINE, and compare flows all behave intentionally.
-
-## Recommended Near-Term Improvements
-
-If the team revisits memory soon, these are the safest high-value upgrades:
-
-1. Make compare and LINE honor the same memory preference flags as web chat.
-2. Add Zod validation to manual memory APIs.
-3. Enforce or normalize category values at write time.
-4. Add tests around dedup, pruning, and prompt formatting.
-5. Consider a token-aware injection cap instead of only row-count capping.
-
-## Quick Reference
-
-### Read memory
-
-- `getUserMemoryContext(userId)`
-
-### Extract memory
-
-- `extractAndStoreMemory(userId, messages, threadId, existingContext)`
-
-### Tables involved
-
-- `user_preferences`
-- `user_memory`
-
-### Main toggles
-
-- `memoryEnabled`
-- `memoryInjectEnabled`
-- `memoryExtractEnabled`
-
-### Main entry points
-
-- Web chat: `app/api/chat/route.ts`
-- LINE OA: `features/line-oa/webhook/events/message.ts`
-- Compare: `app/api/compare/route.ts`
+That is an acceptable v1, but it should not be mistaken for the end-state memory architecture needed to support the Vaja vision.

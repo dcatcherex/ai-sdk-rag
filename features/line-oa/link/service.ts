@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { lineAccountLink, lineAccountLinkToken, lineOaChannel } from '@/db/schema';
 import { user as userTable, account as accountTable } from '@/db/schema/auth';
 import { addCredits, SIGNUP_BONUS_CREDITS } from '@/lib/credits';
+import { mergeLineMemoryToUser } from '@/lib/memory';
 
 // ─── Token generation ──────────────────────────────────────────────────────
 
@@ -132,6 +133,9 @@ export async function consumeLinkToken(
       .set({ usedAt: now })
       .where(eq(lineAccountLinkToken.id, tokenRow.id)),
   ]);
+
+  // Migrate any memory facts accumulated before linking into the Vaja account
+  void mergeLineMemoryToUser(lineUserId, tokenRow.userId);
 
   return { ok: true, message: 'Your LINE account has been linked successfully!' };
 }

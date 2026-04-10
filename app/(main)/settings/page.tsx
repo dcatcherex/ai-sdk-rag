@@ -7,6 +7,7 @@ import {
   DownloadIcon,
   LayersIcon,
   MessageCircleQuestionIcon,
+  PaletteIcon,
   PlusIcon,
   ScanTextIcon,
   SparklesIcon,
@@ -25,9 +26,10 @@ import { ToolsSection } from '@/features/settings/components/tools-section';
 import { ToggleSection } from '@/features/settings/components/toggle-section';
 import { VoiceSection } from '@/features/settings/components/voice-section';
 import { BrandsSection } from '@/features/brands/components/brands-section';
+import { AppearanceSection } from '@/features/settings/components/appearance-section';
 import { ALL_TOOL_IDS, type ToolId } from '@/lib/tool-registry';
 
-type TabId = 'general' | 'ai-behavior' | 'memory' | 'tools' | 'models' | 'brands';
+type TabId = 'general' | 'ai-behavior' | 'memory' | 'tools' | 'models' | 'brands' | 'appearance';
 
 const TABS: SettingsShellItem<TabId>[] = [
   {
@@ -65,6 +67,12 @@ const TABS: SettingsShellItem<TabId>[] = [
     label: 'Brands',
     icon: Building2Icon,
     description: 'Brand identity, tone of voice, and creative assets',
+  },
+  {
+    id: 'appearance',
+    label: 'Appearance',
+    icon: PaletteIcon,
+    description: 'Fonts and visual preferences',
   },
 ];
 
@@ -203,6 +211,10 @@ export default function SettingsPage() {
               showImport={showBrandImport}
               onShowImportChange={setShowBrandImport}
             />
+          )}
+
+          {activeTab === 'appearance' && (
+            <AppearanceSection />
           )}
       </SettingsShell>
     </div>

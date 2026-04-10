@@ -2,9 +2,16 @@ import { generateText, generateImage } from 'ai';
 import { asc, eq } from 'drizzle-orm';
 import { messagingApi } from '@line/bot-sdk';
 import { db } from '@/lib/db';
-import { chatMessage, chatThread } from '@/db/schema';
+import { chatMessage, chatThread, userPreferences } from '@/db/schema';
 import { generateFollowUpSuggestions } from '@/lib/follow-up-suggestions';
-import { getUserMemoryContext, extractAndStoreMemory } from '@/lib/memory';
+import {
+  getUserMemoryContext,
+  getLineUserMemoryContext,
+  extractAndStoreMemory,
+  extractAndStoreLineUserMemory,
+  resolveMemoryPreferences,
+} from '@/lib/memory';
+import { assembleSystemPrompt } from '@/features/chat/server/prompt-assembly';
 import type { AgentRow, LineMessage, LinkedUser, MessagePart, Sender } from '../types';
 import { MAX_CONTEXT_MESSAGES } from '../types';
 import { getOrCreateConversation } from '../db';
@@ -22,6 +29,7 @@ import { buildLineMetricsTools } from '@/features/line-oa/metrics-tools';
 import { FRIENDLY_STICKERS, pickRandom, shouldAddFriendlySticker } from '@/features/line-oa/utils/stickers';
 import { recordMessageEvent } from '@/features/line-oa/analytics';
 import { chatModel } from '@/lib/ai';
+import { modelSupportsCapability } from '@/features/chat/server/routing';
 import { SIGNUP_BONUS_CREDITS } from '@/lib/credits';
 import { GoogleGenAI } from '@google/genai';
 import { getKieApiKey } from '@/lib/api/routeGuards';
@@ -31,12 +39,11 @@ import { KieService } from '@/lib/providers/kieService';
 const LINE_IMAGE_MODEL = 'openai/gpt-image-1.5';
 
 /**
- * Models that support multimodal (vision) input.
  * Falls back to chatModel (Gemini) for vision if agent uses an unsupported model.
+ * Vision-capable models are declared in lib/ai.ts availableModels capabilities.
  */
-const VISION_CAPABLE_PREFIXES = ['google/', 'openai/gpt-5', 'openai/gpt-4', 'anthropic/claude'];
 function resolveVisionModel(modelId: string): string {
-  return VISION_CAPABLE_PREFIXES.some((p) => modelId.startsWith(p)) ? modelId : chatModel;
+  return modelSupportsCapability(modelId, 'vision') ? modelId : chatModel;
 }
 
 type LineEvent = {
@@ -482,29 +489,52 @@ export async function handleMessageEvent(
     .filter((m) => m.content.length > 0);
 
   let memoryContext = '';
+  let shouldExtractMemory = false;
   if (linkedUser) {
-    memoryContext = await getUserMemoryContext(linkedUser.userId);
+    // Linked account — respect user preference flags
+    const prefsRows = await db
+      .select()
+      .from(userPreferences)
+      .where(eq(userPreferences.userId, linkedUser.userId))
+      .limit(1);
+    const { shouldInject, shouldExtract } = resolveMemoryPreferences(prefsRows[0] ?? null);
+    shouldExtractMemory = shouldExtract;
+    if (shouldInject) {
+      memoryContext = await getUserMemoryContext(linkedUser.userId);
+    }
+  } else if (lineUserId) {
+    // Unlinked LINE user — memory keyed by LINE user ID (no prefs row, defaults to enabled)
+    memoryContext = await getLineUserMemoryContext(lineUserId);
+    shouldExtractMemory = true;
   }
 
-  let lineSystemPrompt =
+  let lineBase =
     systemPrompt +
     '\n\nIMPORTANT: You are replying via LINE messaging. ' +
     'Do NOT use markdown syntax (no **bold**, no # headers, no backticks). ' +
     'Use plain text only. For lists, use • as bullet character.';
 
   if (groupId) {
-    lineSystemPrompt += '\n\nYou are in a LINE group chat shared by multiple users. Keep replies concise and relevant to the whole group.';
+    lineBase += '\n\nYou are in a LINE group chat shared by multiple users. Keep replies concise and relevant to the whole group.';
     if (linkedUser?.displayName) {
-      lineSystemPrompt += ` The member who sent this message is ${linkedUser.displayName}.`;
+      lineBase += ` The member who sent this message is ${linkedUser.displayName}.`;
     }
-  } else if (linkedUser) {
-    if (linkedUser.displayName) {
-      lineSystemPrompt += `\n\nThe user you are talking to is named ${linkedUser.displayName}. Address them by name naturally when appropriate.`;
-    }
-    if (memoryContext) {
-      lineSystemPrompt += `\n\nWhat you already know about this user:\n${memoryContext}`;
-    }
+  } else if (linkedUser?.displayName) {
+    lineBase += `\n\nThe user you are talking to is named ${linkedUser.displayName}. Address them by name naturally when appropriate.`;
   }
+
+  const lineSystemPrompt = assembleSystemPrompt({
+    base: lineBase,
+    personaExtraInstructions: '',
+    conversationSummaryBlock: '',
+    isGrounded: false,
+    activeBrand: null,
+    memoryContext,
+    skillRuntime: { catalogBlock: '', activeSkillsBlock: '', skillResourcesBlock: '' },
+    examPrepBlock: '',
+    certBlock: '',
+    quizContextBlock: '',
+  });
 
   const now = new Date();
   const nextPosition = historyRows.length;
@@ -646,13 +676,17 @@ export async function handleMessageEvent(
       db.update(chatThread).set({ updatedAt: now }).where(eq(chatThread.id, threadId)),
     ]);
 
-    if (linkedUser) {
+    if (shouldExtractMemory) {
       const messagesForMemory = [
         ...historyMessages,
         { role: 'user' as const, content: '[Image]' },
         { role: 'assistant' as const, content: analysisText },
       ];
-      void extractAndStoreMemory(linkedUser.userId, messagesForMemory, threadId, memoryContext);
+      if (linkedUser) {
+        void extractAndStoreMemory(linkedUser.userId, messagesForMemory, threadId, memoryContext);
+      } else if (lineUserId) {
+        void extractAndStoreLineUserMemory(lineUserId, messagesForMemory, threadId, memoryContext);
+      }
     }
 
     const quickReplyItems = suggestions
@@ -715,13 +749,13 @@ export async function handleMessageEvent(
       db.update(chatThread).set({ updatedAt: now }).where(eq(chatThread.id, threadId)),
     ]);
 
-    if (linkedUser) {
-      void extractAndStoreMemory(
-        linkedUser.userId,
-        [...historyMessages, { role: 'user' as const, content: transcript }, { role: 'assistant' as const, content: audioReplyText }],
-        threadId,
-        memoryContext,
-      );
+    if (shouldExtractMemory) {
+      const msgs = [...historyMessages, { role: 'user' as const, content: transcript }, { role: 'assistant' as const, content: audioReplyText }];
+      if (linkedUser) {
+        void extractAndStoreMemory(linkedUser.userId, msgs, threadId, memoryContext);
+      } else if (lineUserId) {
+        void extractAndStoreLineUserMemory(lineUserId, msgs, threadId, memoryContext);
+      }
     }
 
     const audioQuickReplyItems = audioSuggestions
@@ -788,13 +822,13 @@ export async function handleMessageEvent(
       db.update(chatThread).set({ updatedAt: now }).where(eq(chatThread.id, threadId)),
     ]);
 
-    if (linkedUser) {
-      void extractAndStoreMemory(
-        linkedUser.userId,
-        [...historyMessages, { role: 'user' as const, content: '[Video]' }, { role: 'assistant' as const, content: videoReplyText }],
-        threadId,
-        memoryContext,
-      );
+    if (shouldExtractMemory) {
+      const msgs = [...historyMessages, { role: 'user' as const, content: '[Video]' }, { role: 'assistant' as const, content: videoReplyText }];
+      if (linkedUser) {
+        void extractAndStoreMemory(linkedUser.userId, msgs, threadId, memoryContext);
+      } else if (lineUserId) {
+        void extractAndStoreLineUserMemory(lineUserId, msgs, threadId, memoryContext);
+      }
     }
 
     const videoQuickReplyItems = videoSuggestions
@@ -975,13 +1009,17 @@ export async function handleMessageEvent(
     db.update(chatThread).set({ updatedAt: now }).where(eq(chatThread.id, threadId)),
   ]);
 
-  if (linkedUser) {
+  if (shouldExtractMemory) {
     const messagesForMemory = [
       ...historyMessages,
       { role: 'user' as const, content: userText },
       { role: 'assistant' as const, content: replyText },
     ];
-    void extractAndStoreMemory(linkedUser.userId, messagesForMemory, threadId, memoryContext);
+    if (linkedUser) {
+      void extractAndStoreMemory(linkedUser.userId, messagesForMemory, threadId, memoryContext);
+    } else if (lineUserId) {
+      void extractAndStoreLineUserMemory(lineUserId, messagesForMemory, threadId, memoryContext);
+    }
   }
 
   const quickReplyItems = suggestions

@@ -1,335 +1,319 @@
 # Memory Recommendation for Vaja AI
 
-This document is a discussion-ready recommendation for how Vaja AI should evolve its memory system beyond the current implementation.
+This document proposes the target memory architecture Vaja should build to support the product vision in `docs/vaja-vision.md`.
 
-It is intentionally written as a product and architecture discussion document, not a final technical spec.
+It is intentionally more concrete than a brainstorm, but it is still a design document rather than a final code spec.
 
-Related document:
+Read this together with:
 
-- `docs/memory-implementation.md` for the current shipped behavior
+- `docs/memory-implementation.md` for the shipped v1 behavior
+- `docs/vaja-vision.md` for the product goals memory needs to serve
 
 ## Executive Summary
 
-Vaja's current memory system is a good v1 for personalization, but it is not yet a full agent memory architecture.
+Vaja's current memory system is a good v1 for personalization.
 
-Today, memory mostly acts as:
+It is not yet the memory system required for an agent-first cowork platform.
 
-- a user profile layer
-- a prompt injection block
-- a lightweight fact extraction system
+To support the Vaja vision, memory should evolve into a layered system with different scopes, trust levels, and retrieval strategies.
 
-That is useful, but it does not yet support the broader "AI coworker" vision where agents can:
+The most important shift is conceptual:
 
-- remember project-specific context across sessions
-- preserve useful decisions and patterns
-- manage long-running work without relying on a growing raw message history
-- separate short-term working context from long-term memory
+- stop treating memory as one table plus one prompt block
+- start treating memory as product infrastructure
 
-My recommendation is:
+## What Memory Must Do for the Vaja Vision
 
-1. Keep the current memory system, but rename it mentally and architecturally as `user profile memory`.
-2. Add separate memory layers for agent and project/workspace use cases instead of stretching `user_memory` to do everything.
-3. Treat context management and memory as related but different systems.
-4. Roll this out in phases so we improve trust, control, and consistency before adding autonomous agent memory behaviors.
+The Vaja vision says users collaborate with agents that have roles, memory, and skills, and that Vaja should provide long-term memory of the user's business, not just the current session.
 
-## Why This Matters
+For that to be true in product reality, the memory system must support:
 
-Vaja is not just building a chatbot. The product direction is closer to an AI coworker platform with:
-
-- custom agents
-- teams of agents
-- skills
-- LINE as a front door
+- personal continuity across web and LINE
+- shared memory for businesses, teams, brands, and projects
 - long-running work across many sessions
+- selective recall instead of bloated prompts
+- trust, review, and auditability
+- channel-aware behavior for LINE-first users
+- safe gradual movement from supervised memory to more autonomous memory
 
-That product needs more than "remember a few user facts."
+## Core Design Principles
 
-It needs a memory model that can answer different questions cleanly:
+### 1. Different memory types must stay separate
 
-- Who is this user?
-- What does this team or business care about?
-- What is this project trying to achieve?
-- What happened in this thread so far?
-- What patterns has this agent learned that should be reused later?
+Vaja should explicitly separate:
 
-If all of those are mixed into one table and one prompt block, the system will become hard to trust and hard to scale.
+- user profile memory
+- shared business memory
+- thread working memory
+- continuity archive
+- agent-authored notes
 
-## Current State
+These memory types have different:
 
-Today, Vaja memory is strongest in these areas:
+- owners
+- lifetimes
+- trust levels
+- UX expectations
+- privacy requirements
+- retrieval strategies
 
-- remembers durable user facts
-- supports manual review and editing
-- works across web chat and linked LINE flows
-- is simple enough to reason about
-- has clear code ownership in `lib/memory.ts`
+### 2. Scope is a first-class concept
 
-Today, it is weakest in these areas:
+Every durable memory record should clearly belong to a scope.
 
-- no agent-scoped memory
-- no project or workspace memory
-- no structured long-running task memory
-- no memory retrieval strategy beyond prompt injection
-- no distinction between trusted profile facts and agent-authored notes
-- no robust context editing strategy for long sessions
-- inconsistent preference handling across entry points
+Recommended scope model:
 
-## Recommendation: Move to a Layered Memory Model
+- `user`
+- `workspace`
+- `brand`
+- `project`
+- `agent`
+- `team`
+- `line_contact`
 
-The main recommendation is to stop thinking about memory as one thing.
+If scope is ambiguous, the system will become hard to trust.
 
-Vaja should move toward four separate layers.
+### 3. Memory and context management are related but different
+
+Memory:
+
+- durable
+- reusable
+- usually cross-session
+
+Context management:
+
+- current-turn or current-thread focused
+- optimized for model effectiveness and token cost
+- often disposable or re-computable
+
+Summaries are not automatically memory.
+
+### 4. Retrieval should match trust and size
+
+Small high-trust memory can be prompt-injected directly.
+
+Larger, lower-trust, or shared memory should be:
+
+- retrieved selectively
+- ranked by relevance
+- attributed
+- visible to the user when it matters
+
+### 5. Trust is a product requirement
+
+As Vaja moves toward more autonomous memory, the system must distinguish:
+
+- user-entered facts
+- system-extracted facts
+- imported knowledge
+- approved shared business memory
+- agent-authored notes
+
+Those should not behave as if they are equally trustworthy.
+
+## Recommended Layered Architecture
 
 ## Layer 1: User Profile Memory
 
-This is what Vaja already has today.
-
 Purpose:
 
-- store durable facts about the user
 - personalize responses
-- carry preferences across sessions and channels
+- preserve durable user facts across sessions and channels
 
 Examples:
 
 - prefers Thai responses
-- founder of a farm-tech startup
 - uses pnpm and Next.js
-- wants concise technical answers
+- wants concise technical explanations
+- runs an agritech startup
 
 Characteristics:
 
+- low volume
+- high trust
 - user-scoped
-- low-volume
-- high-trust
 - manually reviewable
-- safe to inject into prompts in compact form
+- safe for compact prompt injection
 
 Recommendation:
 
-- keep this layer
-- improve validation, consistency, and token budgeting
-- do not overload this layer with project notes or agent scratchpads
+- keep the current `user_memory` behavior as the foundation for this layer
+- improve validation and metadata
+- do not overload it with business or agent notes
 
-## Layer 2: Workspace or Project Memory
+## Layer 2: Shared Business Memory
 
 Purpose:
 
-- store durable facts about a business, brand, team, project, or ongoing initiative
-- give multiple agents shared context
+- capture durable knowledge about a business, workspace, brand, team, or project
+- give multiple agents shared continuity
 
 Examples:
 
-- Agrispark campaign goals
-- brand voice guidelines
-- project constraints
+- brand voice rules
 - approved terminology
-- recurring business processes
+- campaign goals
+- business constraints
+- recurring processes
+- customer-handling rules
 
 Characteristics:
 
-- workspace-, brand-, project-, or agent-team-scoped
-- shared across users or selected collaborators
-- should support review and ownership
-- higher value for commercial/product use cases than user memory alone
+- shared scope
+- higher commercial value than profile memory alone
+- needs ownership, permissions, and review
+- should usually be retrieved selectively, not injected blindly
 
 Recommendation:
 
-- model this separately from `user_memory`
-- explicitly define scope and ownership
-- treat this as a first-class future feature because it aligns strongly with the Vaja vision
+- make this the next major memory feature after profile-memory cleanup
 
-## Layer 3: Thread or Session Working Memory
+## Layer 3: Thread Working Memory
 
 Purpose:
 
-- compress the current conversation so the model can stay effective in long sessions
-- preserve key state without replaying full history forever
+- keep long-running chats coherent without replaying full history forever
+- preserve thread state, not permanent knowledge
 
 Examples:
 
-- summary of earlier decisions
-- open questions
 - current objective
-- recent tool outputs worth keeping
+- decisions already made
+- unresolved questions
+- recent tool outputs worth preserving
 
 Characteristics:
 
-- short-lived
 - thread-scoped
+- short- to medium-lived
 - optimized for context efficiency
-- not necessarily durable long-term knowledge
+- can be recomputed, but should also be persistable
 
 Recommendation:
 
-- continue using conversation summarization
-- expand it into a more explicit working-memory block
-- treat this as context management, not long-term memory storage
+- evolve current summarization into a structured working-memory object
+- persist it per thread instead of keeping it purely ephemeral
 
-## Layer 4: Agent Notes or Learned Patterns
+## Layer 4: Continuity Archive
 
 Purpose:
 
-- allow agents to retain useful patterns, heuristics, and operating notes across sessions
-- support "AI coworker gets better over time" behavior
+- support "what did we decide before?" style recall across threads and sessions
+- make old conversations searchable without loading raw transcripts into prompts
 
 Examples:
 
-- when debugging this codebase, check Drizzle schema and route validation first
-- this team prefers implementation docs in `docs/` before major refactors
-- this workflow often fails because LINE and web settings drift
+- prior decisions
+- historical campaign discussions
+- past troubleshooting context
+- customer-specific continuity in LINE threads
 
 Characteristics:
 
-- lower trust than user profile memory
-- should be attributable to an agent, tool, or workflow
-- should be reviewable and auditable
-- should not automatically be injected everywhere
+- retrieval-first
+- search-oriented
+- useful for both web and LINE
+- can be semantic, keyword, or hybrid
 
 Recommendation:
 
-- do not store this in `user_memory`
-- introduce it later as a separate, more controlled layer
-- require stronger safety controls before enabling autonomous note-writing
+- add this after shared memory and working memory are established
+- use a dedicated retrieval path, not just prompt injection
 
-## Key Architectural Principle
+## Layer 5: Agent Notes
 
-The most important design rule is:
+Purpose:
 
-`Profile memory`, `shared business memory`, `thread working memory`, and `agent-authored notes` should not be treated as the same thing.
+- let agents improve over time by preserving operating notes and learned patterns
 
-They have different:
+Examples:
 
-- trust levels
-- scopes
-- lifetimes
-- owners
-- UX expectations
-- safety risks
+- this team prefers docs before implementation
+- this workflow often breaks when LINE and web settings drift
+- this project usually needs brand review before publishing
 
-## Recommended Near-Term Direction
+Characteristics:
 
-For the next stage, I would not jump straight to autonomous file-based memory tools.
-
-Instead, I would recommend a safer sequence.
-
-### Phase 1: Strengthen the current profile memory
-
-Goals:
-
-- make behavior consistent
-- improve trust
-- reduce accidental misuse
-
-Recommended changes:
-
-1. Make web, LINE, and compare respect the same memory preference rules.
-2. Add Zod validation for manual memory APIs.
-3. Normalize or constrain category values.
-4. Add tests for extraction, dedup, pruning, and formatting.
-5. Add token-aware prompt capping instead of only row-count capping.
-
-Why this first:
-
-- it improves the current product immediately
-- it lowers risk before memory becomes more autonomous
-
-### Phase 2: Introduce scoped shared memory
-
-Goals:
-
-- support project/business continuity
-- align with agents, brands, and teams
-
-Recommended changes:
-
-1. Define a new memory scope model such as `user`, `workspace`, `brand`, `project`, `agent`, or `team`.
-2. Add a separate shared-memory table or tables.
-3. Add ownership, visibility, and editor permissions.
-4. Add explicit UI for reviewing and approving shared memory.
-
-Why this second:
-
-- it delivers strong product value without requiring full autonomous memory writing
-- it fits Vaja's collaborative positioning
-
-### Phase 3: Improve working-memory and context management
-
-Goals:
-
-- make long-running sessions cheaper and more reliable
-- prevent context drift
-
-Recommended changes:
-
-1. Expand conversation summaries into a structured working-memory block.
-2. Distinguish between:
-   - recent raw messages
-   - summarized history
-   - durable memory
-3. Consider selective retention of tool outputs or distilled tool summaries.
-4. Add observability around prompt size and memory injection cost.
-
-Why this third:
-
-- it improves agent quality without changing long-term memory trust boundaries too early
-
-### Phase 4: Add agent-authored notes carefully
-
-Goals:
-
-- support pattern learning and reusable operational memory
-- move closer to true agent memory
-
-Recommended changes:
-
-1. Add a separate storage model for agent-authored notes.
-2. Record who or what wrote each note.
-3. Add review, approval, and archive flows.
-4. Limit where these notes can be injected.
-5. Add poisoning detection and stronger trust rules.
-
-Why this last:
-
-- this is the most powerful step
-- it is also the highest-risk step
-
-## Recommendation on Memory Retrieval
-
-The current design mainly injects memory directly into the prompt. That is acceptable for profile memory, but it should not become the universal pattern.
-
-Suggested retrieval strategy by layer:
-
-- User profile memory:
-  - compact prompt injection
-- Workspace/project memory:
-  - selective retrieval by scope and relevance
-- Thread working memory:
-  - summarized prompt block
-- Agent notes:
-  - gated retrieval with attribution and reviewability
+- lower trust than user-confirmed memory
+- should be attributable to the writing agent or workflow
+- should not be auto-injected everywhere
+- needs stronger review controls
 
 Recommendation:
 
-- keep prompt injection for small, trusted memory blocks
-- use retrieval and relevance scoring for larger, shared, or lower-trust memory sources
+- implement this last
+- default to reviewable and gated behavior
 
-## Recommendation on Trust and Safety
+## Recommended Retrieval Strategy by Layer
 
-As memory becomes more agent-driven, safety becomes a product requirement, not just a technical detail.
+### User profile memory
 
-Vaja should explicitly distinguish:
+Use:
 
-- user-confirmed facts
-- system-extracted facts
-- shared team knowledge
-- agent-authored notes
+- compact prompt injection
 
-Each should have different trust rules.
+Why:
 
-Recommended metadata for future memory records:
+- small
+- trusted
+- broadly useful in many turns
 
-- `scope`
+### Shared business memory
+
+Use:
+
+- relevance-based retrieval by scope
+- optional compact injection for pinned or approved records
+
+Why:
+
+- can grow large
+- should not consume prompt space on every turn
+
+### Thread working memory
+
+Use:
+
+- structured prompt block for the current thread
+
+Why:
+
+- it is explicitly current-context material
+
+### Continuity archive
+
+Use:
+
+- search tool or server-side retrieval before model invocation
+
+Why:
+
+- this is recall infrastructure, not static prompt context
+
+### Agent notes
+
+Use:
+
+- gated retrieval with attribution
+
+Why:
+
+- lower trust
+- more likely to drift or contain operational noise
+
+## Recommended Metadata Model
+
+Every future durable memory record should have enough metadata to support trust, filtering, and UX.
+
+Recommended fields:
+
+- `id`
+- `scopeType`
+- `scopeId`
+- `memoryType`
+- `category`
+- `content`
 - `sourceType`
 - `sourceUserId`
 - `sourceAgentId`
@@ -338,82 +322,335 @@ Recommended metadata for future memory records:
 - `confidence`
 - `reviewStatus`
 - `visibility`
+- `pinned`
+- `expiresAt`
+- `supersededById`
 - `createdAt`
 - `updatedAt`
-- `expiresAt`
 
-## Recommendation on UX
+Recommended enums:
+
+### `memoryType`
+
+- `profile_fact`
+- `shared_fact`
+- `working_summary`
+- `decision`
+- `process_note`
+- `agent_note`
+
+### `sourceType`
+
+- `user_manual`
+- `user_confirmed`
+- `model_extracted`
+- `imported`
+- `agent_authored`
+- `system_generated`
+
+### `reviewStatus`
+
+- `approved`
+- `suggested`
+- `needs_review`
+- `rejected`
+- `archived`
+
+### `visibility`
+
+- `private`
+- `workspace`
+- `team`
+- `agent`
+
+## Suggested Data Model Direction
+
+Do not stretch `user_memory` into a catch-all table.
+
+Recommended direction:
+
+### Keep current table
+
+- `user_memory`
+
+Use it only for:
+
+- profile memory
+- migration compatibility
+
+### Add new durable memory table
+
+Suggested name:
+
+- `memory_record`
+
+Use it for:
+
+- shared business memory
+- approved scoped memory
+- future agent notes
+
+### Add working-memory table
+
+Suggested name:
+
+- `thread_working_memory`
+
+Suggested fields:
+
+- `threadId`
+- `summary`
+- `currentObjective`
+- `openLoops`
+- `importantArtifacts`
+- `lastCompactedMessageId`
+- `updatedAt`
+
+### Add retrieval index or embedding table later
+
+Suggested name:
+
+- `memory_embedding`
+
+Use it only when continuity archive or semantic recall is introduced.
+
+## Recommended Application Architecture
+
+Vaja is already organized around feature modules. The memory system should follow that pattern as it grows.
+
+Recommended direction:
+
+### Keep current profile memory entry points stable for now
+
+- `lib/memory.ts`
+
+### Add a dedicated feature module for new work
+
+Suggested location:
+
+- `features/memory/`
+
+Suggested files:
+
+- `features/memory/service.ts`
+- `features/memory/types.ts`
+- `features/memory/retrieval.ts`
+- `features/memory/working-memory.ts`
+- `features/memory/server/search.ts`
+
+This avoids turning `lib/memory.ts` into a long-term dumping ground for multiple memory systems.
+
+## Recommended Runtime Integration
+
+## Web chat
+
+Target assembly order:
+
+1. base system prompt
+2. persona and agent instructions
+3. thread working memory
+4. user profile memory
+5. shared business memory retrieved by scope and relevance
+6. skill blocks
+7. grounding or tool guidance
+
+This keeps memory layered and makes its role visible.
+
+## LINE OA
+
+Memory design for LINE should respect the fact that LINE is both:
+
+- a customer-facing channel
+- the main entry point for many users
+
+Recommendations:
+
+- keep linked-user profile memory continuity
+- keep unlinked LINE continuity lightweight and privacy-conscious
+- add channel-aware memory controls before storing richer customer memory
+- support line-contact or conversation scope when customer-specific continuity becomes a feature
+
+## Agent teams
+
+Agent teams need shared scoped memory more than they need richer personal memory.
+
+Recommendations:
+
+- let teams read shared project or workspace memory
+- do not default to sharing private user profile memory with all agents
+- make team-level memory explicit and reviewable
+
+## Recommended UX Direction
 
 Memory should not feel magical in a bad way.
 
-Users and teams should be able to answer:
+Users should be able to answer:
 
 - what does the AI remember?
-- where did this memory come from?
+- what kind of memory is this?
+- where did it come from?
 - who can see it?
-- can I edit or delete it?
-- why did this memory affect the reply?
+- why did it affect this answer?
+- can I edit, approve, or remove it?
 
-Recommended UX direction:
+Recommended UI surfaces:
 
-- keep the current user memory section
-- later add separate tabs or surfaces for:
-  - personal memory
-  - workspace/project memory
-  - agent notes
-- show source and scope clearly
-- support approval flows for shared or agent-authored memory
+### Personal memory
 
-## What I Would Not Recommend
+- current memory section evolves into profile memory manager
 
-I would avoid these moves for now:
+### Shared memory
 
-### 1. Do not turn `user_memory` into a catch-all table
+- workspace, brand, project, or team tabs
 
-That will create confusing behavior and trust problems later.
+### Working memory
 
-### 2. Do not let agents freely write durable shared memory without review
+- thread-level "conversation state" inspector
 
-This creates poisoning and governance risk too early.
+### Agent notes
 
-### 3. Do not rely on raw message history as the main long-session strategy
+- review queue or audit surface, not silent global injection
 
-That gets expensive and brittle.
+## Recommended Implementation Phases
 
-### 4. Do not mix prompt summarization with durable memory storage
+## Phase 1: Strengthen current profile memory
 
-They solve different problems and should remain conceptually separate.
+Goals:
 
-## Discussion Questions for the Team
+- improve trust
+- improve consistency
+- reduce tech debt
 
-These are the main questions I think the team should discuss before implementation:
+Recommended changes:
 
-1. Is Vaja's next priority better personalization, or true long-running agent memory?
-2. What scopes do we need first: `user`, `brand`, `project`, `agent`, or `team`?
-3. Which memory types require manual approval before they are reused?
-4. Should LINE and web share all user memory, or should some memory be channel-specific?
-5. Which memory layers should be prompt-injected, and which should be retrieved on demand?
-6. How should we explain remembered information to users in the UI?
-7. How much autonomy should agents have to create notes without human review?
+1. Keep `user_memory` explicitly framed as profile memory.
+2. Update docs and naming in code comments to reflect that framing.
+3. Add Zod validation to manual memory APIs.
+4. Normalize or constrain categories at write time.
+5. Add tests for extraction, dedup, pruning, and prompt formatting.
+6. Add richer metadata where safe without changing the mental model too much.
+7. Keep linked web and LINE behavior aligned on preference handling.
+
+Why first:
+
+- this makes the shipped feature safer immediately
+- it preserves momentum without over-designing
+
+## Phase 2: Add shared business memory
+
+Goals:
+
+- support brands, teams, projects, and businesses
+- align memory with the actual Vaja product
+
+Recommended changes:
+
+1. Introduce scoped shared memory records.
+2. Add ownership, permissions, and visibility rules.
+3. Add review and approval UI.
+4. Retrieve shared memory by scope and relevance.
+5. Integrate brand and project memory into prompt assembly.
+
+Why second:
+
+- this is the biggest gap between current memory and the Vaja vision
+
+## Phase 3: Add durable thread working memory
+
+Goals:
+
+- improve long-session quality
+- reduce context cost
+
+Recommended changes:
+
+1. Persist structured thread working memory.
+2. Separate recent raw messages from summarized state.
+3. Preserve key tool results and open loops.
+4. Add observability around prompt size and working-memory usage.
+
+Why third:
+
+- it improves quality without expanding durable memory trust boundaries too early
+
+## Phase 4: Add continuity archive and retrieval
+
+Goals:
+
+- support cross-session recall
+- reduce repeated user restating
+
+Recommended changes:
+
+1. Introduce continuity search across relevant prior threads or conversations.
+2. Start with narrow scoped retrieval, not global memory dumping.
+3. Add semantic or hybrid search only when there is enough data to justify it.
+4. Keep retrieval explainable and observable.
+
+Why fourth:
+
+- this is powerful, but only becomes trustworthy when scope and metadata are already in place
+
+## Phase 5: Add agent-authored notes
+
+Goals:
+
+- move toward true agent learning
+
+Recommended changes:
+
+1. Add a distinct `agent_note` class of memory.
+2. Attribute every note to its writer and source context.
+3. Default to reviewable or suggested status.
+4. Limit where these notes can be injected or retrieved.
+5. Add poisoning and stale-note mitigation.
+
+Why last:
+
+- this is the highest-risk memory capability
+
+## What Not to Do
+
+Avoid these moves:
+
+### 1. Do not turn `user_memory` into the universal memory table
+
+That will blur trust, scope, and UX.
+
+### 2. Do not mix thread summaries with durable business memory
+
+They solve different problems.
+
+### 3. Do not inject large shared memory blocks into every prompt
+
+That will hurt cost, performance, and answer quality.
+
+### 4. Do not let agents silently write durable shared memory everywhere
+
+That is too much autonomy too early.
+
+### 5. Do not treat LINE customer memory casually
+
+This area has stronger privacy and trust expectations than internal operator memory.
 
 ## Proposed Team Decision
 
-If the team wants a practical next move, my recommendation is:
+If the team wants a clear direction, the recommended decision is:
 
-1. Approve the concept of a layered memory architecture.
-2. Keep the current system as `user profile memory`.
-3. Prioritize consistency fixes and trust improvements first.
-4. Design shared scoped memory next.
-5. Leave autonomous agent-note memory for a later phase.
+1. Treat the current memory system as `user profile memory`.
+2. Preserve it and improve it rather than replacing it.
+3. Commit to a layered memory architecture.
+4. Prioritize shared business memory next.
+5. Add working memory, continuity retrieval, and agent notes in later phases.
 
-That path gives Vaja a stronger foundation without overcommitting to a risky memory model too early.
+## Final Recommendation
 
-## Final Opinion
+Vaja should build memory as a layered product capability, not as a single prompt trick.
 
-The current implementation is good enough to keep and improve.
+The current implementation is a solid first layer.
 
-It should not be thrown away.
+The next architecture should aim to make this statement true in a concrete way:
 
-But it should also not be mistaken for the end-state memory architecture of an agent-first platform.
+"Vaja agents have long-term memory of the user's business, can work across LINE and web, and can collaborate safely with shared context over time."
 
-The right move is to treat today's memory as one useful layer in a broader memory system, then evolve deliberately from there.
+That is the memory architecture that supports the Vaja vision.

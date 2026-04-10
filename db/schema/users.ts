@@ -38,12 +38,18 @@ export const personaCustomization = pgTable("persona_customization", {
 
 export const userMemory = pgTable("user_memory", {
   id: text("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  /** Vaja account owner — null for unlinked LINE users (lineUserId will be set instead). */
+  userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+  /** LINE user ID owner — set for unlinked LINE users; cleared after account linking. */
+  lineUserId: text("line_user_id"),
   category: text("category").notNull(),
   fact: text("fact").notNull(),
   sourceThreadId: text("source_thread_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [index("user_memory_userId_idx").on(table.userId)]);
+}, (table) => [
+  index("user_memory_userId_idx").on(table.userId),
+  index("user_memory_lineUserId_idx").on(table.lineUserId),
+]);
 
 export const userModelPreference = pgTable("user_model_preference", {
   userId: text("user_id")

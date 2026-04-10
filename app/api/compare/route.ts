@@ -14,11 +14,11 @@ import sharp from 'sharp';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { chatMessage, chatThread, mediaAsset, tokenUsage, userPreferences } from '@/db/schema';
-import { availableModels, type Capability } from '@/lib/ai';
+import { availableModels, isStrongModel, type Capability } from '@/lib/ai';
 import { getCreditCost, getUserBalance, deductCredits } from '@/lib/credits';
 import { uploadPublicObject } from '@/lib/r2';
 import { enhancePrompt } from '@/lib/prompt-enhance';
-import { getUserMemoryContext } from '@/lib/memory';
+import { getUserMemoryContext, resolveMemoryPreferences } from '@/lib/memory';
 
 export const maxDuration = 30;
 
@@ -66,13 +66,13 @@ export async function POST(req: Request) {
     }
 
     // Prompt enhancement (respects user preference, same as regular chat)
-    const [prefsRows, memoryContext] = await Promise.all([
-      db.select().from(userPreferences).where(eq(userPreferences.userId, session.user.id)).limit(1),
-      getUserMemoryContext(session.user.id),
-    ]);
-    const prefs = prefsRows[0] ?? { promptEnhancementEnabled: true };
+    const prefsRows = await db.select().from(userPreferences).where(eq(userPreferences.userId, session.user.id)).limit(1);
+    const prefs = prefsRows[0] ?? null;
+    const { shouldInject } = resolveMemoryPreferences(prefs);
+    const memoryContext = shouldInject ? await getUserMemoryContext(session.user.id) : '';
     let effectivePrompt = userPrompt;
-    if (prefs.promptEnhancementEnabled) {
+    // Skip enhancement for strong models — they handle ambiguity natively (same gate as chat route).
+    if ((prefs?.promptEnhancementEnabled ?? true) && !isStrongModel(modelId)) {
       const enhanced = await enhancePrompt(userPrompt, memoryContext);
       if (enhanced !== userPrompt) {
         effectivePrompt = enhanced;

@@ -18,6 +18,7 @@ import {
   BrainCircuitIcon,
   ChevronDown,
   DatabaseIcon,
+  EyeIcon,
   GlobeIcon,
   HardDriveIcon,
   ImageIcon,
@@ -67,6 +68,7 @@ const capabilityIcons: Record<Capability, { icon: React.ElementType; label: stri
   'explicit caching': { icon: HardDriveIcon,    label: 'Explicit caching', color: 'text-teal-500 dark:text-teal-400' },
   'web search':       { icon: GlobeIcon,        label: 'Web search',       color: 'text-sky-500 dark:text-sky-400' },
   'image gen':        { icon: ImageIcon,        label: 'Image generation', color: 'text-violet-500 dark:text-violet-400' },
+  vision:             { icon: EyeIcon,          label: 'Vision',           color: 'text-cyan-500 dark:text-cyan-400' },
   embeddings:         { icon: BrainCircuitIcon, label: 'Embeddings',       color: 'text-amber-500 dark:text-amber-400' },
   'video gen':        { icon: VideoIcon,        label: 'Video generation', color: 'text-rose-500 dark:text-rose-400' },
 };

@@ -1,0 +1,80 @@
+import { buildBrandBlock } from '@/features/brands/service';
+import type { Brand } from '@/features/brands/types';
+
+export type SystemPromptInput = {
+  /** Base system prompt (agent | custom persona | built-in persona). No leading newline. */
+  base: string;
+  /** Persona customisation text. Wrapped in <user_instructions> when non-empty. */
+  personaExtraInstructions: string;
+  /** Compacted summary of earlier turns. Already '\n\n<conversation_summary>...' or ''. */
+  conversationSummaryBlock: string;
+  /** Whether RAG documents are selected for this request. */
+  isGrounded: boolean;
+  /** Active brand for this request, or null. */
+  activeBrand: Brand | null;
+  /** User profile memory from getUserMemoryContext(). Raw block or ''. */
+  memoryContext: string;
+  /** Skill runtime blocks — each is already '\n\n<tag>...' or ''. */
+  skillRuntime: {
+    catalogBlock: string;
+    activeSkillsBlock: string;
+    skillResourcesBlock: string;
+  };
+  /** Exam prep tool guidance. Already '\nIMPORTANT:...' or '' (gated by caller). */
+  examPrepBlock: string;
+  /** Certificate tool guidance. Already '\nIMPORTANT:...' or '' (gated by caller). */
+  certBlock: string;
+  /** Interactive quiz state. Already '\n\n<interactive_quiz_context>...' or ''. */
+  quizContextBlock: string;
+};
+
+const GROUNDING_INSTRUCTION =
+  '\n\nIMPORTANT: The user has selected specific documents. You MUST use the searchKnowledge tool to find information before answering. Only respond using information from tool results. If no relevant information is found, say so.';
+
+/**
+ * Assembles the final effective system prompt from typed blocks in a consistent order.
+ *
+ * Order:
+ *   1  Base system prompt
+ *   2  Persona / style instructions
+ *   3  Conversation working memory (summary of earlier turns)
+ *   4  Grounding instruction (when RAG docs are selected)
+ *   5  User profile memory
+ *   6  Brand context
+ *   7  Skill catalog
+ *   8  Active skills
+ *   9  Skill resources
+ *  10  Tool guidance (exam prep, certificate)
+ *  11  Narrow feature blocks (quiz context)
+ *
+ * Every non-base block is either '' or already carries its own leading '\n\n' / '\n'
+ * separator, so no extra spacing is applied here.
+ */
+export function assembleSystemPrompt(input: SystemPromptInput): string {
+  const personaBlock = input.personaExtraInstructions
+    ? `\n\n<user_instructions>\n${input.personaExtraInstructions}\n</user_instructions>`
+    : '';
+
+  const groundingBlock = input.isGrounded ? GROUNDING_INSTRUCTION : '';
+
+  const memoryBlock = input.memoryContext ? `\n\n${input.memoryContext}` : '';
+
+  const brandBlock = input.activeBrand
+    ? `\n\n${buildBrandBlock(input.activeBrand)}`
+    : '';
+
+  return (
+    input.base
+    + personaBlock
+    + input.conversationSummaryBlock
+    + groundingBlock
+    + memoryBlock
+    + brandBlock
+    + input.skillRuntime.catalogBlock
+    + input.skillRuntime.activeSkillsBlock
+    + input.skillRuntime.skillResourcesBlock
+    + input.examPrepBlock
+    + input.certBlock
+    + input.quizContextBlock
+  );
+}

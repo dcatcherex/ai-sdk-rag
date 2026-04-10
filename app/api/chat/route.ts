@@ -12,7 +12,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { agent, agentShare, brand, brandShare, chatThread, customPersona, personaCustomization, user as userTable, userPreferences } from '@/db/schema';
 import { VALID_PERSONA_KEYS } from '@/lib/persona-detection';
-import { availableModels, maxSteps } from '@/lib/ai';
+import { availableModels, maxSteps, isStrongModel } from '@/lib/ai';
 import { getSystemPrompt, resolveSystemPromptTemplate } from '@/lib/prompt';
 import { detectPersona } from '@/lib/persona-detection';
 import { enhancePrompt } from '@/lib/prompt-enhance';
@@ -24,7 +24,8 @@ import { buildToolSet } from '@/lib/tools';
 import { createAgentTools } from '@/lib/agent-tools';
 import { getCreditCost, getUserBalance } from '@/lib/credits';
 import { requestSchema } from '@/features/chat/server/schema';
-import { buildBrandBlock, buildImageBrandSuffix } from '@/features/brands/service';
+import { buildImageBrandSuffix } from '@/features/brands/service';
+import { assembleSystemPrompt } from '@/features/chat/server/prompt-assembly';
 import type { Brand } from '@/features/brands/types';
 import {
   getSkillsForAgent,
@@ -232,35 +233,6 @@ export async function POST(req: Request) {
         : getSystemPrompt(detectedPersona);
     const baseSystemPrompt = resolveSystemPromptTemplate(rawSystemPrompt);
 
-    const brandBlock = activeBrand ? `\n\n${buildBrandBlock(activeBrand)}` : '';
-
-    // Tier 1: skill catalog — let the model know what model-discoverable skills are available
-    const groundedSystemPrompt = activeAgent
-      ? activeAgent.systemPrompt +
-        (isGrounded
-          ? '\nIMPORTANT: The user has selected specific documents. You MUST use the searchKnowledge tool to find information before answering. Only respond using information from tool results. If no relevant information is found, say so.'
-          : '') +
-        (memoryContext ? `\n\n${memoryContext}` : '') +
-        brandBlock +
-        skillRuntime.catalogBlock +
-        skillRuntime.activeSkillsBlock +
-        skillRuntime.skillResourcesBlock
-      : isGrounded
-        ? baseSystemPrompt +
-          (personaExtraInstructions ? `\n\n<user_instructions>\n${personaExtraInstructions}\n</user_instructions>` : '') +
-          '\nIMPORTANT: The user has selected specific documents. You MUST use the searchKnowledge tool to find information before answering. Only respond using information from tool results. If no relevant information is found, say so.' +
-          (memoryContext ? `\n\n${memoryContext}` : '') +
-          brandBlock +
-          skillRuntime.catalogBlock +
-          skillRuntime.activeSkillsBlock +
-          skillRuntime.skillResourcesBlock
-        : baseSystemPrompt +
-          (personaExtraInstructions ? `\n\n<user_instructions>\n${personaExtraInstructions}\n</user_instructions>` : '') +
-          (memoryContext ? `\n\n${memoryContext}` : '') +
-          brandBlock +
-          skillRuntime.catalogBlock +
-          skillRuntime.activeSkillsBlock +
-          skillRuntime.skillResourcesBlock;
 
     // ── Model routing ────────────────────────────────────────────────────────
     const enabledIds =
@@ -276,6 +248,17 @@ export async function POST(req: Request) {
       ? new Map<string, number>()
       : await getUserModelScores(session.user.id);
 
+    // Rough token estimate: message history + injected skill content + system prompt overhead.
+    // Used by the router to exclude models whose context window is too small.
+    const estimatedContextTokens =
+      messages.reduce((sum, m) => sum + Math.ceil(JSON.stringify(m.parts ?? []).length / 4), 0) +
+      Math.ceil(
+        (skillRuntime.activeSkillsBlock.length +
+          skillRuntime.skillResourcesBlock.length +
+          skillRuntime.catalogBlock.length) / 4
+      ) +
+      3000; // system prompt + memory + tool definitions overhead
+
     const routingDecision = manualResolved
       ? { modelId: manualResolved, reason: 'Manual selection' }
       : getModelByIntent({
@@ -283,6 +266,10 @@ export async function POST(req: Request) {
           enabledModelIds: enabledIds.length > 0 ? enabledIds : [availableModels[0]!.id],
           useWebSearch,
           userScores,
+          hasAgent: !!activeAgent,
+          hasActiveSkills: skillRuntime.activatedSkills.length > 0,
+          messageCount: messages.length,
+          estimatedContextTokens,
         });
 
     const resolvedModel = routingDecision.modelId;
@@ -305,9 +292,15 @@ export async function POST(req: Request) {
 
     const supportsTools = !toolDisabledModels.has(resolvedModel);
     const activeTools = supportsTools ? groundedTools : undefined;
-    const examPrepToolInstructions = supportsTools && examPrepToolEnabled
+
+    // Inject tool guidance only when the message is relevant to that tool domain.
+    // This avoids spending ~200 tokens of system prompt on every unrelated message.
+    const examRelevant = !!quizContext || /quiz|exam|practice|study|flashcard|flash card|grade|diagnos|learning gap|weak area|revision|ทบทวน|ข้อสอบ|แบบฝึกหัด/i.test(lastUserPrompt ?? '');
+    const examPrepToolInstructions = supportsTools && examPrepToolEnabled && examRelevant
       ? '\nIMPORTANT: When the user asks to be quizzed, wants practice questions, asks you to grade an answer, wants a study plan, asks you to diagnose weak areas or misconceptions, or asks for flashcards or memorization cards, you MUST call the exam prep tools directly. Do NOT pretend to grade or generate a quiz freehand when the exam prep tools are available. If selected documents are attached to the chat, the exam prep tools already ground themselves in those documents automatically, so use the relevant exam prep tool directly unless you need extra document exploration beyond the tool result. Use generate_practice_quiz for quizzes and mock questions, grade_practice_answer for scoring or feedback on an answer, create_study_plan for revision schedules and topic prioritization, analyze_learning_gaps for weakness diagnosis, misconceptions, and what to study next, and generate_flashcards for revision cards and recall practice. If an exam prep tool call fails, explain the real issue briefly and ask only for the missing information.'
       : '';
+
+    const certRelevant = /certif|template|recipient|generate cert|preview cert|ใบรับรอง|ใบประกาศ|ใบวุฒิ/i.test(lastUserPrompt ?? '');
     const certificateBrandHint = activeBrand
       ? (() => {
           const hints: string[] = [`The user's active brand is "${activeBrand.name}".`];
@@ -317,7 +310,7 @@ export async function POST(req: Request) {
           return ` ${hints.join(' ')} Prefer these values when filling certificate fields unless the user specifies otherwise.`;
         })()
       : '';
-    const certificateToolInstructions = supportsTools && certificateToolEnabled
+    const certificateToolInstructions = supportsTools && certificateToolEnabled && certRelevant
       ? `\nIMPORTANT: When the user wants to create, preview, or inspect certificate templates or certificate outputs, you MUST call the certificate tools directly. Do NOT describe tool calls, do NOT print JSON action blocks, and do NOT say you are about to call a tool. If you need template information, call list_certificate_templates. If you need to validate inputs, call preview_certificate_generation. If you need to create the output, call generate_certificate_output or generate_certificate. If a certificate tool call fails, explain the actual tool error briefly and ask the user only for the missing information or corrective action. Do NOT fabricate a generic technical issue message and do NOT emit another pseudo tool-call block as text.${certificateBrandHint}`
       : '';
     const quizContextBlock = quizContext
@@ -340,14 +333,10 @@ ${quizContext.attempts.length > 0 ? `- Attempts:\n${quizContext.attempts.map((at
 
 IMPORTANT: This quiz context reflects the learner's actual progress in the interactive quiz UI. If the user asks what to do next, what they got wrong, what to review, or asks for a diagnosis after completing the quiz, rely on this context instead of claiming the quiz is unfinished. If the quiz is completed and the user asks for next-step guidance, prefer using analyze_learning_gaps with the completed attempts when exam prep tools are available.`
       : '';
-    const systemPrompt = supportsTools
-      ? groundedSystemPrompt + examPrepToolInstructions + certificateToolInstructions + quizContextBlock
-      : groundedSystemPrompt;
-
     // ── Prompt enhancement ───────────────────────────────────────────────────
     let enhancedPrompt: string | undefined;
     let messagesToSend = messages;
-    if (userPrefs.promptEnhancementEnabled && lastUserPrompt) {
+    if (userPrefs.promptEnhancementEnabled && lastUserPrompt && !isStrongModel(resolvedModel)) {
       const enhanced = await enhancePrompt(lastUserPrompt, memoryContext);
       if (enhanced !== lastUserPrompt) {
         enhancedPrompt = enhanced;
@@ -371,7 +360,20 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
         messagesToSend = trimmedMessages;
       }
     }
-    const effectiveSystemPrompt = systemPrompt + conversationSummaryBlock;
+
+    // ── System prompt assembly ───────────────────────────────────────────────
+    const effectiveSystemPrompt = assembleSystemPrompt({
+      base: baseSystemPrompt,
+      personaExtraInstructions,
+      conversationSummaryBlock,
+      isGrounded,
+      activeBrand,
+      memoryContext,
+      skillRuntime,
+      examPrepBlock: examPrepToolInstructions,
+      certBlock: certificateToolInstructions,
+      quizContextBlock: supportsTools ? quizContextBlock : '',
+    });
 
     const messageMetadata = (): ChatMessageMetadata => ({
       routing: routingMetadata,

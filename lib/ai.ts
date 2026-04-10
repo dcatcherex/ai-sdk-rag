@@ -21,6 +21,7 @@ export type Capability =
   | "explicit caching"
   | "web search"
   | "image gen"
+  | "vision"
   | "embeddings"
   | "video gen";
 
@@ -46,7 +47,7 @@ export const availableModels = [
     throughput: 246,
     inputCost: 0.1,
     outputCost: 0.4,
-    capabilities: ["text", "implicit caching", "web search"],
+    capabilities: ["text", "implicit caching", "web search", "vision"],
     provider: "google",
     gateway: "vercel",
     description: "Fast and efficient model",
@@ -59,7 +60,7 @@ export const availableModels = [
     throughput: 223,
     inputCost: 0.25,
     outputCost: 1.50,
-    capabilities: ["text", "implicit caching", "web search"],
+    capabilities: ["text", "implicit caching", "web search", "vision"],
     provider: "google",
     gateway: "vercel",
     description: "Fast and efficient model",
@@ -72,7 +73,7 @@ export const availableModels = [
     throughput: 155,
     inputCost: 2,
     outputCost: 12,
-    capabilities: ["text", "implicit caching", "web search"],
+    capabilities: ["text", "implicit caching", "web search", "vision"],
     provider: "google",
     gateway: "vercel",
     description: "Fast and efficient model",
@@ -91,7 +92,7 @@ export const availableModels = [
       { "2k": 0.1 },
       { "4k": 0.15 },
     ],
-    capabilities: ["text", "web search", "image gen"],
+    capabilities: ["text", "web search", "image gen", "vision"],
     provider: "google",
     gateway: "vercel",
     description: "Fast and efficient model",
@@ -105,32 +106,32 @@ export const availableModels = [
     inputCost: 2,
     outputCost: 12,
     imageGenCost: [{ "1k": 0.13 }, { "2k": 0.26 }, { "4k": 0.24 }],
-    capabilities: ["text", "web search", "image gen"],
+    capabilities: ["text", "web search", "image gen", "vision"],
     provider: "google",
     gateway: "vercel",
     description: "Fast and efficient model",
   },
   {
     id: "openai/gpt-5.4-mini",
-    name: "GPT 5.4 Mini", 
+    name: "GPT 5.4 Mini",
     context: "400K",
     latency: 0.6,
     throughput: 291,
     inputCost: 0.75,
     outputCost: 4.50,
-    capabilities: ["text", "implicit caching", "web search"],
+    capabilities: ["text", "implicit caching", "web search", "vision"],
     provider: "openai",
     gateway: "vercel",
     description: "Fast and efficient model",
   },
   {
     id: "openai/gpt-5.4-nano",
-    name: "GPT 5.4 Nano", 
+    name: "GPT 5.4 Nano",
     context: "400K",
     latency: 0.4,
     inputCost: 0.20,
     outputCost: 1.25,
-    capabilities: ["text", "implicit caching", "web search"],
+    capabilities: ["text", "implicit caching", "web search", "vision"],
     provider: "openai",
     gateway: "vercel",
     description: "Fast and efficient model",
@@ -143,7 +144,7 @@ export const availableModels = [
     throughput: 145,
     inputCost: 0.05,
     outputCost: 0.4,
-    capabilities: ["text", "implicit caching"],
+    capabilities: ["text", "implicit caching", "vision"],
     provider: "openai",
     gateway: "vercel",
     description: "Fastest, most cost-efficient version of GPT-5",
@@ -156,7 +157,7 @@ export const availableModels = [
     throughput: 269,
     inputCost: 0.25,
     outputCost: 2,
-    capabilities: ["text", "implicit caching"],
+    capabilities: ["text", "implicit caching", "vision"],
     provider: "openai",
     gateway: "vercel",
     description:
@@ -170,7 +171,7 @@ export const availableModels = [
     throughput: 57,
     inputCost: 2.50,
     outputCost: 15,
-    capabilities: ["text", "implicit caching", "web search"],
+    capabilities: ["text", "implicit caching", "web search", "vision"],
     provider: "openai",
     gateway: "vercel",
     description:
@@ -184,7 +185,7 @@ export const availableModels = [
     throughput: 82,
     inputCost: 1.75,
     outputCost: 14,
-    capabilities: ["text", "implicit caching", "web search"],
+    capabilities: ["text", "implicit caching", "web search", "vision"],
     provider: "openai",
     gateway: "vercel",
     description:
@@ -270,39 +271,39 @@ export const availableModels = [
   },
   {
     id: "anthropic/claude-haiku-4.5",
-    name: "Claude Haiku 4.5", 
+    name: "Claude Haiku 4.5",
     context: "200k",
     latency: 0.3,
     throughput: 116,
     inputCost: 1.00,
     outputCost: 5.00,
-    capabilities: ["text", "explicit caching"],
+    capabilities: ["text", "explicit caching", "vision"],
     provider: "anthropic",
     gateway: "vercel",
     description: "Balanced performance and speed",
   },
   {
     id: "anthropic/claude-sonnet-4.6",
-    name: "Claude Sonnet 4.6", 
+    name: "Claude Sonnet 4.6",
     context: "1m",
     latency: 0.7,
     throughput: 59,
     inputCost: 3.00,
     outputCost: 15.00,
-    capabilities: ["text", "explicit caching"],
+    capabilities: ["text", "explicit caching", "vision"],
     provider: "anthropic",
     gateway: "vercel",
     description: "Balanced performance and speed",
   },
   {
     id: "anthropic/claude-opus-4.6",
-    name: "Claude Opus 4.6", 
+    name: "Claude Opus 4.6",
     context: "1m",
     latency: 0.8,
     throughput: 60,
     inputCost: 5.00,
     outputCost: 25.00,
-    capabilities: ["text", "explicit caching", "web search"],
+    capabilities: ["text", "explicit caching", "web search", "vision"],
     provider: "anthropic",
     gateway: "vercel",
     description: "Balanced performance and speed",
@@ -456,3 +457,16 @@ export const availableModels = [
 export const chatModel = availableModels[0]?.id ?? "google/gemini-3-flash";
 export const maxSteps = 5;
 export const transcriptionModel = "google/gemini-2.5-flash-lite";
+
+/**
+ * Returns true for models capable enough to self-clarify vague prompts.
+ * Prompt enhancement adds latency and a redundant LLM call for these models —
+ * skip it and let the model handle ambiguity natively.
+ *
+ * Uses input cost ($/1M tokens) as a capability proxy: ≥ $0.50 → strong.
+ * Update model costs in availableModels to keep this current; no manual list needed.
+ */
+export function isStrongModel(modelId: string): boolean {
+  const model = availableModels.find((m) => m.id === modelId);
+  return (model?.inputCost ?? 0) >= 0.5;
+}
