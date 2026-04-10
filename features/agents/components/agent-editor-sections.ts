@@ -2,13 +2,13 @@ import {
   BlocksIcon,
   BookOpenIcon,
   BotIcon,
-  CpuIcon,
   Settings2Icon,
   ShieldIcon,
+  SparklesIcon,
   type LucideIcon,
 } from 'lucide-react';
 
-export type AgentEditorSectionId = 'general' | 'behavior' | 'knowledge' | 'tools' | 'sharing' | 'model';
+export type AgentEditorSectionId = 'general' | 'behavior' | 'skills' | 'knowledge' | 'tools' | 'sharing';
 
 export type AgentEditorSection = {
   id: AgentEditorSectionId;
@@ -28,13 +28,19 @@ export const AGENT_EDITOR_SECTIONS: AgentEditorSection[] = [
     id: 'behavior',
     icon: BotIcon,
     label: 'AI Behavior',
-    description: 'Configure how this agent should respond and what instructions it follows.',
+    description: 'Configure the system prompt, brand voice, and how this agent responds.',
+  },
+  {
+    id: 'skills',
+    icon: SparklesIcon,
+    label: 'Skills',
+    description: 'Attach domain skills that activate contextually to give this agent specialized expertise.',
   },
   {
     id: 'knowledge',
     icon: BookOpenIcon,
     label: 'Knowledge',
-    description: 'Attach brand context, skills, and documents this agent can rely on.',
+    description: 'Attach reference documents this agent retrieves automatically when relevant.',
   },
   {
     id: 'tools',
@@ -47,11 +53,5 @@ export const AGENT_EDITOR_SECTIONS: AgentEditorSection[] = [
     icon: ShieldIcon,
     label: 'Sharing',
     description: 'Control who can access this agent and how it is shared.',
-  },
-  {
-    id: 'model',
-    icon: CpuIcon,
-    label: 'Model',
-    description: 'Choose which model this agent should prefer when responding.',
   },
 ];

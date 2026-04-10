@@ -18,6 +18,7 @@ export const agent = pgTable("agent", {
   documentIds: text("document_ids").array().notNull().default(sql`'{}'::text[]`),
   skillIds: text("skill_ids").array().notNull().default(sql`'{}'::text[]`),
   brandId: text("brand_id").references(() => brand.id, { onDelete: "set null" }),
+  imageUrl: text("image_url"),
   isPublic: boolean("is_public").notNull().default(false),
   starterPrompts: text("starter_prompts").array().notNull().default(sql`'{}'::text[]`),
   isTemplate: boolean("is_template").notNull().default(false),

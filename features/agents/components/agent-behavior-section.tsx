@@ -1,19 +1,30 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { CheckIcon, ClipboardCopyIcon, Code2Icon, EyeIcon } from 'lucide-react';
+import { Building2Icon, CheckIcon, ClipboardCopyIcon, Code2Icon, EyeIcon } from 'lucide-react';
 import { MarkdownText } from '@/components/message-renderer/markdown-text';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import type { Brand } from '@/features/brands/types';
 
 type AgentBehaviorSectionProps = {
+  brandId: string;
+  brands: Brand[];
+  onBrandChange: (value: string) => void;
   systemPrompt: string;
   onSystemPromptChange: (value: string) => void;
 };
 
-export function AgentBehaviorSection({ systemPrompt, onSystemPromptChange }: AgentBehaviorSectionProps) {
+export function AgentBehaviorSection({ brandId, brands, onBrandChange, systemPrompt, onSystemPromptChange }: AgentBehaviorSectionProps) {
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('preview');
   const [copied, setCopied] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -37,7 +48,7 @@ export function AgentBehaviorSection({ systemPrompt, onSystemPromptChange }: Age
   }, [systemPrompt, viewMode]);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       {/* Header row: label + stats + toolbar */}
       <div className="flex items-center gap-3">
         <Label className="shrink-0">System Prompt *</Label>
@@ -107,6 +118,39 @@ export function AgentBehaviorSection({ systemPrompt, onSystemPromptChange }: Age
           )}
         </ScrollArea>
       </div>
+
+      {brands.length > 0 && (
+        <div className="space-y-1.5">
+          <Label>Brand</Label>
+          <Select value={brandId} onValueChange={onBrandChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="No brand" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">
+                <span className="flex items-center gap-2 text-muted-foreground">
+                  <Building2Icon className="size-3.5" />
+                  No brand
+                </span>
+              </SelectItem>
+              {brands.map((brand) => (
+                <SelectItem key={brand.id} value={brand.id}>
+                  <span className="flex items-center gap-2">
+                    <span
+                      className="inline-block size-3 shrink-0 rounded-full"
+                      style={{ background: brand.colors[0]?.hex ?? 'hsl(var(--muted))' }}
+                    />
+                    {brand.name}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Brand context is automatically injected into this agent&apos;s system prompt.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

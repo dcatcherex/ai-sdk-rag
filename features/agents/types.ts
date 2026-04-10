@@ -13,6 +13,7 @@ export type Agent = {
   documentIds: string[];
   skillIds: string[];
   brandId: string | null;
+  imageUrl: string | null;
   isPublic: boolean;
   starterPrompts: string[];
   isTemplate: boolean;
@@ -32,6 +33,7 @@ export type CreateAgentInput = {
   documentIds?: string[];
   skillAttachments?: AgentSkillAttachmentInput[];
   brandId?: string | null;
+  imageUrl?: string | null;
   isPublic?: boolean;
   isDefault?: boolean;
   starterPrompts?: string[];

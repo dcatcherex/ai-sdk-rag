@@ -12,9 +12,9 @@ import { useUserSearch } from '../hooks/use-user-search';
 import { AgentBehaviorSection } from './agent-behavior-section';
 import { AgentGeneralSection } from './agent-general-section';
 import { AgentKnowledgeSection } from './agent-knowledge-section';
-import { AgentModelSection } from './agent-model-section';
 import { AgentSettingsLayout } from './agent-settings-layout';
 import { AgentSharingSection } from './agent-sharing-section';
+import { AgentSkillsSection } from './agent-skills-section';
 import { AgentToolsSection } from './agent-tools-section';
 import { AGENT_EDITOR_SECTIONS, type AgentEditorSectionId } from './agent-editor-sections';
 import type { Agent, AgentWithSharing, CreateAgentInput, SharedUser } from '../types';
@@ -71,6 +71,7 @@ export function AgentForm({
   const [enabledTools, setEnabledTools] = useState<string[]>([]);
   const [documentIds, setDocumentIds] = useState<string[]>([]);
   const [brandId, setBrandId] = useState<string>('none');
+  const [imageUrl, setImageUrl] = useState<string>('');
   const [docSearch, setDocSearch] = useState('');
   const [isPublic, setIsPublic] = useState(false);
   const [starterPrompts, setStarterPrompts] = useState<string[]>([]);
@@ -111,6 +112,7 @@ export function AgentForm({
       setEnabledTools(agent.enabledTools ?? []);
       setDocumentIds(agent.documentIds ?? []);
       setBrandId(agent.brandId ?? 'none');
+      setImageUrl(agent.imageUrl ?? '');
       setIsPublic(agent.isPublic ?? false);
       setSharedWith((agent as AgentWithSharing).sharedWith ?? []);
       setSkillAttachments(normalizeSkillAttachmentsForForm(agent as AgentWithSharing));
@@ -123,6 +125,7 @@ export function AgentForm({
       setEnabledTools([]);
       setDocumentIds([]);
       setBrandId('none');
+      setImageUrl('');
       setIsPublic(false);
       setSharedWith([]);
       setSkillAttachments([]);
@@ -164,7 +167,7 @@ export function AgentForm({
   // Dirty tracking
   const currentSnapshot = JSON.stringify({
     name, description, systemPrompt, modelId, enabledTools, documentIds,
-    brandId, isPublic, starterPrompts,
+    brandId, imageUrl, isPublic, starterPrompts,
     sharedUserIds: sharedWith.map((u) => u.id),
     skillAttachments: sortSkillAttachments(skillAttachments),
   });
@@ -260,6 +263,7 @@ export function AgentForm({
       documentIds,
       skillAttachments: sortSkillAttachments(skillAttachments),
       brandId: brandId === 'none' ? null : brandId,
+      imageUrl: imageUrl || null,
       isPublic,
       starterPrompts,
       sharedUserIds: sharedWith.map((u) => u.id),
@@ -269,8 +273,12 @@ export function AgentForm({
   const generalSection = (
     <AgentGeneralSection
       description={description}
+      imageUrl={imageUrl}
+      modelId={modelId}
       name={name}
       onDescriptionChange={(value) => { markUserEdited(); setDescription(value); }}
+      onImageUrlChange={(url) => { markUserEdited(); setImageUrl(url); }}
+      onModelChange={(value) => { markUserEdited(); setModelId(value); }}
       onNameChange={(value) => { markUserEdited(); setName(value); }}
       onStarterAdd={addStarterPrompt}
       onStarterInputChange={setStarterInput}
@@ -289,29 +297,32 @@ export function AgentForm({
 
   const behaviorSection = (
     <AgentBehaviorSection
+      brandId={brandId}
+      brands={brands}
+      onBrandChange={(value) => { markUserEdited(); setBrandId(value); }}
       systemPrompt={systemPrompt}
       onSystemPromptChange={(value) => { markUserEdited(); setSystemPrompt(value); }}
     />
   );
 
-  const modelSection = (
-    <AgentModelSection
-      modelId={modelId}
-      onModelChange={(value) => { markUserEdited(); setModelId(value); }}
+  const toolsSection = <AgentToolsSection enabledTools={enabledTools} onToggleTool={toggleTool} />;
+
+  const skillsSection = (
+    <AgentSkillsSection
+      skillIds={selectedSkillIds}
+      skillAttachments={skillAttachments}
+      userSkills={userSkills}
+      onSkillToggle={toggleSkillAttachment}
+      onSkillAttachmentChange={updateSkillAttachment}
     />
   );
 
-  const toolsSection = <AgentToolsSection enabledTools={enabledTools} onToggleTool={toggleTool} />;
-
   const knowledgeSection = (
     <AgentKnowledgeSection
-      brandId={brandId}
-      brands={brands}
       docSearch={docSearch}
       docsLoading={docsLoading}
       documentIds={documentIds}
       filteredDocuments={filteredDocuments}
-      onBrandChange={(value) => { markUserEdited(); setBrandId(value); }}
       onDocSearchChange={setDocSearch}
       onDocumentToggle={(documentId, checked) => {
         markUserEdited();
@@ -319,12 +330,7 @@ export function AgentForm({
           checked ? [...prev, documentId] : prev.filter((id) => id !== documentId)
         );
       }}
-      onSkillToggle={toggleSkillAttachment}
-      onSkillAttachmentChange={updateSkillAttachment}
-      skillIds={selectedSkillIds}
-      skillAttachments={skillAttachments}
       userDocuments={userDocuments}
-      userSkills={userSkills}
     />
   );
 
@@ -345,10 +351,10 @@ export function AgentForm({
   const panelSectionContent: Record<AgentEditorSectionId, ReactNode> = {
     general: generalSection,
     behavior: behaviorSection,
+    skills: skillsSection,
     knowledge: knowledgeSection,
     tools: toolsSection,
     sharing: sharingSection,
-    model: modelSection,
   };
 
   const formActions = (
@@ -378,7 +384,7 @@ export function AgentForm({
         <>
           {generalSection}
           {behaviorSection}
-          {modelSection}
+          {skillsSection}
           {toolsSection}
           {knowledgeSection}
           {sharingSection}

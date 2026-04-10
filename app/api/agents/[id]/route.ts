@@ -18,6 +18,7 @@ const updateSchema = z.object({
   enabledTools: z.array(z.string()).optional(),
   documentIds: z.array(z.string()).optional(),
   brandId: z.string().optional().nullable(),
+  imageUrl: z.string().url().optional().nullable(),
   isPublic: z.boolean().optional(),
   isDefault: z.boolean().optional(),
   starterPrompts: z.array(z.string().max(100)).max(4).optional(),

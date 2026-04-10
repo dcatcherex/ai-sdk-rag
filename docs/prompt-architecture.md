@@ -6,7 +6,6 @@ Read this before changing anything related to:
 - system prompt construction in `app/api/chat/route.ts`
 - memory injection or extraction in `lib/memory.ts`
 - tool guidance blocks in `app/api/chat/route.ts`
-- prompt enhancement in `lib/prompt-enhance.ts`
 - the assembly module in `features/chat/server/prompt-assembly.ts`
 
 Related documents:
@@ -20,17 +19,16 @@ Related documents:
 The final system prompt is built by `assembleSystemPrompt()` in `features/chat/server/prompt-assembly.ts`.
 
 ```
-1  Base system prompt         (agent | custom persona | built-in persona)
-2  Persona style instructions (user customisations for built-in personas)
-3  Conversation summary       (compacted earlier turns — previously misplaced at tail)
-4  Grounding instruction      (only when RAG documents are selected)
-5  User profile memory        (<user_context> block)
-6  Brand context              (<brand_context> block)
-7  Skill catalog              (<available_skills> — model-discoverable skills)
-8  Active skills              (<active_skills> — triggered skill instructions)
-9  Skill resources            (<skill_resources> — reference files from active skills)
-10 Tool guidance              (exam prep, certificate — injected only when relevant)
-11 Feature blocks             (quiz context — only when quizContext is in the request)
+1  Base system prompt         (agent | default general assistant)
+2  Conversation summary       (compacted earlier turns)
+3  Grounding instruction      (only when RAG documents are selected)
+4  User profile memory        (<user_context> block)
+5  Brand context              (<brand_context> block)
+6  Skill catalog              (<available_skills> — model-discoverable skills)
+7  Active skills              (<active_skills> — triggered skill instructions)
+8  Skill resources            (<skill_resources> — reference files from active skills)
+9  Tool guidance              (exam prep, certificate — injected only when relevant)
+10 Feature blocks             (quiz context — only when quizContext is in the request)
 ```
 
 ---
@@ -42,7 +40,7 @@ The final system prompt is built by `assembleSystemPrompt()` in `features/chat/s
 | `features/chat/server/prompt-assembly.ts` | Single assembly function — the only place that decides block order |
 | `app/api/chat/route.ts` | Orchestrator — gathers data, calls assembly, runs streamText |
 | `lib/memory.ts` | Memory retrieval, rendering, extraction, and preference helpers |
-| `lib/prompt.ts` | Built-in persona system prompts, template substitution |
+| `lib/prompt.ts` | Default system prompt (`DEFAULT_SYSTEM_PROMPT`), template substitution |
 | `lib/prompt-enhance.ts` | Optional user message rewriter (skipped for strong models) |
 | `lib/conversation-summary.ts` | Compaction — summarises long threads before assembly |
 | `lib/ai.ts` | Model registry, `isStrongModel()` |
@@ -62,7 +60,6 @@ Takes typed, pre-built blocks and concatenates them in the correct order. It own
 ```typescript
 const effectiveSystemPrompt = assembleSystemPrompt({
   base: baseSystemPrompt,
-  personaExtraInstructions,
   conversationSummaryBlock,    // '' or '\n\n<conversation_summary>...'
   isGrounded,
   activeBrand,
@@ -84,8 +81,8 @@ const effectiveSystemPrompt = assembleSystemPrompt({
 
 ```
 Stage 1  auth + body parse (parallel)
-Stage 2  DB queries: user, thread, prefs, balance, agent, persona (parallel)
-Stage 3  memory + persona detection + brand (parallel)
+Stage 2  DB queries: user, thread, prefs, balance, agent (parallel)
+Stage 3  memory + brand (parallel)
 Stage 4  skill runtime: detect triggers, model discovery, load resources
 Stage 5  base system prompt + template substitution
 Stage 6  model routing
@@ -100,7 +97,22 @@ Stage 14 streamText() or generateImage()
 Stage 15 onFinish: persist, follow-up suggestions, memory extraction
 ```
 
-The ordering of stages 11–13 matters. Enhancement rewrites the user message before summarisation sees it. Summarisation must complete before assembly so the summary lands in position 3.
+The ordering of stages 11–13 matters. Enhancement rewrites the user message before summarisation sees it. Summarisation must complete before assembly so the summary lands in position 2.
+
+---
+
+## Base System Prompt
+
+The base prompt is resolved in a single priority chain:
+
+```
+1. Agent system prompt — if agentId is in the request, the agent's own prompt is used
+2. DEFAULT_SYSTEM_PROMPT — exported from lib/prompt.ts (general assistant)
+```
+
+**There are no built-in personas.** Domain-specific behaviour (coding, research, tutoring, etc.) is delivered through agent system prompts and skills, not a persona layer.
+
+**Template substitution** — `resolveSystemPromptTemplate(rawSystemPrompt)` runs on the resolved base prompt regardless of source. It replaces `{CURRENT_DATE}`, `{THAI_SEASON}`, and `{USER_PROVINCE}` placeholders at request time.
 
 ---
 
@@ -159,29 +171,6 @@ const { shouldInject, shouldExtract } = resolveMemoryPreferences(prefsRows[0] ??
 | `app/api/compare/route.ts` | Yes | Only inject flag applies (no extraction) |
 
 If you add a new entry point that uses memory, call `resolveMemoryPreferences` before calling `getUserMemoryContext` or `extractAndStoreMemory`.
-
----
-
-## Persona System
-
-Ten built-in personas are defined in `lib/prompt.ts`. Each is a short role + behaviour description.
-
-**Detection priority (highest to lowest):**
-
-1. Agent system prompt — if `agentId` is in the request, the agent's own prompt is used directly
-2. Custom persona — if `personaId` refers to a DB row in `customPersona`, its `systemPrompt` is used
-3. Built-in persona by key — if `personaId` is one of the 10 built-in keys, that prompt is used
-4. Auto-detection — `detectPersona()` in `lib/persona-detection.ts` classifies the message via a fast LLM call, falls back to regex
-
-**Template substitution** — `resolveSystemPromptTemplate(rawSystemPrompt)` runs on the raw prompt regardless of source. It replaces `{CURRENT_DATE}`, `{THAI_SEASON}`, and `{USER_PROVINCE}` placeholders. This runs before assembly. Agent prompts are not exempt.
-
-**`personaExtraInstructions`** is empty when an agent is active. The route gates it:
-
-```typescript
-const personaExtraInstructions = !activeAgent ? (personaCustomMap[detectedPersona] ?? '') : '';
-```
-
-Do not change this — agents own their full system prompt and should not receive persona customisations layered on top.
 
 ---
 
@@ -271,9 +260,9 @@ Enhancement is skipped for strong models because:
 
 It keeps the last `MESSAGES_TO_KEEP` (currently 8) messages verbatim and compresses the rest into a max-300-word summary.
 
-The summary block is passed as `conversationSummaryBlock` to `assembleSystemPrompt`, where it lands at **position 3** — after the base prompt and persona, before grounding and memory. This placement ensures the model reads the historical context before it processes knowledge injections.
+The summary block is passed as `conversationSummaryBlock` to `assembleSystemPrompt`, where it lands at **position 2** — after the base prompt, before grounding and memory. This placement ensures the model reads the historical context before it processes knowledge injections.
 
-**Do not** append the summary after `effectiveSystemPrompt`. That was the previous behaviour and it placed the summary at the tail, after tool guidance and skill resources, where it competed for attention with more recent injections.
+**Do not** append the summary after `effectiveSystemPrompt`. That places it at the tail, after tool guidance and skill resources, where it competes for attention with more recent injections.
 
 ---
 
@@ -294,9 +283,10 @@ Checklist:
 - Do not concatenate onto `effectiveSystemPrompt` after the `assembleSystemPrompt` call.
 - Do not add tool-specific instructions directly inside tool `service.ts` or `agent.ts` files — they belong in the assembly layer.
 - Do not inject memory without calling `resolveMemoryPreferences` first.
-- Do not skip `resolveSystemPromptTemplate` for agent system prompts — the fix was specifically to make agents go through it.
+- Do not skip `resolveSystemPromptTemplate` for agent system prompts — agents go through it.
 - Do not create a second assembly path for a special case. Add a field to `SystemPromptInput` instead.
 - Do not raise `MAX_FACTS_PER_USER` without also reconsidering `INJECTION_MAX_CHARS` — the two limits are intentionally independent.
+- Do not re-introduce a persona layer. Domain-specific behaviour belongs in agent system prompts and SKILL.md files.
 
 ---
 
@@ -316,11 +306,7 @@ See `docs/memory-recommendation.md`, Layer 2.
 
 ### LINE OA memory consistency
 
-Resolved. LINE now builds a `lineBase` prompt (agent system prompt + LINE-specific formatting instructions + group/user name context) and passes it through `assembleSystemPrompt` as the `base` field, with `memoryContext` wired to the same field used by web chat. Memory lands at position 5 in `<user_context>` format, identical to web chat. Non-applicable fields (grounding, skills, tool guidance) are passed as empty strings.
-
-### Persona-to-skill migration
-
-Built-in personas and skills both inject domain knowledge. Long-term, built-in personas should become installable starter skills so the community can extend them. The migration path: keep personas for response style, let skills own domain knowledge and tool unlocks.
+Resolved. LINE now builds a `lineBase` prompt (agent system prompt + LINE-specific formatting instructions + group/user name context) and passes it through `assembleSystemPrompt` as the `base` field, with `memoryContext` wired to the same field used by web chat. Memory lands at position 4 in `<user_context>` format, identical to web chat. Non-applicable fields (grounding, skills, tool guidance) are passed as empty strings.
 
 ### Lazy skill resource loading
 
