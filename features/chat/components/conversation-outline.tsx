@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { SearchIcon } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { ChatMessage, ChatMessagePart } from '../types';
@@ -27,10 +27,14 @@ function extractHeadings(text: string): Array<{ text: string; level: number }> {
 
 type ConversationOutlineProps = {
   messages: ChatMessage[];
+  activeMessageId?: string | null;
 };
 
-export const ConversationOutline = ({ messages }: ConversationOutlineProps) => {
+export const ConversationOutline = ({ messages, activeMessageId }: ConversationOutlineProps) => {
   const [filter, setFilter] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const items = useMemo((): OutlineItem[] => {
     const result: OutlineItem[] = [];
@@ -86,6 +90,25 @@ export const ConversationOutline = ({ messages }: ConversationOutlineProps) => {
     return items.filter((item) => item.text.toLowerCase().includes(lower));
   }, [items, filter]);
 
+  useEffect(() => {
+    if (!activeMessageId || !containerRef.current) return;
+
+    const activeItem = containerRef.current.querySelector<HTMLElement>(
+      `[data-outline-message-id="${activeMessageId}"]`,
+    );
+
+    activeItem?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [activeMessageId, filtered]);
+
+  useEffect(() => {
+    if (!searchOpen) {
+      setFilter('');
+      return;
+    }
+
+    searchInputRef.current?.focus();
+  }, [searchOpen]);
+
   const scrollTo = (messageId: string) => {
     const el = document.getElementById(`msg-${messageId}`);
     if (el) {
@@ -93,35 +116,40 @@ export const ConversationOutline = ({ messages }: ConversationOutlineProps) => {
     }
   };
 
-  const turnCount = items.filter((i) => i.role === 'user').length;
-
   const WIDTH = 'w-70';
 
   return (
     <div className={`flex h-[calc(100vh-3rem)] ${WIDTH} flex-col rounded-2xl border border-black/5 dark:border-border bg-white/80 dark:bg-card/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur overflow-hidden md:rounded-3xl`}>
       <div className="flex items-center justify-between border-b border-black/5 dark:border-border px-4 py-3.5">
         <span className="text-sm font-semibold">Outline</span>
-        {turnCount > 0 && (
-          <span className="rounded-full bg-zinc-100 dark:bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-            {turnCount} {turnCount === 1 ? 'turn' : 'turns'}
-          </span>
-        )}
+        <button
+          type="button"
+          aria-label={searchOpen ? 'Close outline search' : 'Open outline search'}
+          onClick={() => setSearchOpen((prev) => !prev)}
+          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-zinc-100 hover:text-foreground dark:hover:bg-muted/60 dark:hover:text-foreground"
+        >
+          <SearchIcon className="size-3.5" />
+        </button>
       </div>
 
-      <div className="border-b border-black/5 dark:border-border px-3 py-2.5">
-        <div className="relative">
-          <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Filter..."
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="w-full rounded-lg border border-black/10 dark:border-border bg-zinc-50 dark:bg-muted pl-7 pr-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
-          />
+      {searchOpen ? (
+        <div className="border-b border-black/5 dark:border-border px-3 py-2.5">
+          <div className="relative">
+            <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Filter..."
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="w-full rounded-lg border border-black/10 dark:border-border bg-zinc-50 dark:bg-muted pl-7 pr-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+            />
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <ScrollArea className="flex-1 overflow-y-auto py-1.5">
+        <div ref={containerRef}>
         {messages.length === 0 ? (
           <p className="px-4 py-8 text-center text-xs text-muted-foreground">
             Start a conversation to see the outline
@@ -129,41 +157,53 @@ export const ConversationOutline = ({ messages }: ConversationOutlineProps) => {
         ) : filtered.length === 0 ? (
           <p className="px-4 py-6 text-center text-xs text-muted-foreground">No matches</p>
         ) : (
-          filtered.map((item, i) => (
-            <button
-              key={`${item.messageId}-${i}`}
-              type="button"
-              onClick={() => scrollTo(item.messageId)}
-              className={`w-full text-left transition-colors hover:bg-zinc-100 dark:hover:bg-muted/60 ${
-                item.role === 'user' ? 'mt-1 px-3 py-2' : 'px-3 py-1'
-              }`}
-              style={
-                item.role === 'assistant'
-                  ? { paddingLeft: `${(item.level - 1) * 10 + 20}px` }
-                  : undefined
-              }
-            >
-              {item.role === 'user' ? (
-                <span className="flex items-start gap-2">
-                  <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded bg-primary/10 text-[9px] font-bold text-primary">
-                    {item.questionIndex}
+          filtered.map((item, i) => {
+            const isActive = activeMessageId === item.messageId;
+
+            return (
+              <button
+                key={`${item.messageId}-${i}`}
+                type="button"
+                onClick={() => scrollTo(item.messageId)}
+                data-outline-message-id={item.messageId}
+                className={`w-full text-left transition-colors duration-150 hover:bg-zinc-100 dark:hover:bg-muted/60 ${
+                  item.role === 'user' ? 'mt-1 rounded-lg' : 'rounded-lg'
+                } ${
+                  item.role === 'user' ? 'px-3 py-2' : 'px-3 py-1'
+                }`}
+                style={
+                  item.role === 'assistant'
+                    ? { paddingLeft: `${(item.level - 1) * 10 + 20}px` }
+                    : undefined
+                }
+              >
+                {item.role === 'user' ? (
+                  <span className="flex items-start gap-2">
+                    <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded bg-primary/10 text-[9px] font-bold text-primary">
+                      {item.questionIndex}
+                    </span>
+                    <span className={`text-xs font-semibold leading-snug line-clamp-2 ${
+                      isActive ? 'text-primary' : 'text-foreground'
+                    }`}>
+                      {item.text}
+                    </span>
                   </span>
-                  <span className="text-xs font-semibold leading-snug line-clamp-2 text-foreground">
+                ) : (
+                  <span
+                    className={`block text-xs leading-snug line-clamp-1 ${
+                      isActive ? 'text-primary' : 'text-muted-foreground'
+                    } ${
+                      item.level === 1 ? 'font-medium' : ''
+                    }`}
+                  >
                     {item.text}
                   </span>
-                </span>
-              ) : (
-                <span
-                  className={`block text-xs leading-snug line-clamp-1 text-muted-foreground ${
-                    item.level === 1 ? 'font-medium' : ''
-                  }`}
-                >
-                  {item.text}
-                </span>
-              )}
-            </button>
-          ))
+                )}
+              </button>
+            );
+          })
         )}
+        </div>
       </ScrollArea>
     </div>
   );

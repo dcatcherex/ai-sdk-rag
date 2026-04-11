@@ -56,6 +56,7 @@ function ChatShell() {
   }, []);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [useWebSearch, setUseWebSearch] = useState(false);
+  const [activeOutlineMessageId, setActiveOutlineMessageId] = useState<string | null>(null);
   const [compareMode, setCompareMode] = useState(false);
   const [submittedComparePrompt, setSubmittedComparePrompt] = useState<ComparePrompt | null>(null);
   const [compareUserMessageId, setCompareUserMessageId] = useState<string>(() => crypto.randomUUID());
@@ -347,6 +348,7 @@ function ChatShell() {
                 messages={messages}
                 status={status}
                 threadId={activeThreadId ?? undefined}
+                activeMessageId={activeOutlineMessageId}
                 isSyncingFollowUpSuggestions={isSyncingFollowUpSuggestions}
                 copiedMessageId={copiedMessageId}
                 messageReactions={messageReactions}
@@ -362,6 +364,7 @@ function ChatShell() {
                 onSuggestionClick={handleSuggestionClick}
                 onImageClick={openEditor}
                 onQuizStateChange={handleQuizStateChange}
+                onActiveMessageChange={setActiveOutlineMessageId}
               />
               {compareMode && (
                 <div className="border-t border-black/5 dark:border-border overflow-auto">
@@ -425,7 +428,10 @@ function ChatShell() {
 
         {outlinePanelOpen && (
           <div className="hidden lg:block">
-            <ConversationOutline messages={messages} />
+            <ConversationOutline
+              messages={messages}
+              activeMessageId={activeOutlineMessageId}
+            />
           </div>
         )}
       </div>

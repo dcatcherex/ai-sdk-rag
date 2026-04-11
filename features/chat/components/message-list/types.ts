@@ -25,6 +25,7 @@ export type ChatMessageListProps = {
   messages: ChatMessage[];
   status: import('ai').ChatStatus;
   threadId?: string;
+  activeMessageId?: string | null;
   isSyncingFollowUpSuggestions?: boolean;
   copiedMessageId: string | null;
   messageReactions: ReactionMap;
@@ -41,4 +42,5 @@ export type ChatMessageListProps = {
   onImageClick?: (asset: MediaAsset) => void;
   onDeleteMessage: (messageId: string, partnerMessageId?: string) => void;
   onQuizStateChange?: (context: QuizFollowUpContext) => void;
+  onActiveMessageChange?: (messageId: string | null) => void;
 };

@@ -68,6 +68,7 @@ type MessageItemProps = {
   isSyncingFollowUpSuggestions?: boolean;
   copiedMessageId: string | null;
   messageReactions: ReactionMap;
+  isActiveMessage?: boolean;
   isDeleteHighlighted: boolean;
   openInfoId: string | null;
   onCopyMessage: (id: string, text: string) => void;
@@ -108,6 +109,7 @@ export const MessageItem = ({
   isSyncingFollowUpSuggestions,
   copiedMessageId,
   messageReactions,
+  isActiveMessage = false,
   isDeleteHighlighted,
   openInfoId,
   onCopyMessage,
@@ -154,7 +156,12 @@ export const MessageItem = ({
   return (
     <div
       id={`msg-${message.id}`}
+      data-message-id={message.id}
       className={`scroll-mt-4 rounded-xl transition-colors duration-150 ${
+        isActiveMessage
+          ? 'bg-primary/6 ring-1 ring-primary/15'
+          : ''
+      } ${
         isDeleteHighlighted
           ? 'bg-red-50/70 dark:bg-red-950/30 ring-1 ring-red-200 dark:ring-red-800/50'
           : ''
@@ -306,9 +313,6 @@ export const MessageItem = ({
               </>
             )}
           </div>
-          <span className="text-[11px] text-muted-foreground">
-            {message.role === 'user' ? 'You' : 'Assistant'}
-          </span>
         </MessageToolbar>
       </Message>
     </div>

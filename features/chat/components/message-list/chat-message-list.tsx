@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BotIcon } from 'lucide-react';
 import {
   Conversation,
@@ -32,10 +32,85 @@ function ConversationSelectionMenu({
   return <SelectionContextMenu containerRef={scrollRef} onAction={onSuggestionClick} />;
 }
 
+function ConversationActiveMessageObserver({
+  messageIds,
+  onActiveMessageChange,
+}: {
+  messageIds: string[];
+  onActiveMessageChange?: (messageId: string | null) => void;
+}) {
+  const { scrollRef } = useStickToBottomContext();
+
+  useEffect(() => {
+    if (!onActiveMessageChange) return;
+
+    const root = scrollRef.current;
+    if (!root || messageIds.length === 0) {
+      onActiveMessageChange(null);
+      return;
+    }
+
+    const visibleEntries = new Map<string, IntersectionObserverEntry>();
+
+    const selectActiveMessage = () => {
+      const rootTop = root.getBoundingClientRect().top;
+      const nextEntry = [...visibleEntries.values()]
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => {
+          const aDistance = Math.abs(a.boundingClientRect.top - rootTop);
+          const bDistance = Math.abs(b.boundingClientRect.top - rootTop);
+          if (aDistance !== bDistance) return aDistance - bDistance;
+          return b.intersectionRatio - a.intersectionRatio;
+        })[0];
+
+      onActiveMessageChange(nextEntry?.target.getAttribute('data-message-id') ?? null);
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const messageId = entry.target.getAttribute('data-message-id');
+          if (!messageId) continue;
+
+          if (entry.isIntersecting) {
+            visibleEntries.set(messageId, entry);
+          } else {
+            visibleEntries.delete(messageId);
+          }
+        }
+
+        selectActiveMessage();
+      },
+      {
+        root,
+        threshold: [0.1, 0.35, 0.65],
+        rootMargin: '-10% 0px -55% 0px',
+      },
+    );
+
+    const elements = messageIds
+      .map((messageId) => root.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`))
+      .filter((element): element is HTMLElement => !!element);
+
+    for (const element of elements) {
+      observer.observe(element);
+    }
+
+    selectActiveMessage();
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [messageIds, onActiveMessageChange, scrollRef]);
+
+  return null;
+}
+
 export const ChatMessageList = ({
   messages,
   status,
   threadId,
+  activeMessageId,
   isSyncingFollowUpSuggestions = false,
   copiedMessageId,
   messageReactions,
@@ -51,6 +126,7 @@ export const ChatMessageList = ({
   onImageClick,
   onDeleteMessage,
   onQuizStateChange,
+  onActiveMessageChange,
 }: ChatMessageListProps) => {
   const lastAssistantIdx = messages.reduce((acc, m, i) => (m.role === 'assistant' ? i : acc), -1);
   const scrollPositionsRef = useRef<Map<string, number>>(new Map());
@@ -99,6 +175,14 @@ export const ChatMessageList = ({
     return getTextContentFromParts(parts).trim().length > 0;
   }, [messages]);
 
+  const regularMessageIds = useMemo(
+    () =>
+      groupedItems
+        .filter((item): item is Extract<MessageGroupItem, { type: 'regular' }> => item.type === 'regular')
+        .map((item) => item.message.id),
+    [groupedItems],
+  );
+
   const conversationKey = threadId ?? 'new-thread';
 
   return (
@@ -106,6 +190,10 @@ export const ChatMessageList = ({
       className={`flex-1 min-h-0 ${FONT_SIZE_CLASS[fontSize]}`}
       initial={false}
     >
+      <ConversationActiveMessageObserver
+        messageIds={regularMessageIds}
+        onActiveMessageChange={onActiveMessageChange}
+      />
       <ThreadScrollMemory
         threadKey={conversationKey}
         threadId={threadId}
@@ -174,6 +262,7 @@ export const ChatMessageList = ({
                   isSyncingFollowUpSuggestions={isSyncingFollowUpSuggestions}
                   copiedMessageId={copiedMessageId}
                   messageReactions={messageReactions}
+                  isActiveMessage={false}
                   isDeleteHighlighted={hoveredDeleteIds.has(message.id)}
                   openInfoId={openInfoId}
                   onCopyMessage={onCopyMessage}
