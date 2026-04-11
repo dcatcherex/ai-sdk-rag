@@ -7,7 +7,7 @@ type EmailPreviewPageProps = {
   };
 };
 
-const appName = "Better Auth";
+const appName = "Vaja AI";
 const logoUrl = process.env.AUTH_EMAIL_LOGO_URL;
 const supportEmail = process.env.AUTH_SUPPORT_EMAIL;
 

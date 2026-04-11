@@ -429,6 +429,11 @@ export function ChatComposer({
           </PromptInputFooter>
         </PromptInput>
       </PromptInputProvider>
+      {!compareMode && !voiceOpen ? (
+        <p className="mt-2 px-2 text-[11px] text-muted-foreground">
+          Try asking for a LINE reply, a content draft, a customer response, or a skill-aware workflow.
+        </p>
+      ) : null}
       {error && (
         <p className="mt-2 text-xs text-destructive">
           {error.message || 'Something went wrong. Please try again.'}

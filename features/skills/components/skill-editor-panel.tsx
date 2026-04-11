@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { requestWorkspaceTextAssist } from '@/features/workspace-ai/client';
 import {
   ArrowLeftIcon,
   CheckIcon,
@@ -18,6 +20,8 @@ import {
   Trash2Icon,
   ZapIcon,
 } from 'lucide-react';
+import { AiAssistButton } from '@/features/workspace-ai/components/ai-assist-button';
+import { AiSuggestionDialog } from '@/features/workspace-ai/components/ai-suggestion-dialog';
 import { MarkdownText } from '@/components/message-renderer/markdown-text';
 import { ButtonGroup } from '@/components/ui/button-group';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -43,6 +47,7 @@ import {
   useSkillFiles,
   useUpdateSkillFileContent,
 } from '../hooks/use-skills';
+import type { WorkspaceTextAssistResult } from '@/features/workspace-ai/types';
 import type {
   CreateSkillFileInput,
   CreateSkillInput,
@@ -324,6 +329,9 @@ const SkillForm = ({ skill, onBack, onSubmit, isPending }: SkillFormProps) => {
   const [isPublic, setIsPublic] = useState(skill?.isPublic ?? false);
   const [promptViewMode, setPromptViewMode] = useState<'edit' | 'preview'>('preview');
   const [promptCopied, setPromptCopied] = useState(false);
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
+  const [descriptionSuggestions, setDescriptionSuggestions] = useState<string[]>([]);
+  const [descriptionSuggestionsOpen, setDescriptionSuggestionsOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const copyPrompt = async () => {
@@ -395,6 +403,42 @@ const SkillForm = ({ skill, onBack, onSubmit, isPending }: SkillFormProps) => {
     return json.url;
   };
 
+  const handleGenerateDescription = async () => {
+    if (!name.trim()) {
+      toast.error('Skill name is required first');
+      return;
+    }
+    if (!promptFragment.trim()) {
+      toast.error('Skill instructions are required first', {
+        description: 'Add the prompt instructions before asking AI to write a description.',
+      });
+      return;
+    }
+
+    setIsGeneratingDescription(true);
+    try {
+      const result = await requestWorkspaceTextAssist('skill-description', {
+        context: {
+          entityType: 'skill',
+          entityId: skill?.id,
+          name,
+          promptFragment,
+          currentValue: description,
+        },
+      });
+
+      if (result.suggestions.length === 0) throw new Error('No description returned');
+      setDescriptionSuggestions(result.suggestions);
+      setDescriptionSuggestionsOpen(true);
+    } catch (error) {
+      toast.error('Failed to generate description', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setIsGeneratingDescription(false);
+    }
+  };
+
   // Dynamic sections — inline skills have no Files section
   const sections = useMemo((): SettingsShellItem<SkillEditorSectionId>[] => {
     const base: SettingsShellItem<SkillEditorSectionId>[] = [
@@ -451,7 +495,15 @@ const SkillForm = ({ skill, onBack, onSubmit, isPending }: SkillFormProps) => {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="skill-description">Description *</Label>
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor="skill-description">Description *</Label>
+          <AiAssistButton
+            onClick={() => { void handleGenerateDescription(); }}
+            isLoading={isGeneratingDescription}
+            idleLabel="Write with AI"
+            loadingLabel="Writing..."
+          />
+        </div>
         <Input
           id="skill-description"
           value={description}
@@ -715,8 +767,9 @@ const SkillForm = ({ skill, onBack, onSubmit, isPending }: SkillFormProps) => {
   const isEditFilesSection = isEdit && resolvedSection === 'files';
 
   return (
-    <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <SettingsShell
+    <>
+      <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <SettingsShell
         activeItem={resolvedSection}
         items={sections}
         onItemChange={setActiveSection}
@@ -736,10 +789,24 @@ const SkillForm = ({ skill, onBack, onSubmit, isPending }: SkillFormProps) => {
             </>
           ) : null
         }
-      >
-        {sectionContent[resolvedSection]}
-      </SettingsShell>
-    </form>
+        >
+          {sectionContent[resolvedSection]}
+        </SettingsShell>
+      </form>
+
+      <AiSuggestionDialog
+        open={descriptionSuggestionsOpen}
+        onOpenChange={setDescriptionSuggestionsOpen}
+        title="Skill Description Suggestions"
+        description="Choose the description that best explains when this skill should be used."
+        suggestions={descriptionSuggestions}
+        onSelect={(suggestion) => {
+          setDescription(suggestion);
+          setDescriptionSuggestionsOpen(false);
+          toast.success('Skill description applied');
+        }}
+      />
+    </>
   );
 };
 

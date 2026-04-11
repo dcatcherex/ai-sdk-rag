@@ -36,6 +36,27 @@ export const toolArtifact = pgTable("tool_artifact", {
   index("tool_artifact_runId_idx").on(table.toolRunId),
 ]);
 
+export const workspaceAiRun = pgTable("workspace_ai_run", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id"),
+  route: text("route").notNull(),
+  status: text("status").notNull().default("pending"),
+  modelId: text("model_id"),
+  inputJson: jsonb("input_json").notNull(),
+  outputJson: jsonb("output_json"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+}, (table) => [
+  index("workspace_ai_run_userId_idx").on(table.userId),
+  index("workspace_ai_run_kind_idx").on(table.kind),
+  index("workspace_ai_run_entityType_idx").on(table.entityType),
+  index("workspace_ai_run_entityId_idx").on(table.entityId),
+]);
+
 // ── Activity Record (generic domain log — farm, class, patient, etc.) ─────────
 
 export const activityRecord = pgTable("activity_record", {
@@ -66,6 +87,10 @@ export const toolRunRelations = relations(toolRun, ({ one, many }) => ({
   user: one(user, { fields: [toolRun.userId], references: [user.id] }),
   thread: one(chatThread, { fields: [toolRun.threadId], references: [chatThread.id] }),
   artifacts: many(toolArtifact),
+}));
+
+export const workspaceAiRunRelations = relations(workspaceAiRun, ({ one }) => ({
+  user: one(user, { fields: [workspaceAiRun.userId], references: [user.id] }),
 }));
 
 export const toolArtifactRelations = relations(toolArtifact, ({ one }) => ({

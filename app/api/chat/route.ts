@@ -38,12 +38,26 @@ import type { Skill } from '@/features/skills/types';
 import { getLastUserPrompt } from '@/features/chat/server/thread-utils';
 import { toolDisabledModels, isImageOnlyModel, getModelByIntent } from '@/features/chat/server/routing';
 import { persistChatResult } from '@/features/chat/server/persistence';
+import {
+  buildChatRunInputSummary,
+  buildChatRunOutputSummary,
+  completeChatRunError,
+  completeChatRunSuccess,
+  getFollowUpSuggestionCount,
+  getToolCallCount,
+  startChatRun,
+  updateChatRunRouting,
+} from '@/features/chat/audit/audit';
 import type { ChatMessage, ChatMessageMetadata, RoutingMetadata } from '@/features/chat/types';
 
 export { type ChatMessage };
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
+  let chatRunId: string | null = null;
+  let chatRunRouteKind: 'text' | 'image' = 'text';
+  let chatRunResolvedModelId: string | null = null;
+
   try {
     // ── Stage 1: auth + body parse in parallel ───────────────────────────────
     const [session, rawBody] = await Promise.all([
@@ -252,10 +266,46 @@ export async function POST(req: Request) {
       modelId: resolvedModel,
       reason: routingDecision.reason,
     };
+    chatRunRouteKind = isImageOnlyModel(resolvedModel) ? 'image' : 'text';
+    chatRunResolvedModelId = resolvedModel;
+
+    const currentChatRunId = await startChatRun({
+      userId: session.user.id,
+      threadId,
+      agentId: activeAgent?.id ?? null,
+      brandId: activeBrand?.id ?? null,
+      requestedModelId: model ?? agentSuggestedModel ?? null,
+      useWebSearch,
+      inputJson: buildChatRunInputSummary({
+        messages,
+        requestedModelId: model ?? agentSuggestedModel ?? null,
+        useWebSearch,
+        selectedDocumentIds: effectiveDocIds,
+        enabledModelIds,
+        agentId: activeAgent?.id ?? null,
+        brandId: activeBrand?.id ?? null,
+        quizContext,
+        activeToolIds,
+        activeSkillIds: skillRuntime.activatedSkills.map((entry) => entry.skill.id),
+        lastUserPrompt,
+      }),
+    });
+    chatRunId = currentChatRunId;
+
+    await updateChatRunRouting(currentChatRunId, {
+      routeKind: chatRunRouteKind,
+      resolvedModelId: resolvedModel,
+      routing: routingMetadata,
+    });
 
     // ── Credit check ─────────────────────────────────────────────────────────
     const creditCost = getCreditCost(resolvedModel);
     if (balance < creditCost) {
+      await completeChatRunError(currentChatRunId, {
+        errorMessage: `Insufficient credits for ${resolvedModel}`,
+        routeKind: chatRunRouteKind,
+        resolvedModelId: resolvedModel,
+      });
       return Response.json(
         {
           error: `Insufficient credits. This model costs ${creditCost} credits, but you have ${balance}. Please contact admin for more credits.`,
@@ -359,6 +409,11 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
     if (isImageOnlyModel(resolvedModel)) {
       const baseImagePrompt = enhancedPrompt ?? lastUserPrompt;
       if (!baseImagePrompt) {
+        await completeChatRunError(currentChatRunId, {
+          errorMessage: 'Image generation requires a text prompt.',
+          routeKind: 'image',
+          resolvedModelId: resolvedModel,
+        });
         return Response.json({ error: 'Image generation requires a text prompt.' }, { status: 400 });
       }
       const imagePrompt = activeBrand
@@ -401,6 +456,21 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
         }>,
       }).catch((error) => console.error('Failed to refresh thread working memory:', error));
 
+      await completeChatRunSuccess(currentChatRunId, {
+        routeKind: 'image',
+        resolvedModelId: resolvedModel,
+        creditCost,
+        toolCallCount: 0,
+        promptTokens: imageResult.usage.inputTokens,
+        completionTokens: imageResult.usage.outputTokens,
+        totalTokens: imageResult.usage.totalTokens,
+        outputJson: buildChatRunOutputSummary({
+          routeKind: 'image',
+          generatedImage: { mediaType: generatedImage.mediaType },
+          memoryExtracted: false,
+        }),
+      });
+
       return createUIMessageStreamResponse({
         stream: createUIMessageStream<ChatMessage>({
           originalMessages: messages,
@@ -434,66 +504,100 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
       originalMessages: messages,
       messageMetadata,
       onFinish: async ({ messages: updatedMessages }) => {
-        const usage = (await result.usage) as { promptTokens?: number; completionTokens?: number; totalTokens?: number } | null;
-        const typedMessages = updatedMessages as ChatMessage[];
+        try {
+          const usage = (await result.usage) as { promptTokens?: number; completionTokens?: number; totalTokens?: number } | null;
+          const typedMessages = updatedMessages as ChatMessage[];
 
-        // Inject follow-up suggestions into last assistant message
-        const lastAssistantIdx = typedMessages.map((m) => m.role).lastIndexOf('assistant');
-        let messagesWithSuggestions = typedMessages;
-        if (lastAssistantIdx !== -1 && (userPrefs.followUpSuggestionsEnabled ?? true)) {
-          const contextStr = typedMessages
-            .slice(-6)
-            .map((m) => {
-              const textPart = m.parts.find((p) => p.type === 'text');
-              const text = textPart?.type === 'text' ? textPart.text.slice(0, 400) : '';
-              return `${m.role}: ${text}`;
-            })
-            .filter((line) => !line.endsWith(': '))
-            .join('\n');
+          // Inject follow-up suggestions into last assistant message
+          const lastAssistantIdx = typedMessages.map((m) => m.role).lastIndexOf('assistant');
+          let messagesWithSuggestions = typedMessages;
+          if (lastAssistantIdx !== -1 && (userPrefs.followUpSuggestionsEnabled ?? true)) {
+            const contextStr = typedMessages
+              .slice(-6)
+              .map((m) => {
+                const textPart = m.parts.find((p) => p.type === 'text');
+                const text = textPart?.type === 'text' ? textPart.text.slice(0, 400) : '';
+                return `${m.role}: ${text}`;
+              })
+              .filter((line) => !line.endsWith(': '))
+              .join('\n');
 
-          const suggestions = await generateFollowUpSuggestions(contextStr);
-          if (suggestions.length > 0) {
-            messagesWithSuggestions = typedMessages.map((m, i) =>
-              i === lastAssistantIdx
-                ? { ...m, metadata: { ...m.metadata, followUpSuggestions: suggestions } }
-                : m
+            const suggestions = await generateFollowUpSuggestions(contextStr);
+            if (suggestions.length > 0) {
+              messagesWithSuggestions = typedMessages.map((m, i) =>
+                i === lastAssistantIdx
+                  ? { ...m, metadata: { ...m.metadata, followUpSuggestions: suggestions } }
+                  : m
+              );
+            }
+          }
+
+          await persistChatResult({
+            updatedMessages: messagesWithSuggestions,
+            threadId,
+            userId: session.user.id,
+            currentTitle,
+            resolvedModel,
+            creditCost,
+            brandId: activeBrand?.id ?? null,
+            tokenUsageData: usage,
+          });
+
+          await refreshThreadWorkingMemoryFromMessages({
+            threadId,
+            brandId: activeBrand?.id ?? null,
+            messages: messagesWithSuggestions as Array<{
+              id?: string;
+              role: string;
+              parts?: Array<{ type?: string; text?: string }>;
+            }>,
+          }).catch((error) => console.error('Failed to refresh thread working memory:', error));
+
+          const shouldExtractMemory = userPrefs.memoryEnabled && userPrefs.memoryExtractEnabled;
+          if (shouldExtractMemory) {
+            void extractAndStoreMemory(
+              session.user.id,
+              messagesWithSuggestions as Array<{ role: string; parts?: Array<{ type: string; text?: string }> }>,
+              threadId,
+              memoryContext
             );
           }
-        }
 
-        await persistChatResult({
-          updatedMessages: messagesWithSuggestions,
-          threadId,
-          userId: session.user.id,
-          currentTitle,
-          resolvedModel,
-          creditCost,
-          brandId: activeBrand?.id ?? null,
-          tokenUsageData: usage,
-        });
-
-        await refreshThreadWorkingMemoryFromMessages({
-          threadId,
-          brandId: activeBrand?.id ?? null,
-          messages: messagesWithSuggestions as Array<{
-            id?: string;
-            role: string;
-            parts?: Array<{ type?: string; text?: string }>;
-          }>,
-        }).catch((error) => console.error('Failed to refresh thread working memory:', error));
-
-        if (userPrefs.memoryEnabled && userPrefs.memoryExtractEnabled) {
-          void extractAndStoreMemory(
-            session.user.id,
-            messagesWithSuggestions as Array<{ role: string; parts?: Array<{ type: string; text?: string }> }>,
-            threadId,
-            memoryContext
-          );
+          const toolCallCount = getToolCallCount(messagesWithSuggestions);
+          await completeChatRunSuccess(currentChatRunId, {
+            routeKind: 'text',
+            resolvedModelId: resolvedModel,
+            creditCost,
+            toolCallCount,
+            promptTokens: usage?.promptTokens,
+            completionTokens: usage?.completionTokens,
+            totalTokens: usage?.totalTokens,
+            outputJson: buildChatRunOutputSummary({
+              routeKind: 'text',
+              messages: messagesWithSuggestions,
+              followUpSuggestionCount: getFollowUpSuggestionCount(messagesWithSuggestions),
+              memoryExtracted: shouldExtractMemory,
+            }),
+          });
+        } catch (error) {
+          console.error('Failed to finalize chat run:', error);
+          await completeChatRunError(currentChatRunId, {
+            errorMessage: error instanceof Error ? error.message : 'Unknown finalization error',
+            routeKind: 'text',
+            resolvedModelId: resolvedModel,
+          }).catch((auditError) => console.error('Failed to mark chat run as error:', auditError));
         }
       },
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
+    if (chatRunId) {
+      await completeChatRunError(chatRunId, {
+        errorMessage: message,
+        routeKind: chatRunRouteKind,
+        resolvedModelId: chatRunResolvedModelId,
+      }).catch((auditError) => console.error('Failed to mark chat run as error:', auditError));
+    }
     return Response.json({ error: message }, { status: 400 });
   }
 }

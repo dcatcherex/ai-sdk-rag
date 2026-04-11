@@ -7,6 +7,7 @@ import {
   CoinsIcon,
   LayoutDashboardIcon,
   MenuIcon,
+  SearchIcon,
   MessageSquareIcon,
   ShieldIcon,
   UsersIcon,
@@ -23,6 +24,7 @@ const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboardIcon },
   { href: '/admin/users', label: 'Users', icon: UsersIcon },
   { href: '/admin/credits', label: 'Credits', icon: CoinsIcon },
+  { href: '/admin/chat-runs', label: 'AI Runs', icon: SearchIcon },
 ];
 
 export default function AdminLayout({

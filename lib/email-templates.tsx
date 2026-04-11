@@ -26,6 +26,17 @@ type EmailTemplateProps = {
   theme?: EmailTheme;
 };
 
+type AdminInviteEmailProps = {
+  appName: string;
+  actionUrl: string;
+  expiresAtLabel: string;
+  inviterName?: string;
+  inviteeName?: string;
+  logoUrl?: string;
+  supportEmail?: string;
+  theme?: EmailTheme;
+};
+
 const themeClasses = (theme: EmailTheme) => {
   if (theme === "dark") {
     return {
@@ -194,6 +205,46 @@ export const MagicLinkEmail = ({
       className={`mt-4 inline-flex rounded-full px-6 py-3 text-sm font-semibold ${themeClasses(theme).button}`}
     >
       Sign in
+    </Button>
+    <Text className={`mt-6 text-xs ${themeClasses(theme).muted}`}>
+      If the button does not work, paste this link into your browser:
+    </Text>
+    <Link href={actionUrl} className={`text-xs ${themeClasses(theme).link}`}>
+      {actionUrl}
+    </Link>
+  </EmailLayout>
+);
+
+export const AdminInviteEmail = ({
+  appName,
+  actionUrl,
+  expiresAtLabel,
+  inviterName,
+  inviteeName,
+  logoUrl,
+  supportEmail,
+  theme = "light",
+}: AdminInviteEmailProps) => (
+  <EmailLayout
+    appName={appName}
+    logoUrl={logoUrl}
+    supportEmail={supportEmail}
+    theme={theme}
+    preview={`You're invited to ${appName}`}
+  >
+    <Heading className={`text-2xl font-semibold ${themeClasses(theme).text}`}>You&apos;re invited</Heading>
+    <Text className={`text-sm leading-relaxed ${themeClasses(theme).muted}`}>
+      {inviteeName ? `Hi ${inviteeName},` : "Hi there,"} you&apos;ve been invited to join {appName}
+      {inviterName ? ` by ${inviterName}` : ""}.
+    </Text>
+    <Text className={`text-sm leading-relaxed ${themeClasses(theme).muted}`}>
+      Accept the invite with your existing auth method. The invite stays tied to this email address and expires on {expiresAtLabel}.
+    </Text>
+    <Button
+      href={actionUrl}
+      className={`mt-4 inline-flex rounded-full px-6 py-3 text-sm font-semibold ${themeClasses(theme).button}`}
+    >
+      Accept invite
     </Button>
     <Text className={`mt-6 text-xs ${themeClasses(theme).muted}`}>
       If the button does not work, paste this link into your browser:

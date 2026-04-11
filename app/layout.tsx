@@ -54,15 +54,13 @@ const fontClasses = `${geistSans.variable} ${geistMono.variable} ${inter.variabl
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: 'cover',
   interactiveWidget: 'resizes-content',
 };
 
 export const metadata: Metadata = {
-  title: "Studio Chat",
-  description: "AI-powered chat with RAG and credit system",
+  title: "Vaja AI",
+  description: "Skill-first AI cowork platform for Thai teams, businesses, and LINE-native workflows.",
 };
 
 export default function RootLayout({
@@ -71,7 +69,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={fontClasses}>
+    <html lang="th" className={fontClasses}>
       <body className="antialiased">
         <Providers>{children}</Providers>
         <Toaster richColors position="bottom-center" />

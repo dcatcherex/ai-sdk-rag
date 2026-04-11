@@ -26,6 +26,7 @@ import { VoiceSection } from '@/features/settings/components/voice-section';
 import { BrandsSection } from '@/features/brands/components/brands-section';
 import { AppearanceSection } from '@/features/settings/components/appearance-section';
 import { WorkspaceSection } from '@/features/settings/components/workspace-section';
+import { ChatRunsCard } from '@/features/chat/components/chat-runs-card';
 import { ALL_TOOL_IDS, type ToolId } from '@/lib/tool-registry';
 import { useWorkspacePreferences } from '@/features/workspace/hooks/use-workspace-preferences';
 
@@ -149,6 +150,8 @@ export default function SettingsPage() {
                 selectedVoice={prefs.selectedVoice}
                 onSelect={(voice) => void updatePref({ selectedVoice: voice })}
               />
+
+              <ChatRunsCard />
             </>
           )}
 

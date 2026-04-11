@@ -32,6 +32,7 @@ export const ChatMessageList = ({
   agentName,
   agentDescription,
   starterPrompts,
+  generalStarterPrompts = [],
   onCopyMessage,
   onRegenerateMessage,
   onToggleReaction,
@@ -106,10 +107,20 @@ export const ChatMessageList = ({
                 <FollowUpChips suggestions={starterPrompts} onSuggestionClick={onSuggestionClick} />
               </div>
             ) : (
-              <ConversationEmptyState
-                title="Plan, ask, and refine"
-                description="Start by asking for a brief, or drag in files to ground the response."
-              />
+              <div className="flex flex-col items-center justify-center gap-4 px-4 py-16 text-center">
+                <div className="rounded-full bg-primary/10 p-3">
+                  <BotIcon className="size-7 text-primary" />
+                </div>
+                <div className="space-y-1">
+                  <p className="font-semibold text-base">Your Vaja AI coworker is ready</p>
+                  <p className="mx-auto max-w-md text-sm text-muted-foreground">
+                    Start with a real task, ask for a draft, or connect your work context with files and skills.
+                  </p>
+                </div>
+                {generalStarterPrompts.length > 0 ? (
+                  <FollowUpChips suggestions={generalStarterPrompts} onSuggestionClick={onSuggestionClick} />
+                ) : null}
+              </div>
             )
           ) : (
             <>

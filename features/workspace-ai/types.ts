@@ -46,3 +46,35 @@ export type WorkspaceImageAssistResult = {
   taskId: string;
   generationId: string;
 };
+
+export type WorkspaceAiRunStatus = 'pending' | 'success' | 'error';
+
+export type WorkspaceAiRunListItem = {
+  id: string;
+  kind: string;
+  route: 'text' | 'image';
+  status: WorkspaceAiRunStatus;
+  entityType: WorkspaceAssistEntityType;
+  entityId: string | null;
+  modelId: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  completedAt: string | null;
+};
+
+export type WorkspaceAiRunsSummaryItem = {
+  key: string;
+  count: number;
+};
+
+export type WorkspaceAiRunsOverview = {
+  summary: {
+    totalRuns: number;
+    successCount: number;
+    errorCount: number;
+    pendingCount: number;
+    byKind: WorkspaceAiRunsSummaryItem[];
+    byRoute: WorkspaceAiRunsSummaryItem[];
+  };
+  runs: WorkspaceAiRunListItem[];
+};

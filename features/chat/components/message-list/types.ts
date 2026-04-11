@@ -33,6 +33,7 @@ export type ChatMessageListProps = {
   agentName?: string;
   agentDescription?: string | null;
   starterPrompts?: string[];
+  generalStarterPrompts?: string[];
   onCopyMessage: (messageId: string, text: string) => void;
   onRegenerateMessage: (messageId: string) => void;
   onToggleReaction: (messageId: string, reaction: MessageReaction) => void;

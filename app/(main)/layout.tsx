@@ -2,11 +2,20 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { AppAccessGuard } from '@/features/auth/components/app-access-guard';
 import { ChatSidebar } from '@/features/chat/components/chat-sidebar';
 import { useThreads, setNewChatIntent, setPendingThread } from '@/features/chat/hooks/use-threads';
 import { useUserProfile } from '@/features/chat/hooks/use-user-profile';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <AppAccessGuard>
+      <MainLayoutShell>{children}</MainLayoutShell>
+    </AppAccessGuard>
+  );
+}
+
+function MainLayoutShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 

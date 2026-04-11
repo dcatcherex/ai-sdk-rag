@@ -35,7 +35,7 @@ export const AiModeSelector = ({
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId) ?? null;
 
-  const label = selectedAgent?.name ?? 'General';
+  const label = selectedAgent?.name ?? 'General coworker';
 
   const isDefault = !selectedAgentId;
   const isAgent = !!selectedAgentId;
@@ -81,8 +81,8 @@ export const AiModeSelector = ({
                 className="text-xs"
               >
                 <SparklesIcon className="size-3.5 mr-1.5 shrink-0" />
-                <span>General</span>
-                <span className="ml-1.5 text-muted-foreground text-[10px]">auto-detect style</span>
+                <span>General coworker</span>
+                <span className="ml-1.5 text-muted-foreground text-[10px]">best for first-time chat</span>
                 {isDefault && <CheckIcon className="ml-auto size-3.5" />}
               </CommandItem>
             </CommandGroup>

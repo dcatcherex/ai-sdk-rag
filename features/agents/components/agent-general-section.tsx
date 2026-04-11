@@ -1,7 +1,9 @@
 'use client';
 
-import { type KeyboardEvent, type RefObject } from 'react';
-import { Loader2Icon, PlusIcon, SparklesIcon, WandSparklesIcon, XIcon } from 'lucide-react';
+import { useState, type KeyboardEvent, type RefObject } from 'react';
+import { PlusIcon, WandSparklesIcon, XIcon } from 'lucide-react';
+import { AiAssistButton } from '@/features/workspace-ai/components/ai-assist-button';
+import { AiImageAssistDialog } from '@/features/workspace-ai/components/ai-image-assist-dialog';
 import { availableModels } from '@/lib/ai';
 import { Button } from '@/components/ui/button';
 import { ImageUploadZone } from '@/components/ui/image-upload-zone';
@@ -15,13 +17,19 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+type CoverImageOptions = {
+  instruction?: string;
+  modelId?: string;
+  aspectRatio?: string;
+};
+
 type AgentGeneralSectionProps = {
   description: string;
   imageUrl: string;
   modelId: string;
   name: string;
   onDescriptionChange: (value: string) => void;
-  onGenerateCoverImage: () => void;
+  onGenerateCoverImage: (options: CoverImageOptions) => void;
   onGenerateDescription: () => void;
   onGenerateStarters: () => void;
   onImageUrlChange: (url: string) => void;
@@ -71,21 +79,35 @@ export function AgentGeneralSection({
   starterInputRef,
   starterPrompts,
 }: AgentGeneralSectionProps) {
+  const [coverDialogOpen, setCoverDialogOpen] = useState(false);
+  const [coverInstruction, setCoverInstruction] = useState('');
+  const [coverModelId, setCoverModelId] = useState('nano-banana-2');
+  const [coverAspectRatio, setCoverAspectRatio] = useState('1:1');
+
+  const handleOpenCoverDialog = () => {
+    setCoverDialogOpen(true);
+  };
+
+  const handleGenerateCoverSubmit = () => {
+    onGenerateCoverImage({
+      instruction: coverInstruction.trim() || undefined,
+      modelId: coverModelId,
+      aspectRatio: coverAspectRatio,
+    });
+    setCoverDialogOpen(false);
+  };
+
   return (
     <div className="space-y-5">
       {/* Image upload */}
       <div className="flex items-center justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={onGenerateCoverImage}
-          disabled={isGeneratingCoverImage}
-        >
-          {isGeneratingCoverImage ? <Loader2Icon className="size-3.5 animate-spin" /> : <WandSparklesIcon className="size-3.5" />}
-          {isGeneratingCoverImage ? 'Generating cover...' : 'Generate cover'}
-        </Button>
+        <AiAssistButton
+          onClick={handleOpenCoverDialog}
+          isLoading={isGeneratingCoverImage}
+          idleLabel="Generate cover"
+          loadingLabel="Generating cover..."
+          icon={<WandSparklesIcon className="size-3.5" />}
+        />
       </div>
       <ImageUploadZone
         label="Cover image"
@@ -111,17 +133,12 @@ export function AgentGeneralSection({
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-2">
           <Label htmlFor="agent-description">Description</Label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
+          <AiAssistButton
             onClick={onGenerateDescription}
-            disabled={isGeneratingDescription}
-          >
-            {isGeneratingDescription ? <Loader2Icon className="size-3.5 animate-spin" /> : <SparklesIcon className="size-3.5" />}
-            {isGeneratingDescription ? 'Writing...' : 'Write with AI'}
-          </Button>
+            isLoading={isGeneratingDescription}
+            idleLabel="Write with AI"
+            loadingLabel="Writing..."
+          />
         </div>
         <Input
           id="agent-description"
@@ -159,17 +176,12 @@ export function AgentGeneralSection({
           <Label>
             Conversation starters <span className="font-normal text-muted-foreground">(optional)</span>
           </Label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
+          <AiAssistButton
             onClick={onGenerateStarters}
-            disabled={isGeneratingStarters}
-          >
-            {isGeneratingStarters ? <Loader2Icon className="size-3.5 animate-spin" /> : <SparklesIcon className="size-3.5" />}
-            {isGeneratingStarters ? 'Generating...' : 'Suggest with AI'}
-          </Button>
+            isLoading={isGeneratingStarters}
+            idleLabel="Suggest with AI"
+            loadingLabel="Generating..."
+          />
         </div>
         <p className="text-xs text-muted-foreground">
           Suggested prompts shown to users before their first message. Up to 4.
@@ -217,6 +229,21 @@ export function AgentGeneralSection({
           </div>
         )}
       </div>
+
+      <AiImageAssistDialog
+        open={coverDialogOpen}
+        onOpenChange={setCoverDialogOpen}
+        title="Generate Cover Image"
+        description="Add optional visual direction before generating the agent cover."
+        instruction={coverInstruction}
+        onInstructionChange={setCoverInstruction}
+        modelId={coverModelId}
+        onModelIdChange={setCoverModelId}
+        aspectRatio={coverAspectRatio}
+        onAspectRatioChange={setCoverAspectRatio}
+        onGenerate={handleGenerateCoverSubmit}
+        isGenerating={isGeneratingCoverImage}
+      />
     </div>
   );
 }

@@ -29,7 +29,7 @@ const socialProviders =
       }
     : {};
 
-const appName = "Better Auth";
+const appName = "Vaja AI";
 const logoUrl = process.env.AUTH_EMAIL_LOGO_URL;
 const supportEmail = process.env.AUTH_SUPPORT_EMAIL;
 const emailTheme = process.env.AUTH_EMAIL_THEME === "dark" ? "dark" : "light";

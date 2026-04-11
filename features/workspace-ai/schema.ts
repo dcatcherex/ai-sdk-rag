@@ -42,6 +42,48 @@ export const workspaceImageAssistRequestSchema = z.object({
   context: workspaceTextAssistContextSchema,
 });
 
+export const workspaceAiRunStatusSchema = z.enum([
+  'pending',
+  'success',
+  'error',
+]);
+
+export const workspaceAiRunsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+export const workspaceAiRunsSummaryItemSchema = z.object({
+  key: z.string().min(1),
+  count: z.number().int().nonnegative(),
+});
+
+export const workspaceAiRunListItemSchema = z.object({
+  id: z.string().min(1),
+  kind: z.string().min(1),
+  route: z.enum(['text', 'image']),
+  status: workspaceAiRunStatusSchema,
+  entityType: workspaceAssistEntityTypeSchema,
+  entityId: z.string().nullable(),
+  modelId: z.string().nullable(),
+  errorMessage: z.string().nullable(),
+  createdAt: z.string().min(1),
+  completedAt: z.string().nullable(),
+});
+
+export const workspaceAiRunsResponseSchema = z.object({
+  summary: z.object({
+    totalRuns: z.number().int().nonnegative(),
+    successCount: z.number().int().nonnegative(),
+    errorCount: z.number().int().nonnegative(),
+    pendingCount: z.number().int().nonnegative(),
+    byKind: z.array(workspaceAiRunsSummaryItemSchema),
+    byRoute: z.array(workspaceAiRunsSummaryItemSchema),
+  }),
+  runs: z.array(workspaceAiRunListItemSchema),
+});
+
 export type WorkspaceTextAssistRequestInput = z.infer<typeof workspaceTextAssistRequestSchema>;
 export type WorkspaceTextAssistOutput = z.infer<typeof workspaceTextAssistOutputSchema>;
 export type WorkspaceImageAssistRequestInput = z.infer<typeof workspaceImageAssistRequestSchema>;
+export type WorkspaceAiRunsQueryInput = z.infer<typeof workspaceAiRunsQuerySchema>;
+export type WorkspaceAiRunsResponse = z.infer<typeof workspaceAiRunsResponseSchema>;

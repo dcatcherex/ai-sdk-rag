@@ -1,17 +1,13 @@
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
 import {
   BookOpenIcon,
-  BrainCircuitIcon,
   DownloadIcon,
   FileTextIcon,
-  HeadsetIcon,
   MenuIcon,
   MoreHorizontalIcon,
   PanelRightOpenIcon,
-  TableOfContentsIcon,
   Trash2Icon,
 } from 'lucide-react';
 
@@ -74,7 +70,7 @@ type ChatHeaderProps = {
 export const ChatHeader = ({
   activeThread,
   status,
-  lastRouting,
+  lastRouting: _lastRouting,
   lastRoutingModel,
   onDeleteThread,
   isDeleting,
@@ -101,6 +97,9 @@ export const ChatHeader = ({
   };
 
   const fontSizeIndex = FONT_SIZES.indexOf(fontSize);
+  const headerSubtitle = activeThread
+    ? (lastRoutingModel ? `Using ${lastRoutingModel.name}` : 'Ready for your next task')
+    : 'Start with a task, question, or draft request';
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 px-3 py-2 dark:border-border md:gap-3 md:px-6 md:py-1.5">
@@ -117,26 +116,11 @@ export const ChatHeader = ({
           <h2 className="truncate text-base font-medium text-foreground md:text-lg">
             {activeThread?.title ?? 'New chat'}
           </h2>
+          <p className="truncate text-xs text-muted-foreground">{headerSubtitle}</p>
         </div>
       </div>
 
       <div className="flex items-center gap-1">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant={outlinePanelOpen ? 'default' : 'ghost'}
-                onClick={onToggleOutlinePanel}
-                className="size-8 hover:cursor-pointer"
-              >
-                <TableOfContentsIcon className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Outline</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -161,23 +145,6 @@ export const ChatHeader = ({
           </Tooltip>
         </TooltipProvider>
 
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant={workingMemoryOpen ? 'default' : 'ghost'}
-                onClick={onToggleWorkingMemory}
-                className="size-8 hover:cursor-pointer"
-                disabled={!activeThread || status === 'submitted'}
-              >
-                <BrainCircuitIcon className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Thread working memory</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
         <DropdownMenu>
           <TooltipProvider>
             <Tooltip>
@@ -192,11 +159,17 @@ export const ChatHeader = ({
             </Tooltip>
           </TooltipProvider>
           <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuItem asChild>
-              <Link href="/support">
-                <HeadsetIcon className="mr-2 size-4" />
-                Support Inbox
-              </Link>
+            <DropdownMenuItem onClick={onToggleOutlinePanel}>
+              <PanelRightOpenIcon className="mr-2 size-4" />
+              {outlinePanelOpen ? 'Hide outline' : 'Show outline'}
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              onClick={onToggleWorkingMemory}
+              disabled={!activeThread || status === 'submitted'}
+            >
+              <BookOpenIcon className="mr-2 size-4" />
+              {workingMemoryOpen ? 'Hide working memory' : 'Show working memory'}
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />

@@ -57,6 +57,48 @@ export const tokenUsage = pgTable(
   (table) => [index("token_usage_thread_idx").on(table.threadId)],
 );
 
+export const chatRun = pgTable(
+  "chat_run",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => chatThread.id, { onDelete: "cascade" }),
+    agentId: text("agent_id"),
+    brandId: text("brand_id").references(() => brand.id, { onDelete: "set null" }),
+    status: text("status").notNull().default("pending"),
+    routeKind: text("route_kind").notNull().default("text"),
+    requestedModelId: text("requested_model_id"),
+    resolvedModelId: text("resolved_model_id"),
+    routingMode: text("routing_mode"),
+    routingReason: text("routing_reason"),
+    useWebSearch: boolean("use_web_search").default(false).notNull(),
+    usedTools: boolean("used_tools").default(false).notNull(),
+    toolCallCount: integer("tool_call_count").default(0).notNull(),
+    inputJson: jsonb("input_json").notNull(),
+    outputJson: jsonb("output_json"),
+    errorMessage: text("error_message"),
+    creditCost: integer("credit_cost"),
+    promptTokens: integer("prompt_tokens"),
+    completionTokens: integer("completion_tokens"),
+    totalTokens: integer("total_tokens"),
+    startedAt: timestamp("started_at").defaultNow().notNull(),
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("chat_run_userId_idx").on(table.userId),
+    index("chat_run_threadId_idx").on(table.threadId),
+    index("chat_run_agentId_idx").on(table.agentId),
+    index("chat_run_status_idx").on(table.status),
+    index("chat_run_resolvedModelId_idx").on(table.resolvedModelId),
+    index("chat_run_createdAt_idx").on(table.createdAt),
+  ],
+);
+
 export const mediaAsset = pgTable(
   "media_asset",
   {
@@ -134,5 +176,20 @@ export const tokenUsageRelations = relations(tokenUsage, ({ one }) => ({
   thread: one(chatThread, {
     fields: [tokenUsage.threadId],
     references: [chatThread.id],
+  }),
+}));
+
+export const chatRunRelations = relations(chatRun, ({ one }) => ({
+  user: one(user, {
+    fields: [chatRun.userId],
+    references: [user.id],
+  }),
+  thread: one(chatThread, {
+    fields: [chatRun.threadId],
+    references: [chatThread.id],
+  }),
+  brand: one(brand, {
+    fields: [chatRun.brandId],
+    references: [brand.id],
   }),
 }));

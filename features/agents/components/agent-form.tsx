@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { toast } from 'sonner';
+import { requestWorkspaceImageAssist, requestWorkspaceTextAssist } from '@/features/workspace-ai/client';
+import { AiSuggestionDialog } from '@/features/workspace-ai/components/ai-suggestion-dialog';
 import { Button } from '@/components/ui/button';
 import { persistGeneration } from '@/lib/clientPersist';
 import { getPollingService } from '@/lib/polling/GenerationPollingService';
@@ -9,7 +11,6 @@ import { cn } from '@/lib/utils';
 import { useSkills } from '@/features/skills/hooks/use-skills';
 import type { Brand } from '@/features/brands/types';
 import type { AgentSkillAttachmentInput, SkillActivationMode, SkillTriggerType } from '@/features/skills/types';
-import type { WorkspaceImageAssistResult, WorkspaceTextAssistKind, WorkspaceTextAssistResult } from '@/features/workspace-ai/types';
 import { useUserDocuments } from '../hooks/use-agent-documents';
 import { useAgentSkillAttachments } from '../hooks/use-agents';
 import { useUserSearch } from '../hooks/use-user-search';
@@ -23,41 +24,6 @@ import { AgentToolsSection } from './agent-tools-section';
 import { AGENT_EDITOR_SECTIONS, type AgentEditorSectionId } from './agent-editor-sections';
 import type { Agent, AgentWithSharing, CreateAgentInput, SharedUser } from '../types';
 
-async function requestWorkspaceTextAssist(
-  kind: WorkspaceTextAssistKind,
-  body: Record<string, unknown>,
-): Promise<WorkspaceTextAssistResult> {
-  const res = await fetch('/api/workspace-ai/text', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ kind, ...body }),
-  });
-
-  const json = await res.json() as WorkspaceTextAssistResult & { error?: string };
-  if (!res.ok) {
-    throw new Error(json.error ?? 'AI assist failed');
-  }
-
-  return json;
-}
-
-async function requestWorkspaceImageAssist(
-  body: Record<string, unknown>,
-): Promise<WorkspaceImageAssistResult> {
-  const res = await fetch('/api/workspace-ai/image', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-  const json = await res.json() as WorkspaceImageAssistResult & { error?: string };
-  if (!res.ok) {
-    throw new Error(json.error ?? 'AI image assist failed');
-  }
-
-  return json;
-}
-
 type AgentFormProps = {
   activeSection?: AgentEditorSectionId;
   agent?: Agent | null;
@@ -69,6 +35,12 @@ type AgentFormProps = {
   layout?: 'dialog' | 'panel';
   resetKey?: string | boolean;
   submitLabel: string;
+};
+
+type AgentCoverImageOptions = {
+  instruction?: string;
+  modelId?: string;
+  aspectRatio?: string;
 };
 
 const sortSkillAttachments = (attachments: AgentSkillAttachmentInput[]) =>
@@ -119,6 +91,10 @@ export function AgentForm({
   const [isGeneratingCoverImage, setIsGeneratingCoverImage] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   const [isGeneratingStarters, setIsGeneratingStarters] = useState(false);
+  const [descriptionSuggestions, setDescriptionSuggestions] = useState<string[]>([]);
+  const [starterSuggestions, setStarterSuggestions] = useState<string[]>([]);
+  const [descriptionSuggestionsOpen, setDescriptionSuggestionsOpen] = useState(false);
+  const [starterSuggestionsOpen, setStarterSuggestionsOpen] = useState(false);
   const [sharedWith, setSharedWith] = useState<SharedUser[]>([]);
   const [shareSearch, setShareSearch] = useState('');
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -271,11 +247,9 @@ export function AgentForm({
         },
       });
 
-      const nextDescription = result.suggestions[0];
-      if (!nextDescription) throw new Error('No description returned');
-      markUserEdited();
-      setDescription(nextDescription);
-      toast.success('Description generated');
+      if (result.suggestions.length === 0) throw new Error('No description returned');
+      setDescriptionSuggestions(result.suggestions);
+      setDescriptionSuggestionsOpen(true);
     } catch (error) {
       toast.error('Failed to generate description', {
         description: error instanceof Error ? error.message : 'Unknown error',
@@ -285,7 +259,7 @@ export function AgentForm({
     }
   };
 
-  const handleGenerateCoverImage = async () => {
+  const handleGenerateCoverImage = async (options: AgentCoverImageOptions = {}) => {
     if (!name.trim()) {
       toast.error('Agent name is required first');
       return;
@@ -301,6 +275,9 @@ export function AgentForm({
     try {
       const generation = await requestWorkspaceImageAssist({
         kind: 'agent-cover',
+        instruction: options.instruction,
+        modelId: options.modelId,
+        aspectRatio: options.aspectRatio,
         context: {
           entityType: 'agent',
           entityId: agent?.id,
@@ -370,10 +347,9 @@ export function AgentForm({
         },
       });
 
-      markUserEdited();
-      setStarterPrompts(result.suggestions.slice(0, 4));
-      setStarterInput('');
-      toast.success('Conversation starters generated');
+      if (result.suggestions.length === 0) throw new Error('No starters returned');
+      setStarterSuggestions(result.suggestions.slice(0, 4));
+      setStarterSuggestionsOpen(true);
     } catch (error) {
       toast.error('Failed to generate starters', {
         description: error instanceof Error ? error.message : 'Unknown error',
@@ -458,7 +434,7 @@ export function AgentForm({
       modelId={modelId}
       name={name}
       onDescriptionChange={(value) => { markUserEdited(); setDescription(value); }}
-      onGenerateCoverImage={() => { void handleGenerateCoverImage(); }}
+      onGenerateCoverImage={(options) => { void handleGenerateCoverImage(options); }}
       onGenerateDescription={() => { void handleGenerateDescription(); }}
       onGenerateStarters={() => { void handleGenerateStarters(); }}
       onImageUrlChange={(url) => { markUserEdited(); setImageUrl(url); }}
@@ -553,28 +529,69 @@ export function AgentForm({
   );
 
   return (
-    <form onSubmit={handleSubmit} className={cn('space-y-4', isPanel && 'flex min-h-0 flex-1 flex-col overflow-hidden gap-6 space-y-0')}>
-      {isPanel ? (
-        <AgentSettingsLayout
-          activeSection={resolvedActiveSection}
-          footer={formActions}
-          onSectionChange={onSectionChange ?? (() => undefined)}
-          sectionDescription={activeSectionMeta?.description}
-          sectionTitle={activeSectionMeta?.label ?? 'General'}
-        >
-          {panelSectionContent[resolvedActiveSection]}
-        </AgentSettingsLayout>
-      ) : (
-        <>
-          {generalSection}
-          {behaviorSection}
-          {skillsSection}
-          {toolsSection}
-          {knowledgeSection}
-          {sharingSection}
-          {formActions}
-        </>
-      )}
-    </form>
+    <>
+      <form onSubmit={handleSubmit} className={cn('space-y-4', isPanel && 'flex min-h-0 flex-1 flex-col overflow-hidden gap-6 space-y-0')}>
+        {isPanel ? (
+          <AgentSettingsLayout
+            activeSection={resolvedActiveSection}
+            footer={formActions}
+            onSectionChange={onSectionChange ?? (() => undefined)}
+            sectionDescription={activeSectionMeta?.description}
+            sectionTitle={activeSectionMeta?.label ?? 'General'}
+          >
+            {panelSectionContent[resolvedActiveSection]}
+          </AgentSettingsLayout>
+        ) : (
+          <>
+            {generalSection}
+            {behaviorSection}
+            {skillsSection}
+            {toolsSection}
+            {knowledgeSection}
+            {sharingSection}
+            {formActions}
+          </>
+        )}
+      </form>
+
+      <AiSuggestionDialog
+        open={descriptionSuggestionsOpen}
+        onOpenChange={setDescriptionSuggestionsOpen}
+        title="Description Suggestions"
+        description="Choose the draft description that fits this agent best."
+        suggestions={descriptionSuggestions}
+        onSelect={(suggestion) => {
+          markUserEdited();
+          setDescription(suggestion);
+          setDescriptionSuggestionsOpen(false);
+          toast.success('Description applied');
+        }}
+      />
+
+      <AiSuggestionDialog
+        open={starterSuggestionsOpen}
+        onOpenChange={setStarterSuggestionsOpen}
+        title="Conversation Starter Suggestions"
+        description="Pick one starter or apply the full set."
+        suggestions={starterSuggestions}
+        onSelect={(suggestion) => {
+          markUserEdited();
+          setStarterPrompts((prev) => {
+            if (prev.includes(suggestion)) return prev;
+            return [...prev, suggestion].slice(0, 4);
+          });
+          setStarterSuggestionsOpen(false);
+          toast.success('Starter applied');
+        }}
+        primaryActionLabel="Use all"
+        onPrimaryAction={() => {
+          markUserEdited();
+          setStarterPrompts(starterSuggestions.slice(0, 4));
+          setStarterInput('');
+          setStarterSuggestionsOpen(false);
+          toast.success('Conversation starters applied');
+        }}
+      />
+    </>
   );
 }

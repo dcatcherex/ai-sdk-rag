@@ -26,13 +26,33 @@ Implemented now:
   - `agent-description`
   - `agent-starters`
   - `agent-cover`
-- backend support for `skill-description` prompt generation
+  - cover generation dialog with optional visual direction, model, and aspect ratio
+- skill editor integration for:
+  - `skill-description`
+- reusable workspace AI UI components:
+  - `features/workspace-ai/components/ai-assist-button.tsx`
+  - `features/workspace-ai/components/ai-suggestion-dialog.tsx`
+  - `features/workspace-ai/components/ai-image-assist-dialog.tsx`
+- shared client request helper:
+  - `features/workspace-ai/client.ts`
+- agent and skill text assists now use suggestion-picker UI instead of always auto-applying the first result
+- audit persistence foundation:
+  - `db/schema/tools.ts` now includes `workspace_ai_run`
+  - `db/migrations/0048_workspace_ai_run.sql`
+  - `features/workspace-ai/audit.ts`
+  - workspace AI text and image routes now log run records
+- observability query layer:
+  - `features/workspace-ai/queries.ts`
+  - `GET /api/workspace-ai/runs`
+  - authenticated per-user recent runs + summary counts by status, kind, and route
+- shared observability client/UI layer:
+  - `features/workspace-ai/client.ts` now includes run-history fetching
+  - `features/workspace-ai/hooks/use-workspace-ai-runs.ts`
+  - `features/workspace-ai/components/workspace-ai-runs-card.tsx`
 
 Not implemented yet:
 
-- skill editor UI integration
-- reusable shared workspace AI UI primitives
-- dedicated audit or analytics persistence
+- no dedicated placed reporting screen yet
 
 ---
 

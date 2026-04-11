@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { AppAccessGuard } from '@/features/auth/components/app-access-guard';
 import { KnowledgeSheet } from '@/components/knowledge/knowledge-sheet';
 import { useDocumentStats } from '@/lib/hooks/use-documents';
 import { useThreads } from '@/features/chat/hooks/use-threads';
@@ -24,11 +25,26 @@ import type { ChatMessage, QuizFollowUpContext, RoutingMetadata } from '@/featur
 import type { PromptInputMessage } from '@/components/ai-elements/prompt-input';
 import { ThreadWorkingMemorySheet } from '@/features/memory/components/thread-working-memory-sheet';
 import { consumePendingChatIntent } from '@/features/chat/lib/pending-chat-intent';
+import { useUserPreferences } from '@/features/settings/hooks/use-user-preferences';
+
+const GENERAL_STARTER_PROMPTS = [
+  'Help me write a reply for a LINE customer asking about price and delivery.',
+  'Plan 3 content ideas for my business this week.',
+  'Turn this rough idea into a clear draft I can send today.',
+];
 
 export default function Chat() {
+  return (
+    <AppAccessGuard>
+      <ChatShell />
+    </AppAccessGuard>
+  );
+}
+
+function ChatShell() {
   const [knowledgePanelOpen, setKnowledgePanelOpen] = useState(false);
   const [workingMemoryOpen, setWorkingMemoryOpen] = useState(false);
-  const [outlinePanelOpen, setOutlinePanelOpen] = useState(true);
+  const [outlinePanelOpen, setOutlinePanelOpen] = useState(false);
   const [widenMode, setWidenMode] = useState(false);
   const [fontSize, setFontSize] = useState<FontSize>(() => {
     if (typeof window === 'undefined') return 'base';
@@ -52,18 +68,7 @@ export default function Chat() {
     setCompareMode((prev) => !prev);
     if (compareMode) setSubmittedComparePrompt(null);
   }, [compareMode]);
-  const [followUpSuggestionsEnabled, setFollowUpSuggestionsEnabled] = useState(true);
-  const [selectedVoice, setSelectedVoice] = useState<string | null>(null);
-  useEffect(() => {
-    void fetch('/api/user/preferences')
-      .then((r) => r.ok ? r.json() : null)
-      .then((prefs) => {
-        if (prefs) {
-          setFollowUpSuggestionsEnabled(prefs.followUpSuggestionsEnabled ?? true);
-          setSelectedVoice(prefs.selectedVoice ?? null);
-        }
-      });
-  }, []);
+  const { prefs } = useUserPreferences();
 
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(() => consumePendingChatIntent()?.agentId ?? null);
@@ -136,7 +141,7 @@ export default function Chat() {
     ensureThread,
     useWebSearchRef,
     selectedAgentIdRef,
-    followUpSuggestionsEnabled,
+    followUpSuggestionsEnabled: prefs.followUpSuggestionsEnabled,
     latestQuizContextRef,
   });
 
@@ -349,6 +354,7 @@ export default function Chat() {
                 agentName={selectedAgent?.name}
                 agentDescription={selectedAgent?.description}
                 starterPrompts={selectedAgent?.starterPrompts}
+                generalStarterPrompts={GENERAL_STARTER_PROMPTS}
                 onCopyMessage={copyToClipboard}
                 onRegenerateMessage={regenerateMessage}
                 onDeleteMessage={deleteMessage}
@@ -390,7 +396,7 @@ export default function Chat() {
                 onSubmit={compareMode ? handleCompareSubmit : handleSubmitMessage}
                 onVoiceTurnComplete={handleVoiceTurnComplete}
                 voiceHistory={voiceHistory}
-                selectedVoice={selectedVoice}
+                selectedVoice={prefs.selectedVoice}
                 compareMode={compareMode}
                 comparePresetIds={presetIds}
                 comparePresetMode={presetMode}

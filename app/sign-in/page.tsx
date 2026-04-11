@@ -7,8 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 
-const signInCallbackURL = "/";
-const verificationCallbackURL = "/verified";
 const resetRedirectURL = "/reset-password";
 
 type View = "sign-in" | "sign-up" | "reset" | "magic" | "inbox";
@@ -38,15 +36,21 @@ function Divider({ label }: { label: string }) {
 }
 
 function SignInContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextUrl = searchParams.get("next") || "/";
+  const prefilledEmail = searchParams.get("email") || "";
+  const verificationCallbackURL = `/verified?next=${encodeURIComponent(nextUrl)}`;
+
   const [view, setView] = useState<View>("sign-in");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(prefilledEmail);
   const [password, setPassword] = useState("");
   const [signUpName, setSignUpName] = useState("");
-  const [signUpEmail, setSignUpEmail] = useState("");
+  const [signUpEmail, setSignUpEmail] = useState(prefilledEmail);
   const [signUpPassword, setSignUpPassword] = useState("");
   const [signUpSuccessEmail, setSignUpSuccessEmail] = useState<string | null>(null);
-  const [magicEmail, setMagicEmail] = useState("");
-  const [resetEmail, setResetEmail] = useState("");
+  const [magicEmail, setMagicEmail] = useState(prefilledEmail);
+  const [resetEmail, setResetEmail] = useState(prefilledEmail);
   const [isEmailLoading, setIsEmailLoading] = useState(false);
   const [isSignUpLoading, setIsSignUpLoading] = useState(false);
   const [isMagicLoading, setIsMagicLoading] = useState(false);
@@ -55,14 +59,24 @@ function SignInContent() {
   const [inboxEmail, setInboxEmail] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const router = useRouter();
-  const searchParams = useSearchParams();
 
-  const setError = (msg: string) => { setErrorMsg(msg); setSuccessMsg(null); };
-  const setSuccess = (msg: string) => { setSuccessMsg(msg); setErrorMsg(null); };
-  const clearMessages = () => { setErrorMsg(null); setSuccessMsg(null); };
+  const setError = (msg: string) => {
+    setErrorMsg(msg);
+    setSuccessMsg(null);
+  };
+  const setSuccess = (msg: string) => {
+    setSuccessMsg(msg);
+    setErrorMsg(null);
+  };
+  const clearMessages = () => {
+    setErrorMsg(null);
+    setSuccessMsg(null);
+  };
 
-  const goTo = (v: View) => { setView(v); clearMessages(); };
+  const goTo = (v: View) => {
+    setView(v);
+    clearMessages();
+  };
 
   useEffect(() => {
     const resetStatus = searchParams.get("reset");
@@ -72,20 +86,29 @@ function SignInContent() {
   }, [searchParams]);
 
   useEffect(() => {
+    setEmail(prefilledEmail);
+    setSignUpEmail(prefilledEmail);
+    setMagicEmail(prefilledEmail);
+    setResetEmail(prefilledEmail);
+  }, [prefilledEmail]);
+
+  useEffect(() => {
     let isActive = true;
     const checkSession = async () => {
       const { data } = await authClient.getSession();
-      if (isActive && data?.session) router.replace("/");
+      if (isActive && data?.session) router.replace(nextUrl);
     };
     void checkSession();
-    return () => { isActive = false; };
-  }, [router]);
+    return () => {
+      isActive = false;
+    };
+  }, [nextUrl, router]);
 
   const handleEmailSignIn = async () => {
     setIsEmailLoading(true);
     clearMessages();
     try {
-      const { error } = await authClient.signIn.email({ email, password, callbackURL: signInCallbackURL });
+      const { error } = await authClient.signIn.email({ email, password, callbackURL: nextUrl });
       if (error) {
         if ("status" in error && error.status === 403) {
           setError("Please verify your email before signing in.");
@@ -93,7 +116,7 @@ function SignInContent() {
           setError(getErrorMessage(error));
         }
       } else {
-        router.push("/");
+        router.push(nextUrl);
       }
     } catch (e) {
       setError(getErrorMessage(e));
@@ -117,7 +140,9 @@ function SignInContent() {
       } else {
         setSignUpSuccessEmail(signUpEmail);
         setInboxEmail(signUpEmail);
-        setSignUpName(""); setSignUpEmail(""); setSignUpPassword("");
+        setSignUpName("");
+        setSignUpEmail("");
+        setSignUpPassword("");
         goTo("inbox");
       }
     } catch (e) {
@@ -130,7 +155,7 @@ function SignInContent() {
   const handleGoogleSignIn = async () => {
     clearMessages();
     try {
-      await authClient.signIn.social({ provider: "google", callbackURL: signInCallbackURL });
+      await authClient.signIn.social({ provider: "google", callbackURL: nextUrl });
     } catch (e) {
       setError(getErrorMessage(e));
     }
@@ -140,7 +165,7 @@ function SignInContent() {
     setIsMagicLoading(true);
     clearMessages();
     try {
-      const { error } = await authClient.signIn.magicLink({ email: magicEmail, callbackURL: signInCallbackURL });
+      const { error } = await authClient.signIn.magicLink({ email: magicEmail, callbackURL: nextUrl });
       if (error) {
         setError(getErrorMessage(error));
       } else {
@@ -193,68 +218,87 @@ function SignInContent() {
   const viewTitle: Record<View, string> = {
     "sign-in": "Sign in",
     "sign-up": "Create account",
-    "reset": "Reset password",
-    "magic": "Magic link",
-    "inbox": "Check your inbox",
+    reset: "Reset password",
+    magic: "Magic link",
+    inbox: "Check your inbox",
   };
 
   const viewSubtitle: Record<View, string> = {
-    "sign-in": "Welcome back",
-    "sign-up": "Join us today",
-    "reset": "We'll send a reset link",
-    "magic": "Sign in without a password",
-    "inbox": "Email sent",
+    "sign-in": "Access your Vaja AI workspace",
+    "sign-up": "Create your Vaja AI account",
+    reset: "We'll send you a secure reset link",
+    magic: "Sign in to Vaja AI without a password",
+    inbox: "Your Vaja AI link is on the way",
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#fdf5e6,_#f6eee1_45%,_#efe6d7_100%)] dark:bg-[radial-gradient(circle_at_top,_#1c1a2e,_#181628_55%,_#141220_100%)] flex items-center justify-center px-4">
+    <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_#fdf5e6,_#f6eee1_45%,_#efe6d7_100%)] px-4 dark:bg-[radial-gradient(circle_at_top,_#1c1a2e,_#181628_55%,_#141220_100%)]">
       <div className="w-full max-w-sm">
-        <div className="rounded-2xl border border-black/5 dark:border-border bg-white/80 dark:bg-card/80 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.6)] backdrop-blur px-8 py-8 space-y-5">
-
-          {/* Header */}
-          <div className="text-center space-y-0.5 pb-1">
+        <div className="space-y-5 rounded-2xl border border-black/5 bg-white/80 px-8 py-8 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] backdrop-blur dark:border-border dark:bg-card/80 dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.6)]">
+          <div className="space-y-0.5 pb-1 text-center">
             <p className="text-[10px] font-semibold uppercase tracking-[0.4em] text-muted-foreground">
-              {viewTitle[view]}
+              Vaja AI
             </p>
-            <h1 className="text-xl font-semibold text-foreground">{viewSubtitle[view]}</h1>
+            <h1 className="text-xl font-semibold text-foreground">{viewTitle[view]}</h1>
+            <p className="text-sm text-muted-foreground">{viewSubtitle[view]}</p>
           </div>
 
-          {/* Feedback */}
-          {errorMsg && (
-            <p className="rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">{errorMsg}</p>
-          )}
-          {successMsg && (
-            <p className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-400">{successMsg}</p>
-          )}
+          {errorMsg ? (
+            <p className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {errorMsg}
+            </p>
+          ) : null}
+          {successMsg ? (
+            <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-400">
+              {successMsg}
+            </p>
+          ) : null}
 
-          {/* INBOX */}
-          {view === "inbox" && (
+          {view === "inbox" ? (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground text-center">
-                We sent a link to{" "}
-                <span className="font-medium text-foreground">{inboxEmail}</span>.
+              <p className="text-center text-sm text-muted-foreground">
+                We sent a link to <span className="font-medium text-foreground">{inboxEmail}</span>.
                 Follow it to continue.
               </p>
-              {signUpSuccessEmail && (
-                <Button variant="outline" className="w-full text-xs" onClick={() => handleSendVerification(signUpSuccessEmail)} disabled={isVerifyLoading}>
-                  {isVerifyLoading ? "Sending…" : "Resend verification email"}
+              {signUpSuccessEmail ? (
+                <Button
+                  variant="outline"
+                  className="w-full text-xs"
+                  onClick={() => handleSendVerification(signUpSuccessEmail)}
+                  disabled={isVerifyLoading}
+                >
+                  {isVerifyLoading ? "Sending..." : "Resend verification email"}
                 </Button>
-              )}
-              <button onClick={() => goTo("sign-in")} className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors">
-                ← Back to sign in
+              ) : null}
+              <button
+                onClick={() => goTo("sign-in")}
+                className="w-full text-center text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Back to sign in
               </button>
             </div>
-          )}
+          ) : null}
 
-          {/* SIGN IN */}
-          {view === "sign-in" && (
+          {view === "sign-in" ? (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Input type="email" placeholder="you@studio.com" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleEmailSignIn()} />
-                <Input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleEmailSignIn()} />
+                <Input
+                  type="email"
+                  placeholder="you@business.co.th"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleEmailSignIn()}
+                />
+                <Input
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleEmailSignIn()}
+                />
               </div>
               <Button className="w-full" onClick={handleEmailSignIn} disabled={isEmailLoading || !email || !password}>
-                {isEmailLoading ? "Signing in…" : "Sign in"}
+                {isEmailLoading ? "Signing in..." : "Sign in"}
               </Button>
 
               <Divider label="or" />
@@ -271,26 +315,35 @@ function SignInContent() {
               </Button>
 
               <div className="flex justify-between pt-1 text-xs text-muted-foreground">
-                <button onClick={() => goTo("sign-up")} className="hover:text-foreground transition-colors">
+                <button onClick={() => goTo("sign-up")} className="transition-colors hover:text-foreground">
                   Create account
                 </button>
-                <button onClick={() => goTo("reset")} className="hover:text-foreground transition-colors">
+                <button onClick={() => goTo("reset")} className="transition-colors hover:text-foreground">
                   Forgot password?
                 </button>
               </div>
             </div>
-          )}
+          ) : null}
 
-          {/* SIGN UP */}
-          {view === "sign-up" && (
+          {view === "sign-up" ? (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Input type="text" placeholder="Your name" value={signUpName} onChange={e => setSignUpName(e.target.value)} />
-                <Input type="email" placeholder="you@studio.com" value={signUpEmail} onChange={e => setSignUpEmail(e.target.value)} />
-                <Input type="password" placeholder="Create a password" value={signUpPassword} onChange={e => setSignUpPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSignUp()} />
+                <Input type="text" placeholder="Your name" value={signUpName} onChange={(e) => setSignUpName(e.target.value)} />
+                <Input type="email" placeholder="you@business.co.th" value={signUpEmail} onChange={(e) => setSignUpEmail(e.target.value)} />
+                <Input
+                  type="password"
+                  placeholder="Create a password"
+                  value={signUpPassword}
+                  onChange={(e) => setSignUpPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSignUp()}
+                />
               </div>
-              <Button className="w-full" onClick={handleSignUp} disabled={isSignUpLoading || !signUpName || !signUpEmail || !signUpPassword}>
-                {isSignUpLoading ? "Creating…" : "Create account"}
+              <Button
+                className="w-full"
+                onClick={handleSignUp}
+                disabled={isSignUpLoading || !signUpName || !signUpEmail || !signUpPassword}
+              >
+                {isSignUpLoading ? "Creating..." : "Create account"}
               </Button>
 
               <Divider label="or" />
@@ -300,41 +353,56 @@ function SignInContent() {
                 Continue with Google
               </Button>
 
-              <p className="text-center text-xs text-muted-foreground pt-1">
+              <p className="pt-1 text-center text-xs text-muted-foreground">
                 Already have an account?{" "}
                 <button onClick={() => goTo("sign-in")} className="text-foreground hover:underline">
                   Sign in
                 </button>
               </p>
             </div>
-          )}
+          ) : null}
 
-          {/* RESET */}
-          {view === "reset" && (
+          {view === "reset" ? (
             <div className="space-y-4">
-              <Input type="email" placeholder="you@studio.com" value={resetEmail} onChange={e => setResetEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handlePasswordReset()} />
+              <Input
+                type="email"
+                placeholder="you@business.co.th"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handlePasswordReset()}
+              />
               <Button className="w-full" onClick={handlePasswordReset} disabled={isResetLoading || !resetEmail}>
-                {isResetLoading ? "Sending…" : "Send reset link"}
+                {isResetLoading ? "Sending..." : "Send reset link"}
               </Button>
-              <button onClick={() => goTo("sign-in")} className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors">
-                ← Back to sign in
+              <button
+                onClick={() => goTo("sign-in")}
+                className="w-full text-center text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Back to sign in
               </button>
             </div>
-          )}
+          ) : null}
 
-          {/* MAGIC LINK */}
-          {view === "magic" && (
+          {view === "magic" ? (
             <div className="space-y-4">
-              <Input type="email" placeholder="you@studio.com" value={magicEmail} onChange={e => setMagicEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleMagicLink()} />
+              <Input
+                type="email"
+                placeholder="you@business.co.th"
+                value={magicEmail}
+                onChange={(e) => setMagicEmail(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleMagicLink()}
+              />
               <Button className="w-full" onClick={handleMagicLink} disabled={isMagicLoading || !magicEmail}>
-                {isMagicLoading ? "Sending…" : "Send magic link"}
+                {isMagicLoading ? "Sending..." : "Send magic link"}
               </Button>
-              <button onClick={() => goTo("sign-in")} className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors">
-                ← Use password instead
+              <button
+                onClick={() => goTo("sign-in")}
+                className="w-full text-center text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Use password instead
               </button>
             </div>
-          )}
-
+          ) : null}
         </div>
       </div>
     </div>
