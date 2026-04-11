@@ -152,7 +152,7 @@ export function AgentGeneralSection({
       {/* Model */}
       <div className="space-y-1.5">
         <Label>Preferred Model</Label>
-        <Select value={modelId} onValueChange={onModelChange}>
+        <Select key={modelId} value={modelId} onValueChange={onModelChange}>
           <SelectTrigger>
             <SelectValue placeholder="Auto (recommended)" />
           </SelectTrigger>

@@ -1,4 +1,7 @@
-import type { WorkspaceImageAssistRequest, WorkspaceTextAssistRequest } from './types';
+import type {
+  WorkspaceImageAssistRequest,
+  WorkspaceTextAssistRequest,
+} from "./types";
 
 type WorkspacePromptConfig = {
   maxSuggestions: number;
@@ -7,24 +10,26 @@ type WorkspacePromptConfig = {
 };
 
 function formatLocale(locale?: string): string {
-  if (!locale) return 'Thai';
-  if (locale.toLowerCase().startsWith('th')) return 'Thai';
-  if (locale.toLowerCase().startsWith('en')) return 'English';
+  if (!locale) return "Thai";
+  if (locale.toLowerCase().startsWith("th")) return "Thai";
+  if (locale.toLowerCase().startsWith("en")) return "English";
   return locale;
 }
 
 function optionalLine(label: string, value: string | undefined): string {
-  return value?.trim() ? `${label}: ${value.trim()}` : '';
+  return value?.trim() ? `${label}: ${value.trim()}` : "";
 }
 
-export function buildWorkspaceTextAssistPrompt(input: WorkspaceTextAssistRequest): WorkspacePromptConfig {
+export function buildWorkspaceTextAssistPrompt(
+  input: WorkspaceTextAssistRequest,
+): WorkspacePromptConfig {
   const locale = formatLocale(input.targetLocale);
-  const tone = input.tone?.trim() || 'clear, practical, trustworthy';
+  const tone = input.tone?.trim() || "clear, practical, trustworthy";
   const instruction = input.instruction?.trim();
   const currentValue = input.context.currentValue?.trim();
 
   switch (input.kind) {
-    case 'agent-description': {
+    case "agent-description": {
       return {
         maxSuggestions: 3,
         system: `You write concise product-facing descriptions for AI agents.
@@ -38,20 +43,26 @@ Rules:
 - Keep each suggestion under 160 characters.
 - Return only valid structured output.`,
         prompt: [
-          'Write 3 alternative agent descriptions.',
+          "Write 3 alternative agent descriptions.",
           `Language: ${locale}`,
           `Tone: ${tone}`,
-          optionalLine('Agent name', input.context.name),
-          optionalLine('System prompt', input.context.systemPrompt),
-          optionalLine('Current description', currentValue),
-          instruction ? `Extra instruction: ${instruction}` : '',
-        ].filter(Boolean).join('\n'),
+          optionalLine("Agent name", input.context.name),
+          optionalLine("System prompt", input.context.systemPrompt),
+          optionalLine("Current description", currentValue),
+          instruction ? `Extra instruction: ${instruction}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
       };
     }
 
-    case 'agent-starters': {
-      const existingStarters = Array.isArray(input.context.extra?.starterPrompts)
-        ? (input.context.extra.starterPrompts as unknown[]).filter((value): value is string => typeof value === 'string')
+    case "agent-starters": {
+      const existingStarters = Array.isArray(
+        input.context.extra?.starterPrompts,
+      )
+        ? (input.context.extra.starterPrompts as unknown[]).filter(
+            (value): value is string => typeof value === "string",
+          )
         : [];
 
       return {
@@ -68,18 +79,22 @@ Rules:
 - Do not add quotation marks.
 - Return only valid structured output.`,
         prompt: [
-          'Write 4 conversation starters for this agent.',
+          "Write 4 conversation starters for this agent.",
           `Language: ${locale}`,
           `Tone: ${tone}`,
-          optionalLine('Agent name', input.context.name),
-          optionalLine('System prompt', input.context.systemPrompt),
-          existingStarters.length > 0 ? `Existing starters:\n- ${existingStarters.join('\n- ')}` : '',
-          instruction ? `Extra instruction: ${instruction}` : '',
-        ].filter(Boolean).join('\n'),
+          optionalLine("Agent name", input.context.name),
+          optionalLine("System prompt", input.context.systemPrompt),
+          existingStarters.length > 0
+            ? `Existing starters:\n- ${existingStarters.join("\n- ")}`
+            : "",
+          instruction ? `Extra instruction: ${instruction}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
       };
     }
 
-    case 'skill-description': {
+    case "skill-description": {
       return {
         maxSuggestions: 3,
         system: `You write concise marketplace-style descriptions for reusable AI skills.
@@ -91,36 +106,42 @@ Rules:
 - Each suggestion must be a single sentence.
 - Return only valid structured output.`,
         prompt: [
-          'Write 3 alternative skill descriptions.',
+          "Write 3 alternative skill descriptions.",
           `Language: ${locale}`,
           `Tone: ${tone}`,
-          optionalLine('Skill name', input.context.name),
-          optionalLine('Prompt fragment', input.context.promptFragment),
-          optionalLine('Current description', currentValue),
-          instruction ? `Extra instruction: ${instruction}` : '',
-        ].filter(Boolean).join('\n'),
+          optionalLine("Skill name", input.context.name),
+          optionalLine("Prompt fragment", input.context.promptFragment),
+          optionalLine("Current description", currentValue),
+          instruction ? `Extra instruction: ${instruction}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
       };
     }
   }
 }
 
-export function buildWorkspaceImageAssistPrompt(input: WorkspaceImageAssistRequest): string {
+export function buildWorkspaceImageAssistPrompt(
+  input: WorkspaceImageAssistRequest,
+): string {
   switch (input.kind) {
-    case 'agent-cover': {
+    case "agent-cover": {
       const name = input.context.name?.trim();
       const description = input.context.currentValue?.trim();
       const systemPrompt = input.context.systemPrompt?.trim();
       const instruction = input.instruction?.trim();
 
       return [
-        'Create a polished app cover image for an AI agent profile card.',
-        'The image should feel product-ready, visually clear at small thumbnail size, and should not contain readable text, logos, UI chrome, or watermarks.',
-        'Prefer a single strong concept with clean composition and a friendly, modern look.',
-        name ? `Agent name: ${name}` : '',
-        description ? `Agent description: ${description}` : '',
-        systemPrompt ? `Agent behavior summary: ${systemPrompt}` : '',
-        instruction ? `Extra visual direction: ${instruction}` : '',
-      ].filter(Boolean).join('\n');
+        "Create a polished app cover image for an AI agent profile card.",
+        "The image should feel product-ready, visually clear at small thumbnail size, and should not contain readable text, logos, UI chrome, or watermarks.",
+        "Prefer a single strong concept with clean composition and a friendly, modern look.",
+        name ? `Agent name: ${name}` : "",
+        description ? `Agent description: ${description}` : "",
+        systemPrompt ? `Agent behavior summary: ${systemPrompt}` : "",
+        instruction ? `Extra visual direction: ${instruction}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
     }
   }
 }

@@ -82,6 +82,7 @@ export function AgentEditorPanel({ agent, isPending, onBack, onSubmit }: AgentEd
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <AgentForm
+          key={`${agent?.id ?? 'new'}:${agent?.modelId ?? 'auto'}`}
           activeSection={activeSection}
           agent={agent}
           onSectionChange={setActiveSection}

@@ -20,7 +20,7 @@ export function AgentModelSection({ modelId, onModelChange }: AgentModelSectionP
     <div className="space-y-5">
       <div className="space-y-1.5">
         <Label>Preferred Model</Label>
-        <Select value={modelId} onValueChange={onModelChange}>
+        <Select key={modelId} value={modelId} onValueChange={onModelChange}>
           <SelectTrigger>
             <SelectValue placeholder="Auto (recommended)" />
           </SelectTrigger>

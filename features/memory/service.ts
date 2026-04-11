@@ -73,6 +73,11 @@ const extractMessageText = (message: PromptableMessage): string => {
   return (message.content ?? "").replace(/\s+/g, " ").trim();
 };
 
+const getPersistableMessageId = (message: PromptableMessage | undefined): string | null => {
+  const id = typeof message?.id === "string" ? message.id.trim() : "";
+  return id.length > 0 ? id : null;
+};
+
 const formatConversationForModel = (messages: PromptableMessage[]): string =>
   messages
     .filter((message) => message.role === "user" || message.role === "assistant")
@@ -597,6 +602,7 @@ Rules:
 
   const parsed = parseWorkingMemoryResponse(text);
   const lastMessage = messages[messages.length - 1];
+  const lastMessageId = getPersistableMessageId(lastMessage);
   const now = new Date();
 
   const [row] = await db
@@ -611,7 +617,7 @@ Rules:
       openQuestions: parsed.openQuestions,
       importantContext: parsed.importantContext,
       recentArtifacts: parsed.recentArtifacts,
-      lastMessageId: lastMessage?.id ?? null,
+      lastMessageId,
       refreshStatus: "ready",
       refreshedAt: now,
       clearedAt: null,
@@ -626,7 +632,7 @@ Rules:
         openQuestions: parsed.openQuestions,
         importantContext: parsed.importantContext,
         recentArtifacts: parsed.recentArtifacts,
-        lastMessageId: lastMessage?.id ?? null,
+        lastMessageId,
         refreshStatus: "ready",
         refreshedAt: now,
         clearedAt: null,

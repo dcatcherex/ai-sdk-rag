@@ -104,12 +104,15 @@ export const AgentsList = () => {
   const currentUserId = sessionData?.user?.id;
 
   const [mode, setMode] = useState<'list' | 'create' | 'edit' | 'configure-general'>('list');
-  const [editTarget, setEditTarget] = useState<Agent | null>(null);
+  const [editTargetId, setEditTargetId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Agent | null>(null);
   const [shareTarget, setShareTarget] = useState<Agent | null>(null);
   const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
 
   const generalAgent = agents.find((a) => a.isDefault && a.userId === currentUserId);
+  const editTarget = editTargetId
+    ? agents.find((a) => a.id === editTargetId) ?? null
+    : null;
   const myAgents = agents.filter((a) => a.userId === currentUserId && !a.isDefault);
   const sharedAgents = agents.filter((a) => a.userId !== currentUserId);
 
@@ -131,7 +134,7 @@ export const AgentsList = () => {
     if (editTarget) {
       updateAgent.mutate(
         { id: editTarget.id, ...data },
-        { onSuccess: () => { setMode('list'); setEditTarget(null); } },
+        { onSuccess: () => { setMode('list'); setEditTargetId(null); } },
       );
     } else {
       createAgent.mutate(data, { onSuccess: () => setMode('list') });
@@ -139,23 +142,23 @@ export const AgentsList = () => {
   };
 
   const openCreate = () => {
-    setEditTarget(null);
+    setEditTargetId(null);
     setMode('create');
   };
 
   const openEdit = (a: Agent) => {
-    setEditTarget(a);
+    setEditTargetId(a.id);
     setMode('edit');
   };
 
   const openConfigureGeneral = (a: Agent | null) => {
-    setEditTarget(a);
+    setEditTargetId(a?.id ?? null);
     setMode('configure-general');
   };
 
   const closeEditor = () => {
     setMode('list');
-    setEditTarget(null);
+    setEditTargetId(null);
   };
 
   const startChatWithAgent = (agentId: string | null) => {

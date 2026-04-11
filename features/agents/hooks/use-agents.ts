@@ -8,6 +8,50 @@ const agentSkillAttachmentsKey = (agentId: string) => ['agent-skill-attachments'
 type AgentsResponse = { agents: Agent[]; templates: Agent[] };
 type AgentSkillAttachmentsResponse = { attachments: AgentSkillAttachment[] };
 
+function upsertAgentInCollection<T extends Agent>(
+  collection: T[],
+  updatedAgent: Agent,
+): T[] {
+  return collection.map((existing) =>
+    existing.id === updatedAgent.id
+      ? ({
+          ...existing,
+          ...updatedAgent,
+        } as T)
+      : existing,
+  );
+}
+
+function updateAgentInCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  updatedAgent: Agent,
+) {
+  queryClient.setQueryData<AgentsResponse | undefined>(AGENTS_QUERY_KEY, (current) => {
+    if (!current) return current;
+
+    return {
+      agents: upsertAgentInCollection(current.agents, updatedAgent),
+      templates: upsertAgentInCollection(current.templates, updatedAgent),
+    };
+  });
+}
+
+function addAgentToCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  newAgent: Agent,
+) {
+  queryClient.setQueryData<AgentsResponse | undefined>(AGENTS_QUERY_KEY, (current) => {
+    if (!current) {
+      return { agents: [newAgent], templates: [] };
+    }
+
+    return {
+      ...current,
+      agents: [newAgent, ...current.agents.filter((agent) => agent.id !== newAgent.id)],
+    };
+  });
+}
+
 async function saveAgentSkillAttachments(agentId: string, skillAttachments: CreateAgentInput['skillAttachments']) {
   if (!skillAttachments) return;
 
@@ -62,7 +106,8 @@ export const useCreateAgent = () => {
       await saveAgentSkillAttachments(data.agent.id, skillAttachments);
       return data.agent;
     },
-    onSuccess: () => {
+    onSuccess: (createdAgent) => {
+      addAgentToCache(queryClient, createdAgent);
       queryClient.invalidateQueries({ queryKey: AGENTS_QUERY_KEY });
     },
   });
@@ -83,7 +128,8 @@ export const useUpdateAgent = () => {
       await saveAgentSkillAttachments(id, skillAttachments);
       return data.agent;
     },
-    onSuccess: () => {
+    onSuccess: (updatedAgent) => {
+      updateAgentInCache(queryClient, updatedAgent);
       queryClient.invalidateQueries({ queryKey: AGENTS_QUERY_KEY });
     },
   });

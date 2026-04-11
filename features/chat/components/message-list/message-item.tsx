@@ -169,6 +169,7 @@ export const MessageItem = ({
               messageId={message.id}
               threadId={threadId}
               index={index}
+              role={message.role}
               onImageClick={onImageClick}
               onQuizStateChange={onQuizStateChange}
             />
