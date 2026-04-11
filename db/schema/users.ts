@@ -11,6 +11,8 @@ export const userPreferences = pgTable("user_preferences", {
   promptEnhancementEnabled: boolean("prompt_enhancement_enabled").default(true).notNull(),
   followUpSuggestionsEnabled: boolean("follow_up_suggestions_enabled").default(true).notNull(),
   enabledToolIds: text("enabled_tool_ids").array(),
+  pinnedWorkspaceItemIds: text("pinned_workspace_item_ids").array(),
+  hiddenWorkspaceItemIds: text("hidden_workspace_item_ids").array(),
   rerankEnabled: boolean("rerank_enabled").default(false).notNull(),
   selectedVoice: text("selected_voice"),
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),

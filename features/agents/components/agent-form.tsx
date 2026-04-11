@@ -1,11 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { persistGeneration } from '@/lib/clientPersist';
+import { getPollingService } from '@/lib/polling/GenerationPollingService';
 import { cn } from '@/lib/utils';
 import { useSkills } from '@/features/skills/hooks/use-skills';
 import type { Brand } from '@/features/brands/types';
 import type { AgentSkillAttachmentInput, SkillActivationMode, SkillTriggerType } from '@/features/skills/types';
+import type { WorkspaceImageAssistResult, WorkspaceTextAssistKind, WorkspaceTextAssistResult } from '@/features/workspace-ai/types';
 import { useUserDocuments } from '../hooks/use-agent-documents';
 import { useAgentSkillAttachments } from '../hooks/use-agents';
 import { useUserSearch } from '../hooks/use-user-search';
@@ -18,6 +22,41 @@ import { AgentSkillsSection } from './agent-skills-section';
 import { AgentToolsSection } from './agent-tools-section';
 import { AGENT_EDITOR_SECTIONS, type AgentEditorSectionId } from './agent-editor-sections';
 import type { Agent, AgentWithSharing, CreateAgentInput, SharedUser } from '../types';
+
+async function requestWorkspaceTextAssist(
+  kind: WorkspaceTextAssistKind,
+  body: Record<string, unknown>,
+): Promise<WorkspaceTextAssistResult> {
+  const res = await fetch('/api/workspace-ai/text', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind, ...body }),
+  });
+
+  const json = await res.json() as WorkspaceTextAssistResult & { error?: string };
+  if (!res.ok) {
+    throw new Error(json.error ?? 'AI assist failed');
+  }
+
+  return json;
+}
+
+async function requestWorkspaceImageAssist(
+  body: Record<string, unknown>,
+): Promise<WorkspaceImageAssistResult> {
+  const res = await fetch('/api/workspace-ai/image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  const json = await res.json() as WorkspaceImageAssistResult & { error?: string };
+  if (!res.ok) {
+    throw new Error(json.error ?? 'AI image assist failed');
+  }
+
+  return json;
+}
 
 type AgentFormProps = {
   activeSection?: AgentEditorSectionId;
@@ -77,6 +116,9 @@ export function AgentForm({
   const [starterPrompts, setStarterPrompts] = useState<string[]>([]);
   const [starterInput, setStarterInput] = useState('');
   const starterInputRef = useRef<HTMLInputElement>(null);
+  const [isGeneratingCoverImage, setIsGeneratingCoverImage] = useState(false);
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
+  const [isGeneratingStarters, setIsGeneratingStarters] = useState(false);
   const [sharedWith, setSharedWith] = useState<SharedUser[]>([]);
   const [shareSearch, setShareSearch] = useState('');
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -205,6 +247,142 @@ export function AgentForm({
     starterInputRef.current?.focus();
   };
 
+  const handleGenerateDescription = async () => {
+    if (!name.trim()) {
+      toast.error('Agent name is required first');
+      return;
+    }
+    if (!systemPrompt.trim()) {
+      toast.error('AI Behavior is required first', {
+        description: 'Add the agent instructions before asking AI to write a description.',
+      });
+      return;
+    }
+
+    setIsGeneratingDescription(true);
+    try {
+      const result = await requestWorkspaceTextAssist('agent-description', {
+        context: {
+          entityType: 'agent',
+          entityId: agent?.id,
+          name,
+          systemPrompt,
+          currentValue: description,
+        },
+      });
+
+      const nextDescription = result.suggestions[0];
+      if (!nextDescription) throw new Error('No description returned');
+      markUserEdited();
+      setDescription(nextDescription);
+      toast.success('Description generated');
+    } catch (error) {
+      toast.error('Failed to generate description', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setIsGeneratingDescription(false);
+    }
+  };
+
+  const handleGenerateCoverImage = async () => {
+    if (!name.trim()) {
+      toast.error('Agent name is required first');
+      return;
+    }
+    if (!systemPrompt.trim() && !description.trim()) {
+      toast.error('Add more agent context first', {
+        description: 'Provide a description or AI behavior so the cover image has something to represent.',
+      });
+      return;
+    }
+
+    setIsGeneratingCoverImage(true);
+    try {
+      const generation = await requestWorkspaceImageAssist({
+        kind: 'agent-cover',
+        context: {
+          entityType: 'agent',
+          entityId: agent?.id,
+          name,
+          systemPrompt,
+          currentValue: description,
+        },
+      });
+
+      const pollResult = await getPollingService().poll(
+        {
+          taskId: generation.taskId,
+          generationId: generation.generationId,
+          modelId: generation.modelId,
+          promptId: generation.generationId,
+          promptTitle: generation.prompt,
+        },
+        { autoPersist: false },
+      );
+
+      if (pollResult.status !== 'success' || !pollResult.output) {
+        throw new Error(pollResult.error ?? 'Image generation did not complete successfully');
+      }
+
+      let finalUrl = pollResult.output;
+      if (pollResult.needsPersist) {
+        const persisted = await persistGeneration(generation.generationId, pollResult.output);
+        if (!persisted.success || !persisted.publicUrl) {
+          throw new Error('Image generated, but saving the final cover image failed');
+        }
+        finalUrl = persisted.publicUrl;
+      }
+
+      markUserEdited();
+      setImageUrl(finalUrl);
+      toast.success('Cover image generated');
+    } catch (error) {
+      toast.error('Failed to generate cover image', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setIsGeneratingCoverImage(false);
+    }
+  };
+
+  const handleGenerateStarters = async () => {
+    if (!name.trim()) {
+      toast.error('Agent name is required first');
+      return;
+    }
+    if (!systemPrompt.trim()) {
+      toast.error('AI Behavior is required first', {
+        description: 'Add the agent instructions before asking AI to suggest starters.',
+      });
+      return;
+    }
+
+    setIsGeneratingStarters(true);
+    try {
+      const result = await requestWorkspaceTextAssist('agent-starters', {
+        context: {
+          entityType: 'agent',
+          entityId: agent?.id,
+          name,
+          systemPrompt,
+          extra: { starterPrompts },
+        },
+      });
+
+      markUserEdited();
+      setStarterPrompts(result.suggestions.slice(0, 4));
+      setStarterInput('');
+      toast.success('Conversation starters generated');
+    } catch (error) {
+      toast.error('Failed to generate starters', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setIsGeneratingStarters(false);
+    }
+  };
+
   const toggleTool = (toolId: string) => {
     markUserEdited();
     setEnabledTools((prev) =>
@@ -274,9 +452,15 @@ export function AgentForm({
     <AgentGeneralSection
       description={description}
       imageUrl={imageUrl}
+      isGeneratingCoverImage={isGeneratingCoverImage}
+      isGeneratingDescription={isGeneratingDescription}
+      isGeneratingStarters={isGeneratingStarters}
       modelId={modelId}
       name={name}
       onDescriptionChange={(value) => { markUserEdited(); setDescription(value); }}
+      onGenerateCoverImage={() => { void handleGenerateCoverImage(); }}
+      onGenerateDescription={() => { void handleGenerateDescription(); }}
+      onGenerateStarters={() => { void handleGenerateStarters(); }}
       onImageUrlChange={(url) => { markUserEdited(); setImageUrl(url); }}
       onModelChange={(value) => { markUserEdited(); setModelId(value); }}
       onNameChange={(value) => { markUserEdited(); setName(value); }}

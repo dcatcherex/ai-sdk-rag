@@ -13,6 +13,9 @@ export const examBuilderManifest: ToolManifest = {
   supportsSidebar: true,
   supportsExport: true,
   defaultEnabled: false,
+  sidebar: {
+    order: 120,
+  },
   access: {
     requiresAuth: true,
     enabled: true,

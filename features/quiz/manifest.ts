@@ -13,6 +13,9 @@ export const quizManifest: ToolManifest = {
   supportsSidebar: true,
   supportsExport: true,
   defaultEnabled: false,
+  sidebar: {
+    order: 110,
+  },
   access: {
     requiresAuth: true,
     enabled: true,

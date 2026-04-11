@@ -62,6 +62,7 @@ type Props = {
   currentPath: string;
   isCollapsed?: boolean;
   pinnedItemIds: NavItemId[];
+  hiddenItemIds: NavItemId[];
   onToggleCollapse?: () => void;
   onToggleNavPin: (itemId: NavItemId) => void;
   onReorderPinned: (orderedItemIds: NavItemId[]) => void;
@@ -84,6 +85,7 @@ export const SidebarContent = ({
   currentPath,
   isCollapsed = false,
   pinnedItemIds,
+  hiddenItemIds,
   onToggleCollapse,
   onToggleNavPin,
   onReorderPinned,
@@ -162,6 +164,7 @@ export const SidebarContent = ({
                   <SidebarMoreMenuContent
                     currentPath={currentPath}
                     pinnedItemIds={pinnedItemIds}
+                    hiddenItemIds={hiddenItemIds}
                     onTogglePin={onToggleNavPin}
                     onReorderPinned={onReorderPinned}
                   />
@@ -207,6 +210,7 @@ export const SidebarContent = ({
         isCollapsed={isCollapsed}
         isCreatingThread={isCreatingThread}
         pinnedItemIds={pinnedItemIds}
+        hiddenItemIds={hiddenItemIds}
         onCreateThread={onCreateThread}
         onSearchOpen={() => setSearchOpen(true)}
         onTogglePin={onToggleNavPin}

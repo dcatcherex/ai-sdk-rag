@@ -6,6 +6,7 @@ import {
   Building2Icon,
   DownloadIcon,
   LayersIcon,
+  PanelLeftIcon,
   MessageCircleQuestionIcon,
   PaletteIcon,
   PlusIcon,
@@ -24,9 +25,11 @@ import { ToggleSection } from '@/features/settings/components/toggle-section';
 import { VoiceSection } from '@/features/settings/components/voice-section';
 import { BrandsSection } from '@/features/brands/components/brands-section';
 import { AppearanceSection } from '@/features/settings/components/appearance-section';
+import { WorkspaceSection } from '@/features/settings/components/workspace-section';
 import { ALL_TOOL_IDS, type ToolId } from '@/lib/tool-registry';
+import { useWorkspacePreferences } from '@/features/workspace/hooks/use-workspace-preferences';
 
-type TabId = 'general' | 'memory' | 'tools' | 'models' | 'brands' | 'appearance';
+type TabId = 'general' | 'workspace' | 'memory' | 'tools' | 'models' | 'brands' | 'appearance';
 
 const TABS: SettingsShellItem<TabId>[] = [
   {
@@ -34,6 +37,12 @@ const TABS: SettingsShellItem<TabId>[] = [
     label: 'General',
     icon: ZapIcon,
     description: 'Chat experience preferences',
+  },
+  {
+    id: 'workspace',
+    label: 'Workspace',
+    icon: PanelLeftIcon,
+    description: 'Sidebar pages, pinning, and workspace visibility',
   },
   {
     id: 'memory',
@@ -72,6 +81,11 @@ export default function SettingsPage() {
   const [isCreatingBrand, setIsCreatingBrand] = useState(false);
   const [showBrandImport, setShowBrandImport] = useState(false);
   const { prefs, updatePref } = useSettingsPreferences();
+  const {
+    pinnedItemIds: pinnedWorkspaceItemIds,
+    hiddenItemIds: hiddenWorkspaceItemIds,
+    updateWorkspaceItem,
+  } = useWorkspacePreferences();
 
   const effectiveToolIds = prefs.enabledToolIds ?? ALL_TOOL_IDS;
 
@@ -140,6 +154,14 @@ export default function SettingsPage() {
 
           {activeTab === 'memory' && (
             <MemorySection prefs={prefs} onUpdatePref={updatePref} />
+          )}
+
+          {activeTab === 'workspace' && (
+            <WorkspaceSection
+              pinnedItemIds={pinnedWorkspaceItemIds}
+              hiddenItemIds={hiddenWorkspaceItemIds}
+              onUpdateItem={updateWorkspaceItem}
+            />
           )}
 
           {activeTab === 'tools' && (

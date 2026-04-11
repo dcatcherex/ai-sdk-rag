@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { userPreferences } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { ALL_TOOL_IDS } from '@/lib/tool-registry';
+import { WORKSPACE_ITEM_IDS } from '@/features/workspace/catalog';
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -23,6 +24,8 @@ export async function GET() {
       promptEnhancementEnabled: true,
       followUpSuggestionsEnabled: true,
       enabledToolIds: null,
+      pinnedWorkspaceItemIds: null,
+      hiddenWorkspaceItemIds: null,
       rerankEnabled: false,
       selectedVoice: null,
     });
@@ -35,6 +38,8 @@ export async function GET() {
     promptEnhancementEnabled: prefs[0].promptEnhancementEnabled,
     followUpSuggestionsEnabled: prefs[0].followUpSuggestionsEnabled,
     enabledToolIds: prefs[0].enabledToolIds ?? null,
+    pinnedWorkspaceItemIds: prefs[0].pinnedWorkspaceItemIds ?? null,
+    hiddenWorkspaceItemIds: prefs[0].hiddenWorkspaceItemIds ?? null,
     rerankEnabled: prefs[0].rerankEnabled,
     selectedVoice: prefs[0].selectedVoice ?? null,
   });
@@ -51,6 +56,8 @@ export async function PUT(req: Request) {
     promptEnhancementEnabled?: boolean;
     followUpSuggestionsEnabled?: boolean;
     enabledToolIds?: string[] | null;
+    pinnedWorkspaceItemIds?: string[] | null;
+    hiddenWorkspaceItemIds?: string[] | null;
     rerankEnabled?: boolean;
     selectedVoice?: string | null;
   };
@@ -60,6 +67,20 @@ export async function PUT(req: Request) {
     const invalid = body.enabledToolIds.filter((id) => !ALL_TOOL_IDS.includes(id as never));
     if (invalid.length > 0) {
       return Response.json({ error: `Unknown tool IDs: ${invalid.join(', ')}` }, { status: 400 });
+    }
+  }
+
+  if (body.pinnedWorkspaceItemIds !== undefined && body.pinnedWorkspaceItemIds !== null) {
+    const invalid = body.pinnedWorkspaceItemIds.filter((id) => !WORKSPACE_ITEM_IDS.includes(id));
+    if (invalid.length > 0) {
+      return Response.json({ error: `Unknown workspace item IDs: ${invalid.join(', ')}` }, { status: 400 });
+    }
+  }
+
+  if (body.hiddenWorkspaceItemIds !== undefined && body.hiddenWorkspaceItemIds !== null) {
+    const invalid = body.hiddenWorkspaceItemIds.filter((id) => !WORKSPACE_ITEM_IDS.includes(id));
+    if (invalid.length > 0) {
+      return Response.json({ error: `Unknown workspace item IDs: ${invalid.join(', ')}` }, { status: 400 });
     }
   }
 
@@ -73,6 +94,8 @@ export async function PUT(req: Request) {
       promptEnhancementEnabled: body.promptEnhancementEnabled ?? true,
       followUpSuggestionsEnabled: body.followUpSuggestionsEnabled ?? true,
       enabledToolIds: body.enabledToolIds ?? null,
+      pinnedWorkspaceItemIds: body.pinnedWorkspaceItemIds ?? null,
+      hiddenWorkspaceItemIds: body.hiddenWorkspaceItemIds ?? null,
       rerankEnabled: body.rerankEnabled ?? false,
       selectedVoice: body.selectedVoice ?? null,
     })
@@ -85,6 +108,8 @@ export async function PUT(req: Request) {
         ...(body.promptEnhancementEnabled !== undefined && { promptEnhancementEnabled: body.promptEnhancementEnabled }),
         ...(body.followUpSuggestionsEnabled !== undefined && { followUpSuggestionsEnabled: body.followUpSuggestionsEnabled }),
         ...(body.enabledToolIds !== undefined && { enabledToolIds: body.enabledToolIds }),
+        ...(body.pinnedWorkspaceItemIds !== undefined && { pinnedWorkspaceItemIds: body.pinnedWorkspaceItemIds }),
+        ...(body.hiddenWorkspaceItemIds !== undefined && { hiddenWorkspaceItemIds: body.hiddenWorkspaceItemIds }),
         ...(body.rerankEnabled !== undefined && { rerankEnabled: body.rerankEnabled }),
         ...(body.selectedVoice !== undefined && { selectedVoice: body.selectedVoice }),
         updatedAt: new Date(),

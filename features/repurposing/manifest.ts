@@ -13,6 +13,10 @@ export const repurposingManifest: ToolManifest = {
   supportsSidebar: true,
   supportsExport: false,
   defaultEnabled: false,
+  sidebar: {
+    label: 'Repurposing',
+    order: 235,
+  },
   access: {
     requiresAuth: true,
     enabled: true,

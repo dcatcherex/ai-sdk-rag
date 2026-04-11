@@ -12,5 +12,8 @@ export const websiteBuilderManifest: ToolManifest = {
   supportsSidebar: true,
   supportsExport: true,
   defaultEnabled: false,
+  sidebar: {
+    order: 180,
+  },
   access: { requiresAuth: true, enabled: true },
 };

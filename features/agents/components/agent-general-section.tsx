@@ -1,7 +1,7 @@
 'use client';
 
 import { type KeyboardEvent, type RefObject } from 'react';
-import { PlusIcon, XIcon } from 'lucide-react';
+import { Loader2Icon, PlusIcon, SparklesIcon, WandSparklesIcon, XIcon } from 'lucide-react';
 import { availableModels } from '@/lib/ai';
 import { Button } from '@/components/ui/button';
 import { ImageUploadZone } from '@/components/ui/image-upload-zone';
@@ -21,6 +21,9 @@ type AgentGeneralSectionProps = {
   modelId: string;
   name: string;
   onDescriptionChange: (value: string) => void;
+  onGenerateCoverImage: () => void;
+  onGenerateDescription: () => void;
+  onGenerateStarters: () => void;
   onImageUrlChange: (url: string) => void;
   onModelChange: (value: string) => void;
   onNameChange: (value: string) => void;
@@ -31,6 +34,9 @@ type AgentGeneralSectionProps = {
   starterInput: string;
   starterInputRef: RefObject<HTMLInputElement | null>;
   starterPrompts: string[];
+  isGeneratingCoverImage?: boolean;
+  isGeneratingDescription?: boolean;
+  isGeneratingStarters?: boolean;
 };
 
 async function uploadAgentCover(file: File): Promise<string> {
@@ -45,9 +51,15 @@ async function uploadAgentCover(file: File): Promise<string> {
 export function AgentGeneralSection({
   description,
   imageUrl,
+  isGeneratingCoverImage = false,
+  isGeneratingDescription = false,
+  isGeneratingStarters = false,
   modelId,
   name,
   onDescriptionChange,
+  onGenerateCoverImage,
+  onGenerateDescription,
+  onGenerateStarters,
   onImageUrlChange,
   onModelChange,
   onNameChange,
@@ -62,6 +74,19 @@ export function AgentGeneralSection({
   return (
     <div className="space-y-5">
       {/* Image upload */}
+      <div className="flex items-center justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={onGenerateCoverImage}
+          disabled={isGeneratingCoverImage}
+        >
+          {isGeneratingCoverImage ? <Loader2Icon className="size-3.5 animate-spin" /> : <WandSparklesIcon className="size-3.5" />}
+          {isGeneratingCoverImage ? 'Generating cover...' : 'Generate cover'}
+        </Button>
+      </div>
       <ImageUploadZone
         label="Cover image"
         value={imageUrl}
@@ -84,7 +109,20 @@ export function AgentGeneralSection({
 
       {/* Description */}
       <div className="space-y-1.5">
-        <Label htmlFor="agent-description">Description</Label>
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor="agent-description">Description</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={onGenerateDescription}
+            disabled={isGeneratingDescription}
+          >
+            {isGeneratingDescription ? <Loader2Icon className="size-3.5 animate-spin" /> : <SparklesIcon className="size-3.5" />}
+            {isGeneratingDescription ? 'Writing...' : 'Write with AI'}
+          </Button>
+        </div>
         <Input
           id="agent-description"
           value={description}
@@ -117,9 +155,22 @@ export function AgentGeneralSection({
 
       {/* Conversation starters */}
       <div className="space-y-1.5">
-        <Label>
-          Conversation starters <span className="font-normal text-muted-foreground">(optional)</span>
-        </Label>
+        <div className="flex items-center justify-between gap-2">
+          <Label>
+            Conversation starters <span className="font-normal text-muted-foreground">(optional)</span>
+          </Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={onGenerateStarters}
+            disabled={isGeneratingStarters}
+          >
+            {isGeneratingStarters ? <Loader2Icon className="size-3.5 animate-spin" /> : <SparklesIcon className="size-3.5" />}
+            {isGeneratingStarters ? 'Generating...' : 'Suggest with AI'}
+          </Button>
+        </div>
         <p className="text-xs text-muted-foreground">
           Suggested prompts shown to users before their first message. Up to 4.
         </p>

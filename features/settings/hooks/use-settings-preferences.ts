@@ -1,41 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import type { Preferences } from '../types';
-
-const DEFAULT_PREFS: Preferences = {
-  memoryEnabled: true,
-  memoryInjectEnabled: true,
-  memoryExtractEnabled: true,
-  promptEnhancementEnabled: true,
-  followUpSuggestionsEnabled: true,
-  enabledToolIds: null,
-  rerankEnabled: false,
-  selectedVoice: null,
-};
-
-export function useSettingsPreferences() {
-  const [prefs, setPrefs] = useState<Preferences>(DEFAULT_PREFS);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    void fetch('/api/user/preferences')
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (data) setPrefs(data);
-        setIsLoading(false);
-      });
-  }, []);
-
-  const updatePref = async (patch: Partial<Preferences>) => {
-    const next = { ...prefs, ...patch };
-    setPrefs(next);
-    await fetch('/api/user/preferences', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
-    });
-  };
-
-  return { prefs, updatePref, isLoading };
-}
+export {
+  USER_PREFERENCES_QUERY_KEY as SETTINGS_PREFERENCES_QUERY_KEY,
+  useUserPreferences as useSettingsPreferences,
+} from './use-user-preferences';

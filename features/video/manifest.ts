@@ -12,6 +12,9 @@ export const videoManifest: ToolManifest = {
   supportsSidebar: true,
   supportsExport: false,
   defaultEnabled: false,
+  sidebar: {
+    order: 210,
+  },
   access: {
     requiresAuth: true,
     enabled: true,

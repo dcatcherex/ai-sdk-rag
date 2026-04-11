@@ -12,6 +12,9 @@ export const imageManifest: ToolManifest = {
   supportsSidebar: true,
   supportsExport: false,
   defaultEnabled: false,
+  sidebar: {
+    order: 220,
+  },
   access: {
     requiresAuth: true,
     enabled: true,

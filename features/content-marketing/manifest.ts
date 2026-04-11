@@ -13,6 +13,9 @@ export const contentMarketingManifest: ToolManifest = {
   supportsSidebar: true,
   supportsExport: false,
   defaultEnabled: false,
+  sidebar: {
+    order: 140,
+  },
   access: {
     requiresAuth: true,
     enabled: true,

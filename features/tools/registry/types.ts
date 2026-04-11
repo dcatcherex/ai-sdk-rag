@@ -32,6 +32,12 @@ export type ToolManifest = {
   supportsExport: boolean;
   /** Whether this tool is enabled by default for new users (drives DEFAULT_TOOL_IDS) */
   defaultEnabled: boolean;
+  /** Optional workspace navigation metadata for tools that expose a sidebar page */
+  sidebar?: {
+    label?: string;
+    defaultPinned?: boolean;
+    order?: number;
+  };
   access: {
     requiresAuth: boolean;
     roles?: Array<'user' | 'admin'>;

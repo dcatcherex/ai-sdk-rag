@@ -13,6 +13,11 @@ export const certificateManifest: ToolManifest = {
   supportsSidebar: true,
   supportsExport: true,
   defaultEnabled: false,
+  sidebar: {
+    label: 'Certificates',
+    defaultPinned: true,
+    order: 100,
+  },
   access: {
     requiresAuth: true,
     enabled: true,

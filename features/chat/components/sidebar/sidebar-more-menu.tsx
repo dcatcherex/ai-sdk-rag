@@ -21,13 +21,19 @@ import {
 import { GripVerticalIcon, PinIcon, SettingsIcon } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { NAV_REGISTRY, type NavItem, type NavItemId } from "./sidebar-nav";
+import {
+  NAV_REGISTRY,
+  type NavItem,
+  type NavItemId,
+} from "./sidebar-nav";
+import { WORKSPACE_ITEM_BY_ID, matchesWorkspaceItem } from "@/features/workspace/registry";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type Props = {
   currentPath: string;
   pinnedItemIds: NavItemId[];
+  hiddenItemIds: NavItemId[];
   onTogglePin: (itemId: NavItemId) => void;
   onReorderPinned: (orderedItemIds: NavItemId[]) => void;
 };
@@ -139,6 +145,7 @@ const UnpinnedRow = ({
 export const SidebarMoreMenuContent = ({
   currentPath,
   pinnedItemIds,
+  hiddenItemIds,
   onTogglePin,
   onReorderPinned,
 }: Props) => {
@@ -147,12 +154,13 @@ export const SidebarMoreMenuContent = ({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
+  const hidden = new Set(hiddenItemIds);
   const pinnedItems = pinnedItemIds
-    .map((id) => NAV_REGISTRY.find((item) => item.id === id))
-    .filter((item): item is NavItem => item !== undefined);
+    .map((id) => WORKSPACE_ITEM_BY_ID[id])
+    .filter((item): item is NavItem => item !== undefined && !hidden.has(item.id));
 
   const unpinnedItems = NAV_REGISTRY.filter(
-    (item) => !pinnedItemIds.includes(item.id),
+    (item) => !pinnedItemIds.includes(item.id) && !hidden.has(item.id),
   );
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -181,7 +189,7 @@ export const SidebarMoreMenuContent = ({
                   <SortablePinnedRow
                     key={item.id}
                     item={item}
-                    isActive={item.matchFn(currentPath)}
+                    isActive={matchesWorkspaceItem(item, currentPath)}
                     onTogglePin={() => onTogglePin(item.id)}
                   />
                 ))}
@@ -203,7 +211,7 @@ export const SidebarMoreMenuContent = ({
               <UnpinnedRow
                 key={item.id}
                 item={item}
-                isActive={item.matchFn(currentPath)}
+                isActive={matchesWorkspaceItem(item, currentPath)}
                 onTogglePin={() => onTogglePin(item.id)}
               />
             ))}

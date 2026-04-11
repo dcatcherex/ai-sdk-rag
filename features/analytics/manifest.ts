@@ -13,6 +13,10 @@ export const analyticsManifest: ToolManifest = {
   supportsSidebar: true,
   supportsExport: false,
   defaultEnabled: false,
+  sidebar: {
+    label: 'Analytics',
+    order: 236,
+  },
   access: {
     requiresAuth: true,
     enabled: true,

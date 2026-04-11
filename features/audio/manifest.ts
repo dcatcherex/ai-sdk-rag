@@ -12,6 +12,9 @@ export const audioManifest: ToolManifest = {
   supportsSidebar: true,
   supportsExport: false,
   defaultEnabled: false,
+  sidebar: {
+    order: 190,
+  },
   access: {
     requiresAuth: true,
     enabled: true,

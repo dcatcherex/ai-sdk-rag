@@ -12,6 +12,8 @@ export type Preferences = {
   promptEnhancementEnabled: boolean;
   followUpSuggestionsEnabled: boolean;
   enabledToolIds: string[] | null; // null = all tools enabled
+  pinnedWorkspaceItemIds: string[] | null; // null = defaults
+  hiddenWorkspaceItemIds: string[] | null; // null = show all
   rerankEnabled: boolean;
   selectedVoice: string | null; // null = use default (Aoede)
 };

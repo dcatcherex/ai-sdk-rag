@@ -12,6 +12,9 @@ export const speechManifest: ToolManifest = {
   supportsSidebar: true,
   supportsExport: false,
   defaultEnabled: false,
+  sidebar: {
+    order: 200,
+  },
   access: {
     requiresAuth: true,
     enabled: true,

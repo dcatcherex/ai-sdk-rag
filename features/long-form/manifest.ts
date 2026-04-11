@@ -13,6 +13,10 @@ export const longFormManifest: ToolManifest = {
   supportsSidebar: true,
   supportsExport: false,
   defaultEnabled: false,
+  sidebar: {
+    label: 'Long-form Writer',
+    order: 230,
+  },
   access: {
     requiresAuth: true,
     enabled: true,
