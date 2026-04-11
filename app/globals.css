@@ -671,3 +671,73 @@
     -webkit-tap-highlight-color: transparent;
   }
 }
+
+@layer utilities {
+  .chat-scroll-area {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 160ms ease;
+  }
+
+  .chat-scroll-area:hover,
+  .chat-scroll-area:focus,
+  .chat-scroll-area:focus-within {
+    scrollbar-color: color-mix(in oklch, var(--foreground) 18%, transparent) transparent;
+  }
+
+  .chat-scroll-area::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .chat-scroll-area::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .chat-scroll-area::-webkit-scrollbar-button {
+    -webkit-appearance: none;
+    display: none;
+    width: 0;
+    height: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .chat-scroll-area::-webkit-scrollbar-button:single-button,
+  .chat-scroll-area::-webkit-scrollbar-button:vertical:decrement,
+  .chat-scroll-area::-webkit-scrollbar-button:vertical:increment,
+  .chat-scroll-area::-webkit-scrollbar-button:horizontal:decrement,
+  .chat-scroll-area::-webkit-scrollbar-button:horizontal:increment {
+    -webkit-appearance: none;
+    display: none;
+    width: 0;
+    height: 0;
+    background: transparent;
+    border: 0;
+  }
+
+  .chat-scroll-area::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 9999px;
+    background-clip: padding-box;
+    background-color: transparent;
+    min-height: 48px;
+    transition: background-color 160ms ease, border-color 160ms ease;
+  }
+
+  .chat-scroll-area:hover::-webkit-scrollbar-thumb,
+  .chat-scroll-area:focus::-webkit-scrollbar-thumb,
+  .chat-scroll-area:focus-within::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklch, var(--foreground) 18%, transparent);
+  }
+
+  .chat-scroll-area::-webkit-scrollbar-thumb:window-inactive {
+    background-color: transparent;
+  }
+
+  .dark .chat-scroll-area:hover::-webkit-scrollbar-thumb,
+  .dark .chat-scroll-area:focus::-webkit-scrollbar-thumb,
+  .dark .chat-scroll-area:focus-within::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklch, white 24%, transparent);
+  }
+}

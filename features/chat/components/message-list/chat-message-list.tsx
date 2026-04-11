@@ -113,7 +113,10 @@ export const ChatMessageList = ({
         pendingRestoreThreadKeyRef={pendingRestoreThreadKeyRef}
         scrollPositionsRef={scrollPositionsRef}
       />
-      <ConversationContent className="px-3 md:px-6">
+      <ConversationContent
+        className="px-3 md:px-6"
+        scrollClassName="chat-scroll-area h-full"
+      >
         {messages.length === 0 ? (
           agentName && starterPrompts && starterPrompts.length > 0 ? (
             <div className="flex flex-col items-center justify-center gap-4 py-16 text-center px-4">

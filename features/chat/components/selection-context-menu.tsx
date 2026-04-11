@@ -64,7 +64,7 @@ const getSelectionAnchor = (range: Range) => {
 };
 
 type SelectionContextMenuProps = {
-  containerRef: React.RefObject<HTMLDivElement | null>;
+  containerRef: React.RefObject<HTMLElement | null>;
   onAction: (prompt: string) => void;
 };
 
