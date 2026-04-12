@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DefaultChatTransport } from 'ai';
 import { useChat } from '@ai-sdk/react';
@@ -144,7 +145,7 @@ const CompareStreamItem = ({
 
       <div className="flex-1 overflow-y-auto p-3">
         {imagePart ? (
-          <img src={imagePart.url} alt="Generated" className="max-w-full rounded-lg object-contain" />
+          <Image src={imagePart.url} alt="Generated" width={1024} height={1024} unoptimized className="max-w-full rounded-lg object-contain h-auto w-auto" />
         ) : textContent ? (
           <CompareMarkdown content={textContent} />
         ) : isStreaming ? (

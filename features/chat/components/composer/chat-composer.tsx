@@ -276,7 +276,7 @@ export function ChatComposer({
         <div className="mb-2 flex items-center gap-1.5 text-xs text-primary">
           <BookOpenIcon className="size-3.5" />
           <span className="font-medium">
-            Grounded mode — answering from {selectedDocCount} selected document
+            Answering from {selectedDocCount} selected document
             {selectedDocCount !== 1 ? 's' : ''}
           </span>
         </div>
@@ -294,8 +294,8 @@ export function ChatComposer({
                 className="min-h-9 max-h-[40vh] overflow-y-auto leading-6 px-3 pt-2.5 pb-2"
                 placeholder={
                   compareMode
-                    ? 'Type a prompt to compare across models…'
-                    : 'Ask anything'
+                    ? 'พิมพ์คำสั่งเพื่อเทียบคำตอบจากหลายโมเดล'
+                    : 'อยากให้ Vaja ช่วยอะไร?'
                 }
               />
             )}
@@ -347,7 +347,7 @@ export function ChatComposer({
                     </PromptInputButton>
                   </ModelSelectorTrigger>
                   <ModelSelectorContent>
-                    <ModelSelectorInput placeholder="Search models…" />
+                    <ModelSelectorInput placeholder="Search models..." />
                     <div className="flex items-center px-3 py-1.5 border-b border-black/5 dark:border-border">
                       <span className="flex-1 text-[11px] font-medium text-muted-foreground">Model</span>
                       <div className="flex gap-5 pr-1 text-[11px] font-medium text-muted-foreground">
@@ -431,7 +431,7 @@ export function ChatComposer({
       </PromptInputProvider>
       {!compareMode && !voiceOpen ? (
         <p className="mt-2 px-2 text-[11px] text-muted-foreground">
-          Try asking for a LINE reply, a content draft, a customer response, or a skill-aware workflow.
+          ลองเริ่มด้วยการให้ช่วยตอบ LINE ร่างคอนเทนต์ ตอบลูกค้า หรือจัด workflow ตามงานของคุณ
         </p>
       ) : null}
       {error && (

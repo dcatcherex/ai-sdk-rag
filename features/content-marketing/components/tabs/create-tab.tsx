@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -251,8 +252,9 @@ export function CreateTab({ composer, accounts }: Props) {
               <div className="mb-2 flex flex-wrap gap-2">
                 {uploadedMedia.map((m) => (
                   <div key={m.r2Key} className="relative">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={m.url} alt="Uploaded" className="h-16 w-16 rounded object-cover border" />
+                    <div className="relative h-16 w-16 overflow-hidden rounded border">
+                      <Image src={m.url} alt="Uploaded" fill unoptimized className="object-cover" />
+                    </div>
                     <button
                       type="button"
                       onClick={() => removeMedia(m.r2Key)}
@@ -362,12 +364,17 @@ export function CreateTab({ composer, accounts }: Props) {
             </div>
             <div className="rounded-xl border bg-white dark:bg-zinc-900 p-4 shadow-sm min-h-[220px]">
               {uploadedMedia[0] && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={uploadedMedia[0].url}
-                  alt="Post media"
-                  className={`mb-3 w-full rounded-lg object-cover ${activePlatformPreview === 'tiktok' ? 'aspect-[9/16] max-h-60' : 'aspect-square max-h-60'}`}
-                />
+                <div
+                  className={`relative mb-3 w-full overflow-hidden rounded-lg ${activePlatformPreview === 'tiktok' ? 'aspect-[9/16] max-h-60' : 'aspect-square max-h-60'}`}
+                >
+                  <Image
+                    src={uploadedMedia[0].url}
+                    alt="Post media"
+                    fill
+                    unoptimized
+                    className="object-cover"
+                  />
+                </div>
               )}
               <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
                 {activeCaptionForPreview || (

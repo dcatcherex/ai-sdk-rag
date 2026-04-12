@@ -1,6 +1,7 @@
 'use client';
 
 import type { KeyboardEvent } from 'react';
+import Image from 'next/image';
 import { BotIcon, GlobeIcon, MessageSquareIcon, Share2Icon, Trash2Icon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
@@ -76,10 +77,12 @@ export const AgentCard = ({
       {/* ── Image section ── */}
       <div className="relative aspect-square bg-background dark:bg-zinc-800 flex items-center justify-center overflow-hidden">
         {imageUrl ? (
-          <img
+          <Image
             src={imageUrl}
             alt={name}
-            className="w-full h-full object-cover"
+            fill
+            sizes="(min-width: 1024px) 16rem, (min-width: 640px) 33vw, 50vw"
+            className="object-cover"
           />
         ) : (
           <div className="flex flex-col items-center gap-2 select-none">

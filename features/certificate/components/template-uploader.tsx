@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useRef } from 'react';
 import { Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -81,8 +82,7 @@ export function TemplateUploader({ onDone, onCancel }: Props) {
         }}
       >
         {preview ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={preview} alt="preview" className="max-h-40 max-w-full rounded-lg object-contain" />
+          <Image src={preview} alt="preview" width={800} height={600} unoptimized className="max-h-40 max-w-full rounded-lg object-contain h-auto w-auto" />
         ) : (
           <>
             <Upload className="h-8 w-8 text-zinc-300" />

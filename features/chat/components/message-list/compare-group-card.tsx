@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { Streamdown } from 'streamdown';
 import { ThumbsDownIcon, ThumbsUpIcon } from 'lucide-react';
 import { CodeBlock } from '@/components/ai-elements/code-block';
@@ -71,7 +72,7 @@ export const CompareGroupCard = ({ messages, messageReactions, onToggleReaction 
             </div>
             <div className="flex-1 overflow-y-auto p-3 max-h-[400px]">
               {imagePart ? (
-                <img src={imagePart.url} alt="Generated" className="max-w-full rounded-lg" />
+                <Image src={imagePart.url} alt="Generated" width={1024} height={1024} unoptimized className="max-w-full rounded-lg h-auto w-auto" />
               ) : textContent ? (
                 <CompareMarkdown content={textContent} />
               ) : null}

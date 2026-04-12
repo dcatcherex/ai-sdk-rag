@@ -36,7 +36,7 @@ const STATIC_WORKSPACE_ITEMS: WorkspaceCatalogItem[] = [
   {
     id: "agents",
     href: "/agents",
-    label: "Agents",
+    label: "AI Coworkers",
     defaultPinned: true,
     order: 20,
     iconName: "Bot",
@@ -46,7 +46,7 @@ const STATIC_WORKSPACE_ITEMS: WorkspaceCatalogItem[] = [
   {
     id: "skills",
     href: "/skills",
-    label: "Skills",
+    label: "Skills Library",
     defaultPinned: true,
     order: 30,
     iconName: "Sparkles",
@@ -67,7 +67,7 @@ const STATIC_WORKSPACE_ITEMS: WorkspaceCatalogItem[] = [
   {
     id: "content",
     href: "/content",
-    label: "Content Hub",
+    label: "Content",
     defaultPinned: true,
     order: 150,
     iconName: "Newspaper",
@@ -77,7 +77,7 @@ const STATIC_WORKSPACE_ITEMS: WorkspaceCatalogItem[] = [
   {
     id: "knowledge",
     href: "/knowledge",
-    label: "Knowledge Base",
+    label: "Knowledge",
     defaultPinned: false,
     order: 160,
     iconName: "BookOpen",
@@ -87,7 +87,7 @@ const STATIC_WORKSPACE_ITEMS: WorkspaceCatalogItem[] = [
   {
     id: "support",
     href: "/support",
-    label: "Support Inbox",
+    label: "Support",
     defaultPinned: false,
     order: 170,
     iconName: "MessageSquare",

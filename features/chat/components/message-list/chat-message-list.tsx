@@ -225,9 +225,9 @@ export const ChatMessageList = ({
                 <BotIcon className="size-7 text-primary" />
               </div>
               <div className="space-y-1">
-                <p className="font-semibold text-base">Your Vaja AI coworker is ready</p>
+                <p className="font-semibold text-base">Vaja AI พร้อมช่วยงานแล้ว</p>
                 <p className="mx-auto max-w-md text-sm text-muted-foreground">
-                  Start with a real task, ask for a draft, or connect your work context with files and skills.
+                  เริ่มจากงานจริงที่ต้องทำตอนนี้ ขอให้ช่วยร่างข้อความ หรือเพิ่มไฟล์และ skills เพื่อให้ Vaja เข้าใจบริบทงานของคุณมากขึ้น
                 </p>
               </div>
               {generalStarterPrompts.length > 0 ? (

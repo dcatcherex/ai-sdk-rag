@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { Suspense, useRef, useState, useEffect } from 'react';
 import { ImageIcon, Loader2, BarChart2, Globe, X, Plus, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -277,12 +278,15 @@ function ImageToolPageInner({ manifest }: Props) {
             <div className="flex items-center gap-2 px-3 pt-3">
               {imageUrls.map((url, i) => (
                 <div key={i} className="relative group shrink-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={url}
-                    alt=""
-                    className="h-12 w-12 rounded-lg object-cover border"
-                  />
+                  <div className="relative h-12 w-12 overflow-hidden rounded-lg border">
+                    <Image
+                      src={url}
+                      alt="Reference image"
+                      fill
+                      unoptimized
+                      className="object-cover"
+                    />
+                  </div>
                   <button
                     onClick={() => setImageUrls(prev => prev.filter((_, idx) => idx !== i))}
                     className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-foreground text-background opacity-0 group-hover:opacity-100 transition-opacity"

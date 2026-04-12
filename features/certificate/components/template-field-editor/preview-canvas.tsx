@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { Maximize2, Minus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -85,7 +86,7 @@ export function PreviewCanvas({
             className="group relative overflow-hidden rounded-2xl border border-zinc-200 bg-white outline-none ring-0 focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-border dark:bg-zinc-950"
             style={{ aspectRatio: `${template.width} / ${template.height}` }}
           >
-            <img src={previewUrl} alt={template.name} className="h-full w-full select-none object-contain" draggable={false} />
+            <Image src={previewUrl} alt={template.name} fill unoptimized className="select-none object-contain" draggable={false} />
 
             <div
               className="pointer-events-none absolute inset-0 opacity-60"

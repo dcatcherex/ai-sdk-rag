@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { CheckIcon, PencilIcon, Trash2Icon, UsersIcon } from 'lucide-react';
 import type { Brand } from '../types';
 import { useBrandAssets } from '../hooks/use-brands';
@@ -53,12 +54,15 @@ export function BrandCard({
         // style={{ background: brand.colors[3]?.hex ?? 'hsl(var(--muted))' }}
       >
         {logoAsset ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={logoAsset.url}
-            alt={brand.name}
-            className="max-h-14 max-w-[80%] object-contain drop-shadow"
-          />
+          <div className="relative h-14 w-[80%]">
+            <Image
+              src={logoAsset.url}
+              alt={brand.name}
+              fill
+              unoptimized
+              className="object-contain drop-shadow"
+            />
+          </div>
         ) : (
           <span className="select-none text-2xl font-bold text-white/80 drop-shadow">
             {initials}

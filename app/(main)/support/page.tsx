@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -197,7 +198,9 @@ const renderLineContent = (payload: SupportLineContentPayload | null) => {
     return (
       <div className="mt-3 space-y-2">
         <a href={payload.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border">
-          <img src={payload.url} alt={payload.fileName} className="max-h-72 w-full object-cover" />
+          <div className="relative h-72 w-full">
+            <Image src={payload.url} alt={payload.fileName} fill unoptimized className="object-cover" />
+          </div>
         </a>
         <div className="text-xs text-muted-foreground">{payload.fileName}{formatBytes(payload.sizeBytes) ? ` • ${formatBytes(payload.sizeBytes)}` : ''}</div>
         {payload.analysis?.summary && (

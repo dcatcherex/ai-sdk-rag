@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { useRef } from 'react';
 import type { RefObject } from 'react';
 import type { ActiveTool } from '../../hooks/use-mask-canvas';
@@ -80,11 +81,13 @@ export const EditorCanvas = ({
 
   return (
     <div className="relative overflow-hidden rounded-2xl shadow-xl">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
+      <Image
         src={selectedVersion.url}
         alt="Source version"
-        className="block max-h-[calc(100dvh-18rem)] max-w-[calc(100dvh-19rem)] w-auto"
+        width={width}
+        height={height}
+        unoptimized
+        className="block max-h-[calc(100dvh-18rem)] max-w-[calc(100dvh-19rem)] w-auto h-auto"
       />
       <canvas
         ref={maskCanvasRef}

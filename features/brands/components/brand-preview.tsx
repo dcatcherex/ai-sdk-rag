@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { ExternalLinkIcon, MessageSquareIcon } from 'lucide-react';
 import type { Brand } from '../types';
 import { useBrandAssets, useBrandStats } from '../hooks/use-brands';
@@ -73,11 +74,13 @@ export function BrandPreview({ brand }: { brand: Brand }) {
               className="flex items-center justify-center rounded-xl border border-black/5 dark:border-border p-5"
               style={brand.colors[3]?.hex ? { background: brand.colors[3].hex } : undefined}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <Image
                 src={logoAsset.url}
                 alt="Logo"
-                className="max-h-20 max-w-full object-contain"
+                width={240}
+                height={80}
+                unoptimized
+                className="max-h-20 max-w-full object-contain h-auto w-auto"
               />
             </div>
           )}
@@ -162,14 +165,16 @@ export function BrandPreview({ brand }: { brand: Brand }) {
           </p>
           <div className="grid grid-cols-4 gap-2">
             {imageAssets.map((a) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={a.id}
-                src={a.url}
-                alt={a.title}
-                title={a.title}
-                className="aspect-square rounded-lg object-cover"
-              />
+              <div key={a.id} className="relative aspect-square overflow-hidden rounded-lg">
+                <Image
+                  src={a.url}
+                  alt={a.title}
+                  title={a.title}
+                  fill
+                  unoptimized
+                  className="object-cover"
+                />
+              </div>
             ))}
           </div>
         </div>

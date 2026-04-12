@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState } from 'react';
 import { TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -94,12 +95,15 @@ export function PostsTab({ postsState, onEdit }: Props) {
                 <div key={post.id} className="group relative flex flex-col rounded-xl border bg-white dark:bg-zinc-900 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                   {/* Media */}
                   {post.media[0] ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={post.media[0].url}
-                      alt=""
-                      className="h-40 w-full object-cover"
-                    />
+                    <div className="relative h-40 w-full">
+                      <Image
+                        src={post.media[0].url}
+                        alt="Post media"
+                        fill
+                        unoptimized
+                        className="object-cover"
+                      />
+                    </div>
                   ) : (
                     <div className="h-40 w-full bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center text-3xl text-muted-foreground/30">
                       ✦
@@ -165,8 +169,9 @@ export function PostsTab({ postsState, onEdit }: Props) {
               {posts.map((post) => (
                 <div key={post.id} className="flex items-start gap-4 px-5 py-4 group hover:bg-muted/30">
                   {post.media[0] && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={post.media[0].url} alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover border" />
+                    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border">
+                      <Image src={post.media[0].url} alt="Post media" fill unoptimized className="object-cover" />
+                    </div>
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm leading-snug line-clamp-2">{post.caption}</p>

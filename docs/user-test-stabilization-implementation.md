@@ -78,10 +78,13 @@ New supporting files:
   pending approval state
   branding cleanup on app/auth surfaces
   simpler default workspace pinning
+  Thai-first auth and verification copy
+  calmer chat empty state and starter prompts
+  first-run header/composer guidance aligned to Vaja tasks
+  Thai-first entry-page copy for LINE OA, AI Coworkers, and Skills Library
 - In progress:
-  calmer first-run chat header and composer
-  clearer empty-state guidance
+  full end-to-end auth rehearsal
+  remaining first-run wording cleanup on secondary screens
 - Next likely pass:
-  Thai-first onboarding copy
-  tighter first-run navigation language
+  tighten first-run navigation language
   replace high-impact raw image usage on user-facing pages

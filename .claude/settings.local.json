@@ -14,5 +14,8 @@
       "Bash(python -c ':*)",
       "Bash(python:*)"
     ]
+  },
+  "enabledPlugins": {
+    "agent-skills@addy-agent-skills": true
   }
 }

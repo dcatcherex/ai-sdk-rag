@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useRef, useState } from 'react';
 import { ImageIcon, Trash2Icon, UploadCloudIcon, UploadIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -164,8 +165,9 @@ export function AssetsTab({ brandId }: { brandId: string }) {
                     className="group flex items-center gap-3 rounded-md border border-black/5 dark:border-border bg-white/40 dark:bg-white/3 px-3 py-2"
                   >
                     {a.mimeType.startsWith('image/') ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={a.url} alt={a.title} className="h-10 w-10 rounded object-cover" />
+                      <div className="relative h-10 w-10 overflow-hidden rounded">
+                        <Image src={a.url} alt={a.title} fill unoptimized className="object-cover" />
+                      </div>
                     ) : (
                       <div className="flex h-10 w-10 items-center justify-center rounded bg-muted text-xs text-muted-foreground">
                         {KIND_LABELS[a.kind][0]}

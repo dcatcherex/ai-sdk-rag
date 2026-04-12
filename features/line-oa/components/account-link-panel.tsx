@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState } from 'react';
 import {
   LinkIcon,
@@ -195,12 +196,15 @@ export function AccountLinkPanel({ channelId }: { channelId: string }) {
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               {link.pictureUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={link.pictureUrl}
-                  alt={link.displayName ?? link.lineUserId}
-                  className="size-6 rounded-full shrink-0 object-cover"
-                />
+                <div className="relative size-6 shrink-0 overflow-hidden rounded-full">
+                  <Image
+                    src={link.pictureUrl}
+                    alt={link.displayName ?? link.lineUserId}
+                    fill
+                    unoptimized
+                    className="object-cover"
+                  />
+                </div>
               ) : (
                 <UserCircle2Icon className="size-6 shrink-0 text-muted-foreground" />
               )}

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { forwardRef } from "react";
 import {
   MoreVerticalIcon,
@@ -102,11 +103,15 @@ export const SidebarThreadRow = forwardRef<HTMLDivElement, Props>(({
             <DropdownMenuSeparator />
             <div className="px-2 py-1.5">
               <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-1.5">
-                <img
-                  src={thread.imageThumbnailUrl}
-                  alt={`${thread.title} generated theme`}
-                  className="size-10 rounded object-cover"
-                />
+                <div className="relative size-10 overflow-hidden rounded">
+                  <Image
+                    src={thread.imageThumbnailUrl}
+                    alt={`${thread.title} generated theme`}
+                    fill
+                    unoptimized
+                    className="object-cover"
+                  />
+                </div>
                 <div className="min-w-0">
                   <p className="truncate text-xs font-medium text-foreground">
                     Image theme

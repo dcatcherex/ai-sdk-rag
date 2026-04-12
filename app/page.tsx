@@ -28,9 +28,9 @@ import { consumePendingChatIntent } from '@/features/chat/lib/pending-chat-inten
 import { useUserPreferences } from '@/features/settings/hooks/use-user-preferences';
 
 const GENERAL_STARTER_PROMPTS = [
-  'Help me write a reply for a LINE customer asking about price and delivery.',
-  'Plan 3 content ideas for my business this week.',
-  'Turn this rough idea into a clear draft I can send today.',
+  'ช่วยเขียนข้อความตอบลูกค้า LINE ที่ถามเรื่องราคาและการจัดส่ง',
+  'ช่วยวาง 3 ไอเดียคอนเทนต์สำหรับธุรกิจของฉันในสัปดาห์นี้',
+  'ช่วยเปลี่ยนไอเดียคร่าว ๆ นี้ให้เป็นร่างข้อความที่ส่งได้วันนี้',
 ];
 
 export default function Chat() {

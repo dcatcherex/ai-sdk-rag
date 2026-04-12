@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import type { MediaAsset } from '../../types';
 
 type Props = {
@@ -43,11 +44,12 @@ export const VersionPanel = ({
                 }`}
               >
                 <div className="relative aspect-square overflow-hidden bg-muted/30">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <Image
                     src={v.thumbnailUrl ?? v.url}
                     alt={`v${v.version ?? 1}`}
-                    className="h-full w-full object-cover"
+                    fill
+                    unoptimized
+                    className="object-cover"
                   />
                   {isGalleryPreview && (
                     <div className="absolute bottom-1 right-1 rounded-full bg-primary px-1.5 py-0.5 text-[8px] font-semibold text-primary-foreground">

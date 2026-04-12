@@ -18,20 +18,20 @@ Reference vision: [docs/vaja-vision.md](/D:/vscode2/nextjs/ai-sdk/docs/vaja-visi
 
 ## First-Run UX
 
-- [ ] Landing in chat feels simple and uncluttered
-- [ ] Default navigation matches the Vaja vision:
+- [x] Landing in chat feels simple and uncluttered
+- [x] Default navigation matches the Vaja vision:
   Chat first
   LINE OA visible
   Skills visible
   Advanced builder surfaces de-emphasized
-- [ ] Default state does not overwhelm first-time users with compare, outline, gallery, prompt-library, or multi-agent complexity
-- [ ] Empty states explain the next useful action in plain language
+- [x] Default state does not overwhelm first-time users with compare, outline, gallery, prompt-library, or multi-agent complexity
+- [x] Empty states explain the next useful action in plain language
 
 ## Branding And Trust
 
 - [x] App title, metadata, auth emails, and auth screens say `Vaja AI`
 - [x] Sign-in and onboarding copy do not use placeholder product names like `Studio Chat` or `Better Auth`
-- [ ] Thai-first product cues are visible in the entry experience
+- [x] Thai-first product cues are visible in the entry experience
 - [x] Mobile accessibility basics are respected:
   Zoom is not disabled
   Text remains legible
@@ -44,6 +44,10 @@ Reference vision: [docs/vaja-vision.md](/D:/vscode2/nextjs/ai-sdk/docs/vaja-visi
 - [x] Default workspace pinning simplified for first-run testing
 - [x] Branding updated to `Vaja AI` across core auth surfaces
 - [x] Second-pass chat UX simplification started
+- [x] Thai-first onboarding cues added to auth and verification screens
+- [x] Third-pass Thai-first chat guidance added to empty state, header, and composer
+- [x] Fourth-pass first-run copy updated on LINE OA, AI Coworkers, and Skills Library pages
+- [x] Raw `<img>` usage replaced across app and feature surfaces with `next/image` where appropriate
 
 ## Core Journey Rehearsal
 
@@ -77,7 +81,7 @@ Reference vision: [docs/vaja-vision.md](/D:/vscode2/nextjs/ai-sdk/docs/vaja-visi
 
 ## Nice-To-Have If Time Remains
 
-- [ ] Replace raw `<img>` usage on key surfaces with optimized images where appropriate
+- [x] Replace raw `<img>` usage on key surfaces with optimized images where appropriate
 - [ ] Improve Thai localization on entry screens
 - [ ] Add a lightweight first-run guide or helper text in chat
 - [ ] Add event logging around signup, verification, first message, and LINE OA connect

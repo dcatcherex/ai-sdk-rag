@@ -12,9 +12,9 @@ const resetRedirectURL = "/reset-password";
 type View = "sign-in" | "sign-up" | "reset" | "magic" | "inbox";
 
 const getErrorMessage = (error: unknown) => {
-  if (!error || typeof error !== "object") return "Unexpected error. Please try again.";
+  if (!error || typeof error !== "object") return "Something went wrong. Please try again.";
   if ("message" in error && typeof error.message === "string") return error.message;
-  return "Unexpected error. Please try again.";
+  return "Something went wrong. Please try again.";
 };
 
 export default function SignInPage() {
@@ -81,7 +81,7 @@ function SignInContent() {
   useEffect(() => {
     const resetStatus = searchParams.get("reset");
     const verified = searchParams.get("verified");
-    if (resetStatus === "success") setSuccess("Password updated. Please sign in.");
+    if (resetStatus === "success") setSuccess("Password updated. Sign in to continue.");
     if (verified === "true") setSuccess("Email verified. You can sign in now.");
   }, [searchParams]);
 
@@ -216,19 +216,19 @@ function SignInContent() {
   };
 
   const viewTitle: Record<View, string> = {
-    "sign-in": "Sign in",
-    "sign-up": "Create account",
-    reset: "Reset password",
-    magic: "Magic link",
-    inbox: "Check your inbox",
+    "sign-in": "Sign in | เข้าสู่ระบบ",
+    "sign-up": "Create account | สร้างบัญชี",
+    reset: "Reset password | รีเซ็ตรหัสผ่าน",
+    magic: "Magic link | ลิงก์เข้าสู่ระบบ",
+    inbox: "Check your inbox | ตรวจอีเมล",
   };
 
   const viewSubtitle: Record<View, string> = {
-    "sign-in": "Access your Vaja AI workspace",
-    "sign-up": "Create your Vaja AI account",
-    reset: "We'll send you a secure reset link",
+    "sign-in": "เข้าสู่ Vaja AI เพื่อเริ่มคุยงานและใช้งาน LINE-first AI coworker ของคุณ",
+    "sign-up": "สร้างบัญชี Vaja AI เพื่อเริ่มใช้งานผู้ช่วย AI สำหรับงานของคุณ",
+    reset: "We’ll send a secure reset link to your email",
     magic: "Sign in to Vaja AI without a password",
-    inbox: "Your Vaja AI link is on the way",
+    inbox: "เราได้ส่งลิงก์เข้าสู่ระบบหรือยืนยันอีเมลให้แล้ว",
   };
 
   return (
@@ -257,8 +257,8 @@ function SignInContent() {
           {view === "inbox" ? (
             <div className="space-y-4">
               <p className="text-center text-sm text-muted-foreground">
-                We sent a link to <span className="font-medium text-foreground">{inboxEmail}</span>.
-                Follow it to continue.
+                เราส่งลิงก์ไปที่ <span className="font-medium text-foreground">{inboxEmail}</span>
+                {" "}แล้ว เปิดอีเมลเพื่อไปต่อได้เลย
               </p>
               {signUpSuccessEmail ? (
                 <Button
@@ -267,14 +267,14 @@ function SignInContent() {
                   onClick={() => handleSendVerification(signUpSuccessEmail)}
                   disabled={isVerifyLoading}
                 >
-                  {isVerifyLoading ? "Sending..." : "Resend verification email"}
+                  {isVerifyLoading ? "Sending..." : "Resend verification email | ส่งอีกครั้ง"}
                 </Button>
               ) : null}
               <button
                 onClick={() => goTo("sign-in")}
                 className="w-full text-center text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
-                Back to sign in
+                Back to sign in | กลับไปหน้าเข้าสู่ระบบ
               </button>
             </div>
           ) : null}
@@ -284,42 +284,42 @@ function SignInContent() {
               <div className="space-y-2">
                 <Input
                   type="email"
-                  placeholder="you@business.co.th"
+                  placeholder="name@business.co.th"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleEmailSignIn()}
                 />
                 <Input
                   type="password"
-                  placeholder="Password"
+                  placeholder="Password | รหัสผ่าน"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleEmailSignIn()}
                 />
               </div>
               <Button className="w-full" onClick={handleEmailSignIn} disabled={isEmailLoading || !email || !password}>
-                {isEmailLoading ? "Signing in..." : "Sign in"}
+                {isEmailLoading ? "Signing in..." : "Sign in | เข้าสู่ระบบ"}
               </Button>
 
               <Divider label="or" />
 
               <Button variant="outline" className="w-full" onClick={handleGoogleSignIn}>
                 <GoogleIcon />
-                Continue with Google
+                Continue with Google | ใช้ Google
               </Button>
 
               <Divider label="or" />
 
               <Button variant="ghost" className="w-full text-muted-foreground" onClick={() => goTo("magic")}>
-                Sign in with magic link
+                Sign in with magic link | ใช้ลิงก์อีเมล
               </Button>
 
               <div className="flex justify-between pt-1 text-xs text-muted-foreground">
                 <button onClick={() => goTo("sign-up")} className="transition-colors hover:text-foreground">
-                  Create account
+                  Create account | สร้างบัญชี
                 </button>
                 <button onClick={() => goTo("reset")} className="transition-colors hover:text-foreground">
-                  Forgot password?
+                  Forgot password? | ลืมรหัสผ่าน
                 </button>
               </div>
             </div>
@@ -328,11 +328,11 @@ function SignInContent() {
           {view === "sign-up" ? (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Input type="text" placeholder="Your name" value={signUpName} onChange={(e) => setSignUpName(e.target.value)} />
-                <Input type="email" placeholder="you@business.co.th" value={signUpEmail} onChange={(e) => setSignUpEmail(e.target.value)} />
+                <Input type="text" placeholder="Your name | ชื่อของคุณ" value={signUpName} onChange={(e) => setSignUpName(e.target.value)} />
+                <Input type="email" placeholder="name@business.co.th" value={signUpEmail} onChange={(e) => setSignUpEmail(e.target.value)} />
                 <Input
                   type="password"
-                  placeholder="Create a password"
+                  placeholder="Create a password | ตั้งรหัสผ่าน"
                   value={signUpPassword}
                   onChange={(e) => setSignUpPassword(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSignUp()}
@@ -343,18 +343,18 @@ function SignInContent() {
                 onClick={handleSignUp}
                 disabled={isSignUpLoading || !signUpName || !signUpEmail || !signUpPassword}
               >
-                {isSignUpLoading ? "Creating..." : "Create account"}
+                {isSignUpLoading ? "Creating..." : "Create account | สร้างบัญชี"}
               </Button>
 
               <Divider label="or" />
 
               <Button variant="outline" className="w-full" onClick={handleGoogleSignIn}>
                 <GoogleIcon />
-                Continue with Google
+                Continue with Google | ใช้ Google
               </Button>
 
               <p className="pt-1 text-center text-xs text-muted-foreground">
-                Already have an account?{" "}
+                Already have an account? | มีบัญชีอยู่แล้ว?{" "}
                 <button onClick={() => goTo("sign-in")} className="text-foreground hover:underline">
                   Sign in
                 </button>
@@ -366,19 +366,19 @@ function SignInContent() {
             <div className="space-y-4">
               <Input
                 type="email"
-                placeholder="you@business.co.th"
+                placeholder="name@business.co.th"
                 value={resetEmail}
                 onChange={(e) => setResetEmail(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handlePasswordReset()}
               />
               <Button className="w-full" onClick={handlePasswordReset} disabled={isResetLoading || !resetEmail}>
-                {isResetLoading ? "Sending..." : "Send reset link"}
+                {isResetLoading ? "Sending..." : "Send reset link | ส่งลิงก์รีเซ็ต"}
               </Button>
               <button
                 onClick={() => goTo("sign-in")}
                 className="w-full text-center text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
-                Back to sign in
+                Back to sign in | กลับไปหน้าเข้าสู่ระบบ
               </button>
             </div>
           ) : null}
@@ -387,19 +387,19 @@ function SignInContent() {
             <div className="space-y-4">
               <Input
                 type="email"
-                placeholder="you@business.co.th"
+                placeholder="name@business.co.th"
                 value={magicEmail}
                 onChange={(e) => setMagicEmail(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleMagicLink()}
               />
               <Button className="w-full" onClick={handleMagicLink} disabled={isMagicLoading || !magicEmail}>
-                {isMagicLoading ? "Sending..." : "Send magic link"}
+                {isMagicLoading ? "Sending..." : "Send magic link | ส่งลิงก์เข้าสู่ระบบ"}
               </Button>
               <button
                 onClick={() => goTo("sign-in")}
                 className="w-full text-center text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
-                Use password instead
+                Use password instead | ใช้รหัสผ่านแทน
               </button>
             </div>
           ) : null}

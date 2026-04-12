@@ -98,8 +98,8 @@ export const ChatHeader = ({
 
   const fontSizeIndex = FONT_SIZES.indexOf(fontSize);
   const headerSubtitle = activeThread
-    ? (lastRoutingModel ? `Using ${lastRoutingModel.name}` : 'Ready for your next task')
-    : 'Start with a task, question, or draft request';
+    ? (lastRoutingModel ? `กำลังใช้ ${lastRoutingModel.name}` : 'พร้อมช่วยงานถัดไปของคุณ')
+    : 'เริ่มจากงาน คำถาม หรือร่างข้อความที่คุณอยากให้ช่วย';
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 px-3 py-2 dark:border-border md:gap-3 md:px-6 md:py-1.5">

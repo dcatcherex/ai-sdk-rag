@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState } from 'react';
 import {
   BookmarkPlusIcon,
@@ -186,11 +187,13 @@ export function RichMenuPanel({ channelId, memberRichMenuLineId }: { channelId: 
           {menu.backgroundImageUrl ? (
             // Custom uploaded image — display at natural aspect ratio
             <div className="rounded overflow-hidden w-full">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <Image
                 src={menu.backgroundImageUrl}
                 alt="Rich menu background"
-                className="w-full h-auto block"
+                width={1200}
+                height={405}
+                unoptimized
+                className="h-auto w-full block"
               />
             </div>
           ) : (() => {

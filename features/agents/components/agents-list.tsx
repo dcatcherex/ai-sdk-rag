@@ -287,12 +287,12 @@ export const AgentsList = () => {
   return (
     <div className="flex h-full flex-col">
       <PageHeader
-        title="Agents"
-        description="Custom AI agents with tailored system prompts and tools"
+        title="AI Coworkers"
+        description="เลือกเพื่อนร่วมงาน AI แบบพร้อมใช้ หรือสร้างผู้ช่วยที่เหมาะกับงานของคุณ"
         action={(
           <Button onClick={openCreate} size="sm" className="gap-1.5">
             <PlusIcon className="size-4" />
-            New agent
+            สร้าง AI coworker
           </Button>
         )}
       />
@@ -328,7 +328,7 @@ export const AgentsList = () => {
               ) : (
                 <>
                   <p className="mb-4 text-sm text-muted-foreground">
-                    Official ready-to-use agents. Use one as-is or create your own customized copy.
+                    AI coworker แบบพร้อมใช้สำหรับงานยอดนิยม เริ่มใช้งานได้ทันทีหรือคัดลอกไปปรับให้เข้ากับงานของคุณ
                   </p>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {essentials.map((agent) => (
@@ -353,7 +353,7 @@ export const AgentsList = () => {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <AgentCard
                   name="General"
-                  description={generalAgent?.description ?? 'Your default assistant. Configure its tools, model, and instructions.'}
+                  description={generalAgent?.description ?? 'ผู้ช่วยหลักของคุณสำหรับงานทั่วไป ปรับ tools โมเดล และคำสั่งให้เข้ากับวิธีทำงานของคุณได้'}
                   imageUrl={generalAgent?.imageUrl}
                   icon={BotIcon}
                   isActive
@@ -377,14 +377,14 @@ export const AgentsList = () => {
 
               {myAgents.length === 0 && (
                 <p className="mt-6 text-center text-sm text-muted-foreground">
-                  No custom agents yet. Create one or start from Essentials.
+                  ยังไม่มี AI coworker ที่คุณสร้างเอง เริ่มจาก Essentials หรือสร้างใหม่สำหรับงานเฉพาะของคุณ
                 </p>
               )}
             </TabsContent>
 
             <TabsContent value="shared">
               {sharedAgents.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No shared agents available.</p>
+                <p className="text-sm text-muted-foreground">ยังไม่มี AI coworker ที่ถูกแชร์ให้คุณ</p>
               ) : (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {sharedAgents.map((agent) => (

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import {
   BotIcon,
   CheckCircleIcon,
@@ -82,10 +83,12 @@ const ChannelCard = ({
       {/* ── Top image section ── */}
       <div className="relative aspect-square bg-background dark:bg-zinc-800 flex items-center justify-center overflow-hidden">
         {channel.imageUrl ? (
-          <img
+          <Image
             src={channel.imageUrl}
             alt={channel.name}
-            className="absolute inset-0 h-full w-full object-cover"
+            fill
+            sizes="(min-width: 640px) 25vw, 100vw"
+            className="object-cover"
           />
         ) : (
           <div className="flex flex-col items-center gap-2 select-none">
@@ -234,12 +237,12 @@ export const LineOaList = () => {
   return (
     <div className="flex flex-col h-full">
       <PageHeader
-        title="LINE Official Accounts"
-        description="Connect LINE OA channels to your agents and reply to users automatically"
+        title="LINE OA"
+        description="เชื่อมต่อบัญชี LINE Official Account เพื่อให้ Vaja ช่วยตอบลูกค้าและจัดการข้อความได้จากที่เดียว"
         action={
           <Button onClick={openCreate} size="sm" className="gap-1.5">
             <PlusIcon className="size-4" />
-            Connect LINE OA
+            เชื่อมต่อ LINE OA
           </Button>
         }
       />
@@ -252,13 +255,13 @@ export const LineOaList = () => {
             <div className="rounded-full bg-muted p-4">
               <MessageCircleIcon className="size-8 text-muted-foreground" />
             </div>
-            <p className="font-medium">No LINE OA connected</p>
+            <p className="font-medium">ยังไม่ได้เชื่อมต่อ LINE OA</p>
             <p className="text-sm text-muted-foreground max-w-xs">
-              Connect a LINE Official Account to let your agents reply to LINE users automatically.
+              เชื่อมต่อ LINE Official Account เพื่อให้ Vaja ช่วยตอบลูกค้าอัตโนมัติและใช้ LINE เป็นหน้าบ้านของธุรกิจคุณ
             </p>
             <Button onClick={openCreate} size="sm" className="gap-1.5 mt-1">
               <PlusIcon className="size-4" />
-              Connect your first OA
+              เชื่อมต่อ OA แรกของคุณ
             </Button>
           </div>
         ) : (
@@ -281,10 +284,10 @@ export const LineOaList = () => {
             </div>
 
             <div className="mt-6 rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground space-y-1">
-              <p className="font-medium text-foreground">Setup reminder</p>
-              <p>1. Copy the webhook URL and paste it in LINE Developers Console → Messaging API → Webhook URL.</p>
-              <p>2. Click <strong>Verify</strong> in the console, then enable <strong>Use webhook</strong>.</p>
-              <p>3. Disable <strong>Auto-reply messages</strong> in LINE Official Account Manager to avoid duplicate replies.</p>
+              <p className="font-medium text-foreground">ตั้งค่าให้พร้อมใช้งาน</p>
+              <p>1. คัดลอก webhook URL ไปวางใน LINE Developers Console → Messaging API → Webhook URL</p>
+              <p>2. กด <strong>Verify</strong> แล้วเปิด <strong>Use webhook</strong></p>
+              <p>3. ปิด <strong>Auto-reply messages</strong> ใน LINE Official Account Manager เพื่อไม่ให้ตอบซ้ำ</p>
             </div>
           </>
         )}
@@ -308,7 +311,7 @@ export const LineOaList = () => {
               onClick={confirmDelete}
               disabled={deleteChannel.isPending}
             >
-              {deleteChannel.isPending ? 'Disconnecting…' : 'Disconnect'}
+              {deleteChannel.isPending ? 'Disconnecting...' : 'Disconnect'}
             </Button>
           </DialogFooter>
         </DialogContent>

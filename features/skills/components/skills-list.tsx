@@ -115,8 +115,8 @@ export const SkillsList = () => {
   return (
     <div className="flex h-full flex-col">
       <PageHeader
-        title="Skills"
-        description="Reusable prompt behaviors you can attach to agents"
+        title="Skills Library"
+        description="เพิ่ม skills เพื่อให้ Vaja และ AI coworker เข้าใจงานเฉพาะทางของคุณมากขึ้น"
         action={(
           <div className="flex gap-2">
             <Button
@@ -126,11 +126,11 @@ export const SkillsList = () => {
               onClick={() => setImportOpen(true)}
             >
               <LinkIcon className="size-4" />
-              Import from GitHub
+              นำเข้าจาก GitHub
             </Button>
             <Button onClick={openCreate} size="sm" className="gap-1.5">
               <PlusIcon className="size-4" />
-              New skill
+              สร้าง skill
             </Button>
           </div>
         )}
@@ -250,14 +250,13 @@ const EmptyMySkills = ({ onCreate }: { onCreate: () => void }) => (
     <div className="rounded-full bg-muted p-4">
       <SparklesIcon className="size-8 text-muted-foreground" />
     </div>
-    <p className="font-medium">No skills yet</p>
+    <p className="font-medium">ยังไม่มี skills</p>
     <p className="max-w-xs text-sm text-muted-foreground">
-      Create a skill to give agents reusable behaviors triggered by slash
-      commands or keywords. Or import one from GitHub.
+      สร้าง skill เพื่อให้ AI coworker ทำงานแบบมีบริบทมากขึ้น เช่น ใช้คำสั่งเฉพาะ งานเฉพาะ หรือความรู้เฉพาะทาง และคุณยังนำเข้าจาก GitHub ได้
     </p>
     <Button onClick={onCreate} size="sm" className="mt-1 gap-1.5">
       <PlusIcon className="size-4" />
-      Create your first skill
+      สร้าง skill แรกของคุณ
     </Button>
   </div>
 );
@@ -267,9 +266,9 @@ const EmptyCommunitySkills = () => (
     <div className="rounded-full bg-muted p-4">
       <GlobeIcon className="size-8 text-muted-foreground" />
     </div>
-    <p className="font-medium">No public skills yet</p>
+    <p className="font-medium">ยังไม่มี public skills</p>
     <p className="max-w-xs text-sm text-muted-foreground">
-      Be the first to share a skill with the community by marking it public.
+      คุณสามารถเป็นคนแรกที่แชร์ skill ให้ชุมชนใช้งานร่วมกันได้
     </p>
   </div>
 );
@@ -279,9 +278,9 @@ const EmptyEssentialSkills = () => (
     <div className="rounded-full bg-muted p-4">
       <SparklesIcon className="size-8 text-muted-foreground" />
     </div>
-    <p className="font-medium">No essential skills yet</p>
+    <p className="font-medium">ยังไม่มี essential skills</p>
     <p className="max-w-xs text-sm text-muted-foreground">
-      Admin-managed starter skills will appear here once they are published.
+      skill เริ่มต้นที่ทีมดูแลจัดเตรียมไว้จะปรากฏที่นี่เมื่อเผยแพร่แล้ว
     </p>
   </div>
 );

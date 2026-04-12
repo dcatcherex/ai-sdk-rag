@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { ImageIcon, Loader2, CheckCircle2, XCircle, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -39,8 +40,7 @@ export function ResultPanel({ state, mode, onRetry, onNewImage, onUseAsReference
       {state.status === 'success' && state.output && (
         <div className="space-y-3">
           <div className="rounded-xl overflow-hidden border">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={state.output} alt="Generated image" className="w-full object-contain max-h-[520px]" />
+            <Image src={state.output} alt="Generated image" width={1536} height={1024} unoptimized className="w-full object-contain max-h-[520px] h-auto" />
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">

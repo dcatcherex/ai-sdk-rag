@@ -22,7 +22,7 @@ function VerifiedPageContent() {
   const searchParams = useSearchParams();
   const nextUrl = searchParams.get("next") || "/";
   const [attempts, setAttempts] = useState(0);
-  const [status, setStatus] = useState("Checking your Vaja AI session...");
+  const [status, setStatus] = useState("Checking your Vaja AI session... | กำลังตรวจสอบการเข้าสู่ระบบ");
 
   useEffect(() => {
     let isActive = true;
@@ -33,7 +33,7 @@ function VerifiedPageContent() {
       if (!isActive) return;
 
       if (data?.session) {
-        setStatus("Verified. Redirecting you into Vaja AI...");
+        setStatus("Verified. Redirecting you into Vaja AI... | ยืนยันอีเมลแล้ว กำลังพาเข้าแอป");
         router.replace(nextUrl);
         return;
       }
@@ -62,7 +62,7 @@ function VerifiedPageContent() {
       <div className="mx-auto flex w-full max-w-xl flex-col gap-6">
         <Card className="border-black/5 bg-white/80 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] dark:border-border dark:bg-card/80 dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.6)]">
           <CardHeader>
-            <CardTitle className="text-lg">Vaja AI verified your email</CardTitle>
+            <CardTitle className="text-lg">Vaja AI verified your email | ยืนยันอีเมลสำเร็จ</CardTitle>
             <CardDescription>We&apos;re securing your session and preparing your workspace.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
@@ -83,7 +83,7 @@ function VerifiedPageFallback() {
       <div className="mx-auto flex w-full max-w-xl flex-col gap-6">
         <Card className="border-black/5 bg-white/80 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] dark:border-border dark:bg-card/80 dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.6)]">
           <CardHeader>
-            <CardTitle className="text-lg">Preparing Vaja AI</CardTitle>
+            <CardTitle className="text-lg">Preparing Vaja AI | กำลังเตรียมระบบ</CardTitle>
             <CardDescription>Finishing your verification and loading your workspace.</CardDescription>
           </CardHeader>
         </Card>
