@@ -18,6 +18,7 @@ import type { Skill, SkillDetail, SkillSyncCheckResult } from '../types';
 
 type SkillDetailContentProps = {
   skill: SkillDetail;
+  sourceTemplate: Skill | null;
   syncResult: SkillSyncCheckResult | null;
   syncError: string;
   canSync: boolean;
@@ -29,6 +30,7 @@ type SkillDetailContentProps = {
 
 const SkillDetailContent = ({
   skill,
+  sourceTemplate,
   syncResult,
   syncError,
   canSync,
@@ -36,12 +38,26 @@ const SkillDetailContent = ({
   onApplySync,
   isCheckingSync,
   isApplyingSync,
-}: SkillDetailContentProps) => (
+}: SkillDetailContentProps) => {
+  const updateAvailable = Boolean(
+    sourceTemplate &&
+    skill.templateId &&
+    skill.sourceTemplateVersion !== null &&
+    sourceTemplate.version > skill.sourceTemplateVersion,
+  );
+
+  return (
   <div className="space-y-4">
     <div className="flex flex-wrap gap-2">
       <Badge variant="secondary">{skill.skillKind}</Badge>
       <Badge variant="outline">{skill.activationMode}</Badge>
       <Badge variant="outline">{skill.syncStatus}</Badge>
+      {skill.templateId && skill.sourceTemplateVersion !== null && (
+        <Badge variant="outline">Based on v{skill.sourceTemplateVersion}</Badge>
+      )}
+      {updateAvailable && (
+        <Badge variant="secondary">Update available</Badge>
+      )}
       {skill.source?.repoName && (
         <Badge variant="outline">
           {skill.source.repoOwner}/{skill.source.repoName}
@@ -51,6 +67,31 @@ const SkillDetailContent = ({
 
     {skill.description && (
       <p className="text-sm text-muted-foreground">{skill.description}</p>
+    )}
+
+    {(skill.templateId || sourceTemplate) && (
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium">Template version</p>
+        <div className="rounded-md border border-black/5 bg-muted/30 p-3 text-xs dark:border-border">
+          <p>Current copy version: {skill.version}</p>
+          {skill.sourceTemplateVersion !== null && (
+            <p className="mt-1">Copied from template version: {skill.sourceTemplateVersion}</p>
+          )}
+          {sourceTemplate ? (
+            <p className="mt-1">Latest official version: {sourceTemplate.version}</p>
+          ) : null}
+          {updateAvailable ? (
+            <p className="mt-2 text-amber-700 dark:text-amber-300">
+              A newer official template version is available for this skill.
+            </p>
+          ) : null}
+          {sourceTemplate?.changelog ? (
+            <div className="mt-2 rounded bg-muted/60 p-2 whitespace-pre-wrap">
+              {sourceTemplate.changelog}
+            </div>
+          ) : null}
+        </div>
+      </div>
     )}
 
     <div className="space-y-1.5">
@@ -180,17 +221,19 @@ const SkillDetailContent = ({
       )}
     </div>
   </div>
-);
+  );
+};
 
 // ── Dialog ─────────────────────────────────────────────────────────────────────
 
 type SkillDetailDialogProps = {
   skill: Skill | null;
+  sourceTemplate: Skill | null;
   currentUserId: string | undefined;
   onClose: () => void;
 };
 
-export const SkillDetailDialog = ({ skill, currentUserId, onClose }: SkillDetailDialogProps) => {
+export const SkillDetailDialog = ({ skill, sourceTemplate, currentUserId, onClose }: SkillDetailDialogProps) => {
   const checkSkillSync = useCheckSkillSync();
   const applySkillSync = useApplySkillSync();
   const [syncResult, setSyncResult] = useState<SkillSyncCheckResult | null>(null);
@@ -253,6 +296,7 @@ export const SkillDetailDialog = ({ skill, currentUserId, onClose }: SkillDetail
         ) : detailSkill ? (
           <SkillDetailContent
             skill={detailSkill}
+            sourceTemplate={sourceTemplate}
             syncResult={syncResult}
             syncError={syncError}
             canSync={canSync}

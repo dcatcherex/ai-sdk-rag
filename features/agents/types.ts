@@ -1,6 +1,11 @@
 import type { AgentStructuredBehavior } from '@/lib/agent-structured-behavior';
 import type { AgentSkillAttachment, AgentSkillAttachmentInput } from '@/features/skills/types';
 
+export type CatalogScope = 'personal' | 'system';
+export type CatalogStatus = 'draft' | 'published' | 'archived';
+export type CloneBehavior = 'locked' | 'editable_copy';
+export type UpdatePolicy = 'none' | 'notify' | 'auto_for_locked';
+
 export type Agent = {
   id: string;
   userId: string | null;
@@ -19,6 +24,17 @@ export type Agent = {
   isTemplate: boolean;
   templateId: string | null;
   isDefault: boolean;
+  catalogScope: CatalogScope;
+  catalogStatus: CatalogStatus;
+  managedByAdmin: boolean;
+  cloneBehavior: CloneBehavior;
+  updatePolicy: UpdatePolicy;
+  lockedFields: string[];
+  version: number;
+  sourceTemplateVersion: number | null;
+  publishedAt: string | Date | null;
+  archivedAt: string | Date | null;
+  changelog: string | null;
   createdAt: string | Date;
   updatedAt: string | Date;
 };

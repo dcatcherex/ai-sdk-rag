@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { CopyIcon, PlusIcon } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { BotIcon, CopyIcon, GlobeIcon, PlusIcon, RotateCwIcon, ShieldIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { AgentCard } from './agent-card';
 import { toast } from 'sonner';
+
 import { PageHeader } from '@/components/page-header';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -16,46 +16,96 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { authClient } from '@/lib/auth-client';
-import { useAgents, useCreateAgent, useUpdateAgent, useDeleteAgent, useUseTemplate } from '../hooks/use-agents';
-import { usePublicShare, useUpdatePublicShare } from '../hooks/use-public-share';
-import { AgentEditorPanel } from './agent-editor-panel';
-import { PublicShareDialog } from './public-share-dialog';
-import type { Agent, AgentWithSharing, CreateAgentInput } from '../types';
 import { setNewChatIntent } from '@/features/chat/hooks/use-threads';
 import { setPendingChatIntent } from '@/features/chat/lib/pending-chat-intent';
+import { AgentCard } from './agent-card';
+import { AgentEditorPanel } from './agent-editor-panel';
+import { PublicShareDialog } from './public-share-dialog';
+import {
+  useAgents,
+  useCreateAgent,
+  useDeleteAgent,
+  useUpdateAgent,
+  useUseTemplate,
+} from '../hooks/use-agents';
+import { usePublicShare, useUpdatePublicShare } from '../hooks/use-public-share';
+import type { Agent, AgentWithSharing, CreateAgentInput } from '../types';
 
+const AgentMetaBadges = ({
+  agent,
+  ownerName,
+  updateAvailable = false,
+}: {
+  agent: Agent;
+  ownerName?: string;
+  updateAvailable?: boolean;
+}) => (
+  <div className="flex flex-wrap gap-1.5">
+    {agent.managedByAdmin && (
+      <Badge variant="secondary" className="gap-1 text-[11px]">
+        <ShieldIcon className="size-2.5" />
+        Official
+      </Badge>
+    )}
+    {agent.catalogStatus === 'published' && agent.managedByAdmin && (
+      <Badge variant="outline" className="text-[11px]">Published</Badge>
+    )}
+    {agent.cloneBehavior === 'locked' && (
+      <Badge variant="outline" className="text-[11px]">Locked</Badge>
+    )}
+    {agent.templateId && agent.sourceTemplateVersion !== null && (
+      <Badge variant="outline" className="text-[11px]">Based on v{agent.sourceTemplateVersion}</Badge>
+    )}
+    {updateAvailable && (
+      <Badge variant="secondary" className="gap-1 text-[11px]">
+        <RotateCwIcon className="size-2.5" />
+        Update available
+      </Badge>
+    )}
+    {agent.isPublic && (
+      <Badge variant="outline" className="gap-1 text-[11px]">
+        <GlobeIcon className="size-2.5" />
+        Public
+      </Badge>
+    )}
+    {ownerName ? (
+      <Badge variant="outline" className="text-[11px]">By {ownerName}</Badge>
+    ) : null}
+  </div>
+);
 
-// ── Template card ─────────────────────────────────────────────────────────────
-
-const TemplateCard = ({
-  template,
+const EssentialAgentCard = ({
+  agent,
   onUse,
   isPending,
 }: {
-  template: Agent;
+  agent: Agent;
   onUse: (id: string) => void;
   isPending: boolean;
 }) => (
   <AgentCard
-    name={template.name}
-    description={template.description}
-    footer={
-      <Button
-        size="sm"
-        variant="outline"
-        className="w-full gap-1.5 text-xs"
-        onClick={() => onUse(template.id)}
-        disabled={isPending}
-      >
-        <CopyIcon className="size-3.5" />
-        {isPending ? 'Copying…' : 'Use template'}
-      </Button>
-    }
+    name={agent.name}
+    description={agent.description}
+    imageUrl={agent.imageUrl}
+    footer={(
+      <div className="flex flex-col gap-2">
+        <AgentMetaBadges agent={agent} />
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full gap-1.5 text-xs"
+          onClick={() => onUse(agent.id)}
+          disabled={isPending}
+        >
+          <CopyIcon className="size-3.5" />
+          {isPending ? 'Copying...' : agent.cloneBehavior === 'locked' ? 'Use now' : 'Customize'}
+        </Button>
+      </div>
+    )}
   />
 );
-
-// ── MyAgentCard — wraps AgentCard with share-link active toggle ───────────────
 
 const MyAgentCard = ({
   agent,
@@ -63,15 +113,18 @@ const MyAgentCard = ({
   onDelete,
   onShare,
   onChat,
+  updateAvailable,
 }: {
   agent: Agent;
   onEdit: () => void;
   onDelete: () => void;
   onShare: () => void;
   onChat: () => void;
+  updateAvailable: boolean;
 }) => {
   const { data: share } = usePublicShare(agent.id);
   const updateShare = useUpdatePublicShare(agent.id);
+
   return (
     <AgentCard
       name={agent.name}
@@ -84,17 +137,30 @@ const MyAgentCard = ({
       onDelete={onDelete}
       onShare={onShare}
       onChat={onChat}
+      footer={<AgentMetaBadges agent={agent} updateAvailable={updateAvailable} />}
     />
   );
 };
 
-// ── AgentsList ────────────────────────────────────────────────────────────────
+const SharedAgentCard = ({
+  agent,
+  onChat,
+}: {
+  agent: AgentWithSharing;
+  onChat: () => void;
+}) => (
+  <AgentCard
+    name={agent.name}
+    description={agent.description}
+    imageUrl={agent.imageUrl}
+    onChat={onChat}
+    footer={<AgentMetaBadges agent={agent} ownerName={agent.ownerName} />}
+  />
+);
 
 export const AgentsList = () => {
   const router = useRouter();
   const { data, isLoading } = useAgents();
-  const agents = data?.agents ?? [];
-  const templates = data?.templates ?? [];
   const createAgent = useCreateAgent();
   const updateAgent = useUpdateAgent();
   const deleteAgent = useDeleteAgent();
@@ -103,42 +169,60 @@ export const AgentsList = () => {
   const { data: sessionData } = authClient.useSession();
   const currentUserId = sessionData?.user?.id;
 
+  const agents = data?.agents ?? [];
+  const mine = data?.mine ?? [];
+  const shared = data?.shared ?? [];
+  const essentials = data?.essentials ?? data?.templates ?? [];
+
   const [mode, setMode] = useState<'list' | 'create' | 'edit' | 'configure-general'>('list');
   const [editTargetId, setEditTargetId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Agent | null>(null);
   const [shareTarget, setShareTarget] = useState<Agent | null>(null);
   const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
 
-  const generalAgent = agents.find((a) => a.isDefault && a.userId === currentUserId);
+  const generalAgent = agents.find((agent) => agent.isDefault && agent.userId === currentUserId) ?? null;
   const editTarget = editTargetId
-    ? agents.find((a) => a.id === editTargetId) ?? null
+    ? agents.find((agent) => agent.id === editTargetId) ?? null
     : null;
-  const myAgents = agents.filter((a) => a.userId === currentUserId && !a.isDefault);
-  const sharedAgents = agents.filter((a) => a.userId !== currentUserId);
+  const myAgents = mine.filter((agent) => !agent.isDefault);
+  const sharedAgents = shared as AgentWithSharing[];
+  const essentialsById = useMemo(
+    () => Object.fromEntries(essentials.map((agent) => [agent.id, agent])),
+    [essentials],
+  );
+  const getTemplateUpdateState = (agent: Agent) => {
+    if (!agent.templateId || agent.sourceTemplateVersion === null) return false;
+    const source = essentialsById[agent.templateId];
+    return Boolean(source && source.version > agent.sourceTemplateVersion);
+  };
+  const myUpdateCount = myAgents.filter(getTemplateUpdateState).length;
+  const generalUpdateAvailable = generalAgent ? getTemplateUpdateState(generalAgent) : false;
 
-  const handleFormSubmit = (data: CreateAgentInput) => {
+  const handleFormSubmit = (formData: CreateAgentInput) => {
     if (mode === 'configure-general') {
       if (generalAgent) {
         updateAgent.mutate(
-          { id: generalAgent.id, ...data },
+          { id: generalAgent.id, ...formData },
           { onSuccess: () => setMode('list') },
         );
       } else {
         createAgent.mutate(
-          { ...data, isDefault: true } as CreateAgentInput & { isDefault: boolean },
+          { ...formData, isDefault: true } as CreateAgentInput & { isDefault: boolean },
           { onSuccess: () => setMode('list') },
         );
       }
       return;
     }
+
     if (editTarget) {
       updateAgent.mutate(
-        { id: editTarget.id, ...data },
+        { id: editTarget.id, ...formData },
         { onSuccess: () => { setMode('list'); setEditTargetId(null); } },
       );
-    } else {
-      createAgent.mutate(data, { onSuccess: () => setMode('list') });
+      return;
     }
+
+    createAgent.mutate(formData, { onSuccess: () => setMode('list') });
   };
 
   const openCreate = () => {
@@ -146,13 +230,13 @@ export const AgentsList = () => {
     setMode('create');
   };
 
-  const openEdit = (a: Agent) => {
-    setEditTargetId(a.id);
+  const openEdit = (agent: Agent) => {
+    setEditTargetId(agent.id);
     setMode('edit');
   };
 
-  const openConfigureGeneral = (a: Agent | null) => {
-    setEditTargetId(a?.id ?? null);
+  const openConfigureGeneral = (agent: Agent | null) => {
+    setEditTargetId(agent?.id ?? null);
     setMode('configure-general');
   };
 
@@ -177,7 +261,7 @@ export const AgentsList = () => {
     useTemplate.mutate(templateId, {
       onSuccess: () => {
         setPendingTemplateId(null);
-        toast.success('Agent created from template');
+        toast.success('Agent added to your library');
       },
       onError: () => setPendingTemplateId(null),
     });
@@ -185,8 +269,10 @@ export const AgentsList = () => {
 
   if (mode !== 'list') {
     const editorAgent = mode === 'configure-general'
-      ? (generalAgent ?? null)
-      : (mode === 'edit' ? editTarget : null);
+      ? generalAgent
+      : mode === 'edit'
+        ? editTarget
+        : null;
 
     return (
       <AgentEditorPanel
@@ -199,102 +285,116 @@ export const AgentsList = () => {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
       <PageHeader
         title="Agents"
         description="Custom AI agents with tailored system prompts and tools"
-        action={
+        action={(
           <Button onClick={openCreate} size="sm" className="gap-1.5">
             <PlusIcon className="size-4" />
             New agent
           </Button>
-        }
+        )}
       />
 
       <div className="flex-1 overflow-y-auto p-6">
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading agents…</p>
+          <p className="text-sm text-muted-foreground">Loading agents...</p>
         ) : (
-          <Tabs defaultValue="my-agents">
+          <Tabs defaultValue="essentials">
             <TabsList className="mb-5">
-              <TabsTrigger value="my-agents">My Agents</TabsTrigger>
-              <TabsTrigger value="templates">
-                Templates
-                {templates.length > 0 && (
-                  <span className="ml-1.5 text-[10px] bg-muted rounded-full px-1.5 py-0.5">
-                    {templates.length}
+              <TabsTrigger value="essentials">
+                Essentials
+                {essentials.length > 0 && (
+                  <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px]">
+                    {essentials.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="mine">Mine</TabsTrigger>
+              <TabsTrigger value="shared">
+                Shared
+                {sharedAgents.length > 0 && (
+                  <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px]">
+                    {sharedAgents.length}
                   </span>
                 )}
               </TabsTrigger>
             </TabsList>
 
-            {/* ── My Agents tab ── */}
-            <TabsContent value="my-agents">
-              <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-                {/* General Agent — always pinned first */}
-                <AgentCard
-                  name="General"
-                  description={generalAgent?.description ?? 'Your default assistant. Configure its tools, model, and instructions.'}
-                  imageUrl={generalAgent?.imageUrl}
-                  isActive
-                  onEdit={() => openConfigureGeneral(generalAgent ?? null)}
-                  onChat={() => startChatWithAgent(generalAgent?.id ?? null)}
-                />
-
-                {/* User's custom agents */}
-                {myAgents.map((a) => (
-                  <MyAgentCard
-                    key={a.id}
-                    agent={a}
-                    onEdit={() => openEdit(a)}
-                    onDelete={() => setDeleteTarget(a)}
-                    onShare={() => setShareTarget(a)}
-                    onChat={() => startChatWithAgent(a.id)}
-                  />
-                ))}
-
-                {/* Shared agents (from others) */}
-                {sharedAgents.map((a) => {
-                  const withSharing = a as AgentWithSharing;
-                  return (
-                    <AgentCard
-                      key={a.id}
-                      name={a.name}
-                      description={withSharing.ownerName ? `${a.description ?? ''}\nBy ${withSharing.ownerName}`.trim() : a.description}
-                      imageUrl={a.imageUrl}
-                      onChat={() => startChatWithAgent(a.id)}
-                    />
-                  );
-                })}
-              </div>
-
-              {myAgents.length === 0 && (
-                <p className="mt-6 text-sm text-muted-foreground text-center">
-                  No custom agents yet. Create one or use a template.
-                </p>
-              )}
-            </TabsContent>
-
-            {/* ── Templates tab ── */}
-            <TabsContent value="templates">
-              {templates.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No templates available.</p>
+            <TabsContent value="essentials">
+              {essentials.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No essential agents available yet.</p>
               ) : (
                 <>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Ready-to-use agents. Click &ldquo;Use template&rdquo; to create your own editable copy.
+                  <p className="mb-4 text-sm text-muted-foreground">
+                    Official ready-to-use agents. Use one as-is or create your own customized copy.
                   </p>
-                  <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
-                    {templates.map((t) => (
-                      <TemplateCard
-                        key={t.id}
-                        template={t}
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {essentials.map((agent) => (
+                      <EssentialAgentCard
+                        key={agent.id}
+                        agent={agent}
                         onUse={handleUseTemplate}
-                        isPending={pendingTemplateId === t.id}
+                        isPending={pendingTemplateId === agent.id}
                       />
                     ))}
                   </div>
                 </>
+              )}
+            </TabsContent>
+
+            <TabsContent value="mine">
+              {(myUpdateCount > 0 || generalUpdateAvailable) && (
+                <p className="mb-4 text-sm text-muted-foreground">
+                  {myUpdateCount + (generalUpdateAvailable ? 1 : 0)} of your agents have newer official template versions available.
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <AgentCard
+                  name="General"
+                  description={generalAgent?.description ?? 'Your default assistant. Configure its tools, model, and instructions.'}
+                  imageUrl={generalAgent?.imageUrl}
+                  icon={BotIcon}
+                  isActive
+                  onEdit={() => openConfigureGeneral(generalAgent)}
+                  onChat={() => startChatWithAgent(generalAgent?.id ?? null)}
+                  footer={generalAgent ? <AgentMetaBadges agent={generalAgent} updateAvailable={generalUpdateAvailable} /> : undefined}
+                />
+
+                {myAgents.map((agent) => (
+                  <MyAgentCard
+                    key={agent.id}
+                    agent={agent}
+                    onEdit={() => openEdit(agent)}
+                    onDelete={() => setDeleteTarget(agent)}
+                    onShare={() => setShareTarget(agent)}
+                    onChat={() => startChatWithAgent(agent.id)}
+                    updateAvailable={getTemplateUpdateState(agent)}
+                  />
+                ))}
+              </div>
+
+              {myAgents.length === 0 && (
+                <p className="mt-6 text-center text-sm text-muted-foreground">
+                  No custom agents yet. Create one or start from Essentials.
+                </p>
+              )}
+            </TabsContent>
+
+            <TabsContent value="shared">
+              {sharedAgents.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No shared agents available.</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {sharedAgents.map((agent) => (
+                    <SharedAgentCard
+                      key={agent.id}
+                      agent={agent}
+                      onChat={() => startChatWithAgent(agent.id)}
+                    />
+                  ))}
+                </div>
               )}
             </TabsContent>
           </Tabs>
@@ -310,7 +410,7 @@ export const AgentsList = () => {
         />
       )}
 
-      <Dialog open={Boolean(deleteTarget)} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete agent</DialogTitle>
@@ -323,7 +423,7 @@ export const AgentsList = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
             <Button variant="destructive" onClick={confirmDelete} disabled={deleteAgent.isPending}>
-              {deleteAgent.isPending ? 'Deleting…' : 'Delete'}
+              {deleteAgent.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </DialogFooter>
         </DialogContent>

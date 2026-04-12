@@ -74,7 +74,24 @@ export async function GET() {
       enabledTools: agent.enabledTools,
       documentIds: agent.documentIds,
       skillIds: agent.skillIds,
+      brandId: agent.brandId,
+      imageUrl: agent.imageUrl,
       isPublic: agent.isPublic,
+      starterPrompts: agent.starterPrompts,
+      isTemplate: agent.isTemplate,
+      templateId: agent.templateId,
+      isDefault: agent.isDefault,
+      catalogScope: agent.catalogScope,
+      catalogStatus: agent.catalogStatus,
+      managedByAdmin: agent.managedByAdmin,
+      cloneBehavior: agent.cloneBehavior,
+      updatePolicy: agent.updatePolicy,
+      lockedFields: agent.lockedFields,
+      version: agent.version,
+      sourceTemplateVersion: agent.sourceTemplateVersion,
+      publishedAt: agent.publishedAt,
+      archivedAt: agent.archivedAt,
+      changelog: agent.changelog,
       createdAt: agent.createdAt,
       updatedAt: agent.updatedAt,
       ownerName: userTable.name,
@@ -97,7 +114,24 @@ export async function GET() {
       enabledTools: agent.enabledTools,
       documentIds: agent.documentIds,
       skillIds: agent.skillIds,
+      brandId: agent.brandId,
+      imageUrl: agent.imageUrl,
       isPublic: agent.isPublic,
+      starterPrompts: agent.starterPrompts,
+      isTemplate: agent.isTemplate,
+      templateId: agent.templateId,
+      isDefault: agent.isDefault,
+      catalogScope: agent.catalogScope,
+      catalogStatus: agent.catalogStatus,
+      managedByAdmin: agent.managedByAdmin,
+      cloneBehavior: agent.cloneBehavior,
+      updatePolicy: agent.updatePolicy,
+      lockedFields: agent.lockedFields,
+      version: agent.version,
+      sourceTemplateVersion: agent.sourceTemplateVersion,
+      publishedAt: agent.publishedAt,
+      archivedAt: agent.archivedAt,
+      changelog: agent.changelog,
       createdAt: agent.createdAt,
       updatedAt: agent.updatedAt,
       ownerName: userTable.name,
@@ -121,7 +155,14 @@ export async function GET() {
   const templates = await db
     .select()
     .from(agent)
-    .where(and(isNull(agent.userId), eq(agent.isTemplate, true)))
+    .where(
+      and(
+        isNull(agent.userId),
+        eq(agent.isTemplate, true),
+        eq(agent.managedByAdmin, true),
+        eq(agent.catalogStatus, 'published'),
+      ),
+    )
     .orderBy(agent.name);
 
   const allAgentIds = [
@@ -138,13 +179,16 @@ export async function GET() {
       skillIds: attachmentMap[row.id] ?? [],
     }));
 
+  const mine = withResolvedSkillIds(ownAgentsOut);
+  const shared = withResolvedSkillIds([...publicAgents, ...deduped]);
+  const essentials = withResolvedSkillIds(templates);
+
   return NextResponse.json({
-    agents: [
-      ...withResolvedSkillIds(ownAgentsOut),
-      ...withResolvedSkillIds(publicAgents),
-      ...withResolvedSkillIds(deduped),
-    ],
-    templates: withResolvedSkillIds(templates),
+    agents: [...mine, ...shared],
+    templates: essentials,
+    mine,
+    shared,
+    essentials,
   });
 }
 
@@ -174,6 +218,17 @@ export async function POST(req: Request) {
     isDefault: body.isDefault ?? false,
     isTemplate: false,
     templateId: null,
+    catalogScope: 'personal',
+    catalogStatus: 'draft',
+    managedByAdmin: false,
+    cloneBehavior: 'editable_copy',
+    updatePolicy: 'notify',
+    lockedFields: [],
+    version: 1,
+    sourceTemplateVersion: null,
+    publishedAt: null,
+    archivedAt: null,
+    changelog: null,
     starterPrompts: body.starterPrompts ?? [],
     createdAt: now,
     updatedAt: now,

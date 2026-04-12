@@ -1,14 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   DownloadIcon,
   EyeIcon,
   GlobeIcon,
   LinkIcon,
   PlusIcon,
+  RotateCwIcon,
   SparklesIcon,
 } from 'lucide-react';
+
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +31,7 @@ import {
   useUpdateSkill,
   useDeleteSkill,
   useInstallSkill,
+  useUseSkillTemplate,
 } from '../hooks/use-skills';
 import { SkillEditorPanel } from './skill-editor-panel';
 import { SkillImportDialog } from './skill-import-dialog';
@@ -42,11 +45,12 @@ const TRIGGER_LABELS: Record<string, string> = {
 };
 
 export const SkillsList = () => {
-  const { data: skills = [], isLoading } = useSkills();
+  const { data, isLoading } = useSkills();
   const createSkill = useCreateSkill();
   const updateSkill = useUpdateSkill();
   const deleteSkill = useDeleteSkill();
   const installSkill = useInstallSkill();
+  const useSkillTemplate = useUseSkillTemplate();
   const { data: sessionData } = authClient.useSession();
   const currentUserId = sessionData?.user?.id;
 
@@ -56,23 +60,46 @@ export const SkillsList = () => {
   const [detailTarget, setDetailTarget] = useState<Skill | null>(null);
   const [importOpen, setImportOpen] = useState(false);
 
-  const mySkills = skills.filter((s) => s.userId === currentUserId);
-  const communitySkills = skills.filter((s) => s.userId !== currentUserId && s.isPublic);
+  const skills = data?.skills ?? [];
+  const mySkills = data?.mine ?? skills.filter((s) => s.userId === currentUserId);
+  const essentialSkills = data?.essentials ?? [];
+  const communitySkills = data?.community ?? skills.filter((s) => s.userId !== currentUserId && s.isPublic);
+  const essentialSkillsById = useMemo(
+    () => Object.fromEntries(essentialSkills.map((skill) => [skill.id, skill])),
+    [essentialSkills],
+  );
+  const isTemplateUpdateAvailable = (skill: Skill) => {
+    if (!skill.templateId || skill.sourceTemplateVersion === null) return false;
+    const source = essentialSkillsById[skill.templateId];
+    return Boolean(source && source.version > skill.sourceTemplateVersion);
+  };
+  const myUpdateCount = mySkills.filter(isTemplateUpdateAvailable).length;
 
-  const handleFormSubmit = (data: CreateSkillInput) => {
+  const handleFormSubmit = (formData: CreateSkillInput) => {
     if (editTarget) {
       updateSkill.mutate(
-        { id: editTarget.id, ...data },
+        { id: editTarget.id, ...formData },
         { onSuccess: () => { setMode('list'); setEditTarget(null); } },
       );
     } else {
-      createSkill.mutate(data, { onSuccess: () => setMode('list') });
+      createSkill.mutate(formData, { onSuccess: () => setMode('list') });
     }
   };
 
-  const openCreate = () => { setEditTarget(null); setMode('create'); };
-  const openEdit = (skill: Skill) => { setEditTarget(skill); setMode('edit'); };
-  const closeEditor = () => { setMode('list'); setEditTarget(null); };
+  const openCreate = () => {
+    setEditTarget(null);
+    setMode('create');
+  };
+
+  const openEdit = (skill: Skill) => {
+    setEditTarget(skill);
+    setMode('edit');
+  };
+
+  const closeEditor = () => {
+    setMode('list');
+    setEditTarget(null);
+  };
 
   if (mode !== 'list') {
     return (
@@ -86,11 +113,11 @@ export const SkillsList = () => {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
       <PageHeader
         title="Skills"
         description="Reusable prompt behaviors you can attach to agents"
-        action={
+        action={(
           <div className="flex gap-2">
             <Button
               variant="outline"
@@ -106,25 +133,47 @@ export const SkillsList = () => {
               New skill
             </Button>
           </div>
-        }
+        )}
       />
 
       <div className="flex-1 overflow-y-auto p-6">
-        <Tabs defaultValue="mine">
+        <Tabs defaultValue="essentials">
           <TabsList className="mb-4">
+            <TabsTrigger value="essentials">Essential skills ({essentialSkills.length})</TabsTrigger>
             <TabsTrigger value="mine">My skills ({mySkills.length})</TabsTrigger>
             <TabsTrigger value="community">Community ({communitySkills.length})</TabsTrigger>
           </TabsList>
 
+          <TabsContent value="essentials">
+            {essentialSkills.length === 0 ? (
+              <EmptyEssentialSkills />
+            ) : (
+              <SkillGrid
+                skills={essentialSkills}
+                isOwner={false}
+                isTemplateCatalog
+                onInstall={(id) => useSkillTemplate.mutate(id)}
+                installingId={useSkillTemplate.isPending ? useSkillTemplate.variables : undefined}
+                onView={setDetailTarget}
+              />
+            )}
+          </TabsContent>
+
           <TabsContent value="mine">
+            {myUpdateCount > 0 && (
+              <p className="mb-4 text-sm text-muted-foreground">
+                {myUpdateCount} of your skills have newer official template versions available.
+              </p>
+            )}
             {isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading…</p>
+              <p className="text-sm text-muted-foreground">Loading...</p>
             ) : mySkills.length === 0 ? (
               <EmptyMySkills onCreate={openCreate} />
             ) : (
               <SkillGrid
                 skills={mySkills}
                 isOwner
+                isUpdateAvailable={isTemplateUpdateAvailable}
                 onEdit={openEdit}
                 onDelete={setDeleteTarget}
                 onView={setDetailTarget}
@@ -148,10 +197,11 @@ export const SkillsList = () => {
         </Tabs>
       </div>
 
-      {/* Delete confirmation */}
       <Dialog
         open={Boolean(deleteTarget)}
-        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
       >
         <DialogContent>
           <DialogHeader>
@@ -175,7 +225,7 @@ export const SkillsList = () => {
               }
               disabled={deleteSkill.isPending}
             >
-              {deleteSkill.isPending ? 'Deleting…' : 'Delete'}
+              {deleteSkill.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -185,6 +235,9 @@ export const SkillsList = () => {
 
       <SkillDetailDialog
         skill={detailTarget}
+        sourceTemplate={
+          detailTarget?.templateId ? (essentialSkillsById[detailTarget.templateId] ?? null) : null
+        }
         currentUserId={currentUserId}
         onClose={() => setDetailTarget(null)}
       />
@@ -192,19 +245,17 @@ export const SkillsList = () => {
   );
 };
 
-// ── Empty states ───────────────────────────────────────────────────────────────
-
 const EmptyMySkills = ({ onCreate }: { onCreate: () => void }) => (
   <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
     <div className="rounded-full bg-muted p-4">
       <SparklesIcon className="size-8 text-muted-foreground" />
     </div>
     <p className="font-medium">No skills yet</p>
-    <p className="text-sm text-muted-foreground max-w-xs">
+    <p className="max-w-xs text-sm text-muted-foreground">
       Create a skill to give agents reusable behaviors triggered by slash
       commands or keywords. Or import one from GitHub.
     </p>
-    <Button onClick={onCreate} size="sm" className="gap-1.5 mt-1">
+    <Button onClick={onCreate} size="sm" className="mt-1 gap-1.5">
       <PlusIcon className="size-4" />
       Create your first skill
     </Button>
@@ -217,17 +268,29 @@ const EmptyCommunitySkills = () => (
       <GlobeIcon className="size-8 text-muted-foreground" />
     </div>
     <p className="font-medium">No public skills yet</p>
-    <p className="text-sm text-muted-foreground max-w-xs">
+    <p className="max-w-xs text-sm text-muted-foreground">
       Be the first to share a skill with the community by marking it public.
     </p>
   </div>
 );
 
-// ── Skill grid ─────────────────────────────────────────────────────────────────
+const EmptyEssentialSkills = () => (
+  <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+    <div className="rounded-full bg-muted p-4">
+      <SparklesIcon className="size-8 text-muted-foreground" />
+    </div>
+    <p className="font-medium">No essential skills yet</p>
+    <p className="max-w-xs text-sm text-muted-foreground">
+      Admin-managed starter skills will appear here once they are published.
+    </p>
+  </div>
+);
 
 type SkillGridProps = {
   skills: Skill[];
   isOwner: boolean;
+  isTemplateCatalog?: boolean;
+  isUpdateAvailable?: (skill: Skill) => boolean;
   onEdit?: (skill: Skill) => void;
   onDelete?: (skill: Skill) => void;
   onInstall?: (id: string) => void;
@@ -235,7 +298,15 @@ type SkillGridProps = {
   installingId?: string;
 };
 
-const SkillBadges = ({ skill, isOwner }: { skill: Skill; isOwner: boolean }) => (
+const SkillBadges = ({
+  skill,
+  isOwner,
+  updateAvailable = false,
+}: {
+  skill: Skill;
+  isOwner: boolean;
+  updateAvailable?: boolean;
+}) => (
   <div className="flex flex-wrap gap-1.5">
     <Badge variant="secondary" className="text-[11px]">
       {TRIGGER_LABELS[skill.triggerType] ?? skill.triggerType}
@@ -245,12 +316,24 @@ const SkillBadges = ({ skill, isOwner }: { skill: Skill; isOwner: boolean }) => 
       <Badge variant="outline" className="text-[11px]">Package</Badge>
     )}
     {skill.isPublic && isOwner && (
-      <Badge variant="secondary" className="text-[11px] gap-1">
+      <Badge variant="secondary" className="gap-1 text-[11px]">
         <GlobeIcon className="size-2.5" /> Public
       </Badge>
     )}
+    {skill.managedByAdmin && (
+      <Badge variant="secondary" className="text-[11px]">Official</Badge>
+    )}
+    {skill.templateId && skill.sourceTemplateVersion !== null && (
+      <Badge variant="outline" className="text-[11px]">Based on v{skill.sourceTemplateVersion}</Badge>
+    )}
+    {updateAvailable && (
+      <Badge variant="secondary" className="gap-1 text-[11px]">
+        <RotateCwIcon className="size-2.5" />
+        Update available
+      </Badge>
+    )}
     {skill.sourceUrl && (
-      <Badge variant="outline" className="text-[11px] gap-1">
+      <Badge variant="outline" className="gap-1 text-[11px]">
         <LinkIcon className="size-2.5" /> Imported
       </Badge>
     )}
@@ -265,15 +348,18 @@ const SkillBadges = ({ skill, isOwner }: { skill: Skill; isOwner: boolean }) => 
 const SkillGrid = ({
   skills,
   isOwner,
+  isTemplateCatalog = false,
+  isUpdateAvailable,
   onEdit,
   onDelete,
   onInstall,
   onView,
   installingId,
 }: SkillGridProps) => (
-  <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
     {skills.map((skill) => {
       const ownerName = (skill as Skill & { ownerName?: string }).ownerName;
+      const updateAvailable = isUpdateAvailable?.(skill) ?? false;
       const description =
         !isOwner && ownerName
           ? `${skill.description ?? ''}\nBy ${ownerName}`.trim()
@@ -291,15 +377,15 @@ const SkillGrid = ({
           onDelete={isOwner ? () => onDelete?.(skill) : undefined}
           footer={
             isOwner ? (
-              <SkillBadges skill={skill} isOwner={isOwner} />
+              <SkillBadges skill={skill} isOwner={isOwner} updateAvailable={updateAvailable} />
             ) : (
               <div className="flex flex-col gap-2">
-                <SkillBadges skill={skill} isOwner={isOwner} />
+                <SkillBadges skill={skill} isOwner={isOwner} updateAvailable={updateAvailable} />
                 <div className="flex gap-2">
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 flex-1 text-xs gap-1"
+                    className="h-7 flex-1 gap-1 text-xs"
                     onClick={() => onView?.(skill)}
                   >
                     <EyeIcon className="size-3" />
@@ -308,12 +394,14 @@ const SkillGrid = ({
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 flex-1 text-xs gap-1"
+                    className="h-7 flex-1 gap-1 text-xs"
                     onClick={() => onInstall?.(skill.id)}
                     disabled={installingId === skill.id}
                   >
                     <DownloadIcon className="size-3" />
-                    {installingId === skill.id ? 'Installing…' : 'Install'}
+                    {installingId === skill.id
+                      ? (isTemplateCatalog ? 'Using...' : 'Installing...')
+                      : (isTemplateCatalog ? 'Use' : 'Install')}
                   </Button>
                 </div>
               </div>

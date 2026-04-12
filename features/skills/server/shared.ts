@@ -1,5 +1,15 @@
 import { agentSkill, agentSkillAttachment, agentSkillFile, skillSource } from '@/db/schema';
-import type { Skill, SkillActivationMode, SkillFile, SkillSource, SkillTriggerType } from '../types';
+import type {
+  CatalogScope,
+  CatalogStatus,
+  CloneBehavior,
+  Skill,
+  SkillActivationMode,
+  SkillFile,
+  SkillSource,
+  SkillTriggerType,
+  UpdatePolicy,
+} from '../types';
 
 export function normaliseTrigger(
   triggerType: SkillTriggerType | undefined,
@@ -29,6 +39,10 @@ export function mapSkillRow(row: typeof agentSkill.$inferSelect): Skill {
     skillKind: row.skillKind as Skill['skillKind'],
     activationMode: row.activationMode as Skill['activationMode'],
     syncStatus: row.syncStatus as Skill['syncStatus'],
+    catalogScope: row.catalogScope as CatalogScope,
+    catalogStatus: row.catalogStatus as CatalogStatus,
+    cloneBehavior: row.cloneBehavior as CloneBehavior,
+    updatePolicy: row.updatePolicy as UpdatePolicy,
     packageManifest: (row.packageManifest ?? null) as Skill['packageManifest'],
   };
 }

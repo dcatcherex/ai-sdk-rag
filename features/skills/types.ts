@@ -3,6 +3,10 @@ export type SkillKind = 'inline' | 'package';
 export type SkillActivationMode = 'rule' | 'model';
 export type SkillSyncStatus = 'local' | 'synced' | 'update_available' | 'diverged' | 'error';
 export type SkillFileKind = 'skill' | 'reference' | 'asset' | 'script' | 'other';
+export type CatalogScope = 'personal' | 'system';
+export type CatalogStatus = 'draft' | 'published' | 'archived';
+export type CloneBehavior = 'locked' | 'editable_copy';
+export type UpdatePolicy = 'none' | 'notify' | 'auto_for_locked';
 
 export type SkillPackageManifest = {
   importedFileCount: number;
@@ -51,7 +55,7 @@ export type SkillSource = {
 
 export type Skill = {
   id: string;
-  userId: string;
+  userId: string | null;
   name: string;
   description: string | null;
   triggerType: SkillTriggerType;
@@ -74,6 +78,19 @@ export type Skill = {
   lastSyncedAt: string | Date | null;
   imageUrl: string | null;
   isPublic: boolean;
+  isTemplate: boolean;
+  templateId: string | null;
+  catalogScope: CatalogScope;
+  catalogStatus: CatalogStatus;
+  managedByAdmin: boolean;
+  cloneBehavior: CloneBehavior;
+  updatePolicy: UpdatePolicy;
+  lockedFields: string[];
+  version: number;
+  sourceTemplateVersion: number | null;
+  publishedAt: string | Date | null;
+  archivedAt: string | Date | null;
+  changelog: string | null;
   createdAt: string | Date;
   updatedAt: string | Date;
 };

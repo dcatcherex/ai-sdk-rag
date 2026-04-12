@@ -22,7 +22,7 @@ export const skillSource = pgTable("skill_source", {
 
 export const agentSkill = pgTable("agent_skill", {
   id: text("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description"),
   triggerType: text("trigger_type").notNull().default("keyword"),
@@ -45,6 +45,19 @@ export const agentSkill = pgTable("agent_skill", {
   lastSyncedAt: timestamp("last_synced_at"),
   imageUrl: text("image_url"),
   isPublic: boolean("is_public").notNull().default(false),
+  isTemplate: boolean("is_template").notNull().default(false),
+  templateId: text("template_id"),
+  catalogScope: text("catalog_scope").notNull().default("personal"),
+  catalogStatus: text("catalog_status").notNull().default("draft"),
+  managedByAdmin: boolean("managed_by_admin").notNull().default(false),
+  cloneBehavior: text("clone_behavior").notNull().default("editable_copy"),
+  updatePolicy: text("update_policy").notNull().default("notify"),
+  lockedFields: text("locked_fields").array().notNull().default(sql`'{}'::text[]`),
+  version: integer("version").notNull().default(1),
+  sourceTemplateVersion: integer("source_template_version"),
+  publishedAt: timestamp("published_at"),
+  archivedAt: timestamp("archived_at"),
+  changelog: text("changelog"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (table) => [

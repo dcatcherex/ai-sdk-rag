@@ -102,7 +102,8 @@ export function AgentForm({
 
   const { data: userDocuments = [], isLoading: docsLoading } = useUserDocuments();
   const { data: searchResults = [] } = useUserSearch(shareSearch);
-  const { data: userSkills = [] } = useSkills();
+  const skillsQuery = useSkills();
+  const userSkills = skillsQuery.data?.skills ?? [];
   const { data: loadedSkillAttachments = [] } = useAgentSkillAttachments(agent?.id ?? null);
   const loadedAttachmentAgentIdRef = useRef<string | null>(null);
   const isInitializedRef = useRef(false);

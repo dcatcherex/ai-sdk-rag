@@ -1,7 +1,7 @@
 import { headers } from 'next/headers';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
-import { createSkill, getSkills } from '@/features/skills/service';
+import { createSkill, getSkillCatalog } from '@/features/skills/service';
 
 const createSchema = z.object({
   name: z.string().min(1).max(64).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
@@ -27,8 +27,8 @@ export async function GET(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return new Response('Unauthorized', { status: 401 });
 
-  const skills = await getSkills(session.user.id);
-  return Response.json(skills);
+  const catalog = await getSkillCatalog(session.user.id);
+  return Response.json(catalog);
 }
 
 export async function POST(req: Request) {

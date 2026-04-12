@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, or } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { agentSkill, agentSkillAttachment, agentSkillFile, skillSource, user } from '@/db/schema';
 import type { Skill, SkillDetail, SkillFile, SkillSource, SkillWithOwner } from '../types';
@@ -133,7 +133,16 @@ async function getSkillRecordForUser(userId: string, skillId: string): Promise<{
     .where(
       and(
         eq(agentSkill.id, skillId),
-        or(eq(agentSkill.userId, userId), eq(agentSkill.isPublic, true)),
+        or(
+          eq(agentSkill.userId, userId),
+          eq(agentSkill.isPublic, true),
+          and(
+            isNull(agentSkill.userId),
+            eq(agentSkill.isTemplate, true),
+            eq(agentSkill.managedByAdmin, true),
+            eq(agentSkill.catalogStatus, 'published'),
+          ),
+        ),
       ),
     )
     .limit(1);

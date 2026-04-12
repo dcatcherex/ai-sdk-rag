@@ -4,12 +4,15 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
+  BotIcon,
   CoinsIcon,
   LayoutDashboardIcon,
   MenuIcon,
   SearchIcon,
   MessageSquareIcon,
+  SparklesIcon,
   ShieldIcon,
+  TestTubeDiagonalIcon,
   UsersIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,9 +25,12 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboardIcon },
+  { href: '/admin/agents', label: 'Agents', icon: BotIcon },
+  { href: '/admin/skills', label: 'Skills', icon: SparklesIcon },
   { href: '/admin/users', label: 'Users', icon: UsersIcon },
   { href: '/admin/credits', label: 'Credits', icon: CoinsIcon },
   { href: '/admin/chat-runs', label: 'AI Runs', icon: SearchIcon },
+  { href: '/admin/tests', label: 'Tests', icon: TestTubeDiagonalIcon },
 ];
 
 export default function AdminLayout({

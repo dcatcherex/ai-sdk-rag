@@ -49,3 +49,14 @@ export {
 export {
   calculateChangedFilePaths,
 } from './server/sync-shared';
+
+export {
+  getSkillCatalog,
+  listAdminSkillTemplates,
+  getAdminSkillTemplateById,
+  createAdminSkillTemplate,
+  updateAdminSkillTemplate,
+  publishAdminSkillTemplate,
+  archiveAdminSkillTemplate,
+  usePublishedSkillTemplate,
+} from './server/catalog';

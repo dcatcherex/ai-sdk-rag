@@ -5,7 +5,13 @@ import type { AgentSkillAttachment } from '@/features/skills/types';
 const AGENTS_QUERY_KEY = ['agents'] as const;
 const agentSkillAttachmentsKey = (agentId: string) => ['agent-skill-attachments', agentId] as const;
 
-type AgentsResponse = { agents: Agent[]; templates: Agent[] };
+export type AgentsResponse = {
+  agents: Agent[];
+  templates: Agent[];
+  mine: Agent[];
+  shared: Agent[];
+  essentials: Agent[];
+};
 type AgentSkillAttachmentsResponse = { attachments: AgentSkillAttachment[] };
 
 function upsertAgentInCollection<T extends Agent>(
@@ -29,9 +35,16 @@ function updateAgentInCache(
   queryClient.setQueryData<AgentsResponse | undefined>(AGENTS_QUERY_KEY, (current) => {
     if (!current) return current;
 
+    const nextMine = upsertAgentInCollection(current.mine, updatedAgent);
+    const nextShared = upsertAgentInCollection(current.shared, updatedAgent);
+    const nextEssentials = upsertAgentInCollection(current.essentials, updatedAgent);
+
     return {
       agents: upsertAgentInCollection(current.agents, updatedAgent),
       templates: upsertAgentInCollection(current.templates, updatedAgent),
+      mine: nextMine,
+      shared: nextShared,
+      essentials: nextEssentials,
     };
   });
 }
@@ -42,12 +55,19 @@ function addAgentToCache(
 ) {
   queryClient.setQueryData<AgentsResponse | undefined>(AGENTS_QUERY_KEY, (current) => {
     if (!current) {
-      return { agents: [newAgent], templates: [] };
+      return {
+        agents: [newAgent],
+        templates: [],
+        mine: [newAgent],
+        shared: [],
+        essentials: [],
+      };
     }
 
     return {
       ...current,
       agents: [newAgent, ...current.agents.filter((agent) => agent.id !== newAgent.id)],
+      mine: [newAgent, ...current.mine.filter((agent) => agent.id !== newAgent.id)],
     };
   });
 }

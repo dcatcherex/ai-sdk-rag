@@ -1,20 +1,27 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateSkillInput, Skill, SkillDetail, SkillSyncApplyResult, SkillSyncCheckResult, UpdateSkillInput } from '../types';
+import type { CreateSkillInput, Skill, SkillDetail, SkillSyncApplyResult, SkillSyncCheckResult, SkillWithOwner, UpdateSkillInput } from '../types';
 
 const KEY = ['skills'] as const;
 const skillDetailKey = (skillId: string | null) => [...KEY, skillId] as const;
 const skillFilesKey = (skillId: string | null) => [...KEY, skillId, 'files'] as const;
 const skillFileContentKey = (skillId: string | null, relativePath: string | null) => [...KEY, skillId, 'files', 'content', relativePath] as const;
 
+export type SkillsResponse = {
+  skills: SkillWithOwner[];
+  mine: SkillWithOwner[];
+  essentials: SkillWithOwner[];
+  community: SkillWithOwner[];
+};
+
 export function useSkills() {
-  return useQuery<Skill[]>({
+  return useQuery<SkillsResponse>({
     queryKey: KEY,
     queryFn: async () => {
       const res = await fetch('/api/skills');
       if (!res.ok) throw new Error(await res.text());
-      return res.json() as Promise<Skill[]>;
+      return res.json() as Promise<SkillsResponse>;
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -121,6 +128,18 @@ export function useInstallSkill() {
   return useMutation({
     mutationFn: async (skillId: string) => {
       const res = await fetch(`/api/skills/${skillId}/install`, { method: 'POST' });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json() as Promise<Skill>;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
+export function useUseSkillTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (skillId: string) => {
+      const res = await fetch(`/api/skills/templates/${skillId}/use`, { method: 'POST' });
       if (!res.ok) throw new Error(await res.text());
       return res.json() as Promise<Skill>;
     },

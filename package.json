@@ -9,7 +9,10 @@
     "start": "next start",
     "lint": "eslint",
     "deploy:trigger": "trigger deploy",
-    "test": "tsx --test features/skills/server/*.test.ts"
+    "test": "tsx --test features/skills/server/*.test.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:install": "playwright install chromium"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.25",
@@ -73,6 +76,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@trigger.dev/build": "4.4.3",
     "@types/node": "^25.2.0",

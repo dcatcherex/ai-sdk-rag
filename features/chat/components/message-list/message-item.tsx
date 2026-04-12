@@ -200,7 +200,11 @@ export const MessageItem = ({
           )}
         </MessageContent>
 
-        <MessageToolbar className="justify-between">
+        <MessageToolbar
+          className={`mt-2 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 ${
+            message.role === 'user' ? 'justify-end' : 'justify-start'
+          }`}
+        >
           <div className="flex gap-1">
             {textContent && (
               <TooltipProvider>

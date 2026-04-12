@@ -14,12 +14,21 @@ type OutlineItem = {
   questionIndex?: number;
 };
 
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[*_~`>#-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function extractHeadings(text: string): Array<{ text: string; level: number }> {
   const headings: Array<{ text: string; level: number }> = [];
   for (const line of text.split('\n')) {
     const match = line.match(/^(#{1,3})\s+(.+)$/);
     if (match) {
-      headings.push({ text: match[2].trim(), level: match[1].length });
+      headings.push({ text: stripMarkdown(match[2].trim()), level: match[1].length });
     }
   }
   return headings;
@@ -52,7 +61,7 @@ export const ConversationOutline = ({ messages, activeMessageId }: ConversationO
         result.push({
           messageId: message.id,
           role: 'user',
-          text: text.trim().slice(0, 200),
+          text: stripMarkdown(text.trim()).slice(0, 200),
           level: 0,
           questionIndex,
         });
@@ -73,7 +82,7 @@ export const ConversationOutline = ({ messages, activeMessageId }: ConversationO
             result.push({
               messageId: message.id,
               role: 'assistant',
-              text: firstLine.trim().slice(0, 100),
+              text: stripMarkdown(firstLine.trim()).slice(0, 100),
               level: 1,
             });
           }
