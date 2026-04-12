@@ -1,5 +1,5 @@
-import { relations } from "drizzle-orm";
-import { boolean, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { relations, sql } from "drizzle-orm";
+import { boolean, index, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
 
@@ -15,6 +15,7 @@ export const userPreferences = pgTable("user_preferences", {
   hiddenWorkspaceItemIds: text("hidden_workspace_item_ids").array(),
   rerankEnabled: boolean("rerank_enabled").default(false).notNull(),
   selectedVoice: text("selected_voice"),
+  mcpCredentials: jsonb("mcp_credentials").$type<Record<string, string>>().default(sql`'{}'::jsonb`),
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
 });
 

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { requireAdmin } from '@/lib/admin';
 import {
+  deleteAdminAgentTemplate,
   getAdminAgentTemplateById,
   updateAdminAgentTemplate,
 } from '@/features/agents/server/catalog';
@@ -29,6 +30,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!agent) return Response.json({ error: 'Not Found' }, { status: 404 });
 
   return Response.json({ agent });
+}
+
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const adminCheck = await requireAdmin();
+  if (!adminCheck.ok) return adminCheck.response;
+
+  const { id } = await params;
+  const deleted = await deleteAdminAgentTemplate(id);
+  if (!deleted) return Response.json({ error: 'Not Found' }, { status: 404 });
+
+  return new Response(null, { status: 204 });
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {

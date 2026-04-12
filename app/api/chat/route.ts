@@ -7,7 +7,7 @@ import {
   stepCountIs,
 } from 'ai';
 import { headers } from 'next/headers';
-import { and, eq, exists, or } from 'drizzle-orm';
+import { and, eq, exists, isNull, or } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { agent, agentShare, brand, brandShare, chatThread, user as userTable, userPreferences } from '@/db/schema';
@@ -99,6 +99,12 @@ export async function POST(req: Request) {
                 or(
                   eq(agent.userId, session.user.id),
                   eq(agent.isPublic, true),
+                  // Published Essential templates are usable directly — no clone needed
+                  and(
+                    isNull(agent.userId),
+                    eq(agent.managedByAdmin, true),
+                    eq(agent.catalogStatus, 'published'),
+                  ),
                   exists(
                     db
                       .select({ id: agentShare.agentId })

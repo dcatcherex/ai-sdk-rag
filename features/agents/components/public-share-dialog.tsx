@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   BarChart2Icon, CalendarIcon, CheckIcon, CopyIcon, CoinsIcon, EyeIcon, EyeOffIcon,
-  GlobeIcon, HashIcon, LinkIcon, LockIcon, MessageCircleIcon, MonitorIcon, UsersIcon, XIcon,
+  GlobeIcon, HashIcon, LinkIcon, LockIcon, MessageCircleIcon, MonitorIcon, PauseIcon, PlayIcon, UsersIcon, XIcon,
 } from 'lucide-react';
 import {
   Dialog,
@@ -153,12 +153,26 @@ export function PublicShareDialog({ agentId, agentName, open, onClose }: Props) 
                   {share.creditLimit !== null ? `/ ${share.creditLimit} cr` : 'Credits'}
                 </p>
               </div>
-              <div className="rounded-lg bg-muted/40 px-2 py-2 text-center">
-                <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 mt-1">
-                  {share.isActive ? 'Open' : 'Paused'}
+              <button
+                type="button"
+                onClick={() => updateShare.mutate({ isActive: !share.isActive })}
+                disabled={updateShare.isPending}
+                title={share.isActive ? 'Pause link — guests can no longer access' : 'Resume link — guests can access again'}
+                className={`rounded-lg px-2 py-2 text-center transition hover:opacity-80 disabled:opacity-50 ${
+                  share.isActive
+                    ? 'bg-emerald-100 dark:bg-emerald-900/30'
+                    : 'bg-muted/40'
+                }`}
+              >
+                {share.isActive ? (
+                  <PauseIcon className="size-3.5 mx-auto mb-0.5 text-emerald-600 dark:text-emerald-400" />
+                ) : (
+                  <PlayIcon className="size-3.5 mx-auto mb-0.5 text-muted-foreground" />
+                )}
+                <p className={`text-[11px] font-medium ${share.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+                  {share.isActive ? 'Live' : 'Paused'}
                 </p>
-                <p className="text-[11px] text-muted-foreground">Status</p>
-              </div>
+              </button>
             </div>
 
             {/* Tabs */}

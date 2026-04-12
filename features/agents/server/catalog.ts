@@ -141,6 +141,15 @@ export async function publishAdminAgentTemplate(id: string, changelog?: string |
   return row ? mapAgentRow(row) : null;
 }
 
+export async function deleteAdminAgentTemplate(id: string): Promise<boolean> {
+  const result = await db
+    .delete(agent)
+    .where(and(eq(agent.id, id), isNull(agent.userId), eq(agent.isTemplate, true), eq(agent.managedByAdmin, true)))
+    .returning({ id: agent.id });
+
+  return result.length > 0;
+}
+
 export async function archiveAdminAgentTemplate(id: string): Promise<Agent | null> {
   const [row] = await db
     .update(agent)
@@ -203,6 +212,7 @@ export async function usePublishedAgentTemplate(userId: string, templateId: stri
     publishedAt: null,
     archivedAt: null,
     changelog: null,
+    mcpServers: template.mcpServers ?? [],
     createdAt: now,
     updatedAt: now,
   } satisfies typeof agent.$inferInsert;

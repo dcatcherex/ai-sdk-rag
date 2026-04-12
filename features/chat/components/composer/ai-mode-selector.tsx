@@ -21,34 +21,30 @@ import { cn } from '@/lib/utils';
 import type { Agent } from '@/features/agents/types';
 
 type AiModeSelectorProps = {
+  /** Personal agents filtered to those the user has activated (green dot). */
   agents: Agent[];
+  /** Published Essential templates — always shown, used directly (no cloning). */
+  essentials: Agent[];
   selectedAgentId: string | null;
   onSelectAgent: (id: string | null) => void;
 };
 
 export const AiModeSelector = ({
   agents,
+  essentials,
   selectedAgentId,
   onSelectAgent,
 }: AiModeSelectorProps) => {
   const [open, setOpen] = useState(false);
 
-  const selectedAgent = agents.find((a) => a.id === selectedAgentId) ?? null;
-
+  const allKnown = [...agents, ...essentials];
+  const selectedAgent = allKnown.find((a) => a.id === selectedAgentId) ?? null;
   const label = selectedAgent?.name ?? 'General coworker';
-
   const isDefault = !selectedAgentId;
   const isAgent = !!selectedAgentId;
 
-  const handleSelectAgent = (id: string) => {
-    onSelectAgent(id);
-    setOpen(false);
-  };
-
-  const handleSelectGeneral = () => {
-    onSelectAgent(null);
-    setOpen(false);
-  };
+  const select = (id: string) => { onSelectAgent(id); setOpen(false); };
+  const selectGeneral = () => { onSelectAgent(null); setOpen(false); };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -73,13 +69,9 @@ export const AiModeSelector = ({
           <CommandList>
             <CommandEmpty>No results found.</CommandEmpty>
 
-            {/* Default general agent */}
+            {/* Default — no agent */}
             <CommandGroup>
-              <CommandItem
-                value="general"
-                onSelect={handleSelectGeneral}
-                className="text-xs"
-              >
+              <CommandItem value="general" onSelect={selectGeneral} className="text-xs">
                 <SparklesIcon className="size-3.5 mr-1.5 shrink-0" />
                 <span>General coworker</span>
                 <span className="ml-1.5 text-muted-foreground text-[10px]">best for first-time chat</span>
@@ -87,26 +79,54 @@ export const AiModeSelector = ({
               </CommandItem>
             </CommandGroup>
 
-            {/* Custom agents */}
-            {agents.length > 0 && (
+            {/* Ready-to-use Essential templates — used directly, no clone created */}
+            {essentials.length > 0 && (
               <>
                 <CommandSeparator />
-                <CommandGroup heading="My Agents">
-                  {agents.map((agent) => (
+                <CommandGroup heading="Ready-to-use">
+                  {essentials.map((ess) => (
                     <CommandItem
-                      key={agent.id}
-                      value={agent.id}
-                      onSelect={() => handleSelectAgent(agent.id)}
+                      key={ess.id}
+                      value={`essential-${ess.id}-${ess.name}`}
+                      onSelect={() => select(ess.id)}
                       className="text-xs"
                     >
                       <BotIcon
                         className={cn(
                           'size-3.5 mr-1.5 shrink-0',
-                          selectedAgentId === agent.id && 'text-primary',
+                          selectedAgentId === ess.id && 'text-primary',
                         )}
                       />
-                      <span className="truncate">{agent.name}</span>
-                      {selectedAgentId === agent.id && (
+                      <span className="truncate">{ess.name}</span>
+                      {selectedAgentId === ess.id && (
+                        <CheckIcon className="ml-auto size-3.5" />
+                      )}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+
+            {/* Personal agents the user has activated (green dot ON) */}
+            {agents.length > 0 && (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading="My Agents">
+                  {agents.map((a) => (
+                    <CommandItem
+                      key={a.id}
+                      value={a.id}
+                      onSelect={() => select(a.id)}
+                      className="text-xs"
+                    >
+                      <BotIcon
+                        className={cn(
+                          'size-3.5 mr-1.5 shrink-0',
+                          selectedAgentId === a.id && 'text-primary',
+                        )}
+                      />
+                      <span className="truncate">{a.name}</span>
+                      {selectedAgentId === a.id && (
                         <CheckIcon className="ml-auto size-3.5" />
                       )}
                     </CommandItem>

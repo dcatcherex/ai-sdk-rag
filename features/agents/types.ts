@@ -2,6 +2,14 @@ import type { AgentStructuredBehavior } from '@/lib/agent-structured-behavior';
 import type { AgentSkillAttachment, AgentSkillAttachmentInput } from '@/features/skills/types';
 
 export type CatalogScope = 'personal' | 'system';
+
+export type McpServerConfig = {
+  name: string;
+  url: string;
+  description?: string;
+  authType?: 'none' | 'bearer' | 'api_key';
+  credentialKey?: string;
+};
 export type CatalogStatus = 'draft' | 'published' | 'archived';
 export type CloneBehavior = 'locked' | 'editable_copy';
 export type UpdatePolicy = 'none' | 'notify' | 'auto_for_locked';
@@ -35,6 +43,7 @@ export type Agent = {
   publishedAt: string | Date | null;
   archivedAt: string | Date | null;
   changelog: string | null;
+  mcpServers: McpServerConfig[];
   createdAt: string | Date;
   updatedAt: string | Date;
 };

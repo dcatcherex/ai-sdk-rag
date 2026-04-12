@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 import type { AgentStructuredBehavior } from "@/lib/agent-structured-behavior";
+import type { McpServerConfig } from "@/features/agents/types";
 
 import { user } from "./auth";
 import { brand } from "./brands";
@@ -35,6 +36,7 @@ export const agent = pgTable("agent", {
   publishedAt: timestamp("published_at"),
   archivedAt: timestamp("archived_at"),
   changelog: text("changelog"),
+  mcpServers: jsonb("mcp_servers").$type<McpServerConfig[]>().notNull().default(sql`'[]'::jsonb`),
   createdAt: timestamp("created_at").notNull(),
   updatedAt: timestamp("updated_at").notNull(),
 }, (table) => [index("agent_userId_idx").on(table.userId)]);

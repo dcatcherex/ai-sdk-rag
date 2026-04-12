@@ -83,6 +83,7 @@ export type ChatComposerProps = {
   modelSelectorOpen: boolean;
   useWebSearch: boolean;
   agents: Agent[];
+  essentials: Agent[];
   selectedAgentId: string | null;
   onSelectAgent: (id: string | null) => void;
   onStop: () => void;
@@ -196,6 +197,7 @@ export function ChatComposer({
   modelSelectorOpen,
   useWebSearch,
   agents,
+  essentials,
   selectedAgentId,
   onSelectAgent,
   onStop,
@@ -334,6 +336,7 @@ export function ChatComposer({
               {!compareMode && (
                 <AiModeSelector
                   agents={agents}
+                  essentials={essentials}
                   selectedAgentId={selectedAgentId}
                   onSelectAgent={onSelectAgent}
                 />

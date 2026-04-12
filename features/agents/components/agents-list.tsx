@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { BotIcon, CopyIcon, GlobeIcon, PlusIcon, RotateCwIcon, ShieldIcon } from 'lucide-react';
+import { CopyIcon, GlobeIcon, PlusIcon, RotateCwIcon, ShieldIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -17,7 +17,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { authClient } from '@/lib/auth-client';
 import { setNewChatIntent } from '@/features/chat/hooks/use-threads';
 import { setPendingChatIntent } from '@/features/chat/lib/pending-chat-intent';
 import { AgentCard } from './agent-card';
@@ -30,7 +29,7 @@ import {
   useUpdateAgent,
   useUseTemplate,
 } from '../hooks/use-agents';
-import { usePublicShare, useUpdatePublicShare } from '../hooks/use-public-share';
+import { useChatVisibleAgents } from '../hooks/use-chat-visible-agents';
 import type { Agent, AgentWithSharing, CreateAgentInput } from '../types';
 
 const AgentMetaBadges = ({
@@ -109,6 +108,8 @@ const EssentialAgentCard = ({
 
 const MyAgentCard = ({
   agent,
+  isActive,
+  onToggleActive,
   onEdit,
   onDelete,
   onShare,
@@ -116,31 +117,28 @@ const MyAgentCard = ({
   updateAvailable,
 }: {
   agent: Agent;
+  isActive: boolean;
+  onToggleActive: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onShare: () => void;
   onChat: () => void;
   updateAvailable: boolean;
-}) => {
-  const { data: share } = usePublicShare(agent.id);
-  const updateShare = useUpdatePublicShare(agent.id);
-
-  return (
-    <AgentCard
-      name={agent.name}
-      description={agent.description}
-      imageUrl={agent.imageUrl}
-      isActive={share?.isActive ?? false}
-      isPublic={agent.isPublic}
-      onToggleActive={share ? () => updateShare.mutate({ isActive: !share.isActive }) : undefined}
-      onEdit={onEdit}
-      onDelete={onDelete}
-      onShare={onShare}
-      onChat={onChat}
-      footer={<AgentMetaBadges agent={agent} updateAvailable={updateAvailable} />}
-    />
-  );
-};
+}) => (
+  <AgentCard
+    name={agent.name}
+    description={agent.description}
+    imageUrl={agent.imageUrl}
+    isActive={isActive}
+    isPublic={agent.isPublic}
+    onToggleActive={onToggleActive}
+    onEdit={onEdit}
+    onDelete={onDelete}
+    onShare={onShare}
+    onChat={onChat}
+    footer={<AgentMetaBadges agent={agent} updateAvailable={updateAvailable} />}
+  />
+);
 
 const SharedAgentCard = ({
   agent,
@@ -165,26 +163,23 @@ export const AgentsList = () => {
   const updateAgent = useUpdateAgent();
   const deleteAgent = useDeleteAgent();
   const useTemplate = useUseTemplate();
-
-  const { data: sessionData } = authClient.useSession();
-  const currentUserId = sessionData?.user?.id;
+  const { isVisible, toggle: toggleChatVisible } = useChatVisibleAgents();
 
   const agents = data?.agents ?? [];
   const mine = data?.mine ?? [];
   const shared = data?.shared ?? [];
   const essentials = data?.essentials ?? data?.templates ?? [];
 
-  const [mode, setMode] = useState<'list' | 'create' | 'edit' | 'configure-general'>('list');
+  const [mode, setMode] = useState<'list' | 'create' | 'edit'>('list');
   const [editTargetId, setEditTargetId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Agent | null>(null);
   const [shareTarget, setShareTarget] = useState<Agent | null>(null);
   const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
 
-  const generalAgent = agents.find((agent) => agent.isDefault && agent.userId === currentUserId) ?? null;
   const editTarget = editTargetId
     ? agents.find((agent) => agent.id === editTargetId) ?? null
     : null;
-  const myAgents = mine.filter((agent) => !agent.isDefault);
+  const myAgents = mine;
   const sharedAgents = shared as AgentWithSharing[];
   const essentialsById = useMemo(
     () => Object.fromEntries(essentials.map((agent) => [agent.id, agent])),
@@ -196,24 +191,8 @@ export const AgentsList = () => {
     return Boolean(source && source.version > agent.sourceTemplateVersion);
   };
   const myUpdateCount = myAgents.filter(getTemplateUpdateState).length;
-  const generalUpdateAvailable = generalAgent ? getTemplateUpdateState(generalAgent) : false;
 
   const handleFormSubmit = (formData: CreateAgentInput) => {
-    if (mode === 'configure-general') {
-      if (generalAgent) {
-        updateAgent.mutate(
-          { id: generalAgent.id, ...formData },
-          { onSuccess: () => setMode('list') },
-        );
-      } else {
-        createAgent.mutate(
-          { ...formData, isDefault: true } as CreateAgentInput & { isDefault: boolean },
-          { onSuccess: () => setMode('list') },
-        );
-      }
-      return;
-    }
-
     if (editTarget) {
       updateAgent.mutate(
         { id: editTarget.id, ...formData },
@@ -233,11 +212,6 @@ export const AgentsList = () => {
   const openEdit = (agent: Agent) => {
     setEditTargetId(agent.id);
     setMode('edit');
-  };
-
-  const openConfigureGeneral = (agent: Agent | null) => {
-    setEditTargetId(agent?.id ?? null);
-    setMode('configure-general');
   };
 
   const closeEditor = () => {
@@ -268,11 +242,7 @@ export const AgentsList = () => {
   };
 
   if (mode !== 'list') {
-    const editorAgent = mode === 'configure-general'
-      ? generalAgent
-      : mode === 'edit'
-        ? editTarget
-        : null;
+    const editorAgent = mode === 'edit' ? editTarget : null;
 
     return (
       <AgentEditorPanel
@@ -345,27 +315,18 @@ export const AgentsList = () => {
             </TabsContent>
 
             <TabsContent value="mine">
-              {(myUpdateCount > 0 || generalUpdateAvailable) && (
+              {myUpdateCount > 0 && (
                 <p className="mb-4 text-sm text-muted-foreground">
-                  {myUpdateCount + (generalUpdateAvailable ? 1 : 0)} of your agents have newer official template versions available.
+                  {myUpdateCount} of your agents have newer official template versions available.
                 </p>
               )}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <AgentCard
-                  name="General"
-                  description={generalAgent?.description ?? 'ผู้ช่วยหลักของคุณสำหรับงานทั่วไป ปรับ tools โมเดล และคำสั่งให้เข้ากับวิธีทำงานของคุณได้'}
-                  imageUrl={generalAgent?.imageUrl}
-                  icon={BotIcon}
-                  isActive
-                  onEdit={() => openConfigureGeneral(generalAgent)}
-                  onChat={() => startChatWithAgent(generalAgent?.id ?? null)}
-                  footer={generalAgent ? <AgentMetaBadges agent={generalAgent} updateAvailable={generalUpdateAvailable} /> : undefined}
-                />
-
                 {myAgents.map((agent) => (
                   <MyAgentCard
                     key={agent.id}
                     agent={agent}
+                    isActive={isVisible(agent.id)}
+                    onToggleActive={() => toggleChatVisible(agent.id)}
                     onEdit={() => openEdit(agent)}
                     onDelete={() => setDeleteTarget(agent)}
                     onShare={() => setShareTarget(agent)}

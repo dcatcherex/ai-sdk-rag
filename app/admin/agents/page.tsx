@@ -8,6 +8,7 @@ import {
   PencilIcon,
   PlusIcon,
   RocketIcon,
+  Trash2Icon,
 } from 'lucide-react';
 
 import { availableModels } from '@/lib/ai';
@@ -137,6 +138,7 @@ export default function AdminAgentsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<AdminAgent | null>(null);
   const [form, setForm] = useState<AgentFormState>(emptyForm);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<AgentsResponse>({
     queryKey: ['admin', 'agents'],
@@ -191,6 +193,17 @@ export default function AdminAgentsPage() {
       return res.json();
     },
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'agents'] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/agents/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await res.text());
+    },
+    onSuccess: () => {
+      setDeleteConfirmId(null);
       void queryClient.invalidateQueries({ queryKey: ['admin', 'agents'] });
     },
   });
@@ -322,6 +335,15 @@ export default function AdminAgentsPage() {
                       Archive
                     </Button>
                   ) : null}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    onClick={() => setDeleteConfirmId(agent.id)}
+                  >
+                    <Trash2Icon className="size-3.5" />
+                    Delete
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
@@ -548,6 +570,32 @@ export default function AdminAgentsPage() {
             <Button onClick={submit} disabled={!isValid || saveMutation.isPending} className="gap-1.5">
               <BotIcon className="size-4" />
               {saveMutation.isPending ? 'Saving...' : editingAgent ? 'Save changes' : 'Create template'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={deleteConfirmId !== null} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete agent template?</DialogTitle>
+            <DialogDescription>
+              This permanently removes the template from the database. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className="gap-1.5"
+              disabled={deleteMutation.isPending}
+              onClick={() => { if (deleteConfirmId) deleteMutation.mutate(deleteConfirmId); }}
+            >
+              <Trash2Icon className="size-4" />
+              {deleteMutation.isPending ? 'Deleting...' : 'Delete permanently'}
             </Button>
           </DialogFooter>
         </DialogContent>

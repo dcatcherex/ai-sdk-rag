@@ -19,6 +19,7 @@ import { ConversationOutline } from '@/features/chat/components/conversation-out
 import { ImageEditor } from '@/features/gallery/components/image-editor/image-editor';
 import { useImageEditor } from '@/features/gallery/hooks/use-image-editor';
 import { useAgents } from '@/features/agents/hooks/use-agents';
+import { useChatVisibleAgents } from '@/features/agents/hooks/use-chat-visible-agents';
 import { useComparePreset } from '@/features/chat/hooks/use-compare-preset';
 import { CompareGrid, type ComparePrompt } from '@/features/chat/components/compare-grid';
 import type { ChatMessage, QuizFollowUpContext, RoutingMetadata } from '@/features/chat/types';
@@ -82,8 +83,12 @@ function ChatShell() {
   selectedAgentIdRef.current = selectedAgentId;
 
   const { data: agentsData } = useAgents();
-  const agents = agentsData?.agents ?? [];
-  const selectedAgent = agents.find((a) => a.id === selectedAgentId) ?? null;
+  const { isVisible } = useChatVisibleAgents();
+  const allAgents = agentsData?.agents ?? [];
+  const essentials = agentsData?.essentials ?? [];
+  // Only show personal agents the user has activated (green dot) in the chat picker
+  const agents = allAgents.filter((a) => isVisible(a.id));
+  const selectedAgent = [...allAgents, ...essentials].find((a) => a.id === selectedAgentId) ?? null;
 
   const { data: docStats } = useDocumentStats();
 
@@ -388,6 +393,7 @@ function ChatShell() {
                 modelSelectorOpen={modelSelectorOpen}
                 useWebSearch={useWebSearch}
                 agents={agents}
+                essentials={essentials}
                 selectedAgentId={selectedAgentId}
                 onSelectAgent={handleSelectAgent}
                 onStop={stop}
