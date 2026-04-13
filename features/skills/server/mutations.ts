@@ -8,6 +8,27 @@ import { buildPackageManifest } from './package-manifest';
 import { mapSkillRow, normaliseTrigger } from './shared';
 import type { CreateSkillInput, Skill, UpdateSkillInput } from '../types';
 
+async function getNextCustomSkillName(userId: string, baseName: string): Promise<string> {
+  const rows = await db
+    .select({ name: agentSkill.name })
+    .from(agentSkill)
+    .where(eq(agentSkill.userId, userId));
+
+  const existingNames = new Set(rows.map((row) => row.name));
+  const defaultName = `${baseName} (Custom)`;
+
+  if (!existingNames.has(defaultName)) {
+    return defaultName;
+  }
+
+  let index = 2;
+  while (existingNames.has(`${baseName} (Custom ${index})`)) {
+    index += 1;
+  }
+
+  return `${baseName} (Custom ${index})`;
+}
+
 export async function createSkill(userId: string, data: CreateSkillInput): Promise<Skill> {
   const now = new Date();
   const createdFiles = buildCreatedSkillFiles(data);
@@ -108,12 +129,13 @@ export async function installSkill(userId: string, skillId: string): Promise<Ski
     .where(eq(agentSkillFile.skillId, source.id));
 
   const cloneId = nanoid();
+  const personalName = await getNextCustomSkillName(userId, source.name);
   const [row] = await db
     .insert(agentSkill)
     .values({
       id: cloneId,
       userId,
-      name: source.name,
+      name: personalName,
       description: source.description,
       triggerType: source.triggerType,
       trigger: source.trigger,

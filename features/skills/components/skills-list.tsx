@@ -12,6 +12,7 @@ import {
 
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
+import { CountTabsList } from '@/components/ui/count-tabs';
 import {
   Dialog,
   DialogContent,
@@ -20,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { authClient } from '@/lib/auth-client';
 import { AgentCard } from '@/features/agents/components/agent-card';
 import { toast } from 'sonner';
@@ -147,11 +148,13 @@ export const SkillsList = () => {
 
       <div className="flex-1 overflow-y-auto p-6">
         <Tabs defaultValue="essentials">
-          <TabsList className="mb-4">
-            <TabsTrigger value="essentials">Essentials ({essentialSkills.length})</TabsTrigger>
-            <TabsTrigger value="mine">Mine ({mySkills.length})</TabsTrigger>
-            <TabsTrigger value="community">Community ({communitySkills.length})</TabsTrigger>
-          </TabsList>
+          <CountTabsList
+            items={[
+              { value: 'essentials', label: 'Essentials', count: essentialSkills.length },
+              { value: 'mine', label: 'Mine', count: mySkills.length },
+              { value: 'community', label: 'Community', count: communitySkills.length },
+            ]}
+          />
 
           <TabsContent value="essentials">
             {essentialSkills.length === 0 ? (

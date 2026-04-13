@@ -35,6 +35,27 @@ export type SkillCatalog = {
   community: SkillWithOwner[];
 };
 
+async function getNextCustomSkillName(userId: string, baseName: string): Promise<string> {
+  const rows = await db
+    .select({ name: agentSkill.name })
+    .from(agentSkill)
+    .where(eq(agentSkill.userId, userId));
+
+  const existingNames = new Set(rows.map((row) => row.name));
+  const defaultName = `${baseName} (Custom)`;
+
+  if (!existingNames.has(defaultName)) {
+    return defaultName;
+  }
+
+  let index = 2;
+  while (existingNames.has(`${baseName} (Custom ${index})`)) {
+    index += 1;
+  }
+
+  return `${baseName} (Custom ${index})`;
+}
+
 export async function listAdminSkillTemplates(): Promise<Skill[]> {
   const rows = await db
     .select()
@@ -212,12 +233,13 @@ export async function usePublishedSkillTemplate(userId: string, templateId: stri
 
   const now = new Date();
   const cloneId = nanoid();
+  const personalName = await getNextCustomSkillName(userId, template.name);
   const [row] = await db
     .insert(agentSkill)
     .values({
       id: cloneId,
       userId,
-      name: template.name,
+      name: personalName,
       description: template.description,
       triggerType: template.triggerType,
       trigger: template.trigger,

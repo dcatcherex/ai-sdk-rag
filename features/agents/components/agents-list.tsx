@@ -1,13 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { GlobeIcon, PlusIcon, RotateCwIcon, ShieldIcon } from 'lucide-react';
+import { PlusIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 import { PageHeader } from '@/components/page-header';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { CountTabsList } from '@/components/ui/count-tabs';
 import {
   Dialog,
   DialogContent,
@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { setNewChatIntent } from '@/features/chat/hooks/use-threads';
 import { setPendingChatIntent } from '@/features/chat/lib/pending-chat-intent';
 import { AgentCard } from './agent-card';
@@ -31,49 +31,6 @@ import {
 } from '../hooks/use-agents';
 import { useChatVisibleAgents } from '../hooks/use-chat-visible-agents';
 import type { Agent, AgentWithSharing, CreateAgentInput } from '../types';
-
-const AgentMetaBadges = ({
-  agent,
-  ownerName,
-  updateAvailable = false,
-}: {
-  agent: Agent;
-  ownerName?: string;
-  updateAvailable?: boolean;
-}) => (
-  <div className="flex flex-wrap gap-1.5">
-    {agent.managedByAdmin && (
-      <Badge variant="secondary" className="gap-1 text-[11px]">
-        <ShieldIcon className="size-2.5" />
-        Official
-      </Badge>
-    )}
-    {agent.catalogStatus === 'published' && agent.managedByAdmin && (
-      <Badge variant="outline" className="text-[11px]">Published</Badge>
-    )}
-    {agent.cloneBehavior === 'locked' && (
-      <Badge variant="outline" className="text-[11px]">Locked</Badge>
-    )}
-    {agent.templateId && agent.sourceTemplateVersion !== null && (
-      <Badge variant="outline" className="text-[11px]">Based on v{agent.sourceTemplateVersion}</Badge>
-    )}
-    {updateAvailable && (
-      <Badge variant="secondary" className="gap-1 text-[11px]">
-        <RotateCwIcon className="size-2.5" />
-        Update available
-      </Badge>
-    )}
-    {agent.isPublic && (
-      <Badge variant="outline" className="gap-1 text-[11px]">
-        <GlobeIcon className="size-2.5" />
-        Public
-      </Badge>
-    )}
-    {ownerName ? (
-      <Badge variant="outline" className="text-[11px]">By {ownerName}</Badge>
-    ) : null}
-  </div>
-);
 
 const EssentialAgentCard = ({
   agent,
@@ -90,7 +47,6 @@ const EssentialAgentCard = ({
 }) => (
   <AgentCard
     name={agent.name}
-    description={agent.description}
     imageUrl={agent.imageUrl}
     isActive={isActive}
     onToggleActive={onToggleActive}
@@ -108,7 +64,6 @@ const MyAgentCard = ({
   onDelete,
   onShare,
   onChat,
-  updateAvailable,
 }: {
   agent: Agent;
   isActive: boolean;
@@ -117,11 +72,9 @@ const MyAgentCard = ({
   onDelete: () => void;
   onShare: () => void;
   onChat: () => void;
-  updateAvailable: boolean;
 }) => (
   <AgentCard
     name={agent.name}
-    description={agent.description}
     imageUrl={agent.imageUrl}
     isActive={isActive}
     isPublic={agent.isPublic}
@@ -130,11 +83,10 @@ const MyAgentCard = ({
     onDelete={onDelete}
     onShare={onShare}
     onChat={onChat}
-    footer={<AgentMetaBadges agent={agent} updateAvailable={updateAvailable} />}
   />
 );
 
-const SharedAgentCard = ({
+const CommunityAgentCard = ({
   agent,
   onChat,
 }: {
@@ -143,10 +95,8 @@ const SharedAgentCard = ({
 }) => (
   <AgentCard
     name={agent.name}
-    description={agent.description}
     imageUrl={agent.imageUrl}
     onChat={onChat}
-    footer={<AgentMetaBadges agent={agent} ownerName={agent.ownerName} />}
   />
 );
 
@@ -174,7 +124,7 @@ export const AgentsList = () => {
     ? agents.find((agent) => agent.id === editTargetId) ?? null
     : null;
   const myAgents = mine;
-  const sharedAgents = shared as AgentWithSharing[];
+  const communityAgents = shared as AgentWithSharing[];
   const essentialsById = useMemo(
     () => Object.fromEntries(essentials.map((agent) => [agent.id, agent])),
     [essentials],
@@ -262,7 +212,7 @@ export const AgentsList = () => {
         action={(
           <Button onClick={openCreate} size="sm" className="gap-1.5">
             <PlusIcon className="size-4" />
-            สร้าง AI coworker
+            Create AI coworker
           </Button>
         )}
       />
@@ -272,47 +222,31 @@ export const AgentsList = () => {
           <p className="text-sm text-muted-foreground">Loading agents...</p>
         ) : (
           <Tabs defaultValue="essentials">
-            <TabsList className="mb-5">
-              <TabsTrigger value="essentials">
-                Essentials
-                {essentials.length > 0 && (
-                  <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px]">
-                    {essentials.length}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="mine">Mine</TabsTrigger>
-              <TabsTrigger value="shared">
-                Shared
-                {sharedAgents.length > 0 && (
-                  <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px]">
-                    {sharedAgents.length}
-                  </span>
-                )}
-              </TabsTrigger>
-            </TabsList>
+            <CountTabsList
+              className="mb-5"
+              items={[
+                { value: 'essentials', label: 'Essentials', count: essentials.length },
+                { value: 'mine', label: 'Mine', count: myAgents.length },
+                { value: 'community', label: 'Community', count: communityAgents.length },
+              ]}
+            />
 
             <TabsContent value="essentials">
               {essentials.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No essential agents available yet.</p>
               ) : (
-                <>
-                  <p className="mb-4 text-sm text-muted-foreground">
-                    AI coworker แบบพร้อมใช้สำหรับงานยอดนิยม เริ่มใช้งานได้ทันทีหรือคัดลอกไปปรับให้เข้ากับงานของคุณ
-                  </p>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    {essentials.map((agent) => (
-                      <EssentialAgentCard
-                        key={agent.id}
-                        agent={agent}
-                        isActive={isEssentialVisible(agent.id)}
-                        onToggleActive={() => toggleEssential(agent.id)}
-                        onCustomize={handleUseTemplate}
-                        isPending={pendingTemplateId === agent.id}
-                      />
-                    ))}
-                  </div>
-                </>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {essentials.map((agent) => (
+                    <EssentialAgentCard
+                      key={agent.id}
+                      agent={agent}
+                      isActive={isEssentialVisible(agent.id)}
+                      onToggleActive={() => toggleEssential(agent.id)}
+                      onCustomize={handleUseTemplate}
+                      isPending={pendingTemplateId === agent.id}
+                    />
+                  ))}
+                </div>
               )}
             </TabsContent>
 
@@ -333,25 +267,24 @@ export const AgentsList = () => {
                     onDelete={() => setDeleteTarget(agent)}
                     onShare={() => setShareTarget(agent)}
                     onChat={() => startChatWithAgent(agent.id)}
-                    updateAvailable={getTemplateUpdateState(agent)}
                   />
                 ))}
               </div>
 
               {myAgents.length === 0 && (
                 <p className="mt-6 text-center text-sm text-muted-foreground">
-                  ยังไม่มี AI coworker ที่คุณสร้างเอง เริ่มจาก Essentials หรือสร้างใหม่สำหรับงานเฉพาะของคุณ
+                  You have not created any AI coworkers yet. Start from Essentials or create one for your own workflow.
                 </p>
               )}
             </TabsContent>
 
-            <TabsContent value="shared">
-              {sharedAgents.length === 0 ? (
-                <p className="text-sm text-muted-foreground">ยังไม่มี AI coworker ที่ถูกแชร์ให้คุณ</p>
+            <TabsContent value="community">
+              {communityAgents.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No community AI coworkers yet.</p>
               ) : (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {sharedAgents.map((agent) => (
-                    <SharedAgentCard
+                  {communityAgents.map((agent) => (
+                    <CommunityAgentCard
                       key={agent.id}
                       agent={agent}
                       onChat={() => startChatWithAgent(agent.id)}

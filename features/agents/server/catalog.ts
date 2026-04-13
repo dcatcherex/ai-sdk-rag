@@ -33,6 +33,27 @@ function mapAgentRow(row: typeof agent.$inferSelect): Agent {
   };
 }
 
+async function getNextCustomAgentName(userId: string, baseName: string): Promise<string> {
+  const rows = await db
+    .select({ name: agent.name })
+    .from(agent)
+    .where(eq(agent.userId, userId));
+
+  const existingNames = new Set(rows.map((row) => row.name));
+  const defaultName = `${baseName} (Custom)`;
+
+  if (!existingNames.has(defaultName)) {
+    return defaultName;
+  }
+
+  let index = 2;
+  while (existingNames.has(`${baseName} (Custom ${index})`)) {
+    index += 1;
+  }
+
+  return `${baseName} (Custom ${index})`;
+}
+
 export async function listAdminAgentTemplates(): Promise<Agent[]> {
   const rows = await db
     .select()
@@ -183,10 +204,11 @@ export async function usePublishedAgentTemplate(userId: string, templateId: stri
 
   const resolvedAttachments = await getSkillAttachmentsForAgent(template.id);
   const now = new Date();
+  const personalName = await getNextCustomAgentName(userId, template.name);
   const copy = {
     id: crypto.randomUUID(),
     userId,
-    name: template.name,
+    name: personalName,
     description: template.description,
     systemPrompt: template.systemPrompt,
     structuredBehavior: template.structuredBehavior,
