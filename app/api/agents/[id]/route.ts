@@ -9,6 +9,14 @@ import { agent, agentShare } from '@/db/schema';
 import { getResolvedSkillIdsByAgentIds } from '@/features/skills/service';
 import { agentStructuredBehaviorSchema } from '@/lib/agent-structured-behavior';
 
+const mcpServerSchema = z.object({
+  name: z.string().min(1).max(50),
+  url: z.string().url(),
+  description: z.string().optional(),
+  authType: z.enum(['none', 'bearer', 'api_key']).optional(),
+  credentialKey: z.string().optional(),
+});
+
 const updateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().optional().nullable(),
@@ -23,6 +31,7 @@ const updateSchema = z.object({
   isDefault: z.boolean().optional(),
   starterPrompts: z.array(z.string().max(100)).max(4).optional(),
   sharedUserIds: z.array(z.string()).optional(),
+  mcpServers: z.array(mcpServerSchema).optional(),
 });
 
 export async function PUT(

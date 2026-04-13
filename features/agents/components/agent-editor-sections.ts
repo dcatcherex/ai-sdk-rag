@@ -2,13 +2,14 @@ import {
   BlocksIcon,
   BookOpenIcon,
   BotIcon,
+  PlugIcon,
   Settings2Icon,
   ShieldIcon,
   SparklesIcon,
   type LucideIcon,
 } from 'lucide-react';
 
-export type AgentEditorSectionId = 'general' | 'behavior' | 'skills' | 'knowledge' | 'tools' | 'sharing';
+export type AgentEditorSectionId = 'general' | 'behavior' | 'skills' | 'knowledge' | 'tools' | 'mcp' | 'sharing';
 
 export type AgentEditorSection = {
   id: AgentEditorSectionId;
@@ -47,6 +48,12 @@ export const AGENT_EDITOR_SECTIONS: AgentEditorSection[] = [
     icon: BlocksIcon,
     label: 'Tools',
     description: 'Choose which capabilities this agent is allowed to use.',
+  },
+  {
+    id: 'mcp',
+    icon: PlugIcon,
+    label: 'MCP Servers',
+    description: 'Connect external MCP servers to give this agent access to additional tools and live data.',
   },
   {
     id: 'sharing',

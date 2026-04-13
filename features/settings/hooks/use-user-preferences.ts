@@ -16,6 +16,7 @@ const DEFAULT_PREFS: Preferences = {
   hiddenWorkspaceItemIds: null,
   rerankEnabled: false,
   selectedVoice: null,
+  mcpCredentials: {},
 };
 
 async function fetchPreferences(): Promise<Preferences> {

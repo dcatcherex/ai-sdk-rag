@@ -7,11 +7,14 @@ import {
   ToolInput,
   ToolOutput,
 } from "@/components/ai-elements/tool";
+import { Button } from "@/components/ui/button";
 import { memo } from "react";
+import { CheckIcon, XIcon } from "lucide-react";
 import { MarkdownText } from "./markdown-text";
 import { FilePartRenderer } from "./parts/file-part";
 import { CertificateToolPart, CertificatePreviewToolPart } from "./parts/certificate-tool-part";
 import { ExamPrepToolPart } from "./parts/exam-prep-tool-part";
+import { useToolApproval } from "@/features/chat/contexts/tool-approval-context";
 import {
   isFilePart,
   isToolLikePart,
@@ -33,6 +36,7 @@ function MessagePartRendererInner({
   onImageClick,
   onQuizStateChange,
 }: MessagePartRendererProps) {
+  const onToolApproval = useToolApproval();
   const key = `${messageId}-${index}`;
 
   if (!part || typeof part !== "object") return null;
@@ -84,11 +88,36 @@ function MessagePartRendererInner({
       );
     }
 
+    const toolCallId = (part as { toolCallId?: string }).toolCallId;
+    const isAwaitingApproval = part.state === "approval-requested" && !!toolCallId && !!onToolApproval;
+
     return (
       <Tool key={key}>
         <ToolHeader type="dynamic-tool" state={part.state as never} toolName={toolName} />
         <ToolContent>
           <ToolInput input={part.input} />
+          {isAwaitingApproval && (
+            <div className="flex items-center gap-2 pt-1">
+              <Button
+                size="sm"
+                variant="default"
+                className="gap-1.5"
+                onClick={() => onToolApproval({ id: toolCallId!, approved: true })}
+              >
+                <CheckIcon className="size-3.5" />
+                Approve
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 text-destructive hover:text-destructive"
+                onClick={() => onToolApproval({ id: toolCallId!, approved: false })}
+              >
+                <XIcon className="size-3.5" />
+                Deny
+              </Button>
+            </div>
+          )}
           {part.output && <ToolOutput output={part.output} errorText={part.errorText} />}
         </ToolContent>
       </Tool>

@@ -14,6 +14,7 @@ export function createDistributionAgentTools({ userId }: DistributionToolContext
     send_email_distribution: tool({
       description:
         'Send a content piece or custom message to a list of email recipients via email. Use this when a user wants to distribute content by email.',
+      needsApproval: true,
       inputSchema: z.object({
         contentPieceId: z.string().optional().describe('ID of the content piece to send (optional — can send custom body instead)'),
         subject: z.string().describe('Email subject line'),
@@ -54,6 +55,7 @@ export function createDistributionAgentTools({ userId }: DistributionToolContext
     send_webhook: tool({
       description:
         'Push a content piece to an external CMS or service via a webhook URL. The content will be sent as a JSON POST request.',
+      needsApproval: true,
       inputSchema: z.object({
         contentPieceId: z.string().describe('ID of the content piece to send'),
         webhookUrl: z.string().url().describe('The webhook endpoint URL'),

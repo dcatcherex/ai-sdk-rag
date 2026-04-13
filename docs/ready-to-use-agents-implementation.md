@@ -53,7 +53,7 @@ Additional domain-specific agents (Healthcare Communicator, Government Officer A
 | `catalogScope` | `'system'` | `'personal'` |
 | `catalogStatus` | `'published'` (after publishing) | `'draft'` |
 
-Templates are stored in the `agent` table with `userId = null`. They are never used directly — users call `usePublishedAgentTemplate()` which creates an `editable_copy` in their own workspace.
+Templates are stored in the `agent` table with `userId = null`. Published Essential templates are usable directly in chat — **no clone is created just for using an agent**. Cloning only happens when the user explicitly clicks "Customize".
 
 ### Lifecycle
 
@@ -65,11 +65,20 @@ Template in catalogStatus: 'draft' — invisible to users
 Admin publishes via POST /api/admin/agents/[id]/publish
         ↓
 Template appears in Essentials tab (catalogStatus: 'published')
+Template appears in chat picker "Ready-to-use" section (green dot ON by default)
         ↓
-User clicks "Use this agent"
+User selects agent in chat picker
+        ↓ (direct use — no clone)
+chat route accepts published templates (userId=null, managedByAdmin=true)
+Agent system prompt + skills used as-is
+
+─── OR ───
+
+User clicks "Customize" on an Essential card
         ↓
 usePublishedAgentTemplate() creates an editable_copy for the user
         Skills are cloned too (via replaceSkillAttachmentsForAgent)
+        Clone is auto-activated (green dot ON) in the chat picker
         ↓
 User's copy: userId set, isTemplate: false, managedByAdmin: false
 ```
@@ -1682,62 +1691,103 @@ The admin API route is at `app/api/admin/agents/route.ts`. See that file for aut
 
 ## 10. Implementation Checklist
 
-### Phase 0 — Schema prep (required before any agents)
+### Phase 0 — Schema prep ✅ COMPLETE
 
-- [ ] Verify `agent` table has `mcpServers` JSONB field — add migration if missing
-- [ ] Verify `agent` table has `structuredBehavior` JSONB field — present since initial schema
-- [ ] Verify `agentSkill` table exists with all required fields
-- [ ] Verify `agentSkillAttachment` junction table exists
-- [ ] Run `pnpm drizzle-kit generate` and `pnpm drizzle-kit migrate` if any schema changes made
+- [x] Added `mcpServers` JSONB to `agent` table — via `scripts/migrate-mcp-fields.ts` direct SQL
+- [x] Added `mcp_credentials` JSONB to `userPreferences` table — same migration script
+- [x] Extended `AgentStructuredBehavior` schema with `autonomyLevel` and `toolPermissions` fields — `lib/agent-structured-behavior.ts`
+- [x] Added `McpServerConfig` type and `mcpServers: McpServerConfig[]` field to `Agent` type — `features/agents/types.ts`
+- [x] Added `createEssentialAgentBehavior()` factory function
 
-### Phase 1 — Core agents (days 1–2)
+### Phase 1 — Core agents ✅ COMPLETE
 
-- [ ] Create all skill definitions in `scripts/seed-agents.ts`
-- [ ] Create General Assistant (Agent 1) record
-- [ ] Create Customer Support Bot (Agent 4) record — needs onboarding prompt
-- [ ] Create Writing Assistant (Agent 6) record
-- [ ] Run `pnpm exec tsx scripts/seed-agents.ts`
-- [ ] Publish all 3 agents via admin API
-- [ ] Verify agents appear in Essentials tab
+- [x] All 21 skill definitions created in `scripts/seed-agents.ts`
+- [x] General Assistant (Agent 1) seeded and published
+- [x] Customer Support Bot (Agent 4) seeded and published
+- [x] Writing Assistant (Agent 6) seeded and published
+- [x] Seed script is idempotent — re-running updates without duplicating
+- [x] All 3 agents verified in Essentials tab in admin and user UI
 - [ ] Test General Assistant with all 4 starter prompts
 - [ ] Test Customer Support Bot knowledge base lookup
 - [ ] Test Writing Assistant email and report outputs
 
-### Phase 2 — SME power agents (days 3–4)
+### Phase 1 UI — Chat picker & agent visibility ✅ COMPLETE
 
-- [ ] Create Marketing & Content (Agent 2) record with all 5 skills
-- [ ] Create Research & Summary (Agent 3) record
-- [ ] Create Sales & Admin (Agent 5) record
-- [ ] Add to seed script, re-run, publish
+Implemented alongside Phase 1 DB work. Key decisions and files:
+
+**Direct template use (no clone-to-use):**
+- `app/api/chat/route.ts` — updated agent auth check to allow `userId=null AND managedByAdmin=true AND catalogStatus='published'` directly
+- No auto-clone on selection — cloning is explicit ("Customize" only)
+
+**Chat picker (`features/chat/components/composer/ai-mode-selector.tsx`):**
+- "Ready-to-use" section always shows all active Essentials
+- "My Agents" section shows personal agents activated with green dot
+- Selecting an Essential uses the template directly — no redirect, no surprise clone
+
+**Green dot visibility system (`features/agents/hooks/use-chat-visible-agents.ts`):**
+- Two localStorage keys:
+  - `chat-visible-agent-ids` — personal/Mine agents, opt-in (default hidden)
+  - `chat-hidden-essential-ids` — Essentials, opt-out (default shown/green)
+- `activatePersonal(id)` called automatically after create or clone → new agent is green from first moment
+
+**AI Coworkers page (`features/agents/components/agents-list.tsx`):**
+- Essentials tab: grid changed from 3 → 4 columns
+- Essentials cards: green dot toggle wired (opt-out semantics)
+- Mine tab: removed hardcoded "General" card (superseded by General Assistant Essential)
+- Mine cards: green dot toggle wired (opt-in semantics)
+- `handleUseTemplate` (Customize): calls `activatePersonal(newAgent.id)` on success
+- `handleFormSubmit` (Create new): calls `activatePersonal(newAgent.id)` on success
+
+**Admin agents panel (`app/admin/agents/page.tsx`):**
+- Added permanent hard-delete with confirmation dialog
+- `DELETE /api/admin/agents/[id]` route added
+
+**Public share dialog (`features/agents/components/public-share-dialog.tsx`):**
+- Pause/Resume share link toggle added to stats row (was previously static text)
+
+### Phase 2 — SME power agents ✅ COMPLETE
+
+- [x] Create Marketing & Content (Agent 2) record with all 5 skills
+- [x] Create Research & Summary (Agent 3) record with 3 skills
+- [x] Create Sales & Admin (Agent 5) record with 4 skills
+- [x] Added to `scripts/seed-agents.ts` as `PHASE2_AGENTS`, re-run with `--publish` flag
 - [ ] Test Marketing & Content: 7-post campaign creation
 - [ ] Test Research & Summary: document summary + translation
 - [ ] Test Sales & Admin: quotation follow-up + record logging
 - [ ] Verify `distribution` tool shows approval gate (never auto-sends)
 
-### Phase 3 — Domain specialists (days 5–6)
+### Phase 3 — Domain specialists ✅ COMPLETE
 
-- [ ] Create Teacher Assistant (Agent 7) record
-- [ ] Create Farm Advisor (Agent 8) record
-- [ ] Add to seed script, re-run, publish
+- [x] Create Teacher Assistant (Agent 7) record with 3 skills
+- [x] Create Farm Advisor (Agent 8) record with 4 skills
+- [x] Added to `scripts/seed-agents.ts` as `PHASE3_AGENTS`, re-run with `--publish` flag
 - [ ] Test Teacher Assistant: lesson plan + exam generation
 - [ ] Test Farm Advisor: disease diagnosis + market price lookup
 - [ ] Verify Farm Advisor uses Thai language throughout
 - [ ] Verify Farm Advisor record_keeper prompts for confirmation before logging
 
-### Phase 4 — Permission policies (after Phase 3)
+### Phase 4 — Permission policies ✅ COMPLETE
 
-- [ ] Add `needsApproval: true` to `distribution` tool definition in `features/distribution/agent.ts`
-- [ ] Add `needsApproval: true` to `record_keeper` tool for agents with `always_ask` policy
-- [ ] Wire Approve/Deny buttons in `components/ai-elements/tool.tsx`
-- [ ] Pass `experimental_context: { autonomyLevel }` in `streamText()` in `app/api/chat/route.ts`
+- [x] Added `needsApproval: true` to `send_email_distribution` and `send_webhook` in `features/distribution/agent.ts`
+- [x] Added `needsApproval: true` to `log_activity` in `features/record-keeper/agent.ts`
+- [x] Wired Approve/Deny buttons in `components/message-renderer/message-part-renderer.tsx` via `ToolApprovalContext`
+- [x] Passes `experimental_context: { autonomyLevel, userId }` in `streamText()` in `app/api/chat/route.ts`
+- [x] `ToolApprovalProvider` wraps `ChatMessageList` in `app/page.tsx` — context flows to all tool renderers
 - [ ] Test approval flow end-to-end for Marketing & Content → distribution
 
-### Phase 5 — MCP (future)
+### Phase 5 — MCP ✅ COMPLETE
 
-- [ ] Implement MCP connector per `docs/mcp-and-permission-policies-implementation.md`
-- [ ] Connect Farm Advisor to DOAE agricultural data MCP
-- [ ] Update seed script with `mcpServers` entries
-- [ ] All MCP tools default `needsApproval: true`
+- [x] Install `@modelcontextprotocol/sdk`
+- [x] Create `lib/tools/mcp.ts` — `buildMCPToolSet()` with per-server graceful degradation
+- [x] Integrate into `app/api/chat/route.ts` — MCP tools merged into `groundedTools` after base tools
+- [x] Update `app/api/agents/route.ts` + `[id]/route.ts` with `mcpServers` Zod schema
+- [x] Create `features/agents/components/agent-mcp-section.tsx` — add/remove MCP server UI
+- [x] Wire MCP section into agent form and editor sections
+- [x] Create `features/settings/components/mcp-credentials-section.tsx` — key/value credential manager
+- [x] Add MCP Credentials tab to `app/(main)/settings/page.tsx`
+- [x] Extend `Preferences` type + preferences API to store `mcpCredentials`
+- [x] All MCP tools default `needsApproval: true`
+- [ ] Connect Farm Advisor to DOAE agricultural data MCP (deferred — requires DOAE MCP server availability)
 
 ---
 
@@ -1788,3 +1838,9 @@ Keep each `promptFragment` under 500 words. With 3 skills active simultaneously 
 
 **8. Forgetting `isTemplate: true` in seed script**  
 Without `isTemplate: true`, the agent appears in the user's personal agents list, not the catalog. Double-check this flag in every seed record.
+
+**9. Expecting cloning before chat use**  
+Published Essential templates are now used directly by the chat route — `app/api/chat/route.ts` accepts agents where `userId IS NULL AND managedByAdmin=true AND catalogStatus='published'`. Do NOT require a clone to exist before a user can chat with an Essential. Cloning is only for "Customize".
+
+**10. Green dot defaults differ between Essentials and personal agents**  
+Essentials default to green (opt-out via `chat-hidden-essential-ids` localStorage key). Personal agents default to grey (opt-in via `chat-visible-agent-ids`). When adding new Essential templates, they automatically appear in the picker for all users without any action. When a user creates or clones an agent, `activatePersonal(id)` is called so the new agent is immediately green.

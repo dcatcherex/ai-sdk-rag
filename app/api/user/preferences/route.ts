@@ -28,6 +28,7 @@ export async function GET() {
       hiddenWorkspaceItemIds: null,
       rerankEnabled: false,
       selectedVoice: null,
+      mcpCredentials: {},
     });
   }
 
@@ -42,6 +43,7 @@ export async function GET() {
     hiddenWorkspaceItemIds: prefs[0].hiddenWorkspaceItemIds ?? null,
     rerankEnabled: prefs[0].rerankEnabled,
     selectedVoice: prefs[0].selectedVoice ?? null,
+    mcpCredentials: prefs[0].mcpCredentials ?? {},
   });
 }
 
@@ -60,6 +62,7 @@ export async function PUT(req: Request) {
     hiddenWorkspaceItemIds?: string[] | null;
     rerankEnabled?: boolean;
     selectedVoice?: string | null;
+    mcpCredentials?: Record<string, string>;
   };
 
   // Validate tool IDs if provided
@@ -98,6 +101,7 @@ export async function PUT(req: Request) {
       hiddenWorkspaceItemIds: body.hiddenWorkspaceItemIds ?? null,
       rerankEnabled: body.rerankEnabled ?? false,
       selectedVoice: body.selectedVoice ?? null,
+      mcpCredentials: body.mcpCredentials ?? {},
     })
     .onConflictDoUpdate({
       target: userPreferences.userId,
@@ -112,6 +116,7 @@ export async function PUT(req: Request) {
         ...(body.hiddenWorkspaceItemIds !== undefined && { hiddenWorkspaceItemIds: body.hiddenWorkspaceItemIds }),
         ...(body.rerankEnabled !== undefined && { rerankEnabled: body.rerankEnabled }),
         ...(body.selectedVoice !== undefined && { selectedVoice: body.selectedVoice }),
+        ...(body.mcpCredentials !== undefined && { mcpCredentials: body.mcpCredentials }),
         updatedAt: new Date(),
       },
     });

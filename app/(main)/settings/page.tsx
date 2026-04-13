@@ -5,6 +5,7 @@ import {
   BrainCircuitIcon,
   Building2Icon,
   DownloadIcon,
+  KeyRoundIcon,
   LayersIcon,
   PanelLeftIcon,
   MessageCircleQuestionIcon,
@@ -25,12 +26,13 @@ import { ToggleSection } from '@/features/settings/components/toggle-section';
 import { VoiceSection } from '@/features/settings/components/voice-section';
 import { BrandsSection } from '@/features/brands/components/brands-section';
 import { AppearanceSection } from '@/features/settings/components/appearance-section';
+import { McpCredentialsSection } from '@/features/settings/components/mcp-credentials-section';
 import { WorkspaceSection } from '@/features/settings/components/workspace-section';
 import { ChatRunsCard } from '@/features/chat/components/chat-runs-card';
 import { ALL_TOOL_IDS, type ToolId } from '@/lib/tool-registry';
 import { useWorkspacePreferences } from '@/features/workspace/hooks/use-workspace-preferences';
 
-type TabId = 'general' | 'workspace' | 'memory' | 'tools' | 'models' | 'brands' | 'appearance';
+type TabId = 'general' | 'workspace' | 'memory' | 'tools' | 'models' | 'brands' | 'appearance' | 'mcp';
 
 const TABS: SettingsShellItem<TabId>[] = [
   {
@@ -74,6 +76,12 @@ const TABS: SettingsShellItem<TabId>[] = [
     label: 'Appearance',
     icon: PaletteIcon,
     description: 'Fonts and visual preferences',
+  },
+  {
+    id: 'mcp',
+    label: 'MCP Credentials',
+    icon: KeyRoundIcon,
+    description: 'API keys and tokens for MCP servers',
   },
 ];
 
@@ -197,6 +205,13 @@ export default function SettingsPage() {
 
           {activeTab === 'appearance' && (
             <AppearanceSection />
+          )}
+
+          {activeTab === 'mcp' && (
+            <McpCredentialsSection
+              credentials={prefs.mcpCredentials}
+              onSave={(creds) => updatePref({ mcpCredentials: creds })}
+            />
           )}
       </SettingsShell>
     </div>

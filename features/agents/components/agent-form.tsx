@@ -21,8 +21,9 @@ import { AgentSettingsLayout } from './agent-settings-layout';
 import { AgentSharingSection } from './agent-sharing-section';
 import { AgentSkillsSection } from './agent-skills-section';
 import { AgentToolsSection } from './agent-tools-section';
+import { AgentMcpSection } from './agent-mcp-section';
 import { AGENT_EDITOR_SECTIONS, type AgentEditorSectionId } from './agent-editor-sections';
-import type { Agent, AgentWithSharing, CreateAgentInput, SharedUser } from '../types';
+import type { Agent, AgentWithSharing, CreateAgentInput, McpServerConfig, SharedUser } from '../types';
 
 type AgentFormProps = {
   activeSection?: AgentEditorSectionId;
@@ -99,6 +100,7 @@ export function AgentForm({
   const [shareSearch, setShareSearch] = useState('');
   const [brands, setBrands] = useState<Brand[]>([]);
   const [skillAttachments, setSkillAttachments] = useState<AgentSkillAttachmentInput[]>([]);
+  const [mcpServers, setMcpServers] = useState<McpServerConfig[]>([]);
 
   const { data: userDocuments = [], isLoading: docsLoading } = useUserDocuments();
   const { data: searchResults = [] } = useUserSearch(shareSearch);
@@ -136,6 +138,7 @@ export function AgentForm({
       setSharedWith((agent as AgentWithSharing).sharedWith ?? []);
       setSkillAttachments(normalizeSkillAttachmentsForForm(agent as AgentWithSharing));
       setStarterPrompts(agent.starterPrompts ?? []);
+      setMcpServers(agent.mcpServers ?? []);
     } else {
       setName('');
       setDescription('');
@@ -149,6 +152,7 @@ export function AgentForm({
       setSharedWith([]);
       setSkillAttachments([]);
       setStarterPrompts([]);
+      setMcpServers([]);
     }
     setStarterInput('');
     setDocSearch('');
@@ -189,6 +193,7 @@ export function AgentForm({
     brandId, imageUrl, isPublic, starterPrompts,
     sharedUserIds: sharedWith.map((u) => u.id),
     skillAttachments: sortSkillAttachments(skillAttachments),
+    mcpServers,
   });
 
   useEffect(() => {
@@ -422,6 +427,7 @@ export function AgentForm({
       isPublic,
       starterPrompts,
       sharedUserIds: sharedWith.map((u) => u.id),
+      mcpServers,
     });
   };
 
@@ -467,6 +473,13 @@ export function AgentForm({
   );
 
   const toolsSection = <AgentToolsSection enabledTools={enabledTools} onToggleTool={toggleTool} />;
+
+  const mcpSection = (
+    <AgentMcpSection
+      mcpServers={mcpServers}
+      onChange={(servers) => { markUserEdited(); setMcpServers(servers); }}
+    />
+  );
 
   const skillsSection = (
     <AgentSkillsSection
@@ -515,6 +528,7 @@ export function AgentForm({
     skills: skillsSection,
     knowledge: knowledgeSection,
     tools: toolsSection,
+    mcp: mcpSection,
     sharing: sharingSection,
   };
 
@@ -548,6 +562,7 @@ export function AgentForm({
             {behaviorSection}
             {skillsSection}
             {toolsSection}
+            {mcpSection}
             {knowledgeSection}
             {sharingSection}
             {formActions}

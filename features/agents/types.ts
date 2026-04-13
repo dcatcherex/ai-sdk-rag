@@ -63,6 +63,7 @@ export type CreateAgentInput = {
   isDefault?: boolean;
   starterPrompts?: string[];
   sharedUserIds?: string[];
+  mcpServers?: McpServerConfig[];
 };
 
 export type UpdateAgentInput = Partial<CreateAgentInput>;

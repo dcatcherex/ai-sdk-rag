@@ -9,6 +9,7 @@ import { useModelSelector } from '@/features/chat/hooks/use-model-selector';
 import { availableModels } from '@/lib/ai';
 import { useUserProfile } from '@/features/chat/hooks/use-user-profile';
 import { useChatSession } from '@/features/chat/hooks/use-chat-session';
+import { ToolApprovalProvider } from '@/features/chat/contexts/tool-approval-context';
 import { useMessageReactions } from '@/features/chat/hooks/use-message-reactions';
 import { useChatKeyboardShortcuts } from '@/features/chat/hooks/use-chat-keyboard-shortcuts';
 import { ChatHeader } from '@/features/chat/components/chat-header';
@@ -83,12 +84,14 @@ function ChatShell() {
   selectedAgentIdRef.current = selectedAgentId;
 
   const { data: agentsData } = useAgents();
-  const { isVisible } = useChatVisibleAgents();
+  const { isPersonalVisible, isEssentialVisible } = useChatVisibleAgents();
   const allAgents = agentsData?.agents ?? [];
-  const essentials = agentsData?.essentials ?? [];
-  // Only show personal agents the user has activated (green dot) in the chat picker
-  const agents = allAgents.filter((a) => isVisible(a.id));
-  const selectedAgent = [...allAgents, ...essentials].find((a) => a.id === selectedAgentId) ?? null;
+  const allEssentials = agentsData?.essentials ?? [];
+  // Personal agents: opt-in (green dot must be ON to appear in picker)
+  // Essentials: opt-out (green dot is ON by default, user can turn off)
+  const agents = allAgents.filter((a) => isPersonalVisible(a.id));
+  const essentials = allEssentials.filter((a) => isEssentialVisible(a.id));
+  const selectedAgent = [...allAgents, ...allEssentials].find((a) => a.id === selectedAgentId) ?? null;
 
   const { data: docStats } = useDocumentStats();
 
@@ -136,6 +139,7 @@ function ChatShell() {
     deleteMessage,
     handleExportConversation,
     handleTranscription,
+    addToolApprovalResponse,
   } = useChatSession({
     activeThreadId,
     activeThreadIdRef,
@@ -349,28 +353,30 @@ function ChatShell() {
                 onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
               />
 
-              <ChatMessageList
-                messages={messages}
-                status={status}
-                threadId={activeThreadId ?? undefined}
-                activeMessageId={activeOutlineMessageId}
-                isSyncingFollowUpSuggestions={isSyncingFollowUpSuggestions}
-                copiedMessageId={copiedMessageId}
-                messageReactions={messageReactions}
-                fontSize={fontSize}
-                agentName={selectedAgent?.name}
-                agentDescription={selectedAgent?.description}
-                starterPrompts={selectedAgent?.starterPrompts}
-                generalStarterPrompts={GENERAL_STARTER_PROMPTS}
-                onCopyMessage={copyToClipboard}
-                onRegenerateMessage={regenerateMessage}
-                onDeleteMessage={deleteMessage}
-                onToggleReaction={toggleReaction}
-                onSuggestionClick={handleSuggestionClick}
-                onImageClick={openEditor}
-                onQuizStateChange={handleQuizStateChange}
-                onActiveMessageChange={setActiveOutlineMessageId}
-              />
+              <ToolApprovalProvider value={addToolApprovalResponse}>
+                <ChatMessageList
+                  messages={messages}
+                  status={status}
+                  threadId={activeThreadId ?? undefined}
+                  activeMessageId={activeOutlineMessageId}
+                  isSyncingFollowUpSuggestions={isSyncingFollowUpSuggestions}
+                  copiedMessageId={copiedMessageId}
+                  messageReactions={messageReactions}
+                  fontSize={fontSize}
+                  agentName={selectedAgent?.name}
+                  agentDescription={selectedAgent?.description}
+                  starterPrompts={selectedAgent?.starterPrompts}
+                  generalStarterPrompts={GENERAL_STARTER_PROMPTS}
+                  onCopyMessage={copyToClipboard}
+                  onRegenerateMessage={regenerateMessage}
+                  onDeleteMessage={deleteMessage}
+                  onToggleReaction={toggleReaction}
+                  onSuggestionClick={handleSuggestionClick}
+                  onImageClick={openEditor}
+                  onQuizStateChange={handleQuizStateChange}
+                  onActiveMessageChange={setActiveOutlineMessageId}
+                />
+              </ToolApprovalProvider>
               {compareMode && (
                 <div className="border-t border-black/5 dark:border-border overflow-auto">
                   <CompareGrid

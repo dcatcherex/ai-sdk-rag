@@ -77,10 +77,14 @@ const AgentMetaBadges = ({
 
 const EssentialAgentCard = ({
   agent,
+  isActive,
+  onToggleActive,
   onUse,
   isPending,
 }: {
   agent: Agent;
+  isActive: boolean;
+  onToggleActive: () => void;
   onUse: (id: string) => void;
   isPending: boolean;
 }) => (
@@ -88,6 +92,8 @@ const EssentialAgentCard = ({
     name={agent.name}
     description={agent.description}
     imageUrl={agent.imageUrl}
+    isActive={isActive}
+    onToggleActive={onToggleActive}
     footer={(
       <div className="flex flex-col gap-2">
         <AgentMetaBadges agent={agent} />
@@ -163,7 +169,7 @@ export const AgentsList = () => {
   const updateAgent = useUpdateAgent();
   const deleteAgent = useDeleteAgent();
   const useTemplate = useUseTemplate();
-  const { isVisible, toggle: toggleChatVisible } = useChatVisibleAgents();
+  const { isPersonalVisible, isEssentialVisible, togglePersonal, toggleEssential, activatePersonal } = useChatVisibleAgents();
 
   const agents = data?.agents ?? [];
   const mine = data?.mine ?? [];
@@ -201,7 +207,12 @@ export const AgentsList = () => {
       return;
     }
 
-    createAgent.mutate(formData, { onSuccess: () => setMode('list') });
+    createAgent.mutate(formData, {
+      onSuccess: (newAgent) => {
+        activatePersonal(newAgent.id);
+        setMode('list');
+      },
+    });
   };
 
   const openCreate = () => {
@@ -233,8 +244,9 @@ export const AgentsList = () => {
   const handleUseTemplate = (templateId: string) => {
     setPendingTemplateId(templateId);
     useTemplate.mutate(templateId, {
-      onSuccess: () => {
+      onSuccess: (newAgent) => {
         setPendingTemplateId(null);
+        activatePersonal(newAgent.id);
         toast.success('Agent added to your library');
       },
       onError: () => setPendingTemplateId(null),
@@ -300,11 +312,13 @@ export const AgentsList = () => {
                   <p className="mb-4 text-sm text-muted-foreground">
                     AI coworker แบบพร้อมใช้สำหรับงานยอดนิยม เริ่มใช้งานได้ทันทีหรือคัดลอกไปปรับให้เข้ากับงานของคุณ
                   </p>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     {essentials.map((agent) => (
                       <EssentialAgentCard
                         key={agent.id}
                         agent={agent}
+                        isActive={isEssentialVisible(agent.id)}
+                        onToggleActive={() => toggleEssential(agent.id)}
                         onUse={handleUseTemplate}
                         isPending={pendingTemplateId === agent.id}
                       />
@@ -325,8 +339,8 @@ export const AgentsList = () => {
                   <MyAgentCard
                     key={agent.id}
                     agent={agent}
-                    isActive={isVisible(agent.id)}
-                    onToggleActive={() => toggleChatVisible(agent.id)}
+                    isActive={isPersonalVisible(agent.id)}
+                    onToggleActive={() => togglePersonal(agent.id)}
                     onEdit={() => openEdit(agent)}
                     onDelete={() => setDeleteTarget(agent)}
                     onShare={() => setShareTarget(agent)}

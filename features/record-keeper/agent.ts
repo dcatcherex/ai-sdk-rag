@@ -15,6 +15,7 @@ export function createRecordKeeperAgentTools(ctx: Pick<AgentToolContext, 'userId
     log_activity: tool({
       description:
         'Save an activity or farm/class/work event to the record log. Use this after the user confirms an entry — e.g. "วันนี้ใส่ปุ๋ยยูเรีย 50 กก." or "fed 3 patients". Always confirm details with the user before calling this tool.',
+      needsApproval: true,
       inputSchema: logActivityInputSchema,
       async execute(input) {
         return { success: true, ...(await runLogActivity(input, userId)) };

@@ -86,7 +86,7 @@ export const useChatSession = ({
     ]
   );
 
-  const { messages, sendMessage, setMessages, status, stop, error } = useChat<ChatMessage>({
+  const { messages, sendMessage, setMessages, status, stop, error, addToolApprovalResponse } = useChat<ChatMessage>({
     transport,
     onFinish: async () => {
       await queryClient.invalidateQueries({ queryKey: ['threads'] });
@@ -309,5 +309,6 @@ export const useChatSession = ({
     deleteMessage,
     handleExportConversation,
     handleTranscription,
+    addToolApprovalResponse,
   };
 };

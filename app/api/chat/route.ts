@@ -20,6 +20,7 @@ import { getUserMemoryContext, extractAndStoreMemory } from '@/lib/memory';
 import { generateFollowUpSuggestions } from '@/lib/follow-up-suggestions';
 import { buildToolSet } from '@/lib/tools';
 import { createAgentTools } from '@/lib/agent-tools';
+import { buildMCPToolSet } from '@/lib/tools/mcp';
 import { getCreditCost, getUserBalance } from '@/lib/credits';
 import { requestSchema } from '@/features/chat/server/schema';
 import { buildImageBrandSuffix } from '@/features/brands/service';
@@ -211,7 +212,7 @@ export async function POST(req: Request) {
       ? [...new Set([...(baseToolIds ?? []), ...skillRuntime.skillToolIds])]
       : baseToolIds;
 
-    const groundedTools = activeAgent
+    const baseTools = activeAgent
       ? createAgentTools(activeToolIds, session.user.id, effectiveDocIds)
       : buildToolSet({
           enabledToolIds: activeToolIds,
@@ -220,6 +221,20 @@ export async function POST(req: Request) {
           rerankEnabled: userPrefs.rerankEnabled ?? false,
           source: 'agent',
         });
+
+    // Merge MCP tools from agent config (empty object when no MCP servers configured)
+    const mcpTools = activeAgent?.mcpServers?.length
+      ? await buildMCPToolSet(
+          activeAgent.mcpServers,
+          (userPrefs as { mcpCredentials?: Record<string, string> }).mcpCredentials ?? {},
+        ).catch((err: unknown) => {
+          console.error('[MCP] Tool build failed:', err);
+          return {};
+        })
+      : {};
+
+    const groundedTools = { ...baseTools, ...mcpTools };
+
     const examPrepToolEnabled = activeToolIds === null || activeToolIds.includes('exam_prep');
     const certificateToolEnabled = activeToolIds === null || activeToolIds.includes('certificate');
 
@@ -498,12 +513,15 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
       return !(m.metadata as ChatMessageMetadata | undefined)?.compareGroupId;
     });
 
+    const autonomyLevel = (activeAgent?.structuredBehavior as { autonomyLevel?: number } | null)?.autonomyLevel ?? 2;
+
     const result = streamText({
       model: resolvedModel,
       system: effectiveSystemPrompt,
       messages: await convertToModelMessages(messagesForLLM),
       stopWhen: stepCountIs(maxSteps),
       ...(supportsTools ? { tools: activeTools } : {}),
+      experimental_context: { autonomyLevel, userId: session.user.id },
     });
 
     return result.toUIMessageStreamResponse({

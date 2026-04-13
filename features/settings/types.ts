@@ -16,4 +16,5 @@ export type Preferences = {
   hiddenWorkspaceItemIds: string[] | null; // null = show all
   rerankEnabled: boolean;
   selectedVoice: string | null; // null = use default (Aoede)
+  mcpCredentials: Record<string, string>; // key = credential key name, value = secret
 };
