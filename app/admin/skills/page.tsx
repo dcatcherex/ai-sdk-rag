@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { ImageUploadZone } from '@/components/ui/image-upload-zone';
 
 type AdminSkill = {
   id: string;
@@ -116,6 +117,15 @@ const toFormState = (skill: AdminSkill | null): SkillFormState => {
     changelog: skill.changelog ?? '',
   };
 };
+
+async function uploadAdminSkillCover(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch('/api/skills/image', { method: 'POST', body: formData });
+  const json = await res.json() as { url?: string; error?: string };
+  if (!res.ok) throw new Error(json.error ?? 'Upload failed');
+  return json.url ?? '';
+}
 
 function formatDate(date: string | null) {
   if (!date) return '-';
@@ -367,26 +377,23 @@ export default function AdminSkillsPage() {
           </DialogHeader>
 
           <div className="grid gap-5 py-2">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="skill-name">Name</Label>
-                <Input
-                  id="skill-name"
-                  value={form.name}
-                  onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                  placeholder="brand-guidelines"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="skill-image">Image URL</Label>
-                <Input
-                  id="skill-image"
-                  value={form.imageUrl}
-                  onChange={(event) => setForm((current) => ({ ...current, imageUrl: event.target.value }))}
-                  placeholder="https://..."
-                />
-              </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="skill-name">Name</Label>
+              <Input
+                id="skill-name"
+                value={form.name}
+                onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                placeholder="brand-guidelines"
+              />
             </div>
+
+            <ImageUploadZone
+              label="Cover image"
+              value={form.imageUrl}
+              onChange={(url) => setForm((current) => ({ ...current, imageUrl: url }))}
+              onUpload={uploadAdminSkillCover}
+              hint="Optional. Shown on the admin skill card."
+            />
 
             <div className="space-y-1.5">
               <Label htmlFor="skill-description">Description</Label>

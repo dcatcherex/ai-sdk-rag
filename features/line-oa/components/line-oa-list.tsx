@@ -81,7 +81,7 @@ const ChannelCard = ({
       className="group relative flex flex-col rounded-2xl border-2 border-black/5 dark:border-border bg-white dark:bg-zinc-900 overflow-hidden transition hover:border-primary/50 cursor-pointer"
     >
       {/* ── Top image section ── */}
-      <div className="relative aspect-square bg-background dark:bg-zinc-800 flex items-center justify-center overflow-hidden">
+      <div className="relative aspect-square bg-[#07B53B]/5 dark:bg-zinc-800 flex items-center justify-center overflow-hidden">
         {channel.imageUrl ? (
           <Image
             src={channel.imageUrl}

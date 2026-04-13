@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { ImageUploadZone } from '@/components/ui/image-upload-zone';
 
 type AdminAgent = {
   id: string;
@@ -121,6 +122,15 @@ const parseStarterPrompts = (value: string) =>
     .map((line) => line.trim())
     .filter(Boolean)
     .slice(0, 4);
+
+async function uploadAdminAgentCover(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch('/api/agents/image', { method: 'POST', body: formData });
+  const json = await res.json() as { url?: string; error?: string };
+  if (!res.ok) throw new Error(json.error ?? 'Upload failed');
+  return json.url ?? '';
+}
 
 function formatDate(date: string | null) {
   if (!date) return '-';
@@ -426,15 +436,13 @@ export default function AdminAgentsPage() {
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="agent-image">Image URL</Label>
-              <Input
-                id="agent-image"
-                value={form.imageUrl}
-                onChange={(event) => setForm((current) => ({ ...current, imageUrl: event.target.value }))}
-                placeholder="https://..."
-              />
-            </div>
+            <ImageUploadZone
+              label="Cover image"
+              value={form.imageUrl}
+              onChange={(url) => setForm((current) => ({ ...current, imageUrl: url }))}
+              onUpload={uploadAdminAgentCover}
+              hint="Optional. Shown on the admin agent card."
+            />
 
             <div className="space-y-1.5">
               <Label htmlFor="agent-prompt">System prompt</Label>
