@@ -2,7 +2,7 @@
 
 import type { KeyboardEvent } from 'react';
 import Image from 'next/image';
-import { BotIcon, GlobeIcon, MessageSquareIcon, Share2Icon, Trash2Icon } from 'lucide-react';
+import { BotIcon, GlobeIcon, MessageSquareIcon, PencilIcon, Share2Icon, Trash2Icon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
 import { cn } from '@/lib/utils';
@@ -22,6 +22,8 @@ export type AgentCardProps = {
   onDelete?: () => void;
   onShare?: () => void;
   onChat?: () => void;
+  onHoverAction?: () => void;
+  hoverActionTitle?: string;
   onClick?: () => void;
   /** Extra content rendered below the description (e.g. badges) */
   footer?: React.ReactNode;
@@ -46,6 +48,8 @@ export const AgentCard = ({
   onDelete,
   onShare,
   onChat,
+  onHoverAction,
+  hoverActionTitle = 'Customize',
   onClick,
   footer,
   className,
@@ -116,9 +120,23 @@ export const AgentCard = ({
         )}
 
         {/* Hover actions — top-right */}
-        {(onChat || onShare || onDelete) && (
+        {(onChat || onShare || onDelete || onHoverAction) && (
           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition z-10">
             <ButtonGroup className="border rounded-full bg-white/90 dark:bg-zinc-800/90 backdrop-blur-sm shadow">
+              {onHoverAction && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 rounded-full hover:cursor-pointer"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onHoverAction();
+                  }}
+                  title={hoverActionTitle}
+                >
+                  <PencilIcon className="size-3.5" />
+                </Button>
+              )}
               {onChat && (
                 <Button
                   variant="ghost"

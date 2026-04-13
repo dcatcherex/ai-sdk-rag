@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { CopyIcon, GlobeIcon, PlusIcon, RotateCwIcon, ShieldIcon } from 'lucide-react';
+import { GlobeIcon, PlusIcon, RotateCwIcon, ShieldIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -79,13 +79,13 @@ const EssentialAgentCard = ({
   agent,
   isActive,
   onToggleActive,
-  onUse,
+  onCustomize,
   isPending,
 }: {
   agent: Agent;
   isActive: boolean;
   onToggleActive: () => void;
-  onUse: (id: string) => void;
+  onCustomize: (id: string) => void;
   isPending: boolean;
 }) => (
   <AgentCard
@@ -94,21 +94,9 @@ const EssentialAgentCard = ({
     imageUrl={agent.imageUrl}
     isActive={isActive}
     onToggleActive={onToggleActive}
-    footer={(
-      <div className="flex flex-col gap-2">
-        <AgentMetaBadges agent={agent} />
-        <Button
-          size="sm"
-          variant="outline"
-          className="w-full gap-1.5 text-xs"
-          onClick={() => onUse(agent.id)}
-          disabled={isPending}
-        >
-          <CopyIcon className="size-3.5" />
-          {isPending ? 'Copying...' : agent.cloneBehavior === 'locked' ? 'Use now' : 'Customize'}
-        </Button>
-      </div>
-    )}
+    onHoverAction={() => onCustomize(agent.id)}
+    hoverActionTitle={isPending ? 'Copying...' : agent.cloneBehavior === 'locked' ? 'Use now' : 'Customize'}
+    className={isPending ? 'pointer-events-none opacity-70' : undefined}
   />
 );
 
@@ -319,7 +307,7 @@ export const AgentsList = () => {
                         agent={agent}
                         isActive={isEssentialVisible(agent.id)}
                         onToggleActive={() => toggleEssential(agent.id)}
-                        onUse={handleUseTemplate}
+                        onCustomize={handleUseTemplate}
                         isPending={pendingTemplateId === agent.id}
                       />
                     ))}
