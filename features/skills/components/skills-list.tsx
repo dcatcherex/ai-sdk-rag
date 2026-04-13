@@ -7,13 +7,11 @@ import {
   GlobeIcon,
   LinkIcon,
   PlusIcon,
-  RotateCwIcon,
   SparklesIcon,
 } from 'lucide-react';
 
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -25,6 +23,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { authClient } from '@/lib/auth-client';
 import { AgentCard } from '@/features/agents/components/agent-card';
+import { toast } from 'sonner';
 import {
   useSkills,
   useCreateSkill,
@@ -37,12 +36,6 @@ import { SkillEditorPanel } from './skill-editor-panel';
 import { SkillImportDialog } from './skill-import-dialog';
 import { SkillDetailDialog } from './skill-detail-dialog';
 import type { CreateSkillInput, Skill } from '../types';
-
-const TRIGGER_LABELS: Record<string, string> = {
-  always: 'Always',
-  slash: 'Slash',
-  keyword: 'Keyword',
-};
 
 export const SkillsList = () => {
   const { data, isLoading } = useSkills();
@@ -101,6 +94,22 @@ export const SkillsList = () => {
     setEditTarget(null);
   };
 
+  const handleUseTemplate = (skillId: string) => {
+    useSkillTemplate.mutate(skillId, {
+      onSuccess: () => {
+        toast.success('Skill added to your library');
+      },
+    });
+  };
+
+  const handleInstallSkill = (skillId: string) => {
+    installSkill.mutate(skillId, {
+      onSuccess: () => {
+        toast.success('Skill added to your library');
+      },
+    });
+  };
+
   if (mode !== 'list') {
     return (
       <SkillEditorPanel
@@ -115,7 +124,7 @@ export const SkillsList = () => {
   return (
     <div className="flex h-full flex-col">
       <PageHeader
-        title="Skills Library"
+        title="Skills"
         description="เพิ่ม skills เพื่อให้ Vaja และ AI coworker เข้าใจงานเฉพาะทางของคุณมากขึ้น"
         action={(
           <div className="flex gap-2">
@@ -139,8 +148,8 @@ export const SkillsList = () => {
       <div className="flex-1 overflow-y-auto p-6">
         <Tabs defaultValue="essentials">
           <TabsList className="mb-4">
-            <TabsTrigger value="essentials">Essential skills ({essentialSkills.length})</TabsTrigger>
-            <TabsTrigger value="mine">My skills ({mySkills.length})</TabsTrigger>
+            <TabsTrigger value="essentials">Essentials ({essentialSkills.length})</TabsTrigger>
+            <TabsTrigger value="mine">Mine ({mySkills.length})</TabsTrigger>
             <TabsTrigger value="community">Community ({communitySkills.length})</TabsTrigger>
           </TabsList>
 
@@ -152,7 +161,7 @@ export const SkillsList = () => {
                 skills={essentialSkills}
                 isOwner={false}
                 isTemplateCatalog
-                onInstall={(id) => useSkillTemplate.mutate(id)}
+                onInstall={handleUseTemplate}
                 installingId={useSkillTemplate.isPending ? useSkillTemplate.variables : undefined}
                 onView={setDetailTarget}
               />
@@ -188,7 +197,7 @@ export const SkillsList = () => {
               <SkillGrid
                 skills={communitySkills}
                 isOwner={false}
-                onInstall={(id) => installSkill.mutate(id)}
+                onInstall={handleInstallSkill}
                 installingId={installSkill.isPending ? installSkill.variables : undefined}
                 onView={setDetailTarget}
               />
@@ -297,53 +306,6 @@ type SkillGridProps = {
   installingId?: string;
 };
 
-const SkillBadges = ({
-  skill,
-  isOwner,
-  updateAvailable = false,
-}: {
-  skill: Skill;
-  isOwner: boolean;
-  updateAvailable?: boolean;
-}) => (
-  <div className="flex flex-wrap gap-1.5">
-    <Badge variant="secondary" className="text-[11px]">
-      {TRIGGER_LABELS[skill.triggerType] ?? skill.triggerType}
-      {skill.trigger ? `: ${skill.trigger}` : ''}
-    </Badge>
-    {skill.skillKind === 'package' && (
-      <Badge variant="outline" className="text-[11px]">Package</Badge>
-    )}
-    {skill.isPublic && isOwner && (
-      <Badge variant="secondary" className="gap-1 text-[11px]">
-        <GlobeIcon className="size-2.5" /> Public
-      </Badge>
-    )}
-    {skill.managedByAdmin && (
-      <Badge variant="secondary" className="text-[11px]">Official</Badge>
-    )}
-    {skill.templateId && skill.sourceTemplateVersion !== null && (
-      <Badge variant="outline" className="text-[11px]">Based on v{skill.sourceTemplateVersion}</Badge>
-    )}
-    {updateAvailable && (
-      <Badge variant="secondary" className="gap-1 text-[11px]">
-        <RotateCwIcon className="size-2.5" />
-        Update available
-      </Badge>
-    )}
-    {skill.sourceUrl && (
-      <Badge variant="outline" className="gap-1 text-[11px]">
-        <LinkIcon className="size-2.5" /> Imported
-      </Badge>
-    )}
-    {skill.syncStatus !== 'local' && (
-      <Badge variant="outline" className="text-[11px]">
-        {skill.syncStatus.replace('_', ' ')}
-      </Badge>
-    )}
-  </div>
-);
-
 const SkillGrid = ({
   skills,
   isOwner,
@@ -374,12 +336,17 @@ const SkillGrid = ({
           isPublic={skill.isPublic && isOwner}
           onEdit={isOwner ? () => onEdit?.(skill) : undefined}
           onDelete={isOwner ? () => onDelete?.(skill) : undefined}
+          onHoverAction={
+            !isOwner && isTemplateCatalog && installingId !== skill.id
+              ? () => onInstall?.(skill.id)
+              : undefined
+          }
+          hoverActionTitle={installingId === skill.id ? 'Using...' : 'Use'}
+          className={!isOwner && isTemplateCatalog && installingId === skill.id ? 'pointer-events-none opacity-70' : undefined}
           footer={
-            isOwner ? (
-              <SkillBadges skill={skill} isOwner={isOwner} updateAvailable={updateAvailable} />
-            ) : (
-              <div className="flex flex-col gap-2">
-                <SkillBadges skill={skill} isOwner={isOwner} updateAvailable={updateAvailable} />
+            isOwner
+              ? undefined
+              : (isTemplateCatalog ? undefined : (
                 <div className="flex gap-2">
                   <Button
                     size="sm"
@@ -403,8 +370,7 @@ const SkillGrid = ({
                       : (isTemplateCatalog ? 'Use' : 'Install')}
                   </Button>
                 </div>
-              </div>
-            )
+              ))
           }
         />
       );

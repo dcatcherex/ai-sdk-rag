@@ -211,72 +211,70 @@ export async function usePublishedSkillTemplate(userId: string, templateId: stri
     .where(eq(agentSkillFile.skillId, template.id));
 
   const now = new Date();
-  return db.transaction(async (tx) => {
-    const cloneId = nanoid();
-    const [row] = await tx
-      .insert(agentSkill)
-      .values({
-        id: cloneId,
-        userId,
-        name: template.name,
-        description: template.description,
-        triggerType: template.triggerType,
-        trigger: template.trigger,
-        promptFragment: template.promptFragment,
-        enabledTools: template.enabledTools,
-        sourceUrl: template.sourceUrl,
-        sourceId: template.sourceId,
-        skillKind: template.skillKind,
-        activationMode: template.activationMode,
-        entryFilePath: template.entryFilePath,
-        installedRef: template.installedRef,
-        installedCommitSha: template.installedCommitSha,
-        upstreamCommitSha: template.upstreamCommitSha,
-        syncStatus: template.syncStatus,
-        pinnedToInstalledVersion: template.pinnedToInstalledVersion,
-        hasBundledFiles: template.hasBundledFiles,
-        packageManifest: template.packageManifest,
-        lastSyncCheckedAt: template.lastSyncCheckedAt,
-        lastSyncedAt: template.lastSyncedAt,
-        imageUrl: template.imageUrl,
-        isPublic: false,
-        isTemplate: false,
-        templateId: template.id,
-        catalogScope: 'personal',
-        catalogStatus: 'draft',
-        managedByAdmin: false,
-        cloneBehavior: template.cloneBehavior,
-        updatePolicy: template.updatePolicy,
-        lockedFields: [],
-        version: 1,
-        sourceTemplateVersion: template.version,
-        publishedAt: null,
-        archivedAt: null,
-        changelog: null,
+  const cloneId = nanoid();
+  const [row] = await db
+    .insert(agentSkill)
+    .values({
+      id: cloneId,
+      userId,
+      name: template.name,
+      description: template.description,
+      triggerType: template.triggerType,
+      trigger: template.trigger,
+      promptFragment: template.promptFragment,
+      enabledTools: template.enabledTools,
+      sourceUrl: template.sourceUrl,
+      sourceId: template.sourceId,
+      skillKind: template.skillKind,
+      activationMode: template.activationMode,
+      entryFilePath: template.entryFilePath,
+      installedRef: template.installedRef,
+      installedCommitSha: template.installedCommitSha,
+      upstreamCommitSha: template.upstreamCommitSha,
+      syncStatus: template.syncStatus,
+      pinnedToInstalledVersion: template.pinnedToInstalledVersion,
+      hasBundledFiles: template.hasBundledFiles,
+      packageManifest: template.packageManifest,
+      lastSyncCheckedAt: template.lastSyncCheckedAt,
+      lastSyncedAt: template.lastSyncedAt,
+      imageUrl: template.imageUrl,
+      isPublic: false,
+      isTemplate: false,
+      templateId: template.id,
+      catalogScope: 'personal',
+      catalogStatus: 'draft',
+      managedByAdmin: false,
+      cloneBehavior: template.cloneBehavior,
+      updatePolicy: template.updatePolicy,
+      lockedFields: [],
+      version: 1,
+      sourceTemplateVersion: template.version,
+      publishedAt: null,
+      archivedAt: null,
+      changelog: null,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning();
+
+  if (files.length > 0) {
+    await db.insert(agentSkillFile).values(
+      files.map((file) => ({
+        id: nanoid(),
+        skillId: cloneId,
+        relativePath: file.relativePath,
+        fileKind: file.fileKind,
+        mediaType: file.mediaType,
+        textContent: file.textContent,
+        sizeBytes: file.sizeBytes,
+        checksum: file.checksum,
         createdAt: now,
         updatedAt: now,
-      })
-      .returning();
+      })),
+    );
+  }
 
-    if (files.length > 0) {
-      await tx.insert(agentSkillFile).values(
-        files.map((file) => ({
-          id: nanoid(),
-          skillId: cloneId,
-          relativePath: file.relativePath,
-          fileKind: file.fileKind,
-          mediaType: file.mediaType,
-          textContent: file.textContent,
-          sizeBytes: file.sizeBytes,
-          checksum: file.checksum,
-          createdAt: now,
-          updatedAt: now,
-        })),
-      );
-    }
-
-    return mapSkillRow(row!);
-  });
+  return mapSkillRow(row!);
 }
 
 export async function getSkillCatalog(userId: string): Promise<SkillCatalog> {

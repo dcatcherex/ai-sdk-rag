@@ -46,7 +46,7 @@ const STATIC_WORKSPACE_ITEMS: WorkspaceCatalogItem[] = [
   {
     id: "skills",
     href: "/skills",
-    label: "Skills Library",
+    label: "Skills",
     defaultPinned: true,
     order: 30,
     iconName: "Sparkles",

@@ -107,58 +107,57 @@ export async function installSkill(userId: string, skillId: string): Promise<Ski
     .from(agentSkillFile)
     .where(eq(agentSkillFile.skillId, source.id));
 
-  return db.transaction(async (tx) => {
-    const cloneId = nanoid();
-    const [row] = await tx
-      .insert(agentSkill)
-      .values({
-        id: cloneId,
-        userId,
-        name: source.name,
-        description: source.description,
-        triggerType: source.triggerType,
-        trigger: source.trigger,
-        promptFragment: source.promptFragment,
-        enabledTools: source.enabledTools,
-        sourceUrl: source.sourceUrl,
-        sourceId: source.sourceId,
-        skillKind: source.skillKind,
-        activationMode: source.activationMode,
-        entryFilePath: source.entryFilePath,
-        installedRef: source.installedRef,
-        installedCommitSha: source.installedCommitSha,
-        upstreamCommitSha: source.upstreamCommitSha,
-        syncStatus: source.syncStatus,
-        pinnedToInstalledVersion: source.pinnedToInstalledVersion,
-        hasBundledFiles: source.hasBundledFiles,
-        packageManifest: source.packageManifest,
-        lastSyncCheckedAt: source.lastSyncCheckedAt,
-        lastSyncedAt: source.lastSyncedAt,
-        isPublic: false,
+  const cloneId = nanoid();
+  const [row] = await db
+    .insert(agentSkill)
+    .values({
+      id: cloneId,
+      userId,
+      name: source.name,
+      description: source.description,
+      triggerType: source.triggerType,
+      trigger: source.trigger,
+      promptFragment: source.promptFragment,
+      enabledTools: source.enabledTools,
+      sourceUrl: source.sourceUrl,
+      sourceId: source.sourceId,
+      skillKind: source.skillKind,
+      activationMode: source.activationMode,
+      entryFilePath: source.entryFilePath,
+      installedRef: source.installedRef,
+      installedCommitSha: source.installedCommitSha,
+      upstreamCommitSha: source.upstreamCommitSha,
+      syncStatus: source.syncStatus,
+      pinnedToInstalledVersion: source.pinnedToInstalledVersion,
+      hasBundledFiles: source.hasBundledFiles,
+      packageManifest: source.packageManifest,
+      lastSyncCheckedAt: source.lastSyncCheckedAt,
+      lastSyncedAt: source.lastSyncedAt,
+      imageUrl: source.imageUrl,
+      isPublic: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning();
+
+  if (sourceFiles.length > 0) {
+    await db.insert(agentSkillFile).values(
+      sourceFiles.map((file) => ({
+        id: nanoid(),
+        skillId: cloneId,
+        relativePath: file.relativePath,
+        fileKind: file.fileKind,
+        mediaType: file.mediaType,
+        textContent: file.textContent,
+        sizeBytes: file.sizeBytes,
+        checksum: file.checksum,
         createdAt: now,
         updatedAt: now,
-      })
-      .returning();
+      })),
+    );
+  }
 
-    if (sourceFiles.length > 0) {
-      await tx.insert(agentSkillFile).values(
-        sourceFiles.map((file) => ({
-          id: nanoid(),
-          skillId: cloneId,
-          relativePath: file.relativePath,
-          fileKind: file.fileKind,
-          mediaType: file.mediaType,
-          textContent: file.textContent,
-          sizeBytes: file.sizeBytes,
-          checksum: file.checksum,
-          createdAt: now,
-          updatedAt: now,
-        })),
-      );
-    }
-
-    return mapSkillRow(row!);
-  });
+  return mapSkillRow(row!);
 }
 
 export async function importSkillFromUrl(
