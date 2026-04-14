@@ -20,6 +20,8 @@ interface Props {
   onImageCountChange: (v: number) => void;
   quality: 'medium' | 'high';
   onQualityChange: (v: 'medium' | 'high') => void;
+  enablePro: boolean;
+  onEnableProChange: (v: boolean) => void;
   googleSearch: boolean;
   onGoogleSearchChange: (v: boolean) => void;
   seed: string;
@@ -30,10 +32,11 @@ interface Props {
 export function GenerationControls({
   modelConfig, aspectRatio, onAspectRatioChange,
   resolution, onResolutionChange, imageCount, onImageCountChange,
-  quality, onQualityChange, googleSearch, onGoogleSearchChange,
+  quality, onQualityChange, enablePro, onEnableProChange, googleSearch, onGoogleSearchChange,
   seed, onSeedChange, disabled,
 }: Props) {
-  const hasModelSettings = modelConfig.hasQuality || modelConfig.hasGoogleSearch || modelConfig.hasSeed;
+  const hasModelSettings =
+    modelConfig.hasQuality || modelConfig.hasEnablePro || modelConfig.hasGoogleSearch || modelConfig.hasSeed;
 
   return (
     <div className="space-y-4">
@@ -69,6 +72,16 @@ export function GenerationControls({
                     {q}
                   </button>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {modelConfig.hasEnablePro && (
+            <div className="flex items-center gap-3">
+              <Switch id="enable-pro" checked={enablePro} onCheckedChange={onEnableProChange} disabled={disabled} />
+              <div>
+                <Label htmlFor="enable-pro" className="text-xs">Pro mode</Label>
+                <p className="text-xs text-muted-foreground">Prioritize output quality over speed</p>
               </div>
             </div>
           )}

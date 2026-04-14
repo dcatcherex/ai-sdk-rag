@@ -33,10 +33,12 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { ImageUploadZone } from '@/components/ui/image-upload-zone';
+import { SKILL_CATEGORY_LABELS, SKILL_CATEGORY_OPTIONS } from '@/features/skills/categories';
 
 type AdminSkill = {
   id: string;
   name: string;
+  category: string | null;
   description: string | null;
   triggerType: 'slash' | 'keyword' | 'always';
   trigger: string | null;
@@ -61,6 +63,7 @@ type SkillsResponse = {
 
 type SkillFormState = {
   name: string;
+  category: string;
   description: string;
   activationMode: 'rule' | 'model';
   triggerType: 'slash' | 'keyword' | 'always';
@@ -87,6 +90,7 @@ const toolManifests = getAgentManifests();
 
 const emptyForm = (): SkillFormState => ({
   name: '',
+  category: 'uncategorized',
   description: '',
   activationMode: 'rule',
   triggerType: 'always',
@@ -104,6 +108,7 @@ const toFormState = (skill: AdminSkill | null): SkillFormState => {
   if (!skill) return emptyForm();
   return {
     name: skill.name,
+    category: skill.category ?? 'uncategorized',
     description: skill.description ?? '',
     activationMode: skill.activationMode,
     triggerType: skill.triggerType,
@@ -219,6 +224,7 @@ export default function AdminSkillsPage() {
   const submit = () => {
     const body = {
       name: form.name.trim(),
+      category: form.category === 'uncategorized' ? null : form.category,
       description: form.description.trim() || null,
       activationMode: form.activationMode,
       triggerType: form.triggerType,
@@ -340,6 +346,10 @@ export default function AdminSkillsPage() {
               </CardHeader>
               <CardContent className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
                 <div>
+                  <p className="font-medium text-foreground">Category</p>
+                  <p>{skill.category ? (SKILL_CATEGORY_LABELS[skill.category] ?? skill.category) : 'Uncategorized'}</p>
+                </div>
+                <div>
                   <p className="font-medium text-foreground">Trigger</p>
                   <p>{skill.triggerType}{skill.trigger ? `: ${skill.trigger}` : ''}</p>
                 </div>
@@ -385,6 +395,26 @@ export default function AdminSkillsPage() {
                 onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
                 placeholder="brand-guidelines"
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Category</Label>
+              <Select
+                value={form.category}
+                onValueChange={(value) => setForm((current) => ({ ...current, category: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="uncategorized">Uncategorized</SelectItem>
+                  {SKILL_CATEGORY_OPTIONS.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {SKILL_CATEGORY_LABELS[category]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <ImageUploadZone

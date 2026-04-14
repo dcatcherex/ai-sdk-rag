@@ -17,8 +17,12 @@ const envSchema = z.object({
   TIKTOK_CLIENT_SECRET: z.string().optional(),
   /** Base URL for OAuth redirect URIs (e.g. https://yourapp.com) */
   BETTER_AUTH_URL: z.string().optional(),
+  /** Optional public app URL fallback for webhook/callback URLs */
+  NEXT_PUBLIC_APP_URL: z.string().optional(),
   /** Secret used to authorize cron job requests (set automatically by Vercel) */
   CRON_SECRET: z.string().optional(),
+  /** Shared secret appended to KIE callback URLs for basic webhook protection */
+  KIE_CALLBACK_SECRET: z.string().optional(),
   /** Trigger.dev secret key for scheduling background tasks */
   TRIGGER_SECRET_KEY: z.string().optional(),
   /** Trigger.dev project ref used by the CLI and deploy config */

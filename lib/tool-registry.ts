@@ -69,6 +69,12 @@ export const TOOL_REGISTRY = {
   ...manifestEntries,
 } as const as Record<string, ToolRegistryEntry>;
 
+export const TOOL_GROUP_LABELS: Record<ToolGroup, string> = {
+  knowledge: 'Knowledge',
+  productivity: 'Productivity',
+  utilities: 'Utilities',
+};
+
 export type ToolId = keyof typeof STATIC_ENTRIES | (typeof TOOL_MANIFESTS)[number]['id'];
 
 export const ALL_TOOL_IDS = Object.keys(TOOL_REGISTRY) as ToolId[];

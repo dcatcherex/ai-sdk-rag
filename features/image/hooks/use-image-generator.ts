@@ -16,6 +16,7 @@ export function useImageGenerator() {
   const [prompt, setPrompt] = useState('');
   const [aspectRatio, setAspectRatio] = useState('auto');
   const [quality, setQuality] = useState<'medium' | 'high'>('medium');
+  const [enablePro, setEnablePro] = useState(false);
   const [resolution, setResolution] = useState<'1K' | '2K' | '4K'>('1K');
   const [imageCount, setImageCount] = useState(1);
   const [googleSearch, setGoogleSearch] = useState(false);
@@ -68,6 +69,7 @@ export function useImageGenerator() {
       promptTitle: prompt.substring(0, 50),
     };
     if (modelConfig?.hasQuality) body.quality = quality;
+    if (modelConfig?.hasEnablePro) body.enablePro = enablePro;
     if (modelConfig?.hasResolution) body.resolution = resolution;
     if (modelConfig?.hasGoogleSearch) body.googleSearch = googleSearch;
     if (modelConfig?.hasSeed && seed) body.seed = parseInt(seed);
@@ -93,6 +95,7 @@ export function useImageGenerator() {
     prompt, setPrompt,
     aspectRatio, setAspectRatio,
     quality, setQuality,
+    enablePro, setEnablePro,
     resolution, setResolution,
     imageCount, setImageCount,
     googleSearch, setGoogleSearch,

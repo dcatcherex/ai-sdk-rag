@@ -29,6 +29,57 @@ export type KieTaskResult =
     | { status: 'completed'; outputUrl: string; audioMeta?: AudioMeta }
     | { status: 'failed'; error: string };
 
+export interface KieJobsStatusPayload {
+    code?: number;
+    msg?: string;
+    data?: Record<string, any> | null;
+}
+
+export function resolveKieJobsStatusPayload(statusData: KieJobsStatusPayload): KieTaskResult {
+    if (statusData.code !== 200) {
+        const msg = (statusData.msg || '').toLowerCase();
+        if (msg.includes('recordinfo') && msg.includes('null')) {
+            return { status: 'processing' };
+        }
+        return { status: 'failed', error: `Task check failed: ${statusData.msg}` };
+    }
+
+    const taskInfo = statusData.data;
+    if (!taskInfo) return { status: 'processing' };
+
+    const state = taskInfo.state || taskInfo.status;
+    const SUCCESS_STATES = new Set(['success', 'SUCCEEDED', 'SUCCESS', 1]);
+    const FAILED_STATES = new Set(['fail', 'FAILED', 'FAILURE', 2]);
+
+    if (!SUCCESS_STATES.has(state) && !FAILED_STATES.has(state)) {
+        return { status: 'processing' };
+    }
+
+    if (FAILED_STATES.has(state)) {
+        const error = taskInfo.failMsg || taskInfo.failureReason || 'Unknown reason';
+        return { status: 'failed', error: `Generation failed: ${error}` };
+    }
+
+    let outputUrl = '';
+    if (taskInfo.resultJson) {
+        try {
+            const parsed = JSON.parse(taskInfo.resultJson);
+            if (parsed.resultUrls?.length > 0) {
+                outputUrl = parsed.resultUrls[0];
+            } else if (parsed.images?.length > 0) {
+                outputUrl = parsed.images[0].url || parsed.images[0];
+            }
+        } catch { /* ignore */ }
+    }
+    if (!outputUrl) {
+        if (taskInfo.results?.length > 0) outputUrl = taskInfo.results[0].url;
+        else if (taskInfo.images?.length > 0) outputUrl = taskInfo.images[0].url;
+    }
+
+    if (outputUrl) return { status: 'completed', outputUrl };
+    return { status: 'failed', error: 'No output URL in result' };
+}
+
 /**
  * Polls a KIE task and returns a typed result. Does NOT write to the database.
  * Callers are responsible for updating DB records based on the result.
@@ -143,48 +194,5 @@ export async function resolveKieTaskStatus(
 
     // ── Image / Text: KIE jobs via /jobs/recordInfo ───────────────────────────
     const statusData = await KieService.getTaskStatus(taskId, apiKey);
-
-    if (statusData.code !== 200) {
-        const msg = (statusData.msg || '').toLowerCase();
-        if (msg.includes('recordinfo') && msg.includes('null')) {
-            return { status: 'processing' };
-        }
-        return { status: 'failed', error: `Task check failed: ${statusData.msg}` };
-    }
-
-    const taskInfo = statusData.data;
-    if (!taskInfo) return { status: 'processing' };
-
-    const state = taskInfo.state || taskInfo.status;
-    const SUCCESS_STATES = new Set(['success', 'SUCCEEDED', 'SUCCESS', 1]);
-    const FAILED_STATES = new Set(['fail', 'FAILED', 'FAILURE', 2]);
-
-    if (!SUCCESS_STATES.has(state) && !FAILED_STATES.has(state)) {
-        return { status: 'processing' };
-    }
-
-    if (FAILED_STATES.has(state)) {
-        const error = taskInfo.failMsg || taskInfo.failureReason || 'Unknown reason';
-        return { status: 'failed', error: `Generation failed: ${error}` };
-    }
-
-    // Extract output URL from image task result
-    let outputUrl = '';
-    if (taskInfo.resultJson) {
-        try {
-            const parsed = JSON.parse(taskInfo.resultJson);
-            if (parsed.resultUrls?.length > 0) {
-                outputUrl = parsed.resultUrls[0];
-            } else if (parsed.images?.length > 0) {
-                outputUrl = parsed.images[0].url || parsed.images[0];
-            }
-        } catch { /* ignore */ }
-    }
-    if (!outputUrl) {
-        if (taskInfo.results?.length > 0) outputUrl = taskInfo.results[0].url;
-        else if (taskInfo.images?.length > 0) outputUrl = taskInfo.images[0].url;
-    }
-
-    if (outputUrl) return { status: 'completed', outputUrl };
-    return { status: 'failed', error: 'No output URL in result' };
+    return resolveKieJobsStatusPayload(statusData);
 }

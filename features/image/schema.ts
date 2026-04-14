@@ -5,6 +5,7 @@ export const generateImageInputSchema = z.object({
   modelId: z.string().default('nano-banana-2'),
   aspectRatio: z.string().optional().describe('Aspect ratio, e.g. "16:9", "1:1"'),
   quality: z.enum(['medium', 'high']).optional().describe('Generation quality (GPT Image models)'),
+  enablePro: z.boolean().optional().describe('Enable pro/quality mode (Grok Imagine models)'),
   resolution: z.enum(['1K', '2K', '4K']).optional().describe('Output resolution (Nano Banana 2)'),
   googleSearch: z.boolean().optional().describe('Use Google Search grounding (Nano Banana 2)'),
   outputFormat: z.enum(['jpg', 'png', 'jpeg']).optional(),

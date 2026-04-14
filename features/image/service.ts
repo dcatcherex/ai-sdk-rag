@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid';
 import { db } from '@/lib/db';
 import { toolRun } from '@/db/schema';
 import { getKieApiKey } from '@/lib/api/routeGuards';
+import { buildKieCallbackUrl } from '@/lib/kie-callback';
 import { KieService } from '@/lib/providers/kieService';
 import type { GenerateImageInput, TriggerImageResult } from './schema';
 
@@ -16,6 +17,7 @@ function buildKieInput(params: GenerateImageInput): Record<string, unknown> {
     modelId,
     aspectRatio,
     quality = 'medium',
+    enablePro = false,
     resolution = '1K',
     googleSearch = false,
     outputFormat = 'jpg',
@@ -105,7 +107,18 @@ function buildKieInput(params: GenerateImageInput): Record<string, unknown> {
       };
 
     case 'grok-imagine/text-to-image':
-      return { prompt, ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}) };
+      return {
+        prompt,
+        ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}),
+        enable_pro: enablePro,
+      };
+
+    case 'grok-imagine/image-to-image':
+      return {
+        prompt,
+        image_urls: imageUrls,
+        enable_pro: enablePro,
+      };
 
     default:
       return { prompt };
@@ -154,7 +167,8 @@ export async function triggerImageGeneration(
   }
 
   const input = buildKieInput({ ...params, imageUrls: resolvedImageUrls ?? params.imageUrls });
-  const { taskId } = await KieService.createTask(params.modelId, input, apiKey);
+  const callbackUrl = buildKieCallbackUrl();
+  const { taskId } = await KieService.createTask(params.modelId, input, apiKey, { callbackUrl });
 
   const [record] = await db.insert(toolRun).values({
     id: nanoid(),
@@ -167,8 +181,10 @@ export async function triggerImageGeneration(
       modelId: params.modelId,
       kieTaskId: taskId,
       kieProvider: 'kie',
+      callbackUrl,
       aspectRatio: params.aspectRatio,
       quality: params.quality,
+      enablePro: params.enablePro,
       resolution: params.resolution,
       imageUrls: resolvedImageUrls,
       promptTitle: params.promptTitle ?? params.prompt.substring(0, 50),

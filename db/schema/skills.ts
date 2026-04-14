@@ -24,6 +24,7 @@ export const agentSkill = pgTable("agent_skill", {
   id: text("id").primaryKey(),
   userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
+  category: text("category"),
   description: text("description"),
   triggerType: text("trigger_type").notNull().default("keyword"),
   trigger: text("trigger"),

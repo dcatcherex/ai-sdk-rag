@@ -51,6 +51,8 @@ export interface KieImageOptions {
   aspectRatios: string[];
   /** GPT Image: quality control (medium/high) */
   hasQuality?: boolean;
+  /** Grok Imagine: enable pro/quality mode */
+  hasEnablePro?: boolean;
   /** Nano Banana 2 / Pro: resolution picker (1K/2K/4K) */
   hasResolution?: boolean;
   /** Nano Banana 2: Google Search grounding toggle */

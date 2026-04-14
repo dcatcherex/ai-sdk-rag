@@ -15,6 +15,7 @@ import { mapSkillFileRow, mapSkillRow, normaliseTrigger } from './shared';
 
 type AdminSkillTemplateInput = {
   name: string;
+  category?: string | null;
   description?: string | null;
   triggerType?: Skill['triggerType'];
   trigger?: string | null;
@@ -95,6 +96,7 @@ export async function createAdminSkillTemplate(input: AdminSkillTemplateInput): 
       id: nanoid(),
       userId: null,
       name: input.name,
+      category: input.category ?? null,
       description: input.description ?? null,
       triggerType: input.triggerType ?? 'always',
       trigger: normaliseTrigger(input.triggerType ?? 'always', input.trigger),
@@ -145,6 +147,7 @@ export async function updateAdminSkillTemplate(
     .update(agentSkill)
     .set({
       ...(input.name !== undefined && { name: input.name }),
+      ...(input.category !== undefined && { category: input.category ?? null }),
       ...(input.description !== undefined && { description: input.description ?? null }),
       ...(input.triggerType !== undefined && { triggerType: input.triggerType }),
       ...((input.triggerType !== undefined || input.trigger !== undefined) && {
@@ -240,6 +243,7 @@ export async function usePublishedSkillTemplate(userId: string, templateId: stri
       id: cloneId,
       userId,
       name: personalName,
+      category: template.category,
       description: template.description,
       triggerType: template.triggerType,
       trigger: template.trigger,

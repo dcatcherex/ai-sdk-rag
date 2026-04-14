@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid';
 import { db } from '@/lib/db';
 import { toolRun } from '@/db/schema';
 import { getKieApiKey } from '@/lib/api/routeGuards';
+import { buildKieCallbackUrl } from '@/lib/kie-callback';
 import { KieService } from '@/lib/providers/kieService';
 import { KIE_VIDEO_MODELS } from '@/lib/models/kie-video';
 import type { GenerateVideoInput, TriggerVideoResult } from './schema';
@@ -67,6 +68,7 @@ export async function triggerVideoGeneration(
   }
 
   let taskId: string;
+  const callbackUrl = buildKieCallbackUrl();
 
   if (videoOptions.apiType === 'veo') {
     // ── Veo path: flat payload, special /veo/generate endpoint ──────────────
@@ -124,7 +126,7 @@ export async function triggerVideoGeneration(
       input.remove_watermark = true;
     }
 
-    ({ taskId } = await KieService.createTask(model, input, apiKey));
+    ({ taskId } = await KieService.createTask(model, input, apiKey, { callbackUrl }));
   }
 
   const [record] = await db.insert(toolRun).values({
@@ -137,6 +139,7 @@ export async function triggerVideoGeneration(
       prompt,
       modelId: model,
       kieTaskId: taskId,
+      callbackUrl,
       apiType: videoOptions.apiType,
       generationMode,
       aspectRatio,

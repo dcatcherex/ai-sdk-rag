@@ -13,15 +13,18 @@ export const KieService = {
     async createTask(
         modelId: string,
         input: Record<string, any>,
-        apiKey: string
+        apiKey: string,
+        options?: { callbackUrl?: string | null }
     ): Promise<{ taskId: string }> {
         try {
             // Basic body structure for Kie
-            const payload = {
+            const payload: Record<string, unknown> = {
                 model: modelId,
                 input: input,
-                // Optional: callBackUrl can be added here if we had a webhook handler
             };
+            if (options?.callbackUrl) {
+                payload.callBackUrl = options.callbackUrl;
+            }
 
             const response = await fetch(`${KIE_API_BASE}/jobs/createTask`, {
                 method: 'POST',
@@ -342,7 +345,8 @@ export const KieService = {
             style?: number;
             speed?: number;
         },
-        apiKey: string
+        apiKey: string,
+        options?: { callbackUrl?: string | null }
     ): Promise<{ taskId: string }> {
         const input: Record<string, unknown> = {
             text: params.text,
@@ -355,7 +359,7 @@ export const KieService = {
         if (params.speed !== undefined) input.speed = params.speed;
         // Note: language_code is NOT supported by multilingual-v2 (only Turbo v2.5 / Flash v2.5)
 
-        return this.createTask('elevenlabs/text-to-speech-multilingual-v2', input, apiKey);
+        return this.createTask('elevenlabs/text-to-speech-multilingual-v2', input, apiKey, options);
     },
 
     /**
@@ -370,7 +374,8 @@ export const KieService = {
             stability?: number;
             languageCode?: string;
         },
-        apiKey: string
+        apiKey: string,
+        options?: { callbackUrl?: string | null }
     ): Promise<{ taskId: string }> {
         const input: Record<string, unknown> = {
             dialogue: params.dialogue,
@@ -379,7 +384,7 @@ export const KieService = {
         if (params.stability !== undefined) input.stability = params.stability;
         if (params.languageCode) input.language_code = params.languageCode;
 
-        return this.createTask('elevenlabs/text-to-dialogue-v3', input, apiKey);
+        return this.createTask('elevenlabs/text-to-dialogue-v3', input, apiKey, options);
     },
 
     /**

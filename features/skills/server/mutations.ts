@@ -39,6 +39,7 @@ export async function createSkill(userId: string, data: CreateSkillInput): Promi
       id: nanoid(),
       userId,
       name: data.name,
+      category: data.category ?? null,
       description: data.description ?? null,
       triggerType: data.triggerType ?? 'always',
       trigger: normaliseTrigger(data.triggerType ?? 'always', data.trigger),
@@ -88,6 +89,7 @@ export async function updateSkill(
     .update(agentSkill)
     .set({
       ...(data.name !== undefined && { name: data.name }),
+      ...(data.category !== undefined && { category: data.category ?? null }),
       ...(data.description !== undefined && { description: data.description ?? null }),
       ...(data.triggerType !== undefined && { triggerType: data.triggerType }),
       ...(data.trigger !== undefined && {
@@ -136,6 +138,7 @@ export async function installSkill(userId: string, skillId: string): Promise<Ski
       id: cloneId,
       userId,
       name: personalName,
+      category: source.category,
       description: source.description,
       triggerType: source.triggerType,
       trigger: source.trigger,
@@ -235,6 +238,7 @@ export async function importSkillFromUrl(
       id: skillId,
       userId,
       name: importedPackage.parsed.name,
+      category: null,
       description: importedPackage.parsed.description ?? `Imported skill: ${importedPackage.parsed.name}`,
       triggerType: importedPackage.parsed.triggerType,
       trigger: normaliseTrigger(importedPackage.parsed.triggerType, importedPackage.parsed.trigger),

@@ -690,4 +690,5 @@ LINE_CHANNEL_ACCESS_TOKEN # LINE Messaging API
 GOOGLE_CLIENT_ID          # Optional — Google OAuth
 GOOGLE_CLIENT_SECRET      # Optional
 COHERE_API_KEY            # Optional — reranking
+KIE_CALLBACK_SECRET       # Optional — shared token for KIE webhook callback protection
 ```

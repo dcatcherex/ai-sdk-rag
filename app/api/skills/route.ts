@@ -5,6 +5,7 @@ import { createSkill, getSkillCatalog } from '@/features/skills/service';
 
 const createSchema = z.object({
   name: z.string().min(1).max(64).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  category: z.string().max(64).nullable().optional(),
   description: z.string().min(1).max(1024),
   activationMode: z.enum(['rule', 'model']).optional(),
   triggerType: z.enum(['slash', 'keyword', 'always']).optional(),

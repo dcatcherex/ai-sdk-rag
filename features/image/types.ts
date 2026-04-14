@@ -23,6 +23,7 @@ export interface ImageModelConfig extends BaseModelConfig {
   mode: 'generate' | 'edit' | 'both';
   aspectRatios: string[];
   hasQuality?: boolean;
+  hasEnablePro?: boolean;
   hasResolution?: boolean;
   hasGoogleSearch?: boolean;
   hasSeed?: boolean;
@@ -74,6 +75,7 @@ export const IMAGE_MODEL_CONFIGS: ImageModelConfig[] = KIE_IMAGE_MODELS
       mode: opts.mode,
       aspectRatios: opts.aspectRatios,
       hasQuality: opts.hasQuality,
+      hasEnablePro: opts.hasEnablePro,
       hasResolution: opts.hasResolution,
       hasGoogleSearch: opts.hasGoogleSearch,
       hasSeed: opts.hasSeed,

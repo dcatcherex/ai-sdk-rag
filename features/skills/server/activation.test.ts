@@ -12,6 +12,7 @@ const baseSkill = (overrides: Partial<Skill>): Skill => ({
   id: 'skill-1',
   userId: 'user-1',
   name: 'email-writer',
+  category: null,
   description: 'Write polished customer emails',
   triggerType: 'keyword',
   trigger: 'email',

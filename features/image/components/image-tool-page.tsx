@@ -5,6 +5,7 @@ import { Suspense, useRef, useState, useEffect } from 'react';
 import { ImageIcon, Loader2, BarChart2, Globe, X, Plus, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import type { ToolManifest } from '@/features/tools/registry/types';
 import { useImageGenerator, type Mode } from '../hooks/use-image-generator';
@@ -180,6 +181,7 @@ function ImageToolPageInner({ manifest }: Props) {
     prompt, setPrompt,
     aspectRatio, setAspectRatio,
     quality, setQuality,
+    enablePro, setEnablePro,
     resolution, setResolution,
     imageCount, setImageCount,
     googleSearch, setGoogleSearch,
@@ -388,6 +390,23 @@ function ImageToolPageInner({ manifest }: Props) {
               >
                 <Globe className="h-4 w-4" />
               </button>
+            )}
+
+            {modelConfig?.hasEnablePro && (
+              <>
+                <div className="w-px h-4 bg-border mx-0.5" />
+                <div className="flex items-center gap-2 rounded-md border px-2 py-1">
+                  <Label htmlFor="enable-pro-toolbar" className="text-xs text-muted-foreground">
+                    Pro
+                  </Label>
+                  <Switch
+                    id="enable-pro-toolbar"
+                    size="sm"
+                    checked={enablePro}
+                    onCheckedChange={setEnablePro}
+                  />
+                </div>
+              </>
             )}
 
             <div className="flex-1" />

@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid';
 import { db } from '@/lib/db';
 import { toolRun } from '@/db/schema';
 import { getKieApiKey } from '@/lib/api/routeGuards';
+import { buildKieCallbackUrl } from '@/lib/kie-callback';
 import { KieService } from '@/lib/providers/kieService';
 import type { GenerateSpeechInput, GenerateDialogueInput, TriggerSpeechResult } from './schema';
 
@@ -17,6 +18,7 @@ export async function triggerSpeechGeneration(
   const apiKey = getKieApiKey();
   if (!apiKey) throw new Error('KIE_API_KEY is not configured');
 
+  const callbackUrl = buildKieCallbackUrl();
   const { taskId } = await KieService.createTtsTask({
     text: params.text,
     voice: params.voice,
@@ -24,7 +26,7 @@ export async function triggerSpeechGeneration(
     similarityBoost: params.similarityBoost,
     style: params.style,
     speed: params.speed,
-  }, apiKey);
+  }, apiKey, { callbackUrl });
 
   const [record] = await db.insert(toolRun).values({
     id: nanoid(),
@@ -39,6 +41,7 @@ export async function triggerSpeechGeneration(
       isDialogue: false,
       kieTaskId: taskId,
       kieProvider: 'kie',
+      callbackUrl,
       promptTitle: params.promptTitle ?? params.text.substring(0, 50),
     },
   }).returning();
@@ -57,11 +60,12 @@ export async function triggerDialogueGeneration(
   const apiKey = getKieApiKey();
   if (!apiKey) throw new Error('KIE_API_KEY is not configured');
 
+  const callbackUrl = buildKieCallbackUrl();
   const { taskId } = await KieService.createDialogueTask({
     dialogue: params.lines,
     stability: params.stability,
     languageCode: params.languageCode,
-  }, apiKey);
+  }, apiKey, { callbackUrl });
 
   const [record] = await db.insert(toolRun).values({
     id: nanoid(),
@@ -75,6 +79,7 @@ export async function triggerDialogueGeneration(
       isDialogue: true,
       kieTaskId: taskId,
       kieProvider: 'kie',
+      callbackUrl,
       promptTitle: params.promptTitle ?? 'Dialogue',
     },
   }).returning();

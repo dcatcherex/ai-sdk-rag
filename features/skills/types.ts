@@ -57,6 +57,7 @@ export type Skill = {
   id: string;
   userId: string | null;
   name: string;
+  category: string | null;
   description: string | null;
   triggerType: SkillTriggerType;
   trigger: string | null;
@@ -127,6 +128,7 @@ export type AgentSkillAttachment = {
 
 export type CreateSkillInput = {
   name: string;
+  category?: string | null;
   description: string;
   activationMode?: SkillActivationMode;
   triggerType?: SkillTriggerType;
