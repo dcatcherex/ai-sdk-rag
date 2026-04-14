@@ -98,10 +98,16 @@ export const useAgents = () =>
   });
 
 export const useAgentSkillAttachments = (agentId: string | null) =>
+  useAgentSkillAttachmentsWithPrefix(agentId, '/api/agents');
+
+export const useAgentSkillAttachmentsWithPrefix = (
+  agentId: string | null,
+  routePrefix: string,
+) =>
   useQuery<AgentSkillAttachment[]>({
-    queryKey: agentId ? agentSkillAttachmentsKey(agentId) : ['agent-skill-attachments', 'new'],
+    queryKey: agentId ? [...agentSkillAttachmentsKey(agentId), routePrefix] : ['agent-skill-attachments', 'new', routePrefix],
     queryFn: async () => {
-      const res = await fetch(`/api/agents/${agentId}/skills`);
+      const res = await fetch(`${routePrefix}/${agentId}/skills`);
       if (!res.ok) throw new Error('Failed to load agent skill attachments');
       const data = await res.json() as AgentSkillAttachmentsResponse;
       return data.attachments;

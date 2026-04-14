@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { requestWorkspaceImageAssist, requestWorkspaceTextAssist } from '@/features/workspace-ai/client';
 import { AiSuggestionDialog } from '@/features/workspace-ai/components/ai-suggestion-dialog';
 import { Button } from '@/components/ui/button';
+import type { SettingsShellItem } from '@/components/settings-shell';
 import { persistGeneration } from '@/lib/clientPersist';
 import { getPollingService } from '@/lib/polling/GenerationPollingService';
 import { cn } from '@/lib/utils';
@@ -12,7 +13,7 @@ import { useSkills } from '@/features/skills/hooks/use-skills';
 import type { Brand } from '@/features/brands/types';
 import type { AgentSkillAttachmentInput, SkillActivationMode, SkillTriggerType } from '@/features/skills/types';
 import { useUserDocuments } from '../hooks/use-agent-documents';
-import { useAgentSkillAttachments } from '../hooks/use-agents';
+import { useAgentSkillAttachmentsWithPrefix } from '../hooks/use-agents';
 import { useUserSearch } from '../hooks/use-user-search';
 import { AgentBehaviorSection } from './agent-behavior-section';
 import { AgentGeneralSection } from './agent-general-section';
@@ -22,20 +23,25 @@ import { AgentSharingSection } from './agent-sharing-section';
 import { AgentSkillsSection } from './agent-skills-section';
 import { AgentToolsSection } from './agent-tools-section';
 import { AgentMcpSection } from './agent-mcp-section';
-import { AGENT_EDITOR_SECTIONS, type AgentEditorSectionId } from './agent-editor-sections';
+import { AGENT_EDITOR_SECTIONS, type AgentEditorSection, type AgentEditorSectionId } from './agent-editor-sections';
 import type { Agent, AgentWithSharing, CreateAgentInput, McpServerConfig, SharedUser } from '../types';
 
 type AgentFormProps = {
-  activeSection?: AgentEditorSectionId;
+  activeSection?: string;
   agent?: Agent | null;
+  customSections?: Array<SettingsShellItem<string> & { content: ReactNode }>;
+  enableBrandSelection?: boolean;
+  extraContent?: ReactNode;
   onCancel: () => void;
   onDirtyChange?: (isDirty: boolean) => void;
-  onSectionChange?: (section: AgentEditorSectionId) => void;
+  onSectionChange?: (section: string) => void;
   onSubmit: (data: CreateAgentInput) => void;
   isPending?: boolean;
   layout?: 'dialog' | 'panel';
   resetKey?: string | boolean;
+  skillAttachmentsRoutePrefix?: string;
   submitLabel: string;
+  visibleSections?: AgentEditorSectionId[];
 };
 
 type AgentCoverImageOptions = {
@@ -67,6 +73,9 @@ const normalizeSkillAttachmentsForForm = (agent?: Agent | AgentWithSharing | nul
 export function AgentForm({
   activeSection,
   agent,
+  customSections,
+  enableBrandSelection = true,
+  extraContent,
   onCancel,
   onDirtyChange,
   onSectionChange,
@@ -74,7 +83,9 @@ export function AgentForm({
   isPending,
   layout = 'dialog',
   resetKey,
+  skillAttachmentsRoutePrefix = '/api/agents',
   submitLabel,
+  visibleSections,
 }: AgentFormProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -106,7 +117,10 @@ export function AgentForm({
   const { data: searchResults = [] } = useUserSearch(shareSearch);
   const skillsQuery = useSkills();
   const userSkills = skillsQuery.data?.skills ?? [];
-  const { data: loadedSkillAttachments = [] } = useAgentSkillAttachments(agent?.id ?? null);
+  const { data: loadedSkillAttachments = [] } = useAgentSkillAttachmentsWithPrefix(
+    agent?.id ?? null,
+    skillAttachmentsRoutePrefix,
+  );
   const loadedAttachmentAgentIdRef = useRef<string | null>(null);
   const isInitializedRef = useRef(false);
   const hasUserEditedRef = useRef(false);
@@ -116,10 +130,15 @@ export function AgentForm({
 
   useEffect(() => {
     void (async () => {
+      if (!enableBrandSelection) {
+        setBrands([]);
+        return;
+      }
+
       const res = await fetch('/api/brands');
       if (res.ok) setBrands((await res.json()) as Brand[]);
     })();
-  }, []);
+  }, [enableBrandSelection]);
 
   useEffect(() => {
     isInitializedRef.current = false;
@@ -217,8 +236,19 @@ export function AgentForm({
   const showNoResults = shareSearch.trim().length >= 2 && searchResults.length === 0;
   const isValid = name.trim().length > 0 && systemPrompt.trim().length > 0;
   const isPanel = layout === 'panel';
-  const resolvedActiveSection = activeSection ?? 'general';
-  const activeSectionMeta = AGENT_EDITOR_SECTIONS.find((s) => s.id === resolvedActiveSection);
+  const allowedSections = visibleSections ?? AGENT_EDITOR_SECTIONS.map((section) => section.id);
+  const visibleSectionSet = new Set<AgentEditorSectionId>(allowedSections);
+  const filteredSections = AGENT_EDITOR_SECTIONS.filter((section) => visibleSectionSet.has(section.id));
+  const combinedSections = [
+    ...filteredSections,
+    ...(customSections ?? []),
+  ] satisfies Array<AgentEditorSection | SettingsShellItem<string>>;
+  const combinedSectionIds = new Set(combinedSections.map((section) => section.id));
+  const fallbackSection = combinedSections[0]?.id ?? 'general';
+  const resolvedActiveSection = activeSection && combinedSectionIds.has(activeSection)
+    ? activeSection
+    : fallbackSection;
+  const activeSectionMeta = combinedSections.find((s) => s.id === resolvedActiveSection);
 
   const addStarterPrompt = () => {
     const value = starterInput.trim();
@@ -465,7 +495,7 @@ export function AgentForm({
   const behaviorSection = (
     <AgentBehaviorSection
       brandId={brandId}
-      brands={brands}
+      brands={enableBrandSelection ? brands : []}
       onBrandChange={(value) => { markUserEdited(); setBrandId(value); }}
       systemPrompt={systemPrompt}
       onSystemPromptChange={(value) => { markUserEdited(); setSystemPrompt(value); }}
@@ -522,7 +552,7 @@ export function AgentForm({
     />
   );
 
-  const panelSectionContent: Record<AgentEditorSectionId, ReactNode> = {
+  const panelSectionContent: Record<string, ReactNode> = {
     general: generalSection,
     behavior: behaviorSection,
     skills: skillsSection,
@@ -531,6 +561,9 @@ export function AgentForm({
     mcp: mcpSection,
     sharing: sharingSection,
   };
+  for (const section of customSections ?? []) {
+    panelSectionContent[section.id] = section.content;
+  }
 
   const formActions = (
     <div className="flex items-center justify-end gap-2">
@@ -550,6 +583,7 @@ export function AgentForm({
           <AgentSettingsLayout
             activeSection={resolvedActiveSection}
             footer={formActions}
+            items={combinedSections}
             onSectionChange={onSectionChange ?? (() => undefined)}
             sectionDescription={activeSectionMeta?.description}
             sectionTitle={activeSectionMeta?.label ?? 'General'}
@@ -558,13 +592,14 @@ export function AgentForm({
           </AgentSettingsLayout>
         ) : (
           <>
-            {generalSection}
-            {behaviorSection}
-            {skillsSection}
-            {toolsSection}
-            {mcpSection}
-            {knowledgeSection}
-            {sharingSection}
+            {visibleSectionSet.has('general') ? generalSection : null}
+            {visibleSectionSet.has('behavior') ? behaviorSection : null}
+            {visibleSectionSet.has('skills') ? skillsSection : null}
+            {visibleSectionSet.has('tools') ? toolsSection : null}
+            {visibleSectionSet.has('mcp') ? mcpSection : null}
+            {visibleSectionSet.has('knowledge') ? knowledgeSection : null}
+            {visibleSectionSet.has('sharing') ? sharingSection : null}
+            {extraContent}
             {formActions}
           </>
         )}

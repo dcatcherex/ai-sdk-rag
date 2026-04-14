@@ -3,6 +3,7 @@ import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { agent } from '@/db/schema';
 import type { Agent, CatalogScope, CatalogStatus, CloneBehavior, UpdatePolicy } from '../types';
+import type { AgentSkillAttachmentInput } from '@/features/skills/types';
 import {
   getResolvedSkillIdsByAgentIds,
   getSkillAttachmentsForAgent,
@@ -15,12 +16,14 @@ type AdminAgentTemplateInput = {
   systemPrompt: string;
   modelId?: string | null;
   enabledTools?: string[];
+  skillAttachments?: AgentSkillAttachmentInput[];
   starterPrompts?: string[];
   imageUrl?: string | null;
   cloneBehavior?: CloneBehavior;
   updatePolicy?: UpdatePolicy;
   lockedFields?: string[];
   changelog?: string | null;
+  mcpServers?: Agent['mcpServers'];
 };
 
 function mapAgentRow(row: typeof agent.$inferSelect): Agent {
@@ -107,10 +110,15 @@ export async function createAdminAgentTemplate(input: AdminAgentTemplateInput): 
       publishedAt: null,
       archivedAt: null,
       changelog: input.changelog ?? null,
+      mcpServers: input.mcpServers ?? [],
       createdAt: now,
       updatedAt: now,
     })
     .returning();
+
+  if ((input.skillAttachments?.length ?? 0) > 0) {
+    await replaceSkillAttachmentsForAgent(row!.id, input.skillAttachments ?? []);
+  }
 
   return mapAgentRow(row!);
 }
@@ -133,10 +141,15 @@ export async function updateAdminAgentTemplate(
       ...(input.updatePolicy !== undefined && { updatePolicy: input.updatePolicy }),
       ...(input.lockedFields !== undefined && { lockedFields: input.lockedFields }),
       ...(input.changelog !== undefined && { changelog: input.changelog ?? null }),
+      ...(input.mcpServers !== undefined && { mcpServers: input.mcpServers }),
       updatedAt: new Date(),
     })
     .where(and(eq(agent.id, id), isNull(agent.userId), eq(agent.isTemplate, true), eq(agent.managedByAdmin, true)))
     .returning();
+
+  if (row && input.skillAttachments !== undefined) {
+    await replaceSkillAttachmentsForAgent(row.id, input.skillAttachments);
+  }
 
   return row ? mapAgentRow(row) : null;
 }

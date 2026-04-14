@@ -92,7 +92,7 @@ const SortablePinnedRow = ({
         type="button"
         onClick={onTogglePin}
         title="Unpin from sidebar"
-        className="flex size-6 shrink-0 items-center justify-center rounded-sm transition hover:bg-background"
+        className="flex size-6 shrink-0 items-center justify-center rounded-sm opacity-0 transition hover:bg-background group-hover:opacity-100 focus-visible:opacity-100"
       >
         <PinIcon className="size-3.5 fill-primary text-primary" />
       </button>
@@ -133,7 +133,7 @@ const UnpinnedRow = ({
       type="button"
       onClick={onTogglePin}
       title="Pin to sidebar"
-      className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition hover:bg-background hover:text-foreground"
+      className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition hover:bg-background hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
     >
       <PinIcon className="size-3.5" />
     </button>

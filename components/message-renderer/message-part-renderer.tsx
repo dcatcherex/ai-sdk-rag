@@ -7,6 +7,11 @@ import {
   ToolInput,
   ToolOutput,
 } from "@/components/ai-elements/tool";
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from "@/components/ai-elements/reasoning";
 import { Button } from "@/components/ui/button";
 import { memo } from "react";
 import { CheckIcon, XIcon } from "lucide-react";
@@ -43,6 +48,22 @@ function MessagePartRendererInner({
 
   if (part.type === "text") {
     return <MarkdownText key={key} content={part.text} isAssistant={role === "assistant"} />;
+  }
+
+  if (part.type === "reasoning") {
+    const isStreaming = part.state === "streaming";
+    const reasoningText = part.text.trim();
+
+    if (!isStreaming && reasoningText.length === 0) {
+      return null;
+    }
+
+    return (
+      <Reasoning key={key} defaultOpen={isStreaming} isStreaming={isStreaming}>
+        <ReasoningTrigger />
+        {reasoningText.length > 0 ? <ReasoningContent>{reasoningText}</ReasoningContent> : null}
+      </Reasoning>
+    );
   }
 
   if (isToolLikePart(part) && "state" in part) {

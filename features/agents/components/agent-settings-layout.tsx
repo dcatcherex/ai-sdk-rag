@@ -1,33 +1,33 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { SettingsShell } from '@/components/settings-shell';
-import type { AgentEditorSectionId } from './agent-editor-sections';
-import { AGENT_EDITOR_SECTIONS } from './agent-editor-sections';
+import { SettingsShell, type SettingsShellItem } from '@/components/settings-shell';
 
-type AgentSettingsLayoutProps = {
-  activeSection: AgentEditorSectionId;
+type AgentSettingsLayoutProps<T extends string> = {
+  activeSection: T;
   children: ReactNode;
   footer?: ReactNode;
   footerClassName?: string;
-  onSectionChange: (section: AgentEditorSectionId) => void;
+  items: SettingsShellItem<T>[];
+  onSectionChange: (section: T) => void;
   sectionDescription?: string;
   sectionTitle?: string;
 };
 
-export function AgentSettingsLayout({
+export function AgentSettingsLayout<T extends string>({
   activeSection,
   children,
   footer,
   footerClassName,
+  items,
   onSectionChange,
   sectionDescription,
   sectionTitle,
-}: AgentSettingsLayoutProps) {
+}: AgentSettingsLayoutProps<T>) {
   return (
     <SettingsShell
       activeItem={activeSection}
-      items={AGENT_EDITOR_SECTIONS}
+      items={items}
       onItemChange={onSectionChange}
       sectionTitle={sectionTitle ?? 'General'}
       sectionDescription={sectionDescription}

@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { AgentForm } from './agent-form';
-import type { AgentEditorSectionId } from './agent-editor-sections';
+import { AGENT_EDITOR_SECTIONS, type AgentEditorSectionId } from './agent-editor-sections';
 import type { Agent, CreateAgentInput } from '../types';
 
 type AgentEditorPanelProps = {
@@ -85,13 +85,14 @@ export function AgentEditorPanel({ agent, isPending, onBack, onSubmit }: AgentEd
           key={`${agent?.id ?? 'new'}:${agent?.modelId ?? 'auto'}`}
           activeSection={activeSection}
           agent={agent}
-          onSectionChange={setActiveSection}
+          onSectionChange={(section) => setActiveSection(section as AgentEditorSectionId)}
           onCancel={handleBack}
           onDirtyChange={setHasUnsavedChanges}
           onSubmit={onSubmit}
           isPending={isPending}
           layout="panel"
           submitLabel={isEdit ? 'Save changes' : 'Create agent'}
+          visibleSections={AGENT_EDITOR_SECTIONS.map((section) => section.id)}
         />
       </div>
 
