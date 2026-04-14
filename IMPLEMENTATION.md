@@ -428,6 +428,36 @@ POST /api/chat
 
 ---
 
+#### Skills in Chat
+
+Skills let an agent pick up specialized behavior and knowledge only when needed. When chat runs with an active agent, the system loads that agent's attached skills, checks which ones apply to the latest user message, and injects the matching skill instructions into the system prompt.
+
+There are two separate settings:
+
+| Setting | What it controls |
+|---------|------------------|
+| `activationMode` | How the skill becomes active: explicit rule or model discovery |
+| `triggerType` | Which explicit rule to use: always active, slash command, or keyword match |
+
+**How they work together**
+
+- `rule` + `always` - the skill is active on every message while that agent is selected
+- `rule` + `slash` - the skill activates only when the message starts with the configured slash command, such as `/email`
+- `rule` + `keyword` - the skill activates when the message contains the configured keyword
+- `model` + any trigger type - the trigger rule is ignored at runtime; the app scores the message against the skill's name, description, and prompt text, then activates the best-matching skills
+
+For model-discovered skills, the runtime first exposes them in an `available_skills` catalog, then promotes the top matches into `active_skills`. Activated skills can also contribute bundled reference files into `skill_resources`, plus any tools unlocked by that skill.
+
+**Examples**
+
+- A `brand-voice` skill using `rule` + `always` is present in every reply for that agent.
+- An `email-writer` skill using `rule` + `slash` with trigger `/email` activates for `/email draft a launch note`, but not for `please /email draft a launch note`.
+- A `thai-seo` skill using `model` can activate automatically for `help me plan keywords for a Thai clinic article`, even though the user did not type a command.
+
+Attachment settings can override the base skill per agent, so the same skill can be model-discovered for one agent and rule-based for another.
+
+---
+
 ### 7.2 Tool System
 
 Tools are AI capabilities that work in two contexts:

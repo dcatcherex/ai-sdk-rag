@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { BotIcon, CheckIcon, ChevronsUpDownIcon, SparklesIcon } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { BotIcon, CheckIcon, ChevronsUpDownIcon, PinIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 import type { Agent } from '@/features/agents/types';
+import { useChatVisibleAgents } from '@/features/agents/hooks/use-chat-visible-agents';
 
 type AiModeSelectorProps = {
   /** Personal agents filtered to those the user has activated (green dot). */
@@ -36,29 +37,38 @@ export const AiModeSelector = ({
   onSelectAgent,
 }: AiModeSelectorProps) => {
   const [open, setOpen] = useState(false);
+  const { pinnedAgentIds, isPinned, togglePinned } = useChatVisibleAgents();
 
   const allKnown = [...agents, ...essentials];
   const selectedAgent = allKnown.find((a) => a.id === selectedAgentId) ?? null;
-  const label = selectedAgent?.name ?? 'General coworker';
-  const isDefault = !selectedAgentId;
-  const isAgent = !!selectedAgentId;
+  const label = selectedAgent?.name ?? 'General Assistant';
 
   const select = (id: string) => { onSelectAgent(id); setOpen(false); };
-  const selectGeneral = () => { onSelectAgent(null); setOpen(false); };
+
+  const pinnedItems = useMemo(
+    () => pinnedAgentIds
+      .map((id) => allKnown.find((agent) => agent.id === id))
+      .filter((agent): agent is Agent => Boolean(agent)),
+    [allKnown, pinnedAgentIds],
+  );
+
+  const moreItems = useMemo(
+    () => [
+      ...essentials.filter((agent) => !pinnedAgentIds.includes(agent.id)),
+      ...agents.filter((agent) => !pinnedAgentIds.includes(agent.id)),
+    ],
+    [agents, essentials, pinnedAgentIds],
+  );
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
-          variant={isDefault ? 'ghost' : 'default'}
+          variant="default"
           size="sm"
           className="h-8 gap-1.5 px-2.5 text-xs"
         >
-          {isAgent ? (
-            <BotIcon className="size-3.5" />
-          ) : (
-            <SparklesIcon className="size-3.5" />
-          )}
+          <BotIcon className="size-3.5" />
           <span className="max-w-[100px] truncate">{label}</span>
           <ChevronsUpDownIcon className="size-3 opacity-50" />
         </Button>
@@ -69,72 +79,92 @@ export const AiModeSelector = ({
           <CommandList>
             <CommandEmpty>No results found.</CommandEmpty>
 
-            {/* Default — no agent */}
-            <CommandGroup>
-              <CommandItem value="general" onSelect={selectGeneral} className="text-xs">
-                <SparklesIcon className="size-3.5 mr-1.5 shrink-0" />
-                <span>General coworker</span>
-                <span className="ml-1.5 text-muted-foreground text-[10px]">best for first-time chat</span>
-                {isDefault && <CheckIcon className="ml-auto size-3.5" />}
-              </CommandItem>
-            </CommandGroup>
-
-            {/* Ready-to-use Essential templates — used directly, no clone created */}
-            {essentials.length > 0 && (
+            {pinnedItems.length > 0 && (
               <>
-                <CommandSeparator />
-                <CommandGroup heading="Ready-to-use">
-                  {essentials.map((ess) => (
+                <CommandGroup heading="Pinned">
+                  {pinnedItems.map((agent) => (
                     <CommandItem
-                      key={ess.id}
-                      value={`essential-${ess.id}-${ess.name}`}
-                      onSelect={() => select(ess.id)}
-                      className="text-xs"
+                      key={agent.id}
+                      value={`${agent.id}-${agent.name}`}
+                      onSelect={() => select(agent.id)}
+                      className="group text-xs"
                     >
                       <BotIcon
                         className={cn(
                           'size-3.5 mr-1.5 shrink-0',
-                          selectedAgentId === ess.id && 'text-primary',
+                          selectedAgentId === agent.id && 'text-primary',
                         )}
                       />
-                      <span className="truncate">{ess.name}</span>
-                      {selectedAgentId === ess.id && (
-                        <CheckIcon className="ml-auto size-3.5" />
-                      )}
+                      <span className="truncate">{agent.name}</span>
+                      <div className="ml-auto flex items-center gap-1">
+                        {selectedAgentId === agent.id && (
+                          <CheckIcon className="size-3.5" />
+                        )}
+                        <button
+                          type="button"
+                          aria-label={`Unpin ${agent.name}`}
+                          className="rounded p-0.5 text-primary opacity-0 transition hover:bg-accent group-hover:opacity-100 focus-visible:opacity-100"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            togglePinned(agent.id);
+                          }}
+                        >
+                          <PinIcon className="size-3.5 fill-current" />
+                        </button>
+                      </div>
                     </CommandItem>
                   ))}
                 </CommandGroup>
               </>
             )}
 
-            {/* Personal agents the user has activated (green dot ON) */}
-            {agents.length > 0 && (
+            {pinnedItems.length > 0 && moreItems.length > 0 && <CommandSeparator />}
+
+            {moreItems.length > 0 && (
               <>
-                <CommandSeparator />
-                <CommandGroup heading="My Agents">
-                  {agents.map((a) => (
+                <CommandGroup heading="More">
+                  {moreItems.map((agent) => (
                     <CommandItem
-                      key={a.id}
-                      value={a.id}
-                      onSelect={() => select(a.id)}
-                      className="text-xs"
+                      key={agent.id}
+                      value={`${agent.id}-${agent.name}`}
+                      onSelect={() => select(agent.id)}
+                      className="group text-xs"
                     >
                       <BotIcon
                         className={cn(
                           'size-3.5 mr-1.5 shrink-0',
-                          selectedAgentId === a.id && 'text-primary',
+                          selectedAgentId === agent.id && 'text-primary',
                         )}
                       />
-                      <span className="truncate">{a.name}</span>
-                      {selectedAgentId === a.id && (
-                        <CheckIcon className="ml-auto size-3.5" />
-                      )}
+                      <span className="truncate">{agent.name}</span>
+                      <div className="ml-auto flex items-center gap-1">
+                        {selectedAgentId === agent.id && (
+                          <CheckIcon className="size-3.5" />
+                        )}
+                        <button
+                          type="button"
+                          aria-label={`${isPinned(agent.id) ? 'Unpin' : 'Pin'} ${agent.name}`}
+                          className={cn(
+                            'rounded p-0.5 opacity-0 transition hover:bg-accent group-hover:opacity-100 focus-visible:opacity-100',
+                            isPinned(agent.id) ? 'text-primary' : 'text-muted-foreground',
+                          )}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            togglePinned(agent.id);
+                          }}
+                        >
+                          <PinIcon className={cn('size-3.5', isPinned(agent.id) && 'fill-current')} />
+                        </button>
+                      </div>
                     </CommandItem>
                   ))}
                 </CommandGroup>
               </>
             )}
-
           </CommandList>
         </Command>
       </PopoverContent>

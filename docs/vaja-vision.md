@@ -30,7 +30,7 @@ AI tools like ChatGPT, Claude, and Gemini have a fundamental access problem in T
 | Cost | Shared credit pools — one person buys, the group uses |
 | Knowledge | Contextual Skills Engine — domain skills load automatically |
 | App | LINE OA as the front door — no new app required |
-| Complexity | Agent-first — one general agent ready to use on first load, skills activate automatically |
+| Complexity | Agent-first — General Assistant is ready on first load, skills activate automatically |
 
 ---
 
@@ -62,7 +62,7 @@ Vaja is built for **Thai users who need AI to help them work**, not just chat. S
 │  ┌─────────────────┐    ┌─────────────────────────────┐ │
 │  │   Skills Engine  │    │      Agent Workspace        │ │
 │  │                 │    │                             │ │
-│  │  pest-disease   │───▶│  General Agent (default)    │ │
+│  │  pest-disease   │───▶│  General Assistant (default)│ │
 │  │  lesson-plan    │    │  Custom Agents              │ │
 │  │  customer-svc   │    │  Agent Teams                │ │
 │  │  farm-records   │    │                             │ │

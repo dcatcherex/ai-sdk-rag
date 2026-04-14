@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppAccessGuard } from '@/features/auth/components/app-access-guard';
 import { KnowledgeSheet } from '@/components/knowledge/knowledge-sheet';
 import { useDocumentStats } from '@/lib/hooks/use-documents';
@@ -87,11 +87,22 @@ function ChatShell() {
   const { isPersonalVisible, isEssentialVisible } = useChatVisibleAgents();
   const allAgents = agentsData?.agents ?? [];
   const allEssentials = agentsData?.essentials ?? [];
+  const defaultEssentialAgent =
+    allEssentials.find((agent) => agent.isDefault) ??
+    allEssentials.find((agent) => agent.name.toLowerCase() === 'general assistant') ??
+    null;
   // Personal agents: opt-in (green dot must be ON to appear in picker)
   // Essentials: opt-out (green dot is ON by default, user can turn off)
   const agents = allAgents.filter((a) => isPersonalVisible(a.id));
   const essentials = allEssentials.filter((a) => isEssentialVisible(a.id));
   const selectedAgent = [...allAgents, ...allEssentials].find((a) => a.id === selectedAgentId) ?? null;
+
+  useEffect(() => {
+    if (selectedAgentId !== null) return;
+    if (!defaultEssentialAgent) return;
+
+    setSelectedAgentId(defaultEssentialAgent.id);
+  }, [defaultEssentialAgent, selectedAgentId]);
 
   const { data: docStats } = useDocumentStats();
 
@@ -206,10 +217,11 @@ function ChatShell() {
   // model isn't silently bypassed by a previously pinned manual selection.
   const handleSelectAgent = useCallback(
     (id: string | null) => {
-      setSelectedAgentId(id);
-      if (id !== null) setSelectedModel('auto');
+      const nextAgentId = id ?? defaultEssentialAgent?.id ?? null;
+      setSelectedAgentId(nextAgentId);
+      if (nextAgentId !== null) setSelectedModel('auto');
     },
-    [setSelectedModel]
+    [defaultEssentialAgent, setSelectedModel]
   );
 
   const handleToggleWebSearch = useCallback(() => {

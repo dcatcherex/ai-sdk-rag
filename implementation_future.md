@@ -2,6 +2,10 @@
 
 This document collects the **optional next improvements** for the tool architecture after the current registry-based structure has stabilized.
 
+For the separate future proposal on **user-created tools as a product capability**, see:
+
+- `docs/user-created-tools-implementation.md`
+
 The current implementation is already in a good place:
 
 - each tool has a `manifest.ts`, `schema.ts`, `service.ts`, and `agent.ts`

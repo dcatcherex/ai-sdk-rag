@@ -8,6 +8,9 @@ const VISIBLE_KEY = 'chat-visible-agent-ids';
 /** Essentials: opt-out — shown by default, stored IDs are the hidden ones. */
 const HIDDEN_ESSENTIALS_KEY = 'chat-hidden-essential-ids';
 
+/** Picker pins — shown at the top of the agent selector. */
+const PINNED_AGENT_IDS_KEY = 'chat-pinned-agent-ids';
+
 function readSet(key: string): Set<string> {
   try {
     const raw = localStorage.getItem(key);
@@ -39,6 +42,19 @@ export function useChatVisibleAgents() {
     return readSet(HIDDEN_ESSENTIALS_KEY);
   });
 
+  const [pinnedAgentIds, setPinnedAgentIds] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+
+    try {
+      const raw = localStorage.getItem(PINNED_AGENT_IDS_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as string[];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
   /** Is a personal (Mine) agent shown in the picker? */
   const isPersonalVisible = useCallback(
     (id: string) => visiblePersonal.has(id),
@@ -49,6 +65,11 @@ export function useChatVisibleAgents() {
   const isEssentialVisible = useCallback(
     (id: string) => !hiddenEssentials.has(id),
     [hiddenEssentials],
+  );
+
+  const isPinned = useCallback(
+    (id: string) => pinnedAgentIds.includes(id),
+    [pinnedAgentIds],
   );
 
   /** Toggle a personal agent on/off in the picker. */
@@ -85,11 +106,25 @@ export function useChatVisibleAgents() {
     });
   }, []);
 
+  const togglePinned = useCallback((id: string) => {
+    setPinnedAgentIds((prev) => {
+      const next = prev.includes(id)
+        ? prev.filter((item) => item !== id)
+        : [...prev, id];
+
+      localStorage.setItem(PINNED_AGENT_IDS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   return {
     isPersonalVisible,
     isEssentialVisible,
+    pinnedAgentIds,
+    isPinned,
     togglePersonal,
     toggleEssential,
     activatePersonal,
+    togglePinned,
   };
 }
