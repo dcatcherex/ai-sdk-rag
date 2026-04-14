@@ -20,6 +20,10 @@ import { brandGuardrailsManifest } from '@/features/brand-guardrails/manifest';
 import { analyticsManifest } from '@/features/analytics/manifest';
 import { distributionManifest } from '@/features/distribution/manifest';
 import { recordKeeperManifest } from '@/features/record-keeper/manifest';
+import { googleSheetsManifest } from '@/features/google-sheets/manifest';
+import { googleDocsManifest } from '@/features/google-docs/manifest';
+import { googleDriveManifest } from '@/features/google-drive/manifest';
+import { googleSlidesManifest } from '@/features/google-slides/manifest';
 
 /** All registered tool manifests */
 export const TOOL_MANIFESTS: ToolManifest[] = [
@@ -38,6 +42,10 @@ export const TOOL_MANIFESTS: ToolManifest[] = [
   analyticsManifest,
   distributionManifest,
   recordKeeperManifest,
+  googleSheetsManifest,
+  googleDocsManifest,
+  googleDriveManifest,
+  googleSlidesManifest,
 ];
 
 /** Map from tool id → manifest */

@@ -7,6 +7,7 @@ Read this before creating any admin agent template or skill template.
 **Related documents:**
 - `docs/mcp-and-permission-policies-implementation.md` — implementation plan for MCP connector and per-tool permission policies
 - `docs/web-search-research-implementation.md` — web search / research capability
+- `docs/google-workspace-tools-implementation.md` — planned Google Sheets, Docs, Slides, and Drive tools
 
 ---
 
@@ -673,6 +674,15 @@ Language: Mirror user's language. For translation requests, produce both version
 ### Agent 7: Teacher Assistant
 
 **Purpose**: Creates lesson plans, exams, quizzes, worksheets, and learning materials for Thai teachers and trainers. Aligned to Ministry of Education format. Generates printable outputs via exam_builder and certificates.
+
+**Future Google Workspace expansion**: After `docs/google-workspace-tools-implementation.md` is implemented, Teacher Assistant is a strong candidate for optional Google Workspace tool access:
+
+- `google_sheets` for scorebooks, attendance, and class records
+- `google_docs` for homework sheets, handouts, and answer keys
+- `google_slides` for lesson decks and workshop slides
+- `google_drive` for storing generated teaching materials
+
+These should be attached as optional tools or unlocked by teacher-specific skills, not made mandatory for the zero-setup Essentials version.
 
 #### Agent record
 

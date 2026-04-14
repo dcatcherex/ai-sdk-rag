@@ -6,6 +6,9 @@ const envSchema = z.object({
   R2_SECRET_ACCESS_KEY: z.string().min(1),
   R2_BUCKET_NAME: z.string().min(1),
   R2_PUBLIC_BASE_URL: z.string().min(1),
+  /** Google Workspace OAuth app credentials */
+  GOOGLE_WORKSPACE_CLIENT_ID: z.string().optional(),
+  GOOGLE_WORKSPACE_CLIENT_SECRET: z.string().optional(),
   /** Meta (Facebook + Instagram) app credentials */
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),

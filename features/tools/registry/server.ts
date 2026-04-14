@@ -36,6 +36,14 @@ import { distributionManifest } from '@/features/distribution/manifest';
 import { createDistributionAgentTools } from '@/features/distribution/agent';
 import { recordKeeperManifest } from '@/features/record-keeper/manifest';
 import { createRecordKeeperAgentTools } from '@/features/record-keeper/agent';
+import { googleSheetsManifest } from '@/features/google-sheets/manifest';
+import { createGoogleSheetsAgentTools } from '@/features/google-sheets/agent';
+import { googleDocsManifest } from '@/features/google-docs/manifest';
+import { createGoogleDocsAgentTools } from '@/features/google-docs/agent';
+import { googleDriveManifest } from '@/features/google-drive/manifest';
+import { createGoogleDriveAgentTools } from '@/features/google-drive/agent';
+import { googleSlidesManifest } from '@/features/google-slides/manifest';
+import { createGoogleSlidesAgentTools } from '@/features/google-slides/agent';
 
 const SERVER_REGISTRY: RegisteredTool[] = [
   {
@@ -134,6 +142,30 @@ const SERVER_REGISTRY: RegisteredTool[] = [
     getAgentDefinition: (ctx: AgentToolContext) =>
       createRecordKeeperAgentTools({ userId: ctx.userId }),
     getSidebarPageHref: () => `/tools/${recordKeeperManifest.slug}`,
+  },
+  {
+    manifest: googleSheetsManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createGoogleSheetsAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${googleSheetsManifest.slug}`,
+  },
+  {
+    manifest: googleDocsManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createGoogleDocsAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${googleDocsManifest.slug}`,
+  },
+  {
+    manifest: googleDriveManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createGoogleDriveAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${googleDriveManifest.slug}`,
+  },
+  {
+    manifest: googleSlidesManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createGoogleSlidesAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${googleSlidesManifest.slug}`,
   },
 ];
 

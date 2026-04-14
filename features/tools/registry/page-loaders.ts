@@ -79,4 +79,28 @@ export const TOOL_PAGE_LOADERS: Record<string, ToolPageLoader> = {
     );
     return AnalyticsToolPage;
   },
+  'google-sheets': async () => {
+    const { GoogleSheetsToolPage } = await import(
+      '@/features/google-sheets/components/google-sheets-tool-page'
+    );
+    return GoogleSheetsToolPage;
+  },
+  'google-docs': async () => {
+    const { GoogleDocsToolPage } = await import(
+      '@/features/google-docs/components/google-docs-tool-page'
+    );
+    return GoogleDocsToolPage;
+  },
+  'google-drive': async () => {
+    const { GoogleDriveToolPage } = await import(
+      '@/features/google-drive/components/google-drive-tool-page'
+    );
+    return GoogleDriveToolPage;
+  },
+  'google-slides': async () => {
+    const { GoogleSlidesToolPage } = await import(
+      '@/features/google-slides/components/google-slides-tool-page'
+    );
+    return GoogleSlidesToolPage;
+  },
 };
