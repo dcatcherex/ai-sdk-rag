@@ -11,7 +11,7 @@ import { getPollingService } from '@/lib/polling/GenerationPollingService';
 import { cn } from '@/lib/utils';
 import { useSkills } from '@/features/skills/hooks/use-skills';
 import type { Brand } from '@/features/brands/types';
-import type { AgentSkillAttachmentInput, SkillActivationMode, SkillTriggerType } from '@/features/skills/types';
+import type { AgentSkillAttachmentInput, Skill, SkillActivationMode, SkillTriggerType } from '@/features/skills/types';
 import { useUserDocuments } from '../hooks/use-agent-documents';
 import { useAgentSkillAttachmentsWithPrefix } from '../hooks/use-agents';
 import { useUserSearch } from '../hooks/use-user-search';
@@ -29,6 +29,7 @@ import type { Agent, AgentWithSharing, CreateAgentInput, McpServerConfig, Shared
 type AgentFormProps = {
   activeSection?: string;
   agent?: Agent | null;
+  availableSkills?: Skill[];
   customSections?: Array<SettingsShellItem<string> & { content: ReactNode }>;
   enableBrandSelection?: boolean;
   extraContent?: ReactNode;
@@ -73,6 +74,7 @@ const normalizeSkillAttachmentsForForm = (agent?: Agent | AgentWithSharing | nul
 export function AgentForm({
   activeSection,
   agent,
+  availableSkills,
   customSections,
   enableBrandSelection = true,
   extraContent,
@@ -116,7 +118,7 @@ export function AgentForm({
   const { data: userDocuments = [], isLoading: docsLoading } = useUserDocuments();
   const { data: searchResults = [] } = useUserSearch(shareSearch);
   const skillsQuery = useSkills();
-  const userSkills = skillsQuery.data?.skills ?? [];
+  const userSkills = availableSkills ?? skillsQuery.data?.skills ?? [];
   const { data: loadedSkillAttachments = [] } = useAgentSkillAttachmentsWithPrefix(
     agent?.id ?? null,
     skillAttachmentsRoutePrefix,

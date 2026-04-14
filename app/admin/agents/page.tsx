@@ -28,10 +28,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AgentForm } from '@/features/agents/components/agent-form';
 import { AdminAgentCatalogSection } from '@/features/agents/components/admin-agent-catalog-section';
+import type { Skill } from '@/features/skills/types';
 import type { Agent, CreateAgentInput } from '@/features/agents/types';
 
 type AgentsResponse = {
   agents: Agent[];
+};
+
+type AdminSkillsResponse = {
+  skills: Skill[];
 };
 
 type CatalogFormState = {
@@ -57,11 +62,13 @@ function StatusBadge({ status }: { status: Agent['catalogStatus'] }) {
 
 function AdminAgentEditor({
   agent,
+  availableSkills,
   isPending = false,
   onBack,
   onSubmit,
 }: {
   agent: Agent | null;
+  availableSkills: Skill[];
   isPending?: boolean;
   onBack: () => void;
   onSubmit: (input: CreateAgentInput & CatalogFormState) => void;
@@ -133,12 +140,13 @@ function AdminAgentEditor({
         )}
       />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
-        <div className="mx-auto max-w-5xl">
+      <div className="min-h-0 flex-1 overflow-hidden px-6 py-6">
+        <div className="mx-auto flex h-full min-h-0 max-w-5xl flex-col">
           <AgentForm
             key={`${agent?.id ?? 'new'}:${agent?.updatedAt ?? 'draft'}`}
             activeSection={activeSection}
             agent={agent}
+            availableSkills={availableSkills}
             customSections={[
               {
                 id: ADMIN_CATALOG_SECTION_ID,
@@ -213,6 +221,16 @@ export default function AdminAgentsPage() {
       if (!res.ok) throw new Error('Failed to load admin agents');
       return res.json();
     },
+  });
+
+  const { data: adminSkillsData } = useQuery<AdminSkillsResponse>({
+    queryKey: ['admin', 'skills'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/skills');
+      if (!res.ok) throw new Error('Failed to load admin skills');
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
   });
 
   const saveMutation = useMutation({
@@ -295,6 +313,7 @@ export default function AdminAgentsPage() {
     return (
       <AdminAgentEditor
         agent={editingAgent}
+        availableSkills={adminSkillsData?.skills ?? []}
         isPending={saveMutation.isPending}
         onBack={() => {
           setEditingAgent(null);
