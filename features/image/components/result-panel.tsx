@@ -16,6 +16,8 @@ interface Props {
 }
 
 export function ResultPanel({ state, mode, onRetry, onNewImage, onUseAsReference }: Props) {
+  const outputUrls = state.outputs?.length ? state.outputs : state.output ? [state.output] : [];
+
   return (
     <div className="p-6 flex flex-col gap-4">
       <Label className="text-sm font-medium">Result</Label>
@@ -37,18 +39,22 @@ export function ResultPanel({ state, mode, onRetry, onNewImage, onUseAsReference
         </div>
       )}
 
-      {state.status === 'success' && state.output && (
+      {state.status === 'success' && outputUrls.length > 0 && (
         <div className="space-y-3">
-          <div className="rounded-xl overflow-hidden border">
-            <Image src={state.output} alt="Generated image" width={1536} height={1024} unoptimized className="w-full object-contain max-h-[520px] h-auto" />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {outputUrls.map((url, index) => (
+              <div key={`${url}-${index}`} className="rounded-xl overflow-hidden border">
+                <Image src={url} alt={`Generated image ${index + 1}`} width={1536} height={1024} unoptimized className="w-full object-contain max-h-[520px] h-auto" />
+              </div>
+            ))}
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
-              <CheckCircle2 className="h-4 w-4" /> Generation complete
+              <CheckCircle2 className="h-4 w-4" /> {outputUrls.length === 1 ? 'Generation complete' : `${outputUrls.length} images generated`}
             </div>
             <div className="flex-1" />
             <a
-              href={state.output}
+              href={outputUrls[0]}
               download="generated-image"
               target="_blank"
               rel="noopener noreferrer"
@@ -60,7 +66,7 @@ export function ResultPanel({ state, mode, onRetry, onNewImage, onUseAsReference
           </div>
           {mode === 'generate' && (
             <button
-              onClick={() => onUseAsReference(state.output!)}
+              onClick={() => onUseAsReference(outputUrls[0]!)}
               className="w-full rounded-lg border border-dashed py-2 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
             >
               Use this image as reference for editing →

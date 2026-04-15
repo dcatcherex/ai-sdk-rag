@@ -25,7 +25,9 @@ export function ImageGenerationToolPart({
   output,
 }: ImageGenerationToolPartProps) {
   const { state, startPoll } = useGenerationPoll();
-  const [resolvedImageUrl, setResolvedImageUrl] = useState(output.imageUrl);
+  const [resolvedImageUrls, setResolvedImageUrls] = useState<string[]>(
+    output.imageUrls?.length ? output.imageUrls : output.imageUrl ? [output.imageUrl] : [],
+  );
   const [elapsedMs, setElapsedMs] = useState(0);
 
   const startedAtMs = useMemo(() => {
@@ -35,8 +37,8 @@ export function ImageGenerationToolPart({
   }, [output.startedAt]);
 
   useEffect(() => {
-    if (output.imageUrl) {
-      setResolvedImageUrl(output.imageUrl);
+    if (output.imageUrls?.length || output.imageUrl) {
+      setResolvedImageUrls(output.imageUrls?.length ? output.imageUrls : output.imageUrl ? [output.imageUrl] : []);
       return;
     }
 
@@ -46,13 +48,13 @@ export function ImageGenerationToolPart({
   }, [output.generationId, output.imageUrl, output.taskId, startPoll, state.status]);
 
   useEffect(() => {
-    if (state.status === 'success' && state.output) {
-      setResolvedImageUrl(state.output);
+    if (state.status === 'success' && (state.outputs?.length || state.output)) {
+      setResolvedImageUrls(state.outputs?.length ? state.outputs : state.output ? [state.output] : []);
     }
-  }, [state.output, state.status]);
+  }, [state.output, state.outputs, state.status]);
 
   useEffect(() => {
-    if (resolvedImageUrl || state.status === 'failed' || state.status === 'timeout') {
+    if (resolvedImageUrls.length > 0 || state.status === 'failed' || state.status === 'timeout') {
       return;
     }
 
@@ -61,9 +63,9 @@ export function ImageGenerationToolPart({
 
     const intervalId = window.setInterval(updateElapsed, 1000);
     return () => window.clearInterval(intervalId);
-  }, [resolvedImageUrl, startedAtMs, state.status]);
+  }, [resolvedImageUrls, startedAtMs, state.status]);
 
-  const isWaiting = !resolvedImageUrl && (state.status === 'idle' || state.status === 'polling');
+  const isWaiting = resolvedImageUrls.length === 0 && (state.status === 'idle' || state.status === 'polling');
   const errorText = state.status === 'failed' || state.status === 'timeout'
     ? (state.error ?? 'Image generation failed.')
     : null;
@@ -82,37 +84,41 @@ export function ImageGenerationToolPart({
         </div>
       )}
 
-      {resolvedImageUrl && (
+      {resolvedImageUrls.length > 0 && (
         <div className="space-y-3 rounded-2xl border bg-muted/20 p-3">
-          <div className="overflow-hidden rounded-xl border bg-background">
-            <Image
-              src={resolvedImageUrl}
-              alt="Generated image"
-              width={1536}
-              height={1024}
-              unoptimized
-              className="h-auto max-h-[520px] w-full object-contain"
-            />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {resolvedImageUrls.map((imageUrl, index) => (
+              <div key={`${imageUrl}-${index}`} className="overflow-hidden rounded-xl border bg-background">
+                <Image
+                  src={imageUrl}
+                  alt={`Generated image ${index + 1}`}
+                  width={1536}
+                  height={1024}
+                  unoptimized
+                  className="h-auto max-h-[520px] w-full object-contain"
+                />
+              </div>
+            ))}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
               <CheckCircle2 className="size-4" />
-              Image ready
+              {resolvedImageUrls.length === 1 ? 'Image ready' : `${resolvedImageUrls.length} images ready`}
             </div>
             <div className="flex-1" />
             <Button asChild size="icon" variant="ghost" className="rounded-full">
-              <a href={resolvedImageUrl} download="generated-image" aria-label="Download image">
+              <a href={resolvedImageUrls[0]} download="generated-image" aria-label="Download image">
                 <Download className="size-4" />
               </a>
             </Button>
             <Button asChild size="sm" variant="outline">
-              <a href={resolvedImageUrl} target="_blank" rel="noopener noreferrer">
+              <a href={resolvedImageUrls[0]} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="size-3.5" />
                 Open
               </a>
             </Button>
             <Button asChild size="sm" variant="outline">
-              <a href={resolvedImageUrl} download="generated-image">
+              <a href={resolvedImageUrls[0]} download="generated-image">
                 <Download className="size-3.5" />
                 Download
               </a>

@@ -1,7 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { toolRun } from '@/db/schema';
-import { persistToolRunOutputToStorage } from '@/lib/generation/persist-tool-run-output';
+import { persistToolRunOutputToStorage, persistToolRunOutputsToStorage } from '@/lib/generation/persist-tool-run-output';
 import { isValidKieCallbackToken } from '@/lib/kie-callback';
 import { resolveKieJobsStatusPayload } from '@/app/api/generate/_shared/kieStatus';
 
@@ -100,6 +100,8 @@ export async function POST(req: Request) {
 
   const latency = Math.round(Date.now() - new Date(record.createdAt).getTime());
 
+  const resolvedOutputUrls = result.outputUrls?.length ? result.outputUrls : [result.outputUrl];
+
   await db.update(toolRun)
     .set({
       status: 'success',
@@ -107,6 +109,7 @@ export async function POST(req: Request) {
       outputJson: {
         ...outputJson,
         output: result.outputUrl,
+        outputs: resolvedOutputUrls,
         latency,
         callbackReceived: true,
       },
@@ -115,18 +118,35 @@ export async function POST(req: Request) {
 
   if (record.toolSlug === 'image' && result.outputUrl) {
     try {
-      await persistToolRunOutputToStorage({
-        generationId: record.id,
-        toolSlug: record.toolSlug,
-        userId: record.userId,
-        outputJson: {
-          ...outputJson,
-          output: result.outputUrl,
-          latency,
-          callbackReceived: true,
-        },
-        sourceUrl: result.outputUrl,
-      });
+      if (resolvedOutputUrls.length > 1) {
+        await persistToolRunOutputsToStorage({
+          generationId: record.id,
+          toolSlug: record.toolSlug,
+          userId: record.userId,
+          outputJson: {
+            ...outputJson,
+            output: result.outputUrl,
+            outputs: resolvedOutputUrls,
+            latency,
+            callbackReceived: true,
+          },
+          sourceUrls: resolvedOutputUrls,
+        });
+      } else {
+        await persistToolRunOutputToStorage({
+          generationId: record.id,
+          toolSlug: record.toolSlug,
+          userId: record.userId,
+          outputJson: {
+            ...outputJson,
+            output: result.outputUrl,
+            outputs: resolvedOutputUrls,
+            latency,
+            callbackReceived: true,
+          },
+          sourceUrl: result.outputUrl,
+        });
+      }
     } catch (persistError) {
       console.error('[kie/callback] Image persist failed:', persistError);
     }

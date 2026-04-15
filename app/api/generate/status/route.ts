@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { toolRun } from '@/db/schema';
 import { getKieApiKey } from '@/lib/api/routeGuards';
-import { persistToolRunOutputToStorage } from '@/lib/generation/persist-tool-run-output';
+import { persistToolRunOutputToStorage, persistToolRunOutputsToStorage } from '@/lib/generation/persist-tool-run-output';
 import { resolveKieTaskStatus } from '../_shared/kieStatus';
 import type { GenerationType } from '../_shared/kieStatus';
 
@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({
             status: 'success',
             output: outputJson.output,
+            outputUrls: Array.isArray(outputJson.outputs) ? outputJson.outputs : [outputJson.output],
             generationId: record.id,
             latency: outputJson.latency,
             type: generationType,
@@ -77,8 +78,9 @@ export async function GET(req: NextRequest) {
         }
 
         // Completed — persist result into toolRun.outputJson
-        const { outputUrl, audioMeta } = result;
+        const { outputUrl, outputUrls, audioMeta } = result;
         const latency = Math.round(Date.now() - new Date(record.createdAt).getTime());
+        const resolvedOutputUrls = outputUrls?.length ? outputUrls : [outputUrl];
 
         await db.update(toolRun)
             .set({
@@ -87,6 +89,7 @@ export async function GET(req: NextRequest) {
                 outputJson: {
                     ...outputJson,
                     output: outputUrl,
+                    outputs: resolvedOutputUrls,
                     latency,
                     ...(audioMeta ? { audioMeta } : {}),
                 },
@@ -94,22 +97,43 @@ export async function GET(req: NextRequest) {
             .where(eq(toolRun.id, generationId));
 
         let finalOutputUrl = outputUrl;
+        let finalOutputUrls = resolvedOutputUrls;
 
         if (generationType === 'image' && !outputUrl.startsWith(process.env.R2_PUBLIC_BASE_URL ?? '__never__')) {
             try {
-                const persisted = await persistToolRunOutputToStorage({
-                    generationId: record.id,
-                    toolSlug: record.toolSlug,
-                    userId: record.userId,
-                    outputJson: {
-                        ...outputJson,
-                        output: outputUrl,
-                        latency,
-                        ...(audioMeta ? { audioMeta } : {}),
-                    },
-                    sourceUrl: outputUrl,
-                });
-                finalOutputUrl = persisted.publicUrl;
+                if (resolvedOutputUrls.length > 1) {
+                    const persisted = await persistToolRunOutputsToStorage({
+                        generationId: record.id,
+                        toolSlug: record.toolSlug,
+                        userId: record.userId,
+                        outputJson: {
+                            ...outputJson,
+                            output: outputUrl,
+                            outputs: resolvedOutputUrls,
+                            latency,
+                            ...(audioMeta ? { audioMeta } : {}),
+                        },
+                        sourceUrls: resolvedOutputUrls,
+                    });
+                    finalOutputUrls = persisted.publicUrls;
+                    finalOutputUrl = persisted.publicUrls[0] ?? outputUrl;
+                } else {
+                    const persisted = await persistToolRunOutputToStorage({
+                        generationId: record.id,
+                        toolSlug: record.toolSlug,
+                        userId: record.userId,
+                        outputJson: {
+                            ...outputJson,
+                            output: outputUrl,
+                            outputs: resolvedOutputUrls,
+                            latency,
+                            ...(audioMeta ? { audioMeta } : {}),
+                        },
+                        sourceUrl: outputUrl,
+                    });
+                    finalOutputUrl = persisted.publicUrl;
+                    finalOutputUrls = [persisted.publicUrl];
+                }
             } catch (persistError) {
                 console.error('[status] Image persist failed:', persistError);
             }
@@ -122,6 +146,7 @@ export async function GET(req: NextRequest) {
         const responsePayload: Record<string, unknown> = {
             status: 'success',
             output: finalOutputUrl,
+            outputUrls: finalOutputUrls,
             generationId: record.id,
             latency,
             type: generationType,

@@ -67,3 +67,53 @@ export async function persistToolRunOutputToStorage(params: {
     sizeBytes,
   };
 }
+
+export async function persistToolRunOutputsToStorage(params: {
+  generationId: string;
+  toolSlug: string;
+  userId: string;
+  outputJson: Record<string, unknown>;
+  sourceUrls: string[];
+}) {
+  const { generationId, toolSlug, userId, outputJson, sourceUrls } = params;
+  const persistedItems = await Promise.all(
+    sourceUrls.map(async (sourceUrl) => {
+      const storage = getStorageService();
+      const persisted = await storage.uploadFromUrl(resolveBucketName(toolSlug), sourceUrl);
+
+      await db.insert(mediaAsset).values({
+        id: nanoid(),
+        userId,
+        type: TOOL_SLUG_TO_MEDIA_TYPE[toolSlug] ?? 'image',
+        r2Key: persisted.r2Key,
+        url: persisted.publicUrl,
+        mimeType: persisted.mimeType,
+        sizeBytes: persisted.sizeBytes,
+      }).onConflictDoNothing();
+
+      return {
+        sourceUrl,
+        publicUrl: persisted.publicUrl,
+      };
+    }),
+  );
+
+  const publicUrls = persistedItems.map((item) => item.publicUrl);
+
+  await db
+    .update(toolRun)
+    .set({
+      outputJson: {
+        ...outputJson,
+        sourceOutput: sourceUrls[0] ?? null,
+        sourceOutputs: sourceUrls,
+        output: publicUrls[0] ?? null,
+        outputs: publicUrls,
+      },
+    })
+    .where(eq(toolRun.id, generationId));
+
+  return {
+    publicUrls,
+  };
+}

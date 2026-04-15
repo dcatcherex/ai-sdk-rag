@@ -20,6 +20,7 @@ export interface PollTask {
 export interface PollStatusResponse {
   status: 'pending' | 'processing' | 'success' | 'failed';
   output?: string;
+  outputUrls?: string[];
   error?: string;
   latency?: number;
   type?: string;
@@ -33,6 +34,7 @@ export interface PollStatusResponse {
 export interface PollResult {
   status: 'success' | 'failed' | 'timeout' | 'aborted';
   output?: string;
+  outputUrls?: string[];
   error?: string;
   latency?: number;
   type?: string;
@@ -110,6 +112,7 @@ export class GenerationPollingService {
           return {
             status: 'success',
             output: statusResponse.output,
+            outputUrls: statusResponse.outputUrls,
             latency: statusResponse.latency,
             type: statusResponse.type,
             audioMeta: statusResponse.audioMeta,

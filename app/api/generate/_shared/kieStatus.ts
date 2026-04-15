@@ -26,13 +26,68 @@ export interface AudioMeta {
 
 export type KieTaskResult =
     | { status: 'processing' }
-    | { status: 'completed'; outputUrl: string; audioMeta?: AudioMeta }
+    | { status: 'completed'; outputUrl: string; outputUrls?: string[]; audioMeta?: AudioMeta }
     | { status: 'failed'; error: string };
 
 export interface KieJobsStatusPayload {
     code?: number;
     msg?: string;
     data?: Record<string, any> | null;
+}
+
+function collectImageUrls(taskInfo: Record<string, any>): string[] {
+    const collected: string[] = [];
+    const pushUrl = (value: unknown) => {
+        if (typeof value === 'string' && value.trim().length > 0) {
+            collected.push(value);
+        }
+    };
+
+    if (taskInfo.resultJson) {
+        try {
+            const parsed = JSON.parse(taskInfo.resultJson);
+            if (Array.isArray(parsed.resultUrls)) {
+                parsed.resultUrls.forEach(pushUrl);
+            }
+            if (Array.isArray(parsed.images)) {
+                parsed.images.forEach((image: unknown) => {
+                    if (typeof image === 'string') {
+                        pushUrl(image);
+                        return;
+                    }
+                    if (image && typeof image === 'object') {
+                        pushUrl((image as { url?: unknown }).url);
+                    }
+                });
+            }
+        } catch { /* ignore */ }
+    }
+
+    if (Array.isArray(taskInfo.resultUrls)) {
+        taskInfo.resultUrls.forEach(pushUrl);
+    }
+
+    if (Array.isArray(taskInfo.results)) {
+        taskInfo.results.forEach((item: unknown) => {
+            if (item && typeof item === 'object') {
+                pushUrl((item as { url?: unknown }).url);
+            }
+        });
+    }
+
+    if (Array.isArray(taskInfo.images)) {
+        taskInfo.images.forEach((item: unknown) => {
+            if (typeof item === 'string') {
+                pushUrl(item);
+                return;
+            }
+            if (item && typeof item === 'object') {
+                pushUrl((item as { url?: unknown }).url);
+            }
+        });
+    }
+
+    return Array.from(new Set(collected));
 }
 
 export function resolveKieJobsStatusPayload(statusData: KieJobsStatusPayload): KieTaskResult {
@@ -60,23 +115,10 @@ export function resolveKieJobsStatusPayload(statusData: KieJobsStatusPayload): K
         return { status: 'failed', error: `Generation failed: ${error}` };
     }
 
-    let outputUrl = '';
-    if (taskInfo.resultJson) {
-        try {
-            const parsed = JSON.parse(taskInfo.resultJson);
-            if (parsed.resultUrls?.length > 0) {
-                outputUrl = parsed.resultUrls[0];
-            } else if (parsed.images?.length > 0) {
-                outputUrl = parsed.images[0].url || parsed.images[0];
-            }
-        } catch { /* ignore */ }
+    const outputUrls = collectImageUrls(taskInfo);
+    if (outputUrls.length > 0) {
+        return { status: 'completed', outputUrl: outputUrls[0]!, outputUrls };
     }
-    if (!outputUrl) {
-        if (taskInfo.results?.length > 0) outputUrl = taskInfo.results[0].url;
-        else if (taskInfo.images?.length > 0) outputUrl = taskInfo.images[0].url;
-    }
-
-    if (outputUrl) return { status: 'completed', outputUrl };
     return { status: 'failed', error: 'No output URL in result' };
 }
 

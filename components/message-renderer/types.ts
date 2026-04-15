@@ -131,6 +131,7 @@ export type ImageGenerationToolOutput = {
   taskId?: string;
   generationId?: string;
   imageUrl?: string;
+  imageUrls?: string[];
   startedAt?: string;
   message?: string;
 };

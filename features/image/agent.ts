@@ -29,10 +29,10 @@ export function createImageAgentTools(ctx: Pick<AgentToolContext, 'userId'>) {
           'qwen/image-edit',
           'grok-imagine/text-to-image',
           'grok-imagine/image-to-image',
-        ]).optional().default('nano-banana-2').describe('Model to use. Default: nano-banana-2'),
+        ]).optional().default('grok-imagine/text-to-image').describe('Model to use. Default: grok-imagine/text-to-image'),
         aspectRatio: z.string().optional().describe('Aspect ratio e.g. "16:9", "1:1", "9:16"'),
         quality: z.enum(['medium', 'high']).optional().describe('Quality for GPT Image models'),
-        enablePro: z.boolean().optional().describe('Enable pro/quality mode for Grok Imagine models'),
+        enablePro: z.boolean().optional().default(true).describe('Enable pro/quality mode for Grok Imagine models. Default: true'),
       }),
       async execute(params) {
         const { taskId, generationId } = await triggerImageGeneration(

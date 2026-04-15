@@ -111,6 +111,7 @@ export const ASPECT_RATIO_DIMS: Record<string, [number, number]> = {
 export interface ImageGenerationState {
   status: 'idle' | 'polling' | 'success' | 'failed' | 'timeout';
   output?: string;
+  outputs?: string[];
   error?: string;
   generationId?: string;
 }

@@ -8,6 +8,7 @@ export type PollStatus = 'idle' | 'polling' | 'success' | 'failed' | 'timeout';
 export interface GenerationPollState {
   status: PollStatus;
   output?: string;
+  outputs?: string[];
   error?: string;
   generationId?: string;
 }
@@ -49,7 +50,7 @@ export function useGenerationPoll(): UseGenerationPollReturn {
     }
 
     if (result.status === 'success') {
-      setState({ status: 'success', output: result.output, generationId });
+      setState({ status: 'success', output: result.output, outputs: result.outputUrls, generationId });
     } else if (result.status === 'failed') {
       setState({ status: 'failed', error: result.error, generationId });
     } else {
