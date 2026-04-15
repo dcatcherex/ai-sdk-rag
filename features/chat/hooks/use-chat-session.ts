@@ -57,7 +57,10 @@ export const useChatSession = ({
 }: UseChatSessionOptions) => {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [isSyncingFollowUpSuggestions, setIsSyncingFollowUpSuggestions] = useState(false);
+  const [queuedMessageCount, setQueuedMessageCount] = useState(0);
   const prevThreadIdRef = useRef<string>('');
+  const queuedMessagesRef = useRef<PromptInputMessage[]>([]);
+  const isDispatchingQueuedRef = useRef(false);
 
   const transport = useMemo(
     () =>
@@ -112,6 +115,14 @@ export const useChatSession = ({
       }
     },
   });
+
+  const dispatchMessage = useCallback(
+    async ({ text, files }: PromptInputMessage) => {
+      await ensureThread();
+      sendMessage({ text, files });
+    },
+    [ensureThread, sendMessage]
+  );
 
   const mergeFollowUpSuggestions = useCallback((messagesToMerge: ChatMessage[]) => {
     setMessages((current) => {
@@ -207,6 +218,28 @@ export const useChatSession = ({
     mergeFollowUpSuggestions(activeMessages);
   }, [activeMessages, mergeFollowUpSuggestions, status]);
 
+  useEffect(() => {
+    if (status === 'ready') {
+      isDispatchingQueuedRef.current = false;
+    }
+  }, [status]);
+
+  useEffect(() => {
+    if (status !== 'ready' || queuedMessagesRef.current.length === 0 || isDispatchingQueuedRef.current) {
+      return;
+    }
+
+    const nextMessage = queuedMessagesRef.current.shift();
+    if (!nextMessage) {
+      setQueuedMessageCount(0);
+      return;
+    }
+
+    isDispatchingQueuedRef.current = true;
+    setQueuedMessageCount(queuedMessagesRef.current.length);
+    void dispatchMessage(nextMessage);
+  }, [dispatchMessage, status, queuedMessageCount]);
+
   const copyToClipboard = useCallback(async (messageId: string, text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -222,10 +255,17 @@ export const useChatSession = ({
       if (text.trim().length === 0 && files.length === 0) {
         return;
       }
-      await ensureThread();
-      sendMessage({ text, files });
+
+      if (status === 'submitted' || status === 'streaming') {
+        await ensureThread();
+        queuedMessagesRef.current.push({ text, files });
+        setQueuedMessageCount(queuedMessagesRef.current.length);
+        return;
+      }
+
+      await dispatchMessage({ text, files });
     },
-    [ensureThread, sendMessage]
+    [dispatchMessage, ensureThread, status]
   );
 
   const regenerateMessage = useCallback(
@@ -301,6 +341,7 @@ export const useChatSession = ({
     status,
     error,
     stop,
+    queuedMessageCount,
     isSyncingFollowUpSuggestions,
     copiedMessageId,
     copyToClipboard,

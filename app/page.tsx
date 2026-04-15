@@ -143,6 +143,7 @@ function ChatShell() {
     status,
     error,
     stop,
+    queuedMessageCount,
     isSyncingFollowUpSuggestions,
     copiedMessageId,
     copyToClipboard,
@@ -443,6 +444,7 @@ function ChatShell() {
                 status={status}
                 error={error}
                 selectedModel={selectedModel}
+                queuedMessageCount={queuedMessageCount}
                 selectorModels={selectorModels}
                 currentModel={currentModel}
                 modelSelectorOpen={modelSelectorOpen}

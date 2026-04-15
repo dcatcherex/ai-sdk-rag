@@ -13,6 +13,7 @@ import type { VoiceState } from '@/features/chat/hooks/use-live-voice';
 
 export type ComposerActionButtonsProps = {
   status: ChatStatus;
+  queuedMessageCount?: number;
   voiceOpen: boolean;
   voiceState?: VoiceState;
   speakAloud?: boolean;
@@ -25,6 +26,7 @@ export type ComposerActionButtonsProps = {
 
 export const ComposerActionButtons = ({
   status,
+  queuedMessageCount = 0,
   voiceOpen,
   speakAloud,
   onStop,
@@ -72,7 +74,17 @@ export const ComposerActionButtons = ({
 
   if (isGenerating) {
     return (
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-2">
+        {(!isEmpty || isDictating) ? (
+          <div className="relative">
+            <PromptInputSubmit />
+            {queuedMessageCount > 0 ? (
+              <span className="absolute -right-1.5 -top-1.5 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] font-medium leading-4 text-primary-foreground">
+                {queuedMessageCount + 1}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         <PromptInputSubmit onStop={onStop} status={status} />
       </div>
     );

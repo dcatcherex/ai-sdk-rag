@@ -110,6 +110,7 @@ export type ChatComposerProps = {
   status: ChatStatus;
   error?: Error;
   selectedModel: string;
+  queuedMessageCount?: number;
   selectorModels: { id: string; name: string; provider: string }[];
   currentModel: { name: string; provider: string };
   modelSelectorOpen: boolean;
@@ -226,6 +227,7 @@ export function ChatComposer({
   status,
   error,
   selectedModel,
+  queuedMessageCount = 0,
   selectorModels,
   currentModel,
   modelSelectorOpen,
@@ -460,6 +462,7 @@ export function ChatComposer({
             </PromptInputTools>
             <ComposerActionButtons
               status={status}
+              queuedMessageCount={queuedMessageCount}
               voiceOpen={voiceOpen}
               voiceState={voiceState}
               speakAloud={speakAloud}

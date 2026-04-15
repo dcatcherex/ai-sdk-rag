@@ -60,6 +60,26 @@ type ImageAttachmentPart = {
   mediaType: string;
 };
 
+function isImplicitImageEditRequest(prompt: string | null | undefined): boolean {
+  if (!prompt) return false;
+
+  const lower = prompt.toLowerCase();
+  return (
+    /\b(change|edit|modify|update|replace|remove|erase|add|make|turn)\b/.test(lower) ||
+    lower.includes('make it') ||
+    lower.includes('change it') ||
+    lower.includes('edit this') ||
+    lower.includes('edit the image') ||
+    lower.includes('same image') ||
+    lower.includes('this image') ||
+    lower.includes('this one') ||
+    lower.includes('the cat') ||
+    lower.includes('the dog') ||
+    lower.includes('background') ||
+    lower.includes('color')
+  );
+}
+
 function getImageAttachmentParts(message: ChatMessage | undefined): ImageAttachmentPart[] {
   if (!message?.parts?.length) return [];
 
@@ -73,6 +93,18 @@ function getImageAttachmentParts(message: ChatMessage | undefined): ImageAttachm
       record.mediaType.startsWith('image/')
     );
   });
+}
+
+function getLatestAssistantImageParts(messages: ChatMessage[]): ImageAttachmentPart[] {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role !== 'assistant') continue;
+
+    const imageParts = getImageAttachmentParts(message);
+    if (imageParts.length > 0) return imageParts;
+  }
+
+  return [];
 }
 
 function parseImageDataUrl(url: string): Buffer | null {
@@ -447,6 +479,22 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
     }
 
     // ── System prompt assembly ───────────────────────────────────────────────
+    const latestAssistantImageParts = getLatestAssistantImageParts(messagesToSend);
+    const shouldAutoReuseLastImage =
+      latestAssistantImageParts.length > 0 &&
+      getImageAttachmentParts([...messagesToSend].reverse().find((message) => message.role === 'user')).length === 0 &&
+      isImplicitImageEditRequest(lastUserPrompt);
+
+    const latestImageToolBlock =
+      supportsTools && latestAssistantImageParts.length > 0
+        ? `\n\n<latest_generated_images>
+The most recent assistant-generated image(s) in this thread:
+${latestAssistantImageParts.map((part, index) => `${index + 1}. ${part.url}`).join('\n')}
+</latest_generated_images>
+
+IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or continue from the most recently generated image without attaching a new image, treat the image above as the reference image automatically. When calling the \`generate_image\` tool for that kind of follow-up, include these URL(s) in \`imageUrls\` instead of generating from scratch.`
+        : '';
+
     const effectiveSystemPrompt = assembleSystemPrompt({
       base: baseSystemPrompt,
       conversationSummaryBlock,
@@ -459,7 +507,7 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
       examPrepBlock: examPrepToolInstructions,
       certBlock: certificateToolInstructions,
       quizContextBlock: supportsTools ? quizContextBlock : '',
-    });
+    }) + latestImageToolBlock;
 
     const messageMetadata = (): ChatMessageMetadata => ({
       routing: routingMetadata,
@@ -482,8 +530,13 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
         : baseImagePrompt;
       const latestUserMessage = [...messagesToSend].reverse().find((message) => message.role === 'user');
       const latestUserImageParts = getImageAttachmentParts(latestUserMessage);
-      const imageInputs = latestUserImageParts.length > 0
-        ? await Promise.all(latestUserImageParts.map(resolveImageAttachmentInput))
+      const effectiveImageParts = latestUserImageParts.length > 0
+        ? latestUserImageParts
+        : shouldAutoReuseLastImage
+          ? latestAssistantImageParts
+          : [];
+      const imageInputs = effectiveImageParts.length > 0
+        ? await Promise.all(effectiveImageParts.map(resolveImageAttachmentInput))
         : [];
       const imagePromptInput =
         imageInputs.length > 0
