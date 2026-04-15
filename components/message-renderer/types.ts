@@ -132,6 +132,8 @@ export type ImageGenerationToolOutput = {
   generationId?: string;
   imageUrl?: string;
   imageUrls?: string[];
+  thumbnailUrl?: string;
+  thumbnailUrls?: string[];
   startedAt?: string;
   message?: string;
 };

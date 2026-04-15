@@ -40,6 +40,8 @@ type ToolOutputWithGenerationId = {
   generationId?: string;
   imageUrl?: string;
   imageUrls?: string[];
+  thumbnailUrl?: string;
+  thumbnailUrls?: string[];
 };
 
 const isImageFilePart = (part: UIMessagePart<any, any>): part is ImageFilePart => {
@@ -90,6 +92,16 @@ const getPersistedImageUrls = (outputJson: Record<string, unknown> | null): stri
     return outputs.filter((value): value is string => typeof value === "string" && value.length > 0);
   }
   const output = outputJson.output;
+  return typeof output === "string" && output.length > 0 ? [output] : [];
+};
+
+const getPersistedThumbnailUrls = (outputJson: Record<string, unknown> | null): string[] => {
+  if (!outputJson) return [];
+  const outputs = outputJson.thumbnailUrls;
+  if (Array.isArray(outputs)) {
+    return outputs.filter((value): value is string => typeof value === "string" && value.length > 0);
+  }
+  const output = outputJson.thumbnailUrl;
   return typeof output === "string" && output.length > 0 ? [output] : [];
 };
 
@@ -247,6 +259,7 @@ export async function GET(
         if (run) {
           if (run.status === "success") {
             const imageUrls = getPersistedImageUrls(run.outputJson);
+            const thumbnailUrls = getPersistedThumbnailUrls(run.outputJson);
             return {
               ...part,
               state: "output-available",
@@ -254,6 +267,8 @@ export async function GET(
                 ...(part.output ?? {}),
                 ...(imageUrls[0] ? { imageUrl: imageUrls[0] } : {}),
                 ...(imageUrls.length > 0 ? { imageUrls } : {}),
+                ...(thumbnailUrls[0] ? { thumbnailUrl: thumbnailUrls[0] } : {}),
+                ...(thumbnailUrls.length > 0 ? { thumbnailUrls } : {}),
                 status: "success",
               },
               errorText: undefined,

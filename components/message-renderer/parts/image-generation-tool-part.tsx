@@ -45,6 +45,12 @@ export function ImageGenerationToolPart({
     output.imageUrls?.length ? output.imageUrls : output.imageUrl ? [output.imageUrl] : [],
   );
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [loadedUrls, setLoadedUrls] = useState<Record<string, boolean>>({});
+  const resolvedThumbnailUrls = output.thumbnailUrls?.length
+    ? output.thumbnailUrls
+    : output.thumbnailUrl
+      ? [output.thumbnailUrl]
+      : [];
 
   const startedAtMs = useMemo(() => {
     if (!output.startedAt) return Date.now();
@@ -113,13 +119,29 @@ export function ImageGenerationToolPart({
           <div className="grid gap-3 sm:grid-cols-2">
             {resolvedImageUrls.map((imageUrl, index) => (
               <div key={`${imageUrl}-${index}`} className="group relative overflow-hidden rounded-xl border bg-background">
+                {resolvedThumbnailUrls[index] ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={resolvedThumbnailUrls[index]}
+                    alt=""
+                    aria-hidden="true"
+                    className={cn(
+                      "absolute inset-0 h-full w-full object-cover transition-opacity duration-300",
+                      loadedUrls[imageUrl] ? "opacity-0" : "opacity-100",
+                    )}
+                  />
+                ) : null}
                 <Image
                   src={imageUrl}
                   alt={`Generated image ${index + 1}`}
                   width={1536}
                   height={1024}
                   unoptimized
-                  className="h-auto max-h-[520px] w-full object-contain"
+                  className={cn(
+                    "h-auto max-h-[520px] w-full object-contain transition-opacity duration-300",
+                    loadedUrls[imageUrl] ? "opacity-100" : "opacity-0",
+                  )}
+                  onLoad={() => setLoadedUrls((current) => ({ ...current, [imageUrl]: true }))}
                 />
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                 <div className="absolute right-3 bottom-3 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
