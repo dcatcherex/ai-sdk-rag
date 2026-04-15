@@ -1,7 +1,9 @@
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { toolRun } from '@/db/schema';
 import { persistToolRunOutputToStorage, persistToolRunOutputsToStorage } from '@/lib/generation/persist-tool-run-output';
+import { completeMediaRun } from '@/lib/generation/complete-media-run';
+import { failMediaRun } from '@/lib/generation/fail-media-run';
 import { isValidKieCallbackToken } from '@/lib/kie-callback';
 import { resolveKieJobsStatusPayload } from '@/app/api/generate/_shared/kieStatus';
 
@@ -84,16 +86,12 @@ export async function POST(req: Request) {
   const outputJson = (record.outputJson ?? {}) as Record<string, unknown>;
 
   if (result.status === 'failed') {
-    await db.update(toolRun)
-      .set({
-        status: 'error',
-        errorMessage: result.error,
-        outputJson: {
-          ...outputJson,
-          callbackReceived: true,
-        },
-      })
-      .where(eq(toolRun.id, record.id));
+    await failMediaRun({
+      generationId: record.id,
+      errorMessage: result.error ?? 'Generation failed',
+      existingOutputJson: outputJson,
+      extra: { callbackReceived: true },
+    });
 
     return Response.json({ ok: true, status: 'failed' });
   }
@@ -102,19 +100,14 @@ export async function POST(req: Request) {
 
   const resolvedOutputUrls = result.outputUrls?.length ? result.outputUrls : [result.outputUrl];
 
-  await db.update(toolRun)
-    .set({
-      status: 'success',
-      completedAt: new Date(),
-      outputJson: {
-        ...outputJson,
-        output: result.outputUrl,
-        outputs: resolvedOutputUrls,
-        latency,
-        callbackReceived: true,
-      },
-    })
-    .where(eq(toolRun.id, record.id));
+  await completeMediaRun({
+    generationId: record.id,
+    outputUrl: result.outputUrl,
+    outputUrls: resolvedOutputUrls,
+    latency,
+    existingOutputJson: outputJson,
+    extra: { callbackReceived: true },
+  });
 
   if (record.toolSlug === 'image' && result.outputUrl) {
     try {

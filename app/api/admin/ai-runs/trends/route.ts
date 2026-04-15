@@ -1,4 +1,4 @@
-import { and, eq, gte, lt, sql } from 'drizzle-orm';
+import { gte, lt, sql } from 'drizzle-orm';
 import { chatRun, toolRun, workspaceAiRun } from '@/db/schema';
 import { db } from '@/lib/db';
 import { requireAdmin } from '@/lib/admin';
@@ -23,7 +23,11 @@ export async function GET(req: Request) {
   const endExclusive = parseDateExclusiveEnd(dateTo) ?? tomorrowUtc();
   const startInclusive = parseDateStart(dateFrom) ?? daysBeforeUtc(endExclusive, 29);
 
-  const [chatRows, workspaceRows, toolRows] = await Promise.all([
+  const durationMs = endExclusive.getTime() - startInclusive.getTime();
+  const prevEndExclusive = startInclusive;
+  const prevStartInclusive = new Date(startInclusive.getTime() - durationMs);
+
+  const [chatRows, workspaceRows, toolRows, latencyRow, prevChatRow, prevWorkspaceRow, prevToolRow] = await Promise.all([
     db.execute(sql`
       select
         to_char(date_trunc('day', ${chatRun.createdAt}), 'YYYY-MM-DD') as day,
@@ -59,6 +63,41 @@ export async function GET(req: Request) {
       group by 1
       order by 1 asc
     `),
+    db.execute(sql`
+      select
+        round(avg(extract(epoch from (${chatRun.completedAt} - ${chatRun.startedAt})) * 1000))::int as avg_latency_ms
+      from ${chatRun}
+      where ${chatRun.createdAt} >= ${startInclusive}
+        and ${chatRun.createdAt} < ${endExclusive}
+        and ${chatRun.completedAt} is not null
+        and ${chatRun.startedAt} is not null
+    `),
+    db.execute(sql`
+      select
+        coalesce(count(*)::int, 0) as run_count,
+        coalesce(count(*) filter (where ${chatRun.status} = 'error')::int, 0) as error_count,
+        coalesce(sum(${chatRun.totalTokens}), 0)::int as token_total,
+        coalesce(sum(${chatRun.creditCost}), 0)::int as credit_total
+      from ${chatRun}
+      where ${chatRun.createdAt} >= ${prevStartInclusive}
+        and ${chatRun.createdAt} < ${prevEndExclusive}
+    `),
+    db.execute(sql`
+      select
+        coalesce(count(*)::int, 0) as run_count,
+        coalesce(count(*) filter (where ${workspaceAiRun.status} = 'error')::int, 0) as error_count
+      from ${workspaceAiRun}
+      where ${workspaceAiRun.createdAt} >= ${prevStartInclusive}
+        and ${workspaceAiRun.createdAt} < ${prevEndExclusive}
+    `),
+    db.execute(sql`
+      select
+        coalesce(count(*)::int, 0) as run_count,
+        coalesce(count(*) filter (where ${toolRun.status} = 'error')::int, 0) as error_count
+      from ${toolRun}
+      where ${toolRun.createdAt} >= ${prevStartInclusive}
+        and ${toolRun.createdAt} < ${prevEndExclusive}
+    `),
   ]);
 
   const runtimeRows: RuntimeTrendRow[] = [
@@ -66,6 +105,20 @@ export async function GET(req: Request) {
     ...normalizeTrendRows(workspaceRows.rows, 'workspace'),
     ...normalizeTrendRows(toolRows.rows, 'tool'),
   ];
+
+  const avgLatencyMs = latencyRow.rows[0]?.avg_latency_ms != null
+    ? Number(latencyRow.rows[0].avg_latency_ms)
+    : null;
+
+  const prevChat = prevChatRow.rows[0] ?? {};
+  const prevWorkspace = prevWorkspaceRow.rows[0] ?? {};
+  const prevTool = prevToolRow.rows[0] ?? {};
+  const prevSummary = {
+    totalRuns: Number(prevChat.run_count ?? 0) + Number(prevWorkspace.run_count ?? 0) + Number(prevTool.run_count ?? 0),
+    totalErrors: Number(prevChat.error_count ?? 0) + Number(prevWorkspace.error_count ?? 0) + Number(prevTool.error_count ?? 0),
+    totalTokens: Number(prevChat.token_total ?? 0),
+    totalCredits: Number(prevChat.credit_total ?? 0),
+  };
 
   const allDays = buildDayRange(startInclusive, endExclusive);
   const daily = allDays.map((day) => {
@@ -104,6 +157,8 @@ export async function GET(req: Request) {
       dateTo: toDateString(new Date(endExclusive.getTime() - 86400000)),
     },
     summary,
+    prevSummary,
+    avgLatencyMs,
     daily,
   });
 }

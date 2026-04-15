@@ -1,6 +1,5 @@
 import {
   streamText,
-  generateImage,
   createUIMessageStream,
   createUIMessageStreamResponse,
   convertToModelMessages,
@@ -38,6 +37,7 @@ import {
 import type { Skill } from '@/features/skills/types';
 import { getLastUserPrompt } from '@/features/chat/server/thread-utils';
 import { toolDisabledModels, isImageOnlyModel, getModelByIntent } from '@/features/chat/server/routing';
+import { triggerImageGeneration } from '@/features/image/service';
 import { persistChatResult } from '@/features/chat/server/persistence';
 import {
   buildChatRunInputSummary,
@@ -59,6 +59,29 @@ type ImageAttachmentPart = {
   url: string;
   mediaType: string;
 };
+
+/**
+ * Maps an AI SDK image-only model ID to a KIE async model.
+ * Called when the user selects a direct image model in chat.
+ */
+function mapToKieImageModel(
+  resolvedModel: string,
+  hasImages: boolean,
+): { kieModelId: string; enablePro?: boolean } {
+  switch (resolvedModel) {
+    case 'openai/gpt-image-1.5':
+      return { kieModelId: hasImages ? 'gpt-image/1.5-image-to-image' : 'gpt-image/1.5-text-to-image' };
+    case 'xai/grok-imagine-image':
+      return { kieModelId: hasImages ? 'grok-imagine/image-to-image' : 'grok-imagine/text-to-image' };
+    case 'xai/grok-imagine-image-pro':
+      return {
+        kieModelId: hasImages ? 'grok-imagine/image-to-image' : 'grok-imagine/text-to-image',
+        enablePro: true,
+      };
+    default:
+      return { kieModelId: 'grok-imagine/text-to-image' };
+  }
+}
 
 function isImplicitImageEditRequest(prompt: string | null | undefined): boolean {
   if (!prompt) return false;
@@ -107,24 +130,6 @@ function getLatestAssistantImageParts(messages: ChatMessage[]): ImageAttachmentP
   return [];
 }
 
-function parseImageDataUrl(url: string): Buffer | null {
-  const match = /^data:([^;]+);base64,(.+)$/.exec(url);
-  if (!match) return null;
-  return Buffer.from(match[2], 'base64');
-}
-
-async function resolveImageAttachmentInput(part: ImageAttachmentPart): Promise<Buffer> {
-  const dataUrlBuffer = parseImageDataUrl(part.url!);
-  if (dataUrlBuffer) return dataUrlBuffer;
-
-  const response = await fetch(part.url!);
-  if (!response.ok) {
-    throw new Error('Unable to load the selected reference image.');
-  }
-
-  const bytes = await response.arrayBuffer();
-  return Buffer.from(bytes);
-}
 
 export async function POST(req: Request) {
   let chatRunId: string | null = null;
@@ -514,7 +519,7 @@ IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or con
       ...(enhancedPrompt ? { enhancedPrompt } : {}),
     });
 
-    // ── Image generation path ────────────────────────────────────────────────
+    // ── Async KIE image generation path ─────────────────────────────────────
     if (isImageOnlyModel(resolvedModel)) {
       const baseImagePrompt = enhancedPrompt ?? lastUserPrompt;
       if (!baseImagePrompt) {
@@ -525,9 +530,11 @@ IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or con
         });
         return Response.json({ error: 'Image generation requires a text prompt.' }, { status: 400 });
       }
+
       const imagePrompt = activeBrand
         ? baseImagePrompt + buildImageBrandSuffix(activeBrand)
         : baseImagePrompt;
+
       const latestUserMessage = [...messagesToSend].reverse().find((message) => message.role === 'user');
       const latestUserImageParts = getImageAttachmentParts(latestUserMessage);
       const effectiveImageParts = latestUserImageParts.length > 0
@@ -535,72 +542,87 @@ IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or con
         : shouldAutoReuseLastImage
           ? latestAssistantImageParts
           : [];
-      const imageInputs = effectiveImageParts.length > 0
-        ? await Promise.all(effectiveImageParts.map(resolveImageAttachmentInput))
-        : [];
-      const imagePromptInput =
-        imageInputs.length > 0
-          ? { text: imagePrompt, images: imageInputs }
-          : imagePrompt;
 
-      const imageResult = await generateImage({ model: resolvedModel, prompt: imagePromptInput });
-      const generatedImage = imageResult.image;
-      const imageDataUrl = `data:${generatedImage.mediaType};base64,${generatedImage.base64}`;
+      const hasImages = effectiveImageParts.length > 0;
+      const imageUrls = hasImages ? effectiveImageParts.map((p) => p.url) : undefined;
+      const { kieModelId, enablePro } = mapToKieImageModel(resolvedModel, hasImages);
 
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        metadata: messageMetadata(),
-        parts: [{ type: 'file', mediaType: generatedImage.mediaType, url: imageDataUrl, editPrompt: imagePrompt } as ChatMessage['parts'][number]],
-      };
-
-      await persistChatResult({
-        updatedMessages: [...messages, assistantMessage],
-        threadId,
-        userId: session.user.id,
-        currentTitle,
-        resolvedModel,
-        creditCost,
-        brandId: activeBrand?.id ?? null,
-        tokenUsageData: {
-          promptTokens: imageResult.usage.inputTokens,
-          completionTokens: imageResult.usage.outputTokens,
-          totalTokens: imageResult.usage.totalTokens,
+      const { taskId, generationId } = await triggerImageGeneration(
+        {
+          prompt: imagePrompt,
+          modelId: kieModelId,
+          promptTitle: imagePrompt.substring(0, 50),
+          ...(imageUrls ? { imageUrls } : {}),
+          ...(enablePro !== undefined ? { enablePro } : {}),
         },
-      });
+        session.user.id,
+        { threadId, source: 'chat' },
+      );
 
-      await refreshThreadWorkingMemoryFromMessages({
-        threadId,
-        brandId: activeBrand?.id ?? null,
-        messages: [...messages, assistantMessage] as Array<{
-          id?: string;
-          role: string;
-          parts?: Array<{ type?: string; text?: string }>;
-        }>,
-      }).catch((error) => console.error('Failed to refresh thread working memory:', error));
-
-      await completeChatRunSuccess(currentChatRunId, {
-        routeKind: 'image',
-        resolvedModelId: resolvedModel,
-        creditCost,
-        toolCallCount: 0,
-        promptTokens: imageResult.usage.inputTokens,
-        completionTokens: imageResult.usage.outputTokens,
-        totalTokens: imageResult.usage.totalTokens,
-        outputJson: buildChatRunOutputSummary({
-          routeKind: 'image',
-          generatedImage: { mediaType: generatedImage.mediaType },
-          memoryExtracted: false,
-        }),
-      });
+      const toolCallId = crypto.randomUUID();
+      const toolInput = { prompt: imagePrompt, modelId: kieModelId };
+      const toolOutput = {
+        started: true,
+        status: 'processing' as const,
+        taskId,
+        generationId,
+        startedAt: new Date().toISOString(),
+        message: 'Image generation started. The image will appear in this chat when it is ready.',
+      };
 
       return createUIMessageStreamResponse({
         stream: createUIMessageStream<ChatMessage>({
           originalMessages: messages,
+          onFinish: async ({ messages: updatedMessages }) => {
+            try {
+              await persistChatResult({
+                updatedMessages,
+                threadId,
+                userId: session.user.id,
+                currentTitle,
+                resolvedModel,
+                creditCost,
+                brandId: activeBrand?.id ?? null,
+                tokenUsageData: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+              });
+
+              await completeChatRunSuccess(currentChatRunId, {
+                routeKind: 'image',
+                resolvedModelId: resolvedModel,
+                creditCost,
+                toolCallCount: 1,
+                promptTokens: 0,
+                completionTokens: 0,
+                totalTokens: 0,
+                outputJson: buildChatRunOutputSummary({
+                  routeKind: 'image',
+                  generatedImage: { mediaType: 'image/kie-async' },
+                  memoryExtracted: false,
+                }),
+              });
+            } catch (error) {
+              console.error('Failed to finalize async image chat run:', error);
+              await completeChatRunError(currentChatRunId, {
+                errorMessage: error instanceof Error ? error.message : 'Unknown finalization error',
+                routeKind: 'image',
+                resolvedModelId: resolvedModel,
+              }).catch((auditError) => console.error('Failed to mark image chat run as error:', auditError));
+            }
+          },
           execute: ({ writer }) => {
             writer.write({ type: 'start', messageMetadata: messageMetadata() });
             writer.write({ type: 'start-step' });
-            writer.write({ type: 'file', mediaType: generatedImage.mediaType, url: imageDataUrl });
+            writer.write({
+              type: 'tool-input-available',
+              toolCallId,
+              toolName: 'generate_image',
+              input: toolInput,
+            });
+            writer.write({
+              type: 'tool-output-available',
+              toolCallId,
+              output: toolOutput,
+            });
             writer.write({ type: 'finish-step' });
             writer.write({ type: 'finish', finishReason: 'stop' });
           },

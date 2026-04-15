@@ -1,11 +1,9 @@
 import 'server-only';
-import { nanoid } from 'nanoid';
-import { db } from '@/lib/db';
-import { toolRun } from '@/db/schema';
 import { getKieApiKey } from '@/lib/api/routeGuards';
 import { buildKieCallbackUrl } from '@/lib/kie-callback';
-import { KieService } from '@/lib/providers/kieService';
 import { KIE_VIDEO_MODELS } from '@/lib/models/kie-video';
+import { createKieVideoTask } from '@/lib/providers/media/kie-video-adapter';
+import { createMediaRun } from '@/lib/generation/create-media-run';
 import type { GenerateVideoInput, TriggerVideoResult } from './schema';
 
 /**
@@ -16,6 +14,7 @@ import type { GenerateVideoInput, TriggerVideoResult } from './schema';
 export async function triggerVideoGeneration(
   params: GenerateVideoInput & { promptTitle?: string },
   userId: string,
+  options?: { threadId?: string; source?: string },
 ): Promise<TriggerVideoResult> {
   const apiKey = getKieApiKey();
   if (!apiKey) throw new Error('KIE_API_KEY is not configured');
@@ -67,74 +66,20 @@ export async function triggerVideoGeneration(
     }
   }
 
-  let taskId: string;
   const callbackUrl = buildKieCallbackUrl();
 
-  if (videoOptions.apiType === 'veo') {
-    // ── Veo path: flat payload, special /veo/generate endpoint ──────────────
-    const veoModel: 'veo3' | 'veo3_fast' =
-      model === 'veo3' && generationMode !== 'REFERENCE_2_VIDEO' ? 'veo3' : 'veo3_fast';
-    const veoAspect = generationMode === 'REFERENCE_2_VIDEO'
-      ? '16:9'
-      : (aspectRatio as '16:9' | '9:16' | 'Auto') ?? '16:9';
+  const { taskId } = await createKieVideoTask(
+    { prompt, model, generationMode, aspectRatio, imageUrls: resolvedImageUrls, seeds, duration, quality, resolution },
+    videoOptions,
+    apiKey,
+    callbackUrl,
+  );
 
-    ({ taskId } = await KieService.createVeoTask({
-      prompt,
-      model: veoModel,
-      aspectRatio: veoAspect,
-      generationType: generationMode as 'TEXT_2_VIDEO' | 'FIRST_AND_LAST_FRAMES_2_VIDEO' | 'REFERENCE_2_VIDEO',
-      imageUrls: resolvedImageUrls?.length ? resolvedImageUrls : undefined,
-      seeds,
-    }, apiKey));
-
-  } else {
-    // ── Standard path: nested input object, /jobs/createTask endpoint ────────
-    const input: Record<string, unknown> = {};
-
-    if (videoOptions.promptRequired) {
-      input.prompt = prompt;
-    }
-
-    // Aspect ratio (Sora uses portrait/landscape; Kling derives from image)
-    if (videoOptions.aspectRatios && aspectRatio) {
-      input.aspect_ratio = aspectRatio;
-    }
-
-    // Duration (param name differs: Sora/Kling use 'n_frames', Grok uses 'duration')
-    if (videoOptions.duration && duration) {
-      input[videoOptions.durationParam ?? 'n_frames'] = duration;
-    }
-
-    // Quality param (name differs: Sora uses 'size', Kling uses 'mode', Grok uses 'mode')
-    if (videoOptions.quality && quality) {
-      input[videoOptions.quality.param] = quality;
-    }
-
-    // Resolution (Grok: 480p/720p)
-    if (videoOptions.resolution && resolution) {
-      input[videoOptions.resolution.param] = resolution;
-    }
-
-    // Images (for img2vid and storyboard models)
-    const imageParamName = videoOptions.inputMode === 'storyboard' ? 'image_urls' : 'image_urls';
-    if (resolvedImageUrls?.length) {
-      input[imageParamName] = resolvedImageUrls;
-    }
-
-    // Watermark removal — default true for Sora models
-    if (model.startsWith('sora-')) {
-      input.remove_watermark = true;
-    }
-
-    ({ taskId } = await KieService.createTask(model, input, apiKey, { callbackUrl }));
-  }
-
-  const [record] = await db.insert(toolRun).values({
-    id: nanoid(),
+  const { generationId } = await createMediaRun({
     toolSlug: 'video',
     userId,
-    source: 'api',
-    status: 'pending',
+    threadId: options?.threadId,
+    source: options?.source,
     inputJson: {
       prompt,
       modelId: model,
@@ -149,7 +94,7 @@ export async function triggerVideoGeneration(
       seeds,
       promptTitle: params.promptTitle ?? prompt.substring(0, 50),
     },
-  }).returning();
+  });
 
-  return { taskId, generationId: record.id };
+  return { taskId, generationId };
 }

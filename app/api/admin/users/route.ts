@@ -3,6 +3,8 @@ import { db } from '@/lib/db';
 import { user, userCredit } from '@/db/schema';
 import { requireAdmin } from '@/lib/admin';
 
+type SortBy = 'joined' | 'lastActive' | 'runs' | 'creditsUsed' | 'balance';
+
 export async function GET(req: Request) {
   const adminCheck = await requireAdmin();
   if (!adminCheck.ok) return adminCheck.response;
@@ -13,6 +15,7 @@ export async function GET(req: Request) {
   const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') ?? '20')));
   const offset = (page - 1) * limit;
   const pendingOnly = url.searchParams.get('pending') === 'true';
+  const sortBy = (url.searchParams.get('sortBy') ?? 'joined') as SortBy;
 
   const searchFilter = search
     ? or(
@@ -26,6 +29,14 @@ export async function GET(req: Request) {
       ? and(searchFilter, approvalFilter)
       : searchFilter ?? approvalFilter;
 
+  const sortOrderMap: Record<SortBy, ReturnType<typeof sql>> = {
+    joined: sql`${user.createdAt} DESC`,
+    lastActive: sql`last_active_at DESC NULLS LAST`,
+    runs: sql`total_runs DESC`,
+    creditsUsed: sql`credits_used DESC`,
+    balance: sql`balance DESC`,
+  };
+
   const baseQuery = db
     .select({
       id: user.id,
@@ -35,17 +46,37 @@ export async function GET(req: Request) {
       approved: user.approved,
       createdAt: user.createdAt,
       balance: sql<number>`COALESCE(${userCredit.balance}, 0)`.as('balance'),
+      lastActiveAt: sql<string | null>`(
+        SELECT MAX(r.created_at) FROM (
+          SELECT created_at FROM chat_run WHERE user_id = ${user.id}
+          UNION ALL
+          SELECT created_at FROM tool_run WHERE user_id = ${user.id}
+          UNION ALL
+          SELECT created_at FROM workspace_ai_run WHERE user_id = ${user.id}
+        ) r
+      )`.as('last_active_at'),
+      totalRuns: sql<number>`COALESCE((
+        SELECT COUNT(*) FROM (
+          SELECT id FROM chat_run WHERE user_id = ${user.id}
+          UNION ALL
+          SELECT id FROM tool_run WHERE user_id = ${user.id}
+          UNION ALL
+          SELECT id FROM workspace_ai_run WHERE user_id = ${user.id}
+        ) r
+      ), 0)`.as('total_runs'),
+      creditsUsed: sql<number>`COALESCE((
+        SELECT SUM(ABS(amount)) FROM credit_transaction
+        WHERE user_id = ${user.id} AND amount < 0
+      ), 0)`.as('credits_used'),
     })
     .from(user)
     .leftJoin(userCredit, eq(user.id, userCredit.userId));
 
   const filteredQuery = whereClause ? baseQuery.where(whereClause) : baseQuery;
-  const countQuery = db
-    .select({ count: sql<number>`count(*)` })
-    .from(user);
+  const countQuery = db.select({ count: sql<number>`count(*)` }).from(user);
 
   const [users, countResult] = await Promise.all([
-    filteredQuery.orderBy(desc(user.createdAt)).limit(limit).offset(offset),
+    filteredQuery.orderBy(sortOrderMap[sortBy]).limit(limit).offset(offset),
     (whereClause ? countQuery.where(whereClause) : countQuery).then((r) => r[0]?.count ?? 0),
   ]);
 

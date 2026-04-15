@@ -139,6 +139,17 @@ export type ImageGenerationToolOutput = {
   message?: string;
 };
 
+/** Rendering kind derived from the tool name. */
+export type MediaGenerationKind = 'image' | 'video' | 'audio';
+
+/**
+ * Normalized output for all async media generation tools.
+ * All four tool types (generate_image, generate_video, generate_music,
+ * generate_speech) share the same pending/success/failure shape.
+ * URL fields are populated by thread hydration from toolRun.outputJson.
+ */
+export type MediaGenerationToolOutput = ImageGenerationToolOutput;
+
 // ─── Type Guards ─────────────────────────────────────────────────────────────
 
 export const isFilePart = (part: UIMessagePart<any, any>): part is FilePart => {
@@ -214,6 +225,24 @@ export const isExamPrepToolName = (toolName: string) =>
 
 export const isImageGenerationToolName = (toolName: string) =>
   toolName === "generate_image";
+
+/** Covers all async KIE media generation tools. */
+export const isMediaGenerationToolName = (toolName: string): boolean =>
+  toolName === "generate_image" ||
+  toolName === "generate_video" ||
+  toolName === "generate_music" ||
+  toolName === "generate_speech";
+
+/** Maps a media tool name to its rendering kind. */
+export const toolNameToMediaKind = (toolName: string): MediaGenerationKind => {
+  if (toolName === "generate_image") return "image";
+  if (toolName === "generate_video") return "video";
+  return "audio"; // generate_music, generate_speech
+};
+
+export const isMediaGenerationToolOutput = (
+  output: unknown,
+): output is MediaGenerationToolOutput => isImageGenerationToolOutput(output);
 
 export const shouldRenderExamPrepOutsideToolPanel = (toolName: string) =>
   toolName === "generate_practice_quiz" ||

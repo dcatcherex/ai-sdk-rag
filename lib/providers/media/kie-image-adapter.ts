@@ -1,15 +1,26 @@
 import 'server-only';
-import { getKieApiKey } from '@/lib/api/routeGuards';
-import { buildKieCallbackUrl } from '@/lib/kie-callback';
-import { createKieImageTask } from '@/lib/providers/media/kie-image-adapter';
-import { createMediaRun } from '@/lib/generation/create-media-run';
-import type { GenerateImageInput, TriggerImageResult } from './schema';
+import { KieService } from '@/lib/providers/kieService';
+import type { MediaTaskResult } from './types';
+
+type ImageAdapterInput = {
+  prompt: string;
+  modelId: string;
+  aspectRatio?: string;
+  quality?: 'medium' | 'high';
+  enablePro?: boolean;
+  resolution?: '1K' | '2K' | '4K';
+  googleSearch?: boolean;
+  outputFormat?: 'jpg' | 'png' | 'jpeg';
+  seed?: number;
+  imageUrls?: string[];
+};
 
 /**
  * Build the model-specific KIE /jobs/createTask `input` object.
  * Each model has a different set of accepted parameters and field names.
+ * Isolated here so feature services stay free of KIE API details.
  */
-function buildKieInput(params: GenerateImageInput): Record<string, unknown> {
+function buildKieInput(params: ImageAdapterInput): Record<string, unknown> {
   const {
     prompt,
     modelId,
@@ -124,73 +135,14 @@ function buildKieInput(params: GenerateImageInput): Record<string, unknown> {
 }
 
 /**
- * Canonical image generation logic.
- * Called by the API route, agent adapter, and chat route.
- * Uploads base64 images to R2 before creating the KIE task.
+ * Create a KIE image generation task.
+ * Feature services call this instead of importing KieService directly.
  */
-export async function triggerImageGeneration(
-  params: GenerateImageInput & { promptTitle?: string },
-  userId: string,
-  options?: { threadId?: string; source?: string },
-): Promise<TriggerImageResult> {
-  const apiKey = getKieApiKey();
-  if (!apiKey) throw new Error('KIE_API_KEY is not configured');
-
-  // Upload base64 images to R2, pass through existing https URLs
-  let resolvedImageUrls: string[] | undefined;
-  if (params.imageUrls && params.imageUrls.length > 0) {
-    const { getStorageService, STORAGE_BUCKETS } = await import('@/lib/storage/index');
-    const storage = getStorageService();
-    resolvedImageUrls = [];
-
-    for (let i = 0; i < params.imageUrls.length; i++) {
-      const imgData = params.imageUrls[i]!;
-      if (imgData.startsWith('http')) {
-        resolvedImageUrls.push(imgData);
-        continue;
-      }
-      let contentType = 'image/png';
-      if (imgData.startsWith('data:')) {
-        const match = imgData.match(/^data:(image\/[a-z]+);base64,/);
-        if (match) contentType = match[1]!;
-      }
-      const ext = contentType.split('/')[1] ?? 'png';
-      const filename = `image-inputs/${Date.now()}-${i}.${ext}`;
-      const { publicUrl } = await storage.uploadBase64(
-        STORAGE_BUCKETS.CUSTOM_REFERENCES.name,
-        imgData,
-        { contentType, filename },
-      );
-      resolvedImageUrls.push(publicUrl);
-    }
-  }
-
-  const callbackUrl = buildKieCallbackUrl();
-  const { taskId } = await createKieImageTask(
-    { ...params, imageUrls: resolvedImageUrls ?? params.imageUrls },
-    apiKey,
-    callbackUrl,
-  );
-
-  const { generationId } = await createMediaRun({
-    toolSlug: 'image',
-    userId,
-    threadId: options?.threadId,
-    source: options?.source,
-    inputJson: {
-      prompt: params.prompt,
-      modelId: params.modelId,
-      kieTaskId: taskId,
-      kieProvider: 'kie',
-      callbackUrl,
-      aspectRatio: params.aspectRatio,
-      quality: params.quality,
-      enablePro: params.enablePro,
-      resolution: params.resolution,
-      imageUrls: resolvedImageUrls,
-      promptTitle: params.promptTitle ?? params.prompt.substring(0, 50),
-    },
-  });
-
-  return { taskId, generationId };
+export async function createKieImageTask(
+  params: ImageAdapterInput,
+  apiKey: string,
+  callbackUrl: string | null,
+): Promise<MediaTaskResult> {
+  const input = buildKieInput(params);
+  return KieService.createTask(params.modelId, input, apiKey, { callbackUrl });
 }

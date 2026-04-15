@@ -1,10 +1,8 @@
 import 'server-only';
-import { nanoid } from 'nanoid';
-import { db } from '@/lib/db';
-import { toolRun } from '@/db/schema';
 import { getKieApiKey } from '@/lib/api/routeGuards';
 import { buildKieCallbackUrl } from '@/lib/kie-callback';
-import { KieService } from '@/lib/providers/kieService';
+import { createKieTtsTask, createKieDialogueTask } from '@/lib/providers/media/kie-speech-adapter';
+import { createMediaRun } from '@/lib/generation/create-media-run';
 import type { GenerateSpeechInput, GenerateDialogueInput, TriggerSpeechResult } from './schema';
 
 /**
@@ -14,26 +12,19 @@ import type { GenerateSpeechInput, GenerateDialogueInput, TriggerSpeechResult } 
 export async function triggerSpeechGeneration(
   params: GenerateSpeechInput & { promptTitle?: string },
   userId: string,
+  options?: { threadId?: string; source?: string },
 ): Promise<TriggerSpeechResult> {
   const apiKey = getKieApiKey();
   if (!apiKey) throw new Error('KIE_API_KEY is not configured');
 
   const callbackUrl = buildKieCallbackUrl();
-  const { taskId } = await KieService.createTtsTask({
-    text: params.text,
-    voice: params.voice,
-    stability: params.stability,
-    similarityBoost: params.similarityBoost,
-    style: params.style,
-    speed: params.speed,
-  }, apiKey, { callbackUrl });
+  const { taskId } = await createKieTtsTask(params, apiKey, callbackUrl);
 
-  const [record] = await db.insert(toolRun).values({
-    id: nanoid(),
+  const { generationId } = await createMediaRun({
     toolSlug: 'speech',
     userId,
-    source: 'api',
-    status: 'pending',
+    threadId: options?.threadId,
+    source: options?.source,
     inputJson: {
       prompt: params.text,
       modelId: 'elevenlabs/text-to-speech-multilingual-v2',
@@ -44,9 +35,9 @@ export async function triggerSpeechGeneration(
       callbackUrl,
       promptTitle: params.promptTitle ?? params.text.substring(0, 50),
     },
-  }).returning();
+  });
 
-  return { taskId, generationId: record.id };
+  return { taskId, generationId };
 }
 
 /**
@@ -56,23 +47,19 @@ export async function triggerSpeechGeneration(
 export async function triggerDialogueGeneration(
   params: GenerateDialogueInput & { promptTitle?: string },
   userId: string,
+  options?: { threadId?: string; source?: string },
 ): Promise<TriggerSpeechResult> {
   const apiKey = getKieApiKey();
   if (!apiKey) throw new Error('KIE_API_KEY is not configured');
 
   const callbackUrl = buildKieCallbackUrl();
-  const { taskId } = await KieService.createDialogueTask({
-    dialogue: params.lines,
-    stability: params.stability,
-    languageCode: params.languageCode,
-  }, apiKey, { callbackUrl });
+  const { taskId } = await createKieDialogueTask(params, apiKey, callbackUrl);
 
-  const [record] = await db.insert(toolRun).values({
-    id: nanoid(),
+  const { generationId } = await createMediaRun({
     toolSlug: 'speech',
     userId,
-    source: 'api',
-    status: 'pending',
+    threadId: options?.threadId,
+    source: options?.source,
     inputJson: {
       modelId: 'elevenlabs/text-to-dialogue-v3',
       ttsSettings: { dialogueLines: params.lines, stability: params.stability, languageCode: params.languageCode },
@@ -82,7 +69,7 @@ export async function triggerDialogueGeneration(
       callbackUrl,
       promptTitle: params.promptTitle ?? 'Dialogue',
     },
-  }).returning();
+  });
 
-  return { taskId, generationId: record.id };
+  return { taskId, generationId };
 }

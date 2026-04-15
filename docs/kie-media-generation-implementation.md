@@ -225,9 +225,7 @@ and a normalized output payload.
 
 ## Recommended Implementation Phases
 
-## Phase 1: Unify Chat Image Generation Behind Async Jobs
-
-This is the most important first step.
+## Phase 1: Unify Chat Image Generation Behind Async Jobs ✅
 
 ### Goal
 
@@ -235,51 +233,35 @@ Remove blocking image generation from chat and route all chat image work through
 
 ### Changes
 
-- update [app/api/chat/route.ts](/abs/path/d:/vscode2/nextjs/ai-sdk/app/api/chat/route.ts)
-  - remove direct blocking `generateImage(...)` path for user-facing image jobs
-  - when chat resolves to image work, create a KIE-backed image run instead
-  - return a pending assistant/tool message immediately
-- extend thread hydration so pending image runs render consistently
-- ensure the latest-image-follow-up logic still works by referencing the latest generated `mediaAsset` or completed `toolRun`
+- `app/api/chat/route.ts` — removed blocking `generateImage()` path; added `mapToKieImageModel()` helper; emits `tool-input-available` + `tool-output-available` via UIMessageStream; uses `onFinish` for persistence
+- `features/image/service.ts` — added optional `options?: { threadId?, source? }` param; `toolRun` now records `threadId` and `source: 'chat'` for chat-originated jobs
+- Removed `parseImageDataUrl` / `resolveImageAttachmentInput` helpers (no longer needed)
 
 ### Result
 
-- image chat becomes fully async
-- stacked image prompts become first-class
-- chat UX becomes consistent with current KIE tool behavior
+- image chat is fully async — returns immediately, polls via existing `ImageGenerationToolPart`
+- stacked image prompts are first-class
+- chat UX is consistent with the KIE tool tool page
 
 ---
 
-## Phase 2: Introduce A Shared Media Job Contract
+## Phase 2: Introduce A Shared Media Job Contract ✅
 
 ### Goal
 
 Define one shared output shape for media jobs regardless of media type.
 
-Suggested normalized shape:
-
-```ts
-type MediaJobOutput = {
-  kind: 'image' | 'video' | 'audio' | 'speech';
-  status: 'pending' | 'success' | 'failed' | 'timeout';
-  generationId: string;
-  taskId?: string;
-  outputUrls?: string[];
-  thumbnailUrls?: string[];
-  mimeTypes?: string[];
-  error?: string;
-};
-```
-
 ### Changes
 
-- centralize type definitions under `features/.../types.ts` or `lib/generation/...`
-- make hydration code in thread routes map `toolRun.outputJson` into one stable UI shape
-- keep feature-specific extras inside nested metadata if needed
+- `lib/generation/media-job-types.ts` (new) — `MediaJobKind`, `MediaJobStatus`, `MediaJobOutput` types; `toolSlugToMediaKind()` helper; `extractMediaOutputUrls()` replaces the duplicated `getPersistedImageUrls` / `getPersistedThumbnailUrls` helpers
+- `app/api/threads/[threadId]/messages/route.ts` — replaced `isGenerateImageToolPart` with `isMediaGenerationToolPart` (covers `generate_image`, `generate_video`, `generate_music`, `generate_speech`); replaced local URL helpers with `extractMediaOutputUrls` from the shared contract
+- `features/video/service.ts` — added optional `options?: { threadId?, source? }` param (consistent with image service)
+- `features/audio/service.ts` — same
+- `features/speech/service.ts` — same for both `triggerSpeechGeneration` and `triggerDialogueGeneration`
 
 ---
 
-## Phase 3: Normalize Chat Rendering
+## Phase 3: Normalize Chat Rendering ✅
 
 ### Goal
 
@@ -293,74 +275,79 @@ Render media jobs in chat through one predictable pattern.
 - image/video/audio outputs expose the same core actions:
   - open
   - download
-  - use in next chat
+  - use in next chat (images)
   - branch/edit when supported
 
 ### Changes
 
-- reuse the current `toolRun` hydration in thread messages
-- converge the rendering between:
-  - file-part generated media
-  - tool-part pending media
-
-Long term, one render path is preferable.
+- `components/message-renderer/types.ts`:
+  - Added `MediaGenerationKind = 'image' | 'video' | 'audio'` type
+  - Added `MediaGenerationToolOutput` alias (same fields as `ImageGenerationToolOutput`; works for all media kinds after thread hydration writes `imageUrls` universally)
+  - Added `isMediaGenerationToolName()` — covers `generate_image`, `generate_video`, `generate_music`, `generate_speech`
+  - Added `isMediaGenerationToolOutput()` — wraps the same check as image version
+  - Added `toolNameToMediaKind()` — maps tool name to rendering kind
+- `components/message-renderer/parts/media-generation-tool-part.tsx` (new):
+  - `MediaGenerationToolPart` — dispatches by `kind`
+  - `kind === 'image'`: delegates to `ImageGenerationToolPart` (preserves full image UX)
+  - `kind === 'video'`: pending spinner → `<video controls>` card with open/download
+  - `kind === 'audio'`: pending spinner → `<audio controls>` card per track with download
+  - Shared `PendingCard` and `ErrorCard` used for video/audio kinds
+  - All kinds use `useGenerationPoll` for the same polling/state lifecycle
+- `components/message-renderer/message-part-renderer.tsx`:
+  - Replaced `isImageGenerationToolName` + `isImageGenerationToolOutput` + `ImageGenerationToolPart` with the generalized versions
+  - `generate_video`, `generate_music`, `generate_speech` now render through `MediaGenerationToolPart` instead of falling through to the raw JSON `Tool` panel
 
 ---
 
-## Phase 4: Add A Shared Media Job Utility Layer
+## Phase 4: Add A Shared Media Job Utility Layer ✅
 
 ### Goal
 
 Stop duplicating recurring job behavior across image/video/audio/speech services.
 
-### Extractable utilities
+### Changes
 
-- create pending `toolRun`
-- write callback metadata into `inputJson`
-- resolve KIE task status
-- persist provider outputs to R2
-- mark completion or failure
-- build common polling response shapes
+- `lib/generation/create-media-run.ts` (new) — `createMediaRun({ toolSlug, userId, inputJson, threadId?, source? }) → Promise<{ generationId }>` — single `db.insert(toolRun)` call shared by all four services
+- `lib/generation/complete-media-run.ts` (new) — `completeMediaRun({ generationId, outputUrl?, outputUrls?, latency?, existingOutputJson?, extra? }) → Promise<void>` — wraps `db.update(toolRun).set({ status: 'success', completedAt, outputJson })`
+- `lib/generation/fail-media-run.ts` (new) — `failMediaRun({ generationId, errorMessage, existingOutputJson?, extra? }) → Promise<void>` — wraps `db.update(toolRun).set({ status: 'error', errorMessage, outputJson })`
+- `features/image/service.ts` — replaced `nanoid` + `db.insert(toolRun)` block with `createMediaRun()`
+- `features/video/service.ts` — same
+- `features/audio/service.ts` — same
+- `features/speech/service.ts` — same for both `triggerSpeechGeneration` and `triggerDialogueGeneration`
+- `app/api/kie/callback/route.ts` — replaced inline `db.update(toolRun)` success/failure blocks with `completeMediaRun()` / `failMediaRun()`
+- `app/api/generate/status/route.ts` — same
 
-Possible location:
+### Result
 
-```text
-lib/generation/
-  create-media-run.ts
-  complete-media-run.ts
-  fail-media-run.ts
-  persist-tool-run-output.ts
-  media-job-types.ts
-```
-
-This should remain generic enough to support multiple KIE media families.
+- `db.insert(toolRun)` and `db.update(toolRun)` patterns exist in exactly one place each
+- adding a new media type requires only calling these three utilities — no DB boilerplate
+- `extra` param in `completeMediaRun` / `failMediaRun` carries caller-specific fields (`callbackReceived`, `audioMeta`) without polluting the shared interface
 
 ---
 
-## Phase 5: Optional Provider Adapter Boundary
+## Phase 5: Optional Provider Adapter Boundary ✅
 
 ### Goal
 
 Keep KIE as default without baking provider-specific assumptions into product logic.
 
-Suggested structure:
+### Changes
 
-```text
-lib/providers/media/
-  types.ts
-  kie-image-adapter.ts
-  kie-video-adapter.ts
-  kie-audio-adapter.ts
-```
+- `lib/providers/media/types.ts` (new) — `MediaTaskResult = { taskId: string }` shared contract
+- `lib/providers/media/kie-image-adapter.ts` (new) — `buildKieInput()` (moved from `features/image/service.ts`) + `createKieImageTask(params, apiKey, callbackUrl)` → wraps `KieService.createTask`
+- `lib/providers/media/kie-video-adapter.ts` (new) — Veo/standard routing (moved from `features/video/service.ts`) + `createKieVideoTask(params, videoOptions, apiKey, callbackUrl)` → routes to `KieService.createVeoTask` or `KieService.createTask`
+- `lib/providers/media/kie-audio-adapter.ts` (new) — `SUNO_MODEL_MAP` (moved from `features/audio/service.ts`) + `createKieAudioTask(params, apiKey)` → wraps `KieService.createSunoTask`; returns `{ taskId, sunoModel }` so the service can log the resolved variant
+- `lib/providers/media/kie-speech-adapter.ts` (new) — `createKieTtsTask(params, apiKey, callbackUrl)` and `createKieDialogueTask(params, apiKey, callbackUrl)` → wrap `KieService.createTtsTask` / `KieService.createDialogueTask`
+- `features/image/service.ts` — removed `buildKieInput`; replaced `KieService.createTask` call with `createKieImageTask`
+- `features/video/service.ts` — removed 50-line Veo/standard routing block; replaced with single `createKieVideoTask` call
+- `features/audio/service.ts` — removed `SUNO_MODEL_MAP`; replaced `KieService.createSunoTask` call with `createKieAudioTask`
+- `features/speech/service.ts` — replaced `KieService.createTtsTask` / `KieService.createDialogueTask` calls with adapter equivalents
 
-The feature service stays canonical.
-The adapter only knows how to:
+### Result
 
-- create provider task
-- interpret provider status
-- normalize provider outputs
-
-This keeps future escape hatches open.
+- No feature service imports `KieService` directly — all KIE API details live in `lib/providers/media/`
+- Swapping any media type to a different provider means touching one adapter file only
+- `callbackUrl: string | null` is accepted everywhere; adapters forward it to `KieService` which already supports nullable callbacks
 
 ---
 

@@ -5,6 +5,8 @@ import { db } from '@/lib/db';
 import { toolRun } from '@/db/schema';
 import { getKieApiKey } from '@/lib/api/routeGuards';
 import { persistToolRunOutputToStorage, persistToolRunOutputsToStorage } from '@/lib/generation/persist-tool-run-output';
+import { completeMediaRun } from '@/lib/generation/complete-media-run';
+import { failMediaRun } from '@/lib/generation/fail-media-run';
 import { resolveKieTaskStatus } from '../_shared/kieStatus';
 import type { GenerationType } from '../_shared/kieStatus';
 
@@ -71,9 +73,7 @@ export async function GET(req: NextRequest) {
         }
 
         if (result.status === 'failed') {
-            await db.update(toolRun)
-                .set({ status: 'error', errorMessage: result.error })
-                .where(eq(toolRun.id, generationId));
+            await failMediaRun({ generationId, errorMessage: result.error ?? 'Generation failed' });
             return NextResponse.json({ status: 'failed', error: result.error });
         }
 
@@ -82,19 +82,14 @@ export async function GET(req: NextRequest) {
         const latency = Math.round(Date.now() - new Date(record.createdAt).getTime());
         const resolvedOutputUrls = outputUrls?.length ? outputUrls : [outputUrl];
 
-        await db.update(toolRun)
-            .set({
-                status: 'success',
-                completedAt: new Date(),
-                outputJson: {
-                    ...outputJson,
-                    output: outputUrl,
-                    outputs: resolvedOutputUrls,
-                    latency,
-                    ...(audioMeta ? { audioMeta } : {}),
-                },
-            })
-            .where(eq(toolRun.id, generationId));
+        await completeMediaRun({
+            generationId,
+            outputUrl,
+            outputUrls: resolvedOutputUrls,
+            latency,
+            existingOutputJson: outputJson,
+            extra: audioMeta ? { audioMeta } : {},
+        });
 
         let finalOutputUrl = outputUrl;
         let finalOutputUrls = resolvedOutputUrls;

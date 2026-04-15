@@ -19,7 +19,7 @@ import { MarkdownText } from "./markdown-text";
 import { FilePartRenderer } from "./parts/file-part";
 import { CertificateToolPart, CertificatePreviewToolPart } from "./parts/certificate-tool-part";
 import { ExamPrepToolPart } from "./parts/exam-prep-tool-part";
-import { ImageGenerationToolPart } from "./parts/image-generation-tool-part";
+import { MediaGenerationToolPart } from "./parts/media-generation-tool-part";
 import { useToolApproval } from "@/features/chat/contexts/tool-approval-context";
 import {
   isFilePart,
@@ -30,8 +30,9 @@ import {
   isCertificateToolOutput,
   isCertificatePreviewOutput,
   isExamPrepToolOutput,
-  isImageGenerationToolName,
-  isImageGenerationToolOutput,
+  isMediaGenerationToolName,
+  isMediaGenerationToolOutput,
+  toolNameToMediaKind,
 } from "./types";
 import type { MessagePartRendererProps } from "./types";
 
@@ -113,11 +114,12 @@ function MessagePartRendererInner({
       );
     }
 
-    if (isImageGenerationToolName(toolName) && isImageGenerationToolOutput(toolOutput)) {
+    if (isMediaGenerationToolName(toolName) && isMediaGenerationToolOutput(toolOutput)) {
       return (
-        <ImageGenerationToolPart
+        <MediaGenerationToolPart
           key={key}
           partKey={key}
+          kind={toolNameToMediaKind(toolName)}
           output={toolOutput}
           onUseImageInChat={onUseImageInChat}
         />

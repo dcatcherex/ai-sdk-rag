@@ -6,6 +6,7 @@ import type { UIMessage, UIMessagePart } from "ai";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { chatMessage, chatThread, mediaAsset, toolRun } from "@/db/schema";
+import { extractMediaOutputUrls } from "@/lib/generation/media-job-types";
 
 type DbErrorWithCode = {
   code?: string;
@@ -72,7 +73,15 @@ const isToolLikePart = (
   return typeof part.type === "string" && part.type.startsWith("tool-");
 };
 
-const isGenerateImageToolPart = (
+/** Tool names that represent async KIE media generation jobs. */
+const MEDIA_TOOL_NAMES = new Set([
+  "generate_image",
+  "generate_video",
+  "generate_music",
+  "generate_speech",
+]);
+
+const isMediaGenerationToolPart = (
   part: UIMessagePart<any, any>,
 ): part is UIMessagePart<any, any> & {
   output?: ToolOutputWithGenerationId;
@@ -82,27 +91,7 @@ const isGenerateImageToolPart = (
 } => {
   if (!isToolLikePart(part)) return false;
   const toolName = part.toolName || (typeof part.type === "string" ? part.type.replace(/^tool-/, "") : "");
-  return toolName === "generate_image";
-};
-
-const getPersistedImageUrls = (outputJson: Record<string, unknown> | null): string[] => {
-  if (!outputJson) return [];
-  const outputs = outputJson.outputs;
-  if (Array.isArray(outputs)) {
-    return outputs.filter((value): value is string => typeof value === "string" && value.length > 0);
-  }
-  const output = outputJson.output;
-  return typeof output === "string" && output.length > 0 ? [output] : [];
-};
-
-const getPersistedThumbnailUrls = (outputJson: Record<string, unknown> | null): string[] => {
-  if (!outputJson) return [];
-  const outputs = outputJson.thumbnailUrls;
-  if (Array.isArray(outputs)) {
-    return outputs.filter((value): value is string => typeof value === "string" && value.length > 0);
-  }
-  const output = outputJson.thumbnailUrl;
-  return typeof output === "string" && output.length > 0 ? [output] : [];
+  return MEDIA_TOOL_NAMES.has(toolName);
 };
 
 export async function GET(
@@ -138,7 +127,7 @@ export async function GET(
 
   const generationIds = rows.flatMap((row) =>
     ((row.parts as UIMessage["parts"]) ?? []).flatMap((part) => {
-      if (!isGenerateImageToolPart(part)) return [];
+      if (!isMediaGenerationToolPart(part)) return [];
       const generationId = part.output?.generationId;
       return typeof generationId === "string" && generationId.length > 0 ? [generationId] : [];
     }),
@@ -253,20 +242,19 @@ export async function GET(
 
   const messages: UIMessage[] = rows.map((row) => {
     const parts = (row.parts as UIMessage["parts"]).map((part) => {
-      if (isGenerateImageToolPart(part)) {
+      if (isMediaGenerationToolPart(part)) {
         const generationId = part.output?.generationId;
         const run = generationId ? toolRunsById.get(generationId) : undefined;
         if (run) {
           if (run.status === "success") {
-            const imageUrls = getPersistedImageUrls(run.outputJson);
-            const thumbnailUrls = getPersistedThumbnailUrls(run.outputJson);
+            const { outputUrls, thumbnailUrls } = extractMediaOutputUrls(run.outputJson);
             return {
               ...part,
               state: "output-available",
               output: {
                 ...(part.output ?? {}),
-                ...(imageUrls[0] ? { imageUrl: imageUrls[0] } : {}),
-                ...(imageUrls.length > 0 ? { imageUrls } : {}),
+                ...(outputUrls[0] ? { imageUrl: outputUrls[0] } : {}),
+                ...(outputUrls.length > 0 ? { imageUrls: outputUrls } : {}),
                 ...(thumbnailUrls[0] ? { thumbnailUrl: thumbnailUrls[0] } : {}),
                 ...(thumbnailUrls.length > 0 ? { thumbnailUrls } : {}),
                 status: "success",
