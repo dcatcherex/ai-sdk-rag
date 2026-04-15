@@ -1,8 +1,14 @@
 'use client';
 
 import Image from 'next/image';
-import { ImageIcon, Loader2, CheckCircle2, XCircle, Download } from 'lucide-react';
+import { ImageIcon, Loader2, CheckCircle2, XCircle, Download, ExternalLink, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import type { ImageGenerationState } from '../types';
 import type { Mode } from '../hooks/use-image-generator';
@@ -15,8 +21,25 @@ interface Props {
   onUseAsReference: (url: string) => void;
 }
 
+function triggerBrowserDownload(url: string, filename: string) {
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = 'noopener noreferrer';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+}
+
 export function ResultPanel({ state, mode, onRetry, onNewImage, onUseAsReference }: Props) {
   const outputUrls = state.outputs?.length ? state.outputs : state.output ? [state.output] : [];
+  const handleDownloadAll = () => {
+    outputUrls.forEach((url, index) => {
+      window.setTimeout(() => {
+        triggerBrowserDownload(url, `generated-image-${index + 1}`);
+      }, index * 150);
+    });
+  };
 
   return (
     <div className="p-6 flex flex-col gap-4">
@@ -43,8 +66,25 @@ export function ResultPanel({ state, mode, onRetry, onNewImage, onUseAsReference
         <div className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
             {outputUrls.map((url, index) => (
-              <div key={`${url}-${index}`} className="rounded-xl overflow-hidden border">
+              <div key={`${url}-${index}`} className="group relative rounded-xl overflow-hidden border">
                 <Image src={url} alt={`Generated image ${index + 1}`} width={1536} height={1024} unoptimized className="w-full object-contain max-h-[520px] h-auto" />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="absolute right-3 bottom-3 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                  <Button asChild size="icon" variant="secondary" className="pointer-events-auto rounded-full shadow-sm">
+                    <a href={url} target="_blank" rel="noopener noreferrer" aria-label={`Open image ${index + 1}`}>
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="pointer-events-auto rounded-full shadow-sm"
+                    onClick={() => triggerBrowserDownload(url, `generated-image-${index + 1}`)}
+                    aria-label={`Download image ${index + 1}`}
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -55,13 +95,39 @@ export function ResultPanel({ state, mode, onRetry, onNewImage, onUseAsReference
             <div className="flex-1" />
             <a
               href={outputUrls[0]}
-              download="generated-image"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-muted transition-colors"
             >
-              <Download className="h-3.5 w-3.5" /> Download
+              <ExternalLink className="h-3.5 w-3.5" /> Open
             </a>
+            {outputUrls.length === 1 ? (
+              <Button variant="outline" size="sm" onClick={() => triggerBrowserDownload(outputUrls[0]!, 'generated-image-1')}>
+                <Download className="h-3.5 w-3.5" /> Download
+              </Button>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Download className="h-3.5 w-3.5" /> Download
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuItem onClick={handleDownloadAll}>
+                    Download all images
+                  </DropdownMenuItem>
+                  {outputUrls.map((url, index) => (
+                    <DropdownMenuItem
+                      key={`${url}-download-${index}`}
+                      onClick={() => triggerBrowserDownload(url, `generated-image-${index + 1}`)}
+                    >
+                      Download image {index + 1}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             <Button variant="outline" size="sm" onClick={onNewImage}>New image</Button>
           </div>
           {mode === 'generate' && (

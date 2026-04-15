@@ -5,7 +5,7 @@ import type { UIMessage, UIMessagePart } from "ai";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { chatMessage, chatThread, mediaAsset } from "@/db/schema";
+import { chatMessage, chatThread, mediaAsset, toolRun } from "@/db/schema";
 
 type DbErrorWithCode = {
   code?: string;
@@ -29,6 +29,19 @@ type ImageFilePart = {
   editPrompt?: string;
 };
 
+type ToolRunHydrationRow = {
+  id: string;
+  status: string;
+  outputJson: Record<string, unknown> | null;
+  errorMessage: string | null;
+};
+
+type ToolOutputWithGenerationId = {
+  generationId?: string;
+  imageUrl?: string;
+  imageUrls?: string[];
+};
+
 const isImageFilePart = (part: UIMessagePart<any, any>): part is ImageFilePart => {
   if (part.type !== "file") {
     return false;
@@ -44,6 +57,40 @@ const isImageFilePart = (part: UIMessagePart<any, any>): part is ImageFilePart =
 const isMissingColumnError = (error: unknown) => {
   const typed = error as DbErrorWithCode;
   return typed?.code === "42703" || typed?.cause?.code === "42703";
+};
+
+const isToolLikePart = (
+  part: UIMessagePart<any, any>,
+): part is UIMessagePart<any, any> & {
+  output?: ToolOutputWithGenerationId;
+  errorText?: string;
+  state?: string;
+  toolName?: string;
+} => {
+  return typeof part.type === "string" && part.type.startsWith("tool-");
+};
+
+const isGenerateImageToolPart = (
+  part: UIMessagePart<any, any>,
+): part is UIMessagePart<any, any> & {
+  output?: ToolOutputWithGenerationId;
+  errorText?: string;
+  state?: string;
+  toolName?: string;
+} => {
+  if (!isToolLikePart(part)) return false;
+  const toolName = part.toolName || (typeof part.type === "string" ? part.type.replace(/^tool-/, "") : "");
+  return toolName === "generate_image";
+};
+
+const getPersistedImageUrls = (outputJson: Record<string, unknown> | null): string[] => {
+  if (!outputJson) return [];
+  const outputs = outputJson.outputs;
+  if (Array.isArray(outputs)) {
+    return outputs.filter((value): value is string => typeof value === "string" && value.length > 0);
+  }
+  const output = outputJson.output;
+  return typeof output === "string" && output.length > 0 ? [output] : [];
 };
 
 export async function GET(
@@ -76,6 +123,36 @@ export async function GET(
     .from(chatMessage)
     .where(eq(chatMessage.threadId, threadId))
     .orderBy(asc(chatMessage.position));
+
+  const generationIds = rows.flatMap((row) =>
+    ((row.parts as UIMessage["parts"]) ?? []).flatMap((part) => {
+      if (!isGenerateImageToolPart(part)) return [];
+      const generationId = part.output?.generationId;
+      return typeof generationId === "string" && generationId.length > 0 ? [generationId] : [];
+    }),
+  );
+
+  const toolRunRows = generationIds.length > 0
+    ? await db
+        .select({
+          id: toolRun.id,
+          status: toolRun.status,
+          outputJson: toolRun.outputJson,
+          errorMessage: toolRun.errorMessage,
+        })
+        .from(toolRun)
+        .where(and(eq(toolRun.userId, session.user.id), inArray(toolRun.id, generationIds)))
+    : [];
+
+  const toolRunsById = new Map<string, ToolRunHydrationRow>();
+  toolRunRows.forEach((row) => {
+    toolRunsById.set(row.id, {
+      id: row.id,
+      status: row.status,
+      outputJson: (row.outputJson as Record<string, unknown> | null) ?? null,
+      errorMessage: row.errorMessage,
+    });
+  });
 
   const messageIds = rows.map((row) => row.id);
   let assetRows: Array<{
@@ -164,6 +241,35 @@ export async function GET(
 
   const messages: UIMessage[] = rows.map((row) => {
     const parts = (row.parts as UIMessage["parts"]).map((part) => {
+      if (isGenerateImageToolPart(part)) {
+        const generationId = part.output?.generationId;
+        const run = generationId ? toolRunsById.get(generationId) : undefined;
+        if (run) {
+          if (run.status === "success") {
+            const imageUrls = getPersistedImageUrls(run.outputJson);
+            return {
+              ...part,
+              state: "output-available",
+              output: {
+                ...(part.output ?? {}),
+                ...(imageUrls[0] ? { imageUrl: imageUrls[0] } : {}),
+                ...(imageUrls.length > 0 ? { imageUrls } : {}),
+                status: "success",
+              },
+              errorText: undefined,
+            } as UIMessage["parts"][number];
+          }
+
+          if (run.status === "error") {
+            return {
+              ...part,
+              state: "output-error",
+              errorText: run.errorMessage ?? part.errorText,
+            } as UIMessage["parts"][number];
+          }
+        }
+      }
+
       if (!isImageFilePart(part) || part.thumbnailUrl) {
         return part;
       }

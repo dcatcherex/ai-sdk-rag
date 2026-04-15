@@ -2,8 +2,14 @@
 
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Download, Loader2, ExternalLink, XCircle } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Download, Loader2, ExternalLink, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useGenerationPoll } from '@/lib/hooks/use-generation-poll';
 import { cn } from '@/lib/utils';
 import type { ImageGenerationToolOutput } from '@/components/message-renderer/types';
@@ -18,6 +24,16 @@ function formatElapsed(ms: number) {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
   return minutes > 0 ? `${minutes}m ${remainingSeconds}s` : `${remainingSeconds}s`;
+}
+
+function triggerBrowserDownload(url: string, filename: string) {
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = 'noopener noreferrer';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
 }
 
 export function ImageGenerationToolPart({
@@ -70,6 +86,14 @@ export function ImageGenerationToolPart({
     ? (state.error ?? 'Image generation failed.')
     : null;
 
+  const handleDownloadAll = () => {
+    resolvedImageUrls.forEach((imageUrl, index) => {
+      window.setTimeout(() => {
+        triggerBrowserDownload(imageUrl, `generated-image-${index + 1}`);
+      }, index * 150);
+    });
+  };
+
   return (
     <div key={partKey} className="not-prose mb-4 w-full">
       {isWaiting && (
@@ -88,7 +112,7 @@ export function ImageGenerationToolPart({
         <div className="space-y-3 rounded-2xl border bg-muted/20 p-3">
           <div className="grid gap-3 sm:grid-cols-2">
             {resolvedImageUrls.map((imageUrl, index) => (
-              <div key={`${imageUrl}-${index}`} className="overflow-hidden rounded-xl border bg-background">
+              <div key={`${imageUrl}-${index}`} className="group relative overflow-hidden rounded-xl border bg-background">
                 <Image
                   src={imageUrl}
                   alt={`Generated image ${index + 1}`}
@@ -97,6 +121,23 @@ export function ImageGenerationToolPart({
                   unoptimized
                   className="h-auto max-h-[520px] w-full object-contain"
                 />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="absolute right-3 bottom-3 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                  <Button asChild size="icon" variant="secondary" className="pointer-events-auto rounded-full shadow-sm">
+                    <a href={imageUrl} target="_blank" rel="noopener noreferrer" aria-label={`Open image ${index + 1}`}>
+                      <ExternalLink className="size-4" />
+                    </a>
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="pointer-events-auto rounded-full shadow-sm"
+                    onClick={() => triggerBrowserDownload(imageUrl, `generated-image-${index + 1}`)}
+                    aria-label={`Download image ${index + 1}`}
+                  >
+                    <Download className="size-4" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -106,23 +147,45 @@ export function ImageGenerationToolPart({
               {resolvedImageUrls.length === 1 ? 'Image ready' : `${resolvedImageUrls.length} images ready`}
             </div>
             <div className="flex-1" />
-            <Button asChild size="icon" variant="ghost" className="rounded-full">
-              <a href={resolvedImageUrls[0]} download="generated-image" aria-label="Download image">
-                <Download className="size-4" />
-              </a>
-            </Button>
             <Button asChild size="sm" variant="outline">
               <a href={resolvedImageUrls[0]} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="size-3.5" />
                 Open
               </a>
             </Button>
-            <Button asChild size="sm" variant="outline">
-              <a href={resolvedImageUrls[0]} download="generated-image">
+            {resolvedImageUrls.length === 1 ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => triggerBrowserDownload(resolvedImageUrls[0]!, 'generated-image-1')}
+              >
                 <Download className="size-3.5" />
                 Download
-              </a>
-            </Button>
+              </Button>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline">
+                    <Download className="size-3.5" />
+                    Download
+                    <ChevronDown className="size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuItem onClick={handleDownloadAll}>
+                    Download all images
+                  </DropdownMenuItem>
+                  {resolvedImageUrls.map((imageUrl, index) => (
+                    <DropdownMenuItem
+                      key={`${imageUrl}-download-${index}`}
+                      onClick={() => triggerBrowserDownload(imageUrl, `generated-image-${index + 1}`)}
+                    >
+                      Download image {index + 1}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
       )}
