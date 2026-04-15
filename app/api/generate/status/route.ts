@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { toolRun } from '@/db/schema';
 import { getKieApiKey } from '@/lib/api/routeGuards';
+import { persistToolRunOutputToStorage } from '@/lib/generation/persist-tool-run-output';
 import { resolveKieTaskStatus } from '../_shared/kieStatus';
 import type { GenerationType } from '../_shared/kieStatus';
 
@@ -92,11 +93,35 @@ export async function GET(req: NextRequest) {
             })
             .where(eq(toolRun.id, generationId));
 
-        const needsPersist = !outputUrl.includes(process.env.R2_PUBLIC_BASE_URL ?? '__never__');
+        let finalOutputUrl = outputUrl;
+
+        if (generationType === 'image' && !outputUrl.startsWith(process.env.R2_PUBLIC_BASE_URL ?? '__never__')) {
+            try {
+                const persisted = await persistToolRunOutputToStorage({
+                    generationId: record.id,
+                    toolSlug: record.toolSlug,
+                    userId: record.userId,
+                    outputJson: {
+                        ...outputJson,
+                        output: outputUrl,
+                        latency,
+                        ...(audioMeta ? { audioMeta } : {}),
+                    },
+                    sourceUrl: outputUrl,
+                });
+                finalOutputUrl = persisted.publicUrl;
+            } catch (persistError) {
+                console.error('[status] Image persist failed:', persistError);
+            }
+        }
+
+        const needsPersist =
+            generationType !== 'image' &&
+            !finalOutputUrl.startsWith(process.env.R2_PUBLIC_BASE_URL ?? '__never__');
 
         const responsePayload: Record<string, unknown> = {
             status: 'success',
-            output: outputUrl,
+            output: finalOutputUrl,
             generationId: record.id,
             latency,
             type: generationType,

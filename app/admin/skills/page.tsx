@@ -176,6 +176,7 @@ export default function AdminSkillsPage() {
     onSuccess: () => {
       setDialogOpen(false);
       setEditingSkill(null);
+      setForm(emptyForm());
       void queryClient.invalidateQueries({ queryKey: ['admin', 'skills'] });
     },
   });
@@ -213,6 +214,7 @@ export default function AdminSkillsPage() {
 
   const openCreate = () => {
     setEditingSkill(null);
+    setForm(emptyForm());
     setDialogOpen(true);
   };
 
@@ -375,7 +377,10 @@ export default function AdminSkillsPage() {
         open={dialogOpen}
         onOpenChange={(open) => {
           setDialogOpen(open);
-          if (!open) setEditingSkill(null);
+          if (!open) {
+            setEditingSkill(null);
+            setForm(emptyForm());
+          }
         }}
       >
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">

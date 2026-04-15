@@ -49,6 +49,7 @@ export const SkillsList = () => {
   const currentUserId = sessionData?.user?.id;
 
   const [mode, setMode] = useState<'list' | 'create' | 'edit'>('list');
+  const [activeTab, setActiveTab] = useState<'essentials' | 'mine' | 'community'>('essentials');
   const [editTarget, setEditTarget] = useState<Skill | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Skill | null>(null);
   const [detailTarget, setDetailTarget] = useState<Skill | null>(null);
@@ -147,7 +148,7 @@ export const SkillsList = () => {
       />
 
       <div className="flex-1 overflow-y-auto p-6">
-        <Tabs defaultValue="essentials">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)}>
           <CountTabsList
             items={[
               { value: 'essentials', label: 'Essentials', count: essentialSkills.length },

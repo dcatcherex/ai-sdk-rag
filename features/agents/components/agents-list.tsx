@@ -115,6 +115,7 @@ export const AgentsList = () => {
   const essentials = data?.essentials ?? data?.templates ?? [];
 
   const [mode, setMode] = useState<'list' | 'create' | 'edit'>('list');
+  const [activeTab, setActiveTab] = useState<'essentials' | 'mine' | 'community'>('essentials');
   const [editTargetId, setEditTargetId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Agent | null>(null);
   const [shareTarget, setShareTarget] = useState<Agent | null>(null);
@@ -221,7 +222,7 @@ export const AgentsList = () => {
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading agents...</p>
         ) : (
-          <Tabs defaultValue="essentials">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)}>
             <CountTabsList
               className="mb-5"
               items={[

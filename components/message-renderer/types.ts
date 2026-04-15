@@ -125,6 +125,16 @@ export type ExamPrepToolOutput = {
   }>;
 };
 
+export type ImageGenerationToolOutput = {
+  started?: boolean;
+  status?: 'processing' | 'success' | 'failed';
+  taskId?: string;
+  generationId?: string;
+  imageUrl?: string;
+  startedAt?: string;
+  message?: string;
+};
+
 // ─── Type Guards ─────────────────────────────────────────────────────────────
 
 export const isFilePart = (part: UIMessagePart<any, any>): part is FilePart => {
@@ -172,6 +182,16 @@ export const isExamPrepToolOutput = (output: unknown): output is ExamPrepToolOut
   );
 };
 
+export const isImageGenerationToolOutput = (output: unknown): output is ImageGenerationToolOutput => {
+  if (!output || typeof output !== "object") return false;
+  const r = output as Record<string, unknown>;
+  return (
+    typeof r.taskId === "string" &&
+    typeof r.generationId === "string" &&
+    (r.started === undefined || typeof r.started === "boolean")
+  );
+};
+
 // ─── Tool Name Helpers ────────────────────────────────────────────────────────
 
 export const normalizeToolName = (toolName: string) =>
@@ -187,6 +207,9 @@ export const isExamPrepToolName = (toolName: string) =>
   toolName === "create_study_plan" ||
   toolName === "analyze_learning_gaps" ||
   toolName === "generate_flashcards";
+
+export const isImageGenerationToolName = (toolName: string) =>
+  toolName === "generate_image";
 
 export const shouldRenderExamPrepOutsideToolPanel = (toolName: string) =>
   toolName === "generate_practice_quiz" ||

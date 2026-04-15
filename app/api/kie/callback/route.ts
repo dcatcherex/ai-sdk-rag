@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { toolRun } from '@/db/schema';
+import { persistToolRunOutputToStorage } from '@/lib/generation/persist-tool-run-output';
 import { isValidKieCallbackToken } from '@/lib/kie-callback';
 import { resolveKieJobsStatusPayload } from '@/app/api/generate/_shared/kieStatus';
 
@@ -8,6 +9,8 @@ type CallbackRecord = {
   id: string;
   status: string;
   createdAt: Date;
+  userId: string;
+  toolSlug: string;
   outputJson: Record<string, unknown> | null;
 };
 
@@ -29,6 +32,8 @@ async function findRunByTaskId(taskId: string): Promise<CallbackRecord | null> {
       id: toolRun.id,
       status: toolRun.status,
       createdAt: toolRun.createdAt,
+      userId: toolRun.userId,
+      toolSlug: toolRun.toolSlug,
       outputJson: toolRun.outputJson,
     })
     .from(toolRun)
@@ -107,6 +112,25 @@ export async function POST(req: Request) {
       },
     })
     .where(eq(toolRun.id, record.id));
+
+  if (record.toolSlug === 'image' && result.outputUrl) {
+    try {
+      await persistToolRunOutputToStorage({
+        generationId: record.id,
+        toolSlug: record.toolSlug,
+        userId: record.userId,
+        outputJson: {
+          ...outputJson,
+          output: result.outputUrl,
+          latency,
+          callbackReceived: true,
+        },
+        sourceUrl: result.outputUrl,
+      });
+    } catch (persistError) {
+      console.error('[kie/callback] Image persist failed:', persistError);
+    }
+  }
 
   return Response.json({ ok: true, status: 'success' });
 }

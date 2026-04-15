@@ -19,6 +19,7 @@ import { MarkdownText } from "./markdown-text";
 import { FilePartRenderer } from "./parts/file-part";
 import { CertificateToolPart, CertificatePreviewToolPart } from "./parts/certificate-tool-part";
 import { ExamPrepToolPart } from "./parts/exam-prep-tool-part";
+import { ImageGenerationToolPart } from "./parts/image-generation-tool-part";
 import { useToolApproval } from "@/features/chat/contexts/tool-approval-context";
 import {
   isFilePart,
@@ -29,6 +30,8 @@ import {
   isCertificateToolOutput,
   isCertificatePreviewOutput,
   isExamPrepToolOutput,
+  isImageGenerationToolName,
+  isImageGenerationToolOutput,
 } from "./types";
 import type { MessagePartRendererProps } from "./types";
 
@@ -105,6 +108,16 @@ function MessagePartRendererInner({
           messageId={messageId}
           threadId={threadId}
           onQuizStateChange={onQuizStateChange}
+        />
+      );
+    }
+
+    if (isImageGenerationToolName(toolName) && isImageGenerationToolOutput(toolOutput)) {
+      return (
+        <ImageGenerationToolPart
+          key={key}
+          partKey={key}
+          output={toolOutput}
         />
       );
     }

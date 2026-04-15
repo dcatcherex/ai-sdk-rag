@@ -17,7 +17,7 @@ export function createImageAgentTools(ctx: Pick<AgentToolContext, 'userId'>) {
       description:
         'Generate or edit an image using KIE AI models (Nano Banana 2, GPT Image 1.5, Qwen Z-Image, Grok Imagine, etc.). ' +
         'For best results include: subject, composition, action, location, and style in the prompt. ' +
-        'Starts the generation and returns a link where the user can view and download the result. ' +
+        'Starts the generation asynchronously. The chat UI will show a waiting state, then display the final image inline when it is ready. ' +
         'Use this when the user asks to create, draw, generate, or edit an image.',
       inputSchema: z.object({
         prompt: z.string().min(1).describe('Detailed image description. Include subject, style, composition, location.'),
@@ -41,9 +41,11 @@ export function createImageAgentTools(ctx: Pick<AgentToolContext, 'userId'>) {
         );
         return {
           started: true,
+          status: 'processing' as const,
           taskId,
           generationId,
-          message: `Image generation started. View and download the result at: /tools/image?id=${generationId}&taskId=${taskId}`,
+          startedAt: new Date().toISOString(),
+          message: 'Image generation started. The image will appear in this chat when it is ready.',
         };
       },
     }),
