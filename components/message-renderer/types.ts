@@ -1,6 +1,6 @@
 import type { UIMessagePart } from "ai";
 import type { MediaAsset } from "@/features/gallery/types";
-import type { QuizFollowUpContext } from "@/features/chat/types";
+import type { ChatReferenceImage, QuizFollowUpContext } from "@/features/chat/types";
 
 // ─── Public Props ────────────────────────────────────────────────────────────
 
@@ -11,6 +11,7 @@ export type MessagePartRendererProps = {
   index: number;
   role?: string;
   onImageClick?: (asset: MediaAsset) => void;
+  onUseImageInChat?: (image: ChatReferenceImage) => void;
   onQuizStateChange?: (context: QuizFollowUpContext) => void;
 };
 

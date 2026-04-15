@@ -42,6 +42,7 @@ function MessagePartRendererInner({
   index,
   role,
   onImageClick,
+  onUseImageInChat,
   onQuizStateChange,
 }: MessagePartRendererProps) {
   const onToolApproval = useToolApproval();
@@ -118,6 +119,7 @@ function MessagePartRendererInner({
           key={key}
           partKey={key}
           output={toolOutput}
+          onUseImageInChat={onUseImageInChat}
         />
       );
     }
@@ -166,6 +168,7 @@ function MessagePartRendererInner({
         messageId={messageId}
         threadId={threadId}
         onImageClick={onImageClick}
+        onUseImageInChat={onUseImageInChat}
       />
     );
   }

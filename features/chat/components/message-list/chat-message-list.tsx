@@ -124,6 +124,7 @@ export const ChatMessageList = ({
   onToggleReaction,
   onSuggestionClick,
   onImageClick,
+  onUseImageInChat,
   onDeleteMessage,
   onQuizStateChange,
   onActiveMessageChange,
@@ -270,6 +271,7 @@ export const ChatMessageList = ({
                   onToggleReaction={onToggleReaction}
                   onSuggestionClick={onSuggestionClick}
                   onImageClick={onImageClick}
+                  onUseImageInChat={onUseImageInChat}
                   onQuizStateChange={onQuizStateChange}
                   onRequestDelete={setPendingDelete}
                   onHoverDeleteEnter={setHoveredDeleteIds}

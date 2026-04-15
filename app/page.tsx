@@ -23,7 +23,7 @@ import { useAgents } from '@/features/agents/hooks/use-agents';
 import { useChatVisibleAgents } from '@/features/agents/hooks/use-chat-visible-agents';
 import { useComparePreset } from '@/features/chat/hooks/use-compare-preset';
 import { CompareGrid, type ComparePrompt } from '@/features/chat/components/compare-grid';
-import type { ChatMessage, QuizFollowUpContext, RoutingMetadata } from '@/features/chat/types';
+import type { ChatMessage, ChatReferenceImage, QuizFollowUpContext, RoutingMetadata } from '@/features/chat/types';
 import type { PromptInputMessage } from '@/components/ai-elements/prompt-input';
 import { ThreadWorkingMemorySheet } from '@/features/memory/components/thread-working-memory-sheet';
 import { consumePendingChatIntent } from '@/features/chat/lib/pending-chat-intent';
@@ -75,6 +75,7 @@ function ChatShell() {
 
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(() => consumePendingChatIntent()?.agentId ?? null);
+  const [referenceImages, setReferenceImages] = useState<ChatReferenceImage[]>([]);
   const latestQuizContextRef = useRef<QuizFollowUpContext | null>(null);
   const selectedDocIdsRef = useRef(selectedDocIds);
   selectedDocIdsRef.current = selectedDocIds;
@@ -227,6 +228,41 @@ function ChatShell() {
   const handleToggleWebSearch = useCallback(() => {
     setUseWebSearch((prev) => !prev);
   }, []);
+
+  const handleUseImageInChat = useCallback((image: ChatReferenceImage) => {
+    setReferenceImages((prev) => {
+      const exists = prev.some((item) =>
+        image.assetId ? item.assetId === image.assetId : item.url === image.url
+      );
+      if (exists) return prev;
+      return [...prev, image];
+    });
+  }, []);
+
+  const handleRemoveReferenceImage = useCallback((id: string) => {
+    setReferenceImages((prev) => prev.filter((image) => image.id !== id));
+  }, []);
+
+  const handleChatSubmit = useCallback(
+    async ({ text, files }: PromptInputMessage) => {
+      const mergedFiles = [
+        ...referenceImages.map((image) => ({
+          type: 'file' as const,
+          url: image.url,
+          mediaType: image.mediaType,
+          filename: image.filename ?? 'reference-image',
+        })),
+        ...files,
+      ];
+
+      await handleSubmitMessage({ text, files: mergedFiles });
+
+      if (referenceImages.length > 0) {
+        setReferenceImages([]);
+      }
+    },
+    [handleSubmitMessage, referenceImages]
+  );
 
 
   const handleCompareSubmit = useCallback(
@@ -385,6 +421,7 @@ function ChatShell() {
                   onToggleReaction={toggleReaction}
                   onSuggestionClick={handleSuggestionClick}
                   onImageClick={openEditor}
+                  onUseImageInChat={handleUseImageInChat}
                   onQuizStateChange={handleQuizStateChange}
                   onActiveMessageChange={setActiveOutlineMessageId}
                 />
@@ -420,10 +457,12 @@ function ChatShell() {
                 onToggleWebSearch={handleToggleWebSearch}
                 onSuggestionClick={handleSuggestionClick}
                 onTranscriptionChange={handleTranscription}
-                onSubmit={compareMode ? handleCompareSubmit : handleSubmitMessage}
+                onSubmit={compareMode ? handleCompareSubmit : handleChatSubmit}
                 onVoiceTurnComplete={handleVoiceTurnComplete}
                 voiceHistory={voiceHistory}
                 selectedVoice={prefs.selectedVoice}
+                referenceImages={compareMode ? [] : referenceImages}
+                onRemoveReferenceImage={handleRemoveReferenceImage}
                 compareMode={compareMode}
                 comparePresetIds={presetIds}
                 comparePresetMode={presetMode}

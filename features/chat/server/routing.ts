@@ -116,7 +116,11 @@ export const getModelByIntent = (options: {
   const wantsImage =
     lower.startsWith('create image') ||
     lower.startsWith('generate image') ||
+    lower.startsWith('edit image') ||
     lower.includes('image of') ||
+    lower.includes('edit this image') ||
+    lower.includes('change this image') ||
+    lower.includes('remove background') ||
     lower.includes('draw ') ||
     lower.includes('illustration');
 

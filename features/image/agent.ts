@@ -33,6 +33,7 @@ export function createImageAgentTools(ctx: Pick<AgentToolContext, 'userId'>) {
         aspectRatio: z.string().optional().describe('Aspect ratio e.g. "16:9", "1:1", "9:16"'),
         quality: z.enum(['medium', 'high']).optional().describe('Quality for GPT Image models'),
         enablePro: z.boolean().optional().default(true).describe('Enable pro/quality mode for Grok Imagine models. Default: true'),
+        imageUrls: z.array(z.string()).optional().describe('Optional reference or edit images. Use these when the user uploaded or selected images for the next generation.'),
       }),
       async execute(params) {
         const { taskId, generationId } = await triggerImageGeneration(

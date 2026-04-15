@@ -1,7 +1,8 @@
 "use client";
 
 import type { MediaAsset } from "@/features/gallery/types";
-import { ShareIcon, CopyIcon, DownloadIcon } from "lucide-react";
+import type { ChatReferenceImage } from "@/features/chat/types";
+import { ShareIcon, CopyIcon, DownloadIcon, ImagePlusIcon } from "lucide-react";
 import Image from "next/image";
 import type { FilePart } from "../types";
 
@@ -10,9 +11,10 @@ type FilePartRendererProps = {
   messageId: string;
   threadId?: string;
   onImageClick?: (asset: MediaAsset) => void;
+  onUseImageInChat?: (image: ChatReferenceImage) => void;
 };
 
-export function FilePartRenderer({ part, messageId, threadId, onImageClick }: FilePartRendererProps) {
+export function FilePartRenderer({ part, messageId, threadId, onImageClick, onUseImageInChat }: FilePartRendererProps) {
   if (part.mediaType.startsWith("image/")) {
     return (
       <ImagePartRenderer
@@ -20,6 +22,7 @@ export function FilePartRenderer({ part, messageId, threadId, onImageClick }: Fi
         messageId={messageId}
         threadId={threadId}
         onImageClick={onImageClick}
+        onUseImageInChat={onUseImageInChat}
       />
     );
   }
@@ -39,11 +42,12 @@ export function FilePartRenderer({ part, messageId, threadId, onImageClick }: Fi
 
 // ─── Image renderer ───────────────────────────────────────────────────────────
 
-function ImagePartRenderer({ part, messageId, threadId, onImageClick }: FilePartRendererProps) {
+function ImagePartRenderer({ part, messageId, threadId, onImageClick, onUseImageInChat }: FilePartRendererProps) {
   const isDataUrl = part.url.startsWith("data:");
   const hasDimensions = typeof part.width === "number" && typeof part.height === "number";
   const previewUrl = !isDataUrl && part.thumbnailUrl ? part.thumbnailUrl : part.url;
   const canEdit = Boolean(onImageClick && !isDataUrl);
+  const canUseInChat = Boolean(onUseImageInChat);
 
   const handleEditClick = async () => {
     if (!onImageClick) return;
@@ -82,6 +86,23 @@ function ImagePartRenderer({ part, messageId, threadId, onImageClick }: FilePart
         /* fall through */
       }
     }
+  };
+
+  const handleUseInChat = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onUseImageInChat) return;
+
+    onUseImageInChat({
+      id: part.assetId ?? `${messageId}-${part.url}`,
+      url: part.url,
+      mediaType: part.mediaType,
+      filename: part.filename,
+      thumbnailUrl: part.thumbnailUrl,
+      assetId: part.assetId,
+      rootAssetId: part.rootAssetId,
+      version: part.version,
+      editPrompt: part.editPrompt,
+    });
   };
 
   const handleShare = async (e: React.MouseEvent) => {
@@ -132,6 +153,16 @@ function ImagePartRenderer({ part, messageId, threadId, onImageClick }: FilePart
         className="absolute bottom-3 right-3 flex items-center gap-1.5 opacity-0 transition-opacity duration-150 group-hover/img:opacity-100"
         onClick={(e) => e.stopPropagation()}
       >
+        {canUseInChat && (
+          <button
+            type="button"
+            title="Use in next chat"
+            onClick={handleUseInChat}
+            className="flex size-8 items-center justify-center rounded-full bg-background/90 shadow hover:bg-background transition-colors"
+          >
+            <ImagePlusIcon className="size-3.5 text-foreground" />
+          </button>
+        )}
         {typeof navigator !== "undefined" && "share" in navigator && (
           <button
             type="button"

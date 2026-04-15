@@ -54,6 +54,46 @@ import type { ChatMessage, ChatMessageMetadata, RoutingMetadata } from '@/featur
 export { type ChatMessage };
 export const maxDuration = 30;
 
+type ImageAttachmentPart = {
+  type: 'file';
+  url: string;
+  mediaType: string;
+};
+
+function getImageAttachmentParts(message: ChatMessage | undefined): ImageAttachmentPart[] {
+  if (!message?.parts?.length) return [];
+
+  return message.parts.filter((part): part is ImageAttachmentPart => {
+    if (!part || typeof part !== 'object') return false;
+    const record = part as Record<string, unknown>;
+    return (
+      record.type === 'file' &&
+      typeof record.url === 'string' &&
+      typeof record.mediaType === 'string' &&
+      record.mediaType.startsWith('image/')
+    );
+  });
+}
+
+function parseImageDataUrl(url: string): Buffer | null {
+  const match = /^data:([^;]+);base64,(.+)$/.exec(url);
+  if (!match) return null;
+  return Buffer.from(match[2], 'base64');
+}
+
+async function resolveImageAttachmentInput(part: ImageAttachmentPart): Promise<Buffer> {
+  const dataUrlBuffer = parseImageDataUrl(part.url!);
+  if (dataUrlBuffer) return dataUrlBuffer;
+
+  const response = await fetch(part.url!);
+  if (!response.ok) {
+    throw new Error('Unable to load the selected reference image.');
+  }
+
+  const bytes = await response.arrayBuffer();
+  return Buffer.from(bytes);
+}
+
 export async function POST(req: Request) {
   let chatRunId: string | null = null;
   let chatRunRouteKind: 'text' | 'image' = 'text';
@@ -440,8 +480,17 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
       const imagePrompt = activeBrand
         ? baseImagePrompt + buildImageBrandSuffix(activeBrand)
         : baseImagePrompt;
+      const latestUserMessage = [...messagesToSend].reverse().find((message) => message.role === 'user');
+      const latestUserImageParts = getImageAttachmentParts(latestUserMessage);
+      const imageInputs = latestUserImageParts.length > 0
+        ? await Promise.all(latestUserImageParts.map(resolveImageAttachmentInput))
+        : [];
+      const imagePromptInput =
+        imageInputs.length > 0
+          ? { text: imagePrompt, images: imageInputs }
+          : imagePrompt;
 
-      const imageResult = await generateImage({ model: resolvedModel, prompt: imagePrompt });
+      const imageResult = await generateImage({ model: resolvedModel, prompt: imagePromptInput });
       const generatedImage = imageResult.image;
       const imageDataUrl = `data:${generatedImage.mediaType};base64,${generatedImage.base64}`;
 

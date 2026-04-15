@@ -55,6 +55,18 @@ export type QuizFollowUpContext = {
   attempts: QuizAttemptSummary[];
 };
 
+export type ChatReferenceImage = {
+  id: string;
+  url: string;
+  mediaType: string;
+  filename?: string;
+  thumbnailUrl?: string;
+  assetId?: string;
+  rootAssetId?: string;
+  version?: number;
+  editPrompt?: string;
+};
+
 export type MessageReaction = 'thumbs_up' | 'thumbs_down';
 
 export type StepControlPart = {

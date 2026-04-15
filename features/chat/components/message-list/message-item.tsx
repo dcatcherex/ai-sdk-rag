@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/tooltip';
 import { MessagePartRenderer } from '@/components/message-renderer';
 import { filterRenderableMessageParts, getTextContentFromParts } from '@/features/chat/utils/message-parts';
-import type { ChatMessage, ChatMessageMetadata, ChatMessagePart, MessageReaction, QuizFollowUpContext } from '@/features/chat/types';
+import type { ChatMessage, ChatMessageMetadata, ChatMessagePart, ChatReferenceImage, MessageReaction, QuizFollowUpContext } from '@/features/chat/types';
 import type { MediaAsset } from '@/features/gallery/types';
 import { EnhancedPromptChip, GenerationDetails } from './generation-details';
 import { FollowUpChips } from './follow-up-chips';
@@ -76,6 +76,7 @@ type MessageItemProps = {
   onToggleReaction: (id: string, reaction: MessageReaction) => void;
   onSuggestionClick: (suggestion: string) => void;
   onImageClick?: (asset: MediaAsset) => void;
+  onUseImageInChat?: (image: ChatReferenceImage) => void;
   onQuizStateChange?: (context: QuizFollowUpContext) => void;
   onRequestDelete: (pending: PendingDelete) => void;
   onHoverDeleteEnter: (ids: Set<string>) => void;
@@ -117,6 +118,7 @@ export const MessageItem = ({
   onToggleReaction,
   onSuggestionClick,
   onImageClick,
+  onUseImageInChat,
   onQuizStateChange,
   onRequestDelete,
   onHoverDeleteEnter,
@@ -178,6 +180,7 @@ export const MessageItem = ({
               index={index}
               role={message.role}
               onImageClick={onImageClick}
+              onUseImageInChat={onUseImageInChat}
               onQuizStateChange={onQuizStateChange}
             />
           ))}

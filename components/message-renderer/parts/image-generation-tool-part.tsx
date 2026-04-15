@@ -13,10 +13,12 @@ import {
 import { useGenerationPoll } from '@/lib/hooks/use-generation-poll';
 import { cn } from '@/lib/utils';
 import type { ImageGenerationToolOutput } from '@/components/message-renderer/types';
+import type { ChatReferenceImage } from '@/features/chat/types';
 
 type ImageGenerationToolPartProps = {
   partKey: string;
   output: ImageGenerationToolOutput;
+  onUseImageInChat?: (image: ChatReferenceImage) => void;
 };
 
 function formatElapsed(ms: number) {
@@ -39,6 +41,7 @@ function triggerBrowserDownload(url: string, filename: string) {
 export function ImageGenerationToolPart({
   partKey,
   output,
+  onUseImageInChat,
 }: ImageGenerationToolPartProps) {
   const { state, startPoll } = useGenerationPoll();
   const [resolvedImageUrls, setResolvedImageUrls] = useState<string[]>(
@@ -100,6 +103,18 @@ export function ImageGenerationToolPart({
     });
   };
 
+  const handleUseInChat = (imageUrl: string, index: number) => {
+    if (!onUseImageInChat) return;
+
+    onUseImageInChat({
+      id: `${partKey}-${index}`,
+      url: imageUrl,
+      mediaType: 'image/png',
+      filename: `generated-image-${index + 1}.png`,
+      thumbnailUrl: resolvedThumbnailUrls[index],
+    });
+  };
+
   return (
     <div key={partKey} className="not-prose mb-4 w-full">
       {isWaiting && (
@@ -145,6 +160,17 @@ export function ImageGenerationToolPart({
                 />
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                 <div className="absolute right-3 bottom-3 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                  {onUseImageInChat ? (
+                    <Button
+                      size="icon"
+                      variant="secondary"
+                      className="pointer-events-auto rounded-full shadow-sm"
+                      onClick={() => handleUseInChat(imageUrl, index)}
+                      aria-label={`Use image ${index + 1} in next chat`}
+                    >
+                      <CheckCircle2 className="size-4" />
+                    </Button>
+                  ) : null}
                   <Button asChild size="icon" variant="secondary" className="pointer-events-auto rounded-full shadow-sm">
                     <a href={imageUrl} target="_blank" rel="noopener noreferrer" aria-label={`Open image ${index + 1}`}>
                       <ExternalLink className="size-4" />
@@ -169,6 +195,12 @@ export function ImageGenerationToolPart({
               {resolvedImageUrls.length === 1 ? 'Image ready' : `${resolvedImageUrls.length} images ready`}
             </div>
             <div className="flex-1" />
+            {onUseImageInChat && resolvedImageUrls.length === 1 ? (
+              <Button size="sm" variant="outline" onClick={() => handleUseInChat(resolvedImageUrls[0]!, 0)}>
+                <CheckCircle2 className="size-3.5" />
+                Use in next chat
+              </Button>
+            ) : null}
             <Button asChild size="sm" variant="outline">
               <a href={resolvedImageUrls[0]} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="size-3.5" />

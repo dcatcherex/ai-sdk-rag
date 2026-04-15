@@ -49,6 +49,7 @@ import { CompareModelPicker } from './compare-model-picker';
 import { ComposerActionButtons } from './composer-action-buttons';
 import { Dots, speedTier, costTier } from './model-dots';
 import { PromptPickerModal } from '@/features/prompts/components/prompt-picker-modal';
+import type { ChatReferenceImage } from '@/features/chat/types';
 
 // ── Inline attachments preview ────────────────────────────────────────────────
 
@@ -62,6 +63,37 @@ const ComposerAttachments = () => {
           data={attachment}
           key={attachment.id}
           onRemove={() => attachments.remove(attachment.id)}
+        >
+          <AttachmentPreview />
+          <AttachmentRemove />
+        </Attachment>
+      ))}
+    </Attachments>
+  );
+};
+
+const ComposerReferenceImages = ({
+  referenceImages,
+  onRemove,
+}: {
+  referenceImages: ChatReferenceImage[];
+  onRemove: (id: string) => void;
+}) => {
+  if (referenceImages.length === 0) return null;
+
+  return (
+    <Attachments variant="inline">
+      {referenceImages.map((image) => (
+        <Attachment
+          data={{
+            id: image.id,
+            type: 'file',
+            url: image.thumbnailUrl ?? image.url,
+            mediaType: image.mediaType,
+            filename: image.filename ?? 'Reference image',
+          }}
+          key={image.id}
+          onRemove={() => onRemove(image.id)}
         >
           <AttachmentPreview />
           <AttachmentRemove />
@@ -96,6 +128,8 @@ export type ChatComposerProps = {
   onVoiceTurnComplete?: (userText: string, aiText: string) => Promise<void>;
   voiceHistory?: VoiceHistoryTurn[];
   selectedVoice?: string | null;
+  referenceImages: ChatReferenceImage[];
+  onRemoveReferenceImage: (id: string) => void;
   // Compare mode
   compareMode: boolean;
   comparePresetIds: string[];
@@ -209,6 +243,8 @@ export function ChatComposer({
   onVoiceTurnComplete,
   voiceHistory,
   selectedVoice,
+  referenceImages,
+  onRemoveReferenceImage,
   compareMode,
   comparePresetIds,
   comparePresetMode,
@@ -287,6 +323,10 @@ export function ChatComposer({
         <PromptInput globalDrop className="rounded-xl" onSubmit={(message) => onSubmit(message)}>
           <PromptInputHeader>
             <ComposerAttachments />
+            <ComposerReferenceImages
+              referenceImages={referenceImages}
+              onRemove={onRemoveReferenceImage}
+            />
           </PromptInputHeader>
           <PromptInputBody>
             {voiceOpen ? (
