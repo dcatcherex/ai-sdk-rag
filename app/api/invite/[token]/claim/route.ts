@@ -38,6 +38,7 @@ export async function POST(_req: Request, context: Context) {
       return Response.json({ error: error.message, code: error.code }, { status: error.status });
     }
 
-    throw error;
+    console.error("[invite/claim] Unexpected error:", error);
+    return Response.json({ error: "Internal server error" }, { status: 500 });
   }
 }

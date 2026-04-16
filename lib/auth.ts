@@ -52,7 +52,7 @@ export const auth = betterAuth({
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }) => {
-      void sendEmail({
+      await sendEmail({
         to: user.email,
         subject: `Verify your email for ${appName}`,
         text: `Click to verify: ${url}`,
@@ -70,7 +70,7 @@ export const auth = betterAuth({
     enabled: true,
     requireEmailVerification: true,
     sendResetPassword: async ({ user, url }) => {
-      void sendEmail({
+      await sendEmail({
         to: user.email,
         subject: `Reset your ${appName} password`,
         text: `Click to reset: ${url}`,
@@ -112,7 +112,7 @@ export const auth = betterAuth({
   plugins: [
     magicLink({
       sendMagicLink: async ({ email, token, url }: { email: string; token: string; url: string }) => {
-        void sendEmail({
+        await sendEmail({
           to: email,
           subject: `Your ${appName} magic link`,
           text: `Sign in with this link: ${url}`,

@@ -378,103 +378,101 @@ export async function claimAdminUserInvite(options: {
   const normalizedEmail = normalizeEmail(options.userEmail);
   const now = new Date();
 
-  return db.transaction(async (tx) => {
-    const inviteRows = await tx
-      .select()
-      .from(adminUserInvite)
-      .where(eq(adminUserInvite.token, options.token))
-      .limit(1);
+  const inviteRows = await db
+    .select()
+    .from(adminUserInvite)
+    .where(eq(adminUserInvite.token, options.token))
+    .limit(1);
 
-    const invite = inviteRows[0];
-    if (!invite) {
-      throw new AdminInviteError("Invite not found.", { code: "invite_not_found", status: 404 });
-    }
+  const invite = inviteRows[0];
+  if (!invite) {
+    throw new AdminInviteError("Invite not found.", { code: "invite_not_found", status: 404 });
+  }
 
-    const effectiveStatus = getEffectiveInviteStatus(invite, now);
-    if (effectiveStatus === "cancelled") {
-      throw new AdminInviteError("This invite has been cancelled.", {
-        code: "invite_cancelled",
-        status: 410,
+  const effectiveStatus = getEffectiveInviteStatus(invite, now);
+  if (effectiveStatus === "cancelled") {
+    throw new AdminInviteError("This invite has been cancelled.", {
+      code: "invite_cancelled",
+      status: 410,
+    });
+  }
+
+  if (effectiveStatus === "expired") {
+    throw new AdminInviteError("This invite has expired.", {
+      code: "invite_expired",
+      status: 410,
+    });
+  }
+
+  if (normalizeEmail(invite.email) !== normalizedEmail) {
+    throw new AdminInviteError("You must sign in with the invited email address.", {
+      code: "invite_email_mismatch",
+      status: 403,
+    });
+  }
+
+  if (effectiveStatus === "accepted") {
+    if (invite.acceptedUserId && invite.acceptedUserId !== options.userId) {
+      throw new AdminInviteError("This invite has already been claimed by another account.", {
+        code: "invite_claimed_by_other_user",
+        status: 409,
       });
     }
-
-    if (effectiveStatus === "expired") {
-      throw new AdminInviteError("This invite has expired.", {
-        code: "invite_expired",
-        status: 410,
-      });
-    }
-
-    if (normalizeEmail(invite.email) !== normalizedEmail) {
-      throw new AdminInviteError("You must sign in with the invited email address.", {
-        code: "invite_email_mismatch",
-        status: 403,
-      });
-    }
-
-    if (effectiveStatus === "accepted") {
-      if (invite.acceptedUserId && invite.acceptedUserId !== options.userId) {
-        throw new AdminInviteError("This invite has already been claimed by another account.", {
-          code: "invite_claimed_by_other_user",
-          status: 409,
-        });
-      }
-
-      return {
-        invite: (await mapInviteRecords([invite]))[0]!,
-        alreadyAccepted: true,
-      };
-    }
-
-    if (invite.approvedOnAccept) {
-      await tx
-        .update(user)
-        .set({ approved: true, updatedAt: now })
-        .where(eq(user.id, options.userId));
-    }
-
-    let creditGrantedAt = invite.creditGrantedAt;
-
-    if (invite.initialCreditGrant > 0 && !invite.creditGrantedAt) {
-      await tx.insert(userCredit).values({ userId: options.userId, balance: 0 }).onConflictDoNothing();
-
-      const updatedBalances = await tx
-        .update(userCredit)
-        .set({
-          balance: sql`${userCredit.balance} + ${invite.initialCreditGrant}`,
-          updatedAt: now,
-        })
-        .where(eq(userCredit.userId, options.userId))
-        .returning({ balance: userCredit.balance });
-
-      await tx.insert(creditTransaction).values({
-        id: nanoid(),
-        userId: options.userId,
-        amount: invite.initialCreditGrant,
-        balance: updatedBalances[0]?.balance ?? invite.initialCreditGrant,
-        type: "grant",
-        description: "Admin invite acceptance bonus",
-        createdAt: now,
-      });
-
-      creditGrantedAt = now;
-    }
-
-    const updatedRows = await tx
-      .update(adminUserInvite)
-      .set({
-        status: "accepted",
-        acceptedAt: now,
-        acceptedUserId: options.userId,
-        creditGrantedAt,
-        updatedAt: now,
-      })
-      .where(eq(adminUserInvite.id, invite.id))
-      .returning();
 
     return {
-      invite: (await mapInviteRecords([updatedRows[0]!]))[0]!,
-      alreadyAccepted: false,
+      invite: (await mapInviteRecords([invite]))[0]!,
+      alreadyAccepted: true,
     };
-  });
+  }
+
+  if (invite.approvedOnAccept) {
+    await db
+      .update(user)
+      .set({ approved: true, updatedAt: now })
+      .where(eq(user.id, options.userId));
+  }
+
+  let creditGrantedAt = invite.creditGrantedAt;
+
+  if (invite.initialCreditGrant > 0 && !invite.creditGrantedAt) {
+    await db.insert(userCredit).values({ userId: options.userId, balance: 0 }).onConflictDoNothing();
+
+    const updatedBalances = await db
+      .update(userCredit)
+      .set({
+        balance: sql`${userCredit.balance} + ${invite.initialCreditGrant}`,
+        updatedAt: now,
+      })
+      .where(eq(userCredit.userId, options.userId))
+      .returning({ balance: userCredit.balance });
+
+    await db.insert(creditTransaction).values({
+      id: nanoid(),
+      userId: options.userId,
+      amount: invite.initialCreditGrant,
+      balance: updatedBalances[0]?.balance ?? invite.initialCreditGrant,
+      type: "grant",
+      description: "Admin invite acceptance bonus",
+      createdAt: now,
+    });
+
+    creditGrantedAt = now;
+  }
+
+  const updatedRows = await db
+    .update(adminUserInvite)
+    .set({
+      status: "accepted",
+      acceptedAt: now,
+      acceptedUserId: options.userId,
+      creditGrantedAt,
+      updatedAt: now,
+    })
+    .where(eq(adminUserInvite.id, invite.id))
+    .returning();
+
+  return {
+    invite: (await mapInviteRecords([updatedRows[0]!]))[0]!,
+    alreadyAccepted: false,
+  };
 }
