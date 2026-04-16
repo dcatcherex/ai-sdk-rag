@@ -1,6 +1,31 @@
-import { boolean, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
+
+// ── Image Model Config (admin-managed) ────────────────────────────────────────
+
+/**
+ * Per-model admin configuration for image generation models.
+ * The model registry (KIE_IMAGE_MODELS) is the source of truth for what exists;
+ * this table controls what's enabled, which is the default, and pre-set defaults.
+ */
+export const imageModelConfig = pgTable("image_model_config", {
+  id: text("id").primaryKey(),                           // matches KIE_IMAGE_MODELS id
+  enabled: boolean("enabled").notNull().default(true),
+  isDefault: boolean("is_default").notNull().default(false),
+  defaultAspectRatio: text("default_aspect_ratio"),
+  defaultQuality: text("default_quality"),               // 'medium' | 'high'
+  defaultResolution: text("default_resolution"),          // '1K' | '2K' | '4K'
+  defaultEnablePro: boolean("default_enable_pro").notNull().default(false),
+  defaultGoogleSearch: boolean("default_google_search").notNull().default(false),
+  adminNotes: text("admin_notes"),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+}, (table) => [
+  index("image_model_config_enabled_idx").on(table.enabled),
+]);
 
 export const adminUserInvite = pgTable(
   "admin_user_invite",

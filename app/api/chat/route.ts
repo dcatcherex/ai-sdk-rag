@@ -6,7 +6,7 @@ import {
   stepCountIs,
 } from 'ai';
 import { headers } from 'next/headers';
-import { and, eq, exists, isNull, or } from 'drizzle-orm';
+import { and, count, eq, exists, isNull, or } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { agent, agentShare, brand, brandShare, chatThread, user as userTable, userPreferences } from '@/db/schema';
@@ -34,6 +34,12 @@ import {
   getSkillsForAgent,
   resolveSkillRuntimeContext,
 } from '@/features/skills/service';
+import { getWorkspaceContext } from '@/features/platform-agent/service';
+import {
+  buildPlatformAgentSystemPrompt,
+  buildOnboardingSystemPrompt,
+} from '@/features/platform-agent/prompts';
+import { getPlatformAgentTools } from '@/features/platform-agent/agent';
 import type { Skill } from '@/features/skills/types';
 import { getLastUserPrompt } from '@/features/chat/server/thread-utils';
 import { toolDisabledModels, isImageOnlyModel, getModelByIntent } from '@/features/chat/server/routing';
@@ -181,6 +187,24 @@ export async function POST(req: Request) {
     const currentTitle = threadRows[0]!.title ?? 'New chat';
     const userPrefs = prefsRows[0] ?? { memoryEnabled: true, memoryInjectEnabled: true, memoryExtractEnabled: true, promptEnhancementEnabled: true, followUpSuggestionsEnabled: true, enabledToolIds: null, rerankEnabled: false };
     const activeAgent = activeAgentRows[0] ?? null;
+
+    // ── Platform agent detection ─────────────────────────────────────────────
+    // Detect first-time users (no user-owned agents) and activate the Vaja Platform Agent.
+    // Also activates when agentId === 'vaja-platform' is explicitly requested.
+    const isVajaPlatformRequest = agentId === 'vaja-platform';
+    let isPlatformAgentActive = isVajaPlatformRequest;
+    let isOnboardingMode = false;
+    if (!agentId) {
+      const agentCountRows = await db
+        .select({ count: count() })
+        .from(agent)
+        .where(eq(agent.userId, session.user.id));
+      const userAgentCount = agentCountRows[0]?.count ?? 0;
+      if (userAgentCount === 0) {
+        isPlatformAgentActive = true;
+        isOnboardingMode = true;
+      }
+    }
     const lastUserPrompt = getLastUserPrompt(messages);
 
     // Load skills attached to the active agent
@@ -259,9 +283,19 @@ export async function POST(req: Request) {
     const examPrepToolEnabled = activeToolIds === null || activeToolIds.includes('exam_prep');
     const certificateToolEnabled = activeToolIds === null || activeToolIds.includes('certificate');
 
-    // Base system prompt: agent > default
-    const rawSystemPrompt = activeAgent ? activeAgent.systemPrompt : getSystemPrompt();
-    const baseSystemPrompt = resolveSystemPromptTemplate(rawSystemPrompt);
+    // Base system prompt: platform agent > agent > default
+    let baseSystemPrompt: string;
+    if (isPlatformAgentActive) {
+      if (isOnboardingMode) {
+        baseSystemPrompt = buildOnboardingSystemPrompt();
+      } else {
+        const workspaceCtx = await getWorkspaceContext(session.user.id);
+        baseSystemPrompt = buildPlatformAgentSystemPrompt(workspaceCtx);
+      }
+    } else {
+      const rawSystemPrompt = activeAgent ? activeAgent.systemPrompt : getSystemPrompt();
+      baseSystemPrompt = resolveSystemPromptTemplate(rawSystemPrompt);
+    }
 
 
     // ── Model routing ────────────────────────────────────────────────────────
@@ -490,20 +524,24 @@ IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or con
       quizContextBlock: supportsTools ? quizContextBlock : '',
     }) + latestImageToolBlock;
 
-    const baseTools = activeAgent
-      ? createAgentTools(activeToolIds, session.user.id, effectiveDocIds, {
-          threadId,
-          referenceImageUrls: effectiveReferenceImageParts.map((part) => part.url),
-        })
-      : buildToolSet({
-          enabledToolIds: activeToolIds,
-          userId: session.user.id,
-          documentIds: isGrounded ? effectiveDocIds : undefined,
-          rerankEnabled: userPrefs.rerankEnabled ?? false,
-          source: 'agent',
-          threadId,
-          referenceImageUrls: effectiveReferenceImageParts.map((part) => part.url),
-        });
+    // When platform agent is active, expose platform management tools exclusively.
+    // Platform tools must not bleed into regular agent or user tool sets.
+    const baseTools = isPlatformAgentActive
+      ? getPlatformAgentTools({ userId: session.user.id })
+      : activeAgent
+        ? createAgentTools(activeToolIds, session.user.id, effectiveDocIds, {
+            threadId,
+            referenceImageUrls: effectiveReferenceImageParts.map((part) => part.url),
+          })
+        : buildToolSet({
+            enabledToolIds: activeToolIds,
+            userId: session.user.id,
+            documentIds: isGrounded ? effectiveDocIds : undefined,
+            rerankEnabled: userPrefs.rerankEnabled ?? false,
+            source: 'agent',
+            threadId,
+            referenceImageUrls: effectiveReferenceImageParts.map((part) => part.url),
+          });
 
     // Merge MCP tools from agent config (empty object when no MCP servers configured)
     const mcpTools = activeAgent?.mcpServers?.length

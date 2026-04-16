@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import {
   BotIcon,
   CoinsIcon,
+  ImageIcon,
   LayoutDashboardIcon,
   MenuIcon,
   SearchIcon,
@@ -30,6 +31,7 @@ const navItems = [
   { href: '/admin/users', label: 'Users', icon: UsersIcon },
   { href: '/admin/credits', label: 'Credits', icon: CoinsIcon },
   { href: '/admin/chat-runs', label: 'AI Runs', icon: SearchIcon },
+  { href: '/admin/image-models', label: 'Image Models', icon: ImageIcon },
   { href: '/admin/tests', label: 'Tests', icon: TestTubeDiagonalIcon },
 ];
 

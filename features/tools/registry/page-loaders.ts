@@ -103,4 +103,10 @@ export const TOOL_PAGE_LOADERS: Record<string, ToolPageLoader> = {
     );
     return GoogleSlidesToolPage;
   },
+  'web-deploy': async () => {
+    const { DeployToolPage } = await import(
+      '@/features/deploy/components/deploy-tool-page'
+    );
+    return DeployToolPage;
+  },
 };

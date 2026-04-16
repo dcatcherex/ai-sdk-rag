@@ -44,6 +44,10 @@ import { googleDriveManifest } from '@/features/google-drive/manifest';
 import { createGoogleDriveAgentTools } from '@/features/google-drive/agent';
 import { googleSlidesManifest } from '@/features/google-slides/manifest';
 import { createGoogleSlidesAgentTools } from '@/features/google-slides/agent';
+import { webDeployManifest } from '@/features/deploy/manifest';
+import { createWebDeployAgentTools } from '@/features/deploy/agent';
+import { platformAgentManifest } from '@/features/platform-agent/manifest';
+import { getPlatformAgentTools } from '@/features/platform-agent/agent';
 
 const SERVER_REGISTRY: RegisteredTool[] = [
   {
@@ -171,6 +175,18 @@ const SERVER_REGISTRY: RegisteredTool[] = [
     getAgentDefinition: (ctx: AgentToolContext) =>
       createGoogleSlidesAgentTools({ userId: ctx.userId }),
     getSidebarPageHref: () => `/tools/${googleSlidesManifest.slug}`,
+  },
+  {
+    manifest: webDeployManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createWebDeployAgentTools({ userId: ctx.userId, threadId: ctx.threadId }),
+    getSidebarPageHref: () => `/tools/${webDeployManifest.slug}`,
+  },
+  {
+    manifest: platformAgentManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      getPlatformAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => '/',
   },
 ];
 

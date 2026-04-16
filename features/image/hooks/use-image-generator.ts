@@ -1,15 +1,32 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { useGenerationPoll } from '@/lib/hooks/use-generation-poll';
 import { IMAGE_MODEL_CONFIGS } from '../types';
+import type { ActiveImageModel } from '@/app/api/image/models/route';
 
 export type Mode = 'generate' | 'edit';
 
 export function useImageGenerator() {
   const searchParams = useSearchParams();
   const { state, startPoll, checkNow, reset } = useGenerationPoll();
+
+  // Fetch admin-configured enabled models (falls back to full list on error)
+  const { data: activeModels } = useQuery<ActiveImageModel[]>({
+    queryKey: ['image-models-active'],
+    queryFn: async () => {
+      const res = await fetch('/api/image/models');
+      if (!res.ok) return IMAGE_MODEL_CONFIGS as ActiveImageModel[];
+      const json = await res.json() as { models: ActiveImageModel[] };
+      return json.models;
+    },
+    staleTime: 30_000,
+    placeholderData: IMAGE_MODEL_CONFIGS as ActiveImageModel[],
+  });
+
+  const modelConfigs = activeModels ?? (IMAGE_MODEL_CONFIGS as ActiveImageModel[]);
 
   const [mode, setMode] = useState<Mode>('generate');
   const [modelId, setModelId] = useState('nano-banana-2');
@@ -23,6 +40,23 @@ export function useImageGenerator() {
   const [seed, setSeed] = useState('');
   const [imageUrls, setImageUrls] = useState<string[]>([]);
 
+  // Track whether the user has manually changed the model
+  const userChangedModel = useRef(false);
+
+  // Once active models load, apply the admin-configured default (if user hasn't manually picked)
+  useEffect(() => {
+    if (!activeModels || userChangedModel.current) return;
+    const defaultModel = activeModels.find(m => m.isDefault && (m.mode === mode || m.mode === 'both'));
+    if (defaultModel) {
+      setModelId(defaultModel.id);
+      if (defaultModel.defaultAspectRatio) setAspectRatio(defaultModel.defaultAspectRatio);
+      if (defaultModel.defaultQuality) setQuality(defaultModel.defaultQuality);
+      if (defaultModel.defaultResolution) setResolution(defaultModel.defaultResolution);
+      if (defaultModel.defaultEnablePro) setEnablePro(defaultModel.defaultEnablePro);
+      if (defaultModel.defaultGoogleSearch) setGoogleSearch(defaultModel.defaultGoogleSearch);
+    }
+  }, [activeModels, mode]);
+
   // Resume poll from agent redirect
   const idFromUrl = searchParams.get('id');
   const taskIdFromUrl = searchParams.get('taskId');
@@ -33,23 +67,34 @@ export function useImageGenerator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idFromUrl, taskIdFromUrl]);
 
-  // When mode changes, pick a sensible default model
+  // When mode changes, pick a sensible default model from the active list
   useEffect(() => {
-    const compatible = IMAGE_MODEL_CONFIGS.find(m => m.mode === mode || m.mode === 'both');
-    if (compatible) {
-      setModelId(compatible.id);
-      setAspectRatio(compatible.aspectRatios[0] ?? 'auto');
+    if (userChangedModel.current) return;
+    const defaultForMode = modelConfigs.find(m => m.isDefault && (m.mode === mode || m.mode === 'both'))
+      ?? modelConfigs.find(m => m.mode === mode || m.mode === 'both');
+    if (defaultForMode) {
+      setModelId(defaultForMode.id);
+      setAspectRatio(defaultForMode.defaultAspectRatio ?? defaultForMode.aspectRatios[0] ?? 'auto');
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  const modelConfig = IMAGE_MODEL_CONFIGS.find(m => m.id === modelId)!;
-  const visibleModels = IMAGE_MODEL_CONFIGS.filter(m => m.mode === mode || m.mode === 'both');
+  const modelConfig = modelConfigs.find(m => m.id === modelId) ?? modelConfigs[0];
+  const visibleModels = modelConfigs.filter(m => m.mode === mode || m.mode === 'both');
 
   const handleModelSelect = (id: string) => {
+    userChangedModel.current = true;
     setModelId(id);
-    const cfg = IMAGE_MODEL_CONFIGS.find(m => m.id === id);
-    if (cfg && !cfg.aspectRatios.includes(aspectRatio)) {
-      setAspectRatio(cfg.aspectRatios[0] ?? 'auto');
+    const cfg = modelConfigs.find(m => m.id === id);
+    if (cfg) {
+      if (!cfg.aspectRatios.includes(aspectRatio)) {
+        setAspectRatio(cfg.defaultAspectRatio ?? cfg.aspectRatios[0] ?? 'auto');
+      }
+      // Apply per-model admin defaults when switching
+      if (cfg.defaultQuality) setQuality(cfg.defaultQuality);
+      if (cfg.defaultResolution) setResolution(cfg.defaultResolution);
+      setEnablePro(cfg.defaultEnablePro ?? false);
+      setGoogleSearch(cfg.defaultGoogleSearch ?? false);
     }
   };
 

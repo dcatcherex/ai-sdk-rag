@@ -24,6 +24,8 @@ import { googleSheetsManifest } from '@/features/google-sheets/manifest';
 import { googleDocsManifest } from '@/features/google-docs/manifest';
 import { googleDriveManifest } from '@/features/google-drive/manifest';
 import { googleSlidesManifest } from '@/features/google-slides/manifest';
+import { webDeployManifest } from '@/features/deploy/manifest';
+import { platformAgentManifest } from '@/features/platform-agent/manifest';
 
 /** All registered tool manifests */
 export const TOOL_MANIFESTS: ToolManifest[] = [
@@ -46,6 +48,8 @@ export const TOOL_MANIFESTS: ToolManifest[] = [
   googleDocsManifest,
   googleDriveManifest,
   googleSlidesManifest,
+  webDeployManifest,
+  platformAgentManifest,
 ];
 
 /** Map from tool id → manifest */

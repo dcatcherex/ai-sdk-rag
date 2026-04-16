@@ -64,13 +64,13 @@ export async function handlePostbackEvent(
       await resolveApprovalRequest(requestId, resolverId, { status: approvalAction.status });
       replyText =
         approvalAction.status === 'approved'
-          ? '✅ Content approved successfully.'
+          ? '✅ อนุมัติเนื้อหาเรียบร้อยแล้ว'
           : approvalAction.status === 'rejected'
-          ? '❌ Content has been rejected.'
-          : '↩️ Changes requested. The author has been notified.';
+          ? '❌ ปฏิเสธเนื้อหาเรียบร้อยแล้ว'
+          : '↩️ ขอให้แก้ไข — แจ้งผู้เขียนแล้ว';
     } catch (err) {
       console.error('[postback] resolveApprovalRequest failed:', err);
-      replyText = `Could not process approval: ${(err as Error).message}`;
+      replyText = `ไม่สามารถดำเนินการได้: ${(err as Error).message}`;
     }
 
     if (event.replyToken) {
@@ -102,7 +102,7 @@ export async function handlePostbackEvent(
 
     // Send confirmation if we have a reply token
     if (event.replyToken) {
-      let confirmText = 'Switched back to the default assistant.';
+      let confirmText = 'กลับไปใช้ผู้ช่วยหลักเรียบร้อยแล้ว';
       if (!isDefault) {
         const [agentRow] = await db
           .select({ name: agent.name })
@@ -110,7 +110,7 @@ export async function handlePostbackEvent(
           .where(and(eq(agent.id, agentId)))
           .limit(1);
         if (agentRow?.name) {
-          confirmText = `Switched to ${agentRow.name}. How can I help you?`;
+          confirmText = `เปลี่ยนเป็น ${agentRow.name} แล้ว มีอะไรให้ช่วยไหมครับ?`;
         }
       }
       await lineClient.replyMessage({

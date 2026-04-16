@@ -9,6 +9,7 @@ import { handleFollowEvent } from './events/follow';
 import { handleMessageEvent } from './events/message';
 import { handlePostbackEvent } from './events/postback';
 import { handleBeaconEvent } from './events/beacon';
+import { handleManagementBotEvent } from './management-bot';
 import { maybeSyncUserProfile } from '@/features/line-oa/link/profile-sync';
 import {
   getSkillsForAgent,
@@ -147,6 +148,19 @@ export async function POST(
           : [[], [], [], []];
 
         const linkedUser: LinkedUser | undefined = linkRows[0] ?? undefined;
+
+        // ── Management bot detection ─────────────────────────────────────────
+        // If the sender is the channel owner (linked Vaja account === channel.userId),
+        // route to the platform management bot instead of the domain agent handler.
+        const isChannelOwner = linkedUser && linkedUser.userId === channel.userId;
+        if (isChannelOwner && !isGroupChat) {
+          await handleManagementBotEvent(
+            event,
+            { id: channel.id, userId: channel.userId, name: channel.name, channelAccessToken: channel.channelAccessToken },
+            lineClient,
+          );
+          continue;
+        }
 
         // Resolve the effective agent: user's active choice > channel default
         const activeAgentId = sessionRows[0]?.activeAgentId ?? null;

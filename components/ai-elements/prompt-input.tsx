@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { prepareAttachmentFilesForSubmit } from "@/components/ai-elements/prompt-input-attachments";
 import { cn } from "@/lib/utils";
 import type { ChatStatus, FileUIPart, SourceDocumentUIPart } from "ai";
 import {
@@ -642,7 +643,7 @@ export const PromptInput = ({
     event.currentTarget.value = "";
   };
 
-  const convertBlobUrlToDataUrl = async (
+  const convertObjectUrlToDataUrl = async (
     url: string
   ): Promise<string | null> => {
     try {
@@ -656,30 +657,6 @@ export const PromptInput = ({
       });
     } catch {
       return null;
-    }
-  };
-
-  const shouldConvertAttachmentUrl = (
-    url: string | undefined,
-    mediaType: string | undefined
-  ): boolean => {
-    if (!url || !mediaType?.startsWith("image/")) {
-      return false;
-    }
-
-    if (url.startsWith("blob:")) {
-      return true;
-    }
-
-    if (!url.startsWith("http://") && !url.startsWith("https://")) {
-      return false;
-    }
-
-    try {
-      const hostname = new URL(url).hostname.toLowerCase();
-      return hostname.endsWith("oaiusercontent.com") || hostname.endsWith("oausercontent.com");
-    } catch {
-      return false;
     }
   };
 
@@ -730,18 +707,9 @@ export const PromptInput = ({
     }
 
     // Convert blob URLs to data URLs asynchronously
-    Promise.all(
-      files.map(async ({ id, ...item }) => {
-        if (shouldConvertAttachmentUrl(item.url, item.mediaType)) {
-          const dataUrl = await convertBlobUrlToDataUrl(item.url);
-          // If conversion failed, keep the original blob URL
-          return {
-            ...item,
-            url: dataUrl ?? item.url,
-          };
-        }
-        return item;
-      })
+    prepareAttachmentFilesForSubmit(
+      files.map(({ id, ...item }) => item),
+      convertObjectUrlToDataUrl
     )
       .then((convertedFiles: FileUIPart[]) => {
         try {
