@@ -7,7 +7,7 @@ import { KeyRoundIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { authClient } from "@/lib/auth-client";
+const MIN_PASSWORD_LENGTH = 8;
 
 export default function SetupPasswordPage() {
   return (
@@ -20,7 +20,7 @@ export default function SetupPasswordPage() {
 function SetupPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get("token") ?? "";
+  const inviteAccepted = searchParams.get("invite") === "accepted";
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -30,10 +30,11 @@ function SetupPasswordContent() {
   const handleSubmit = async () => {
     setError(null);
 
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
       return;
     }
+
     if (password !== confirm) {
       setError("Passwords do not match.");
       return;
@@ -42,13 +43,19 @@ function SetupPasswordContent() {
     setIsLoading(true);
 
     try {
-      const { error: authError } = await authClient.resetPassword({ token, newPassword: password });
+      const response = await fetch("/api/auth/set-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword: password }),
+      });
 
-      if (authError) {
-        setError(authError.message ?? "Failed to set password. The link may have expired.");
-      } else {
-        router.push("/");
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        setError(typeof body?.message === "string" ? body.message : "Failed to set password. Please sign in again and try once more.");
+        return;
       }
+
+      router.push("/");
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
@@ -67,21 +74,35 @@ function SetupPasswordContent() {
             <div>
               <CardTitle>Set your password</CardTitle>
               <CardDescription>
-                Create a password so you can sign in to Vaja AI next time.
+                Create a password for this account so future sign-ins can use email and password too.
               </CardDescription>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {inviteAccepted ? (
+              <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-400">
+                Your invite is active. Add a password now if you want a backup sign-in method alongside magic links.
+              </p>
+            ) : null}
+
             <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                New password
+              </label>
               <Input
                 type="password"
-                placeholder="New password (min 8 characters)"
+                autoComplete="new-password"
+                placeholder={`New password (min ${MIN_PASSWORD_LENGTH} characters)`}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
               />
+              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Confirm password
+              </label>
               <Input
                 type="password"
+                autoComplete="new-password"
                 placeholder="Confirm password"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
@@ -95,11 +116,7 @@ function SetupPasswordContent() {
               </p>
             ) : null}
 
-            <Button
-              className="w-full"
-              onClick={handleSubmit}
-              disabled={isLoading || !password || !confirm || !token}
-            >
+            <Button className="w-full" onClick={handleSubmit} disabled={isLoading || !password || !confirm}>
               {isLoading ? "Setting password..." : "Set password"}
             </Button>
 

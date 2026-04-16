@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 
 const resetRedirectURL = "/reset-password";
+const googleEnabled = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "true";
 
 type View = "sign-in" | "sign-up" | "reset" | "magic" | "inbox";
 
@@ -188,6 +189,10 @@ function SignInContent() {
 
   const handleGoogleSignIn = async () => {
     clearMessages();
+    if (!googleEnabled) {
+      setError("Google sign-in is not available in this environment.");
+      return;
+    }
     try {
       await authClient.signIn.social({ provider: "google", callbackURL: nextUrl });
     } catch (e) {
@@ -324,15 +329,23 @@ function SignInContent() {
           {view === "sign-in" ? (
             <div className="space-y-4">
               <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  Email
+                </label>
                 <Input
                   type="email"
+                  autoComplete="email"
                   placeholder="name@business.co.th"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleEmailSignIn()}
                 />
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  Password
+                </label>
                 <Input
                   type="password"
+                  autoComplete="current-password"
                   placeholder="Password | รหัสผ่าน"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -408,6 +421,7 @@ function SignInContent() {
             <div className="space-y-4">
               <Input
                 type="email"
+                autoComplete="email"
                 placeholder="name@business.co.th"
                 value={resetEmail}
                 onChange={(e) => setResetEmail(e.target.value)}
@@ -429,6 +443,7 @@ function SignInContent() {
             <div className="space-y-4">
               <Input
                 type="email"
+                autoComplete="email"
                 placeholder="name@business.co.th"
                 value={magicEmail}
                 onChange={(e) => setMagicEmail(e.target.value)}

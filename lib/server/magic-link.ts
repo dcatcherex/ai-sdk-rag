@@ -1,8 +1,7 @@
 import { nanoid } from "nanoid";
-import { sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { user, verification } from "@/db/schema";
+import { verification } from "@/db/schema";
 
 /**
  * Generates a server-side magic link by inserting directly into Better Auth's
@@ -27,39 +26,4 @@ export async function generateServerMagicLink(
   });
 
   return `/api/auth/magic-link/verify?token=${encodeURIComponent(token)}&callbackURL=${encodeURIComponent(callbackURL)}`;
-}
-
-/**
- * Generates a server-side password-reset token by inserting into Better Auth's
- * verification table. Used to redirect a signed-in passwordless user to the
- * set-password page without sending an email.
- */
-export async function generatePasswordSetupToken(
-  email: string,
-  expiresInMs = 60 * 60 * 1000, // 1 hour
-): Promise<string> {
-  const normalizedEmail = email.trim().toLowerCase();
-  const [existingUser] = await db
-    .select({ id: user.id })
-    .from(user)
-    .where(sql`lower(${user.email}) = ${normalizedEmail}`)
-    .limit(1);
-
-  if (!existingUser) {
-    throw new Error(`Cannot create password setup token for missing user: ${normalizedEmail}`);
-  }
-
-  const token = nanoid(24);
-  const now = new Date();
-
-  await db.insert(verification).values({
-    id: nanoid(),
-    identifier: `reset-password:${token}`,
-    value: existingUser.id,
-    expiresAt: new Date(now.getTime() + expiresInMs),
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  return token;
 }

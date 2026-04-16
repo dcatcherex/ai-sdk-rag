@@ -4,7 +4,6 @@ import { and, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { account } from "@/db/schema";
-import { generatePasswordSetupToken } from "@/lib/server/magic-link";
 
 export async function POST() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -23,10 +22,5 @@ export async function POST() {
     return Response.json({ redirectUrl: "/" });
   }
 
-  // Generate a password-reset token via Better Auth's verification table.
-  // The /reset-password page uses authClient.resetPassword({ token }) which
-  // creates the credential account on first use.
-  const token = await generatePasswordSetupToken(session.user.email);
-
-  return Response.json({ redirectUrl: `/setup-password?token=${token}` });
+  return Response.json({ redirectUrl: "/setup-password?invite=accepted" });
 }
