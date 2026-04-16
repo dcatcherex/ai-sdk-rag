@@ -33,4 +33,5 @@ export type AdminUserInviteListResult = {
 export type ClaimAdminInviteResult = {
   invite: AdminUserInviteRecord;
   alreadyAccepted: boolean;
+  needsPasswordSetup: boolean;
 };

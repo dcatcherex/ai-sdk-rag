@@ -22,6 +22,7 @@ export async function POST(_req: Request, context: Context) {
 
     return Response.json({
       alreadyAccepted: result.alreadyAccepted,
+      needsPasswordSetup: result.needsPasswordSetup,
       invite: {
         ...result.invite,
         expiresAt: result.invite.expiresAt.toISOString(),

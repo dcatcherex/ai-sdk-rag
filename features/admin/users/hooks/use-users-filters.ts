@@ -19,6 +19,7 @@ export function useUsersFilters() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [grantTarget, setGrantTarget] = useState<{ id: string; name: string; email: string; balance: number } | null>(null);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; email: string } | null>(null);
 
   // Debounce search
   const handleSearchChange = useCallback((value: string) => {
@@ -80,6 +81,8 @@ export function useUsersFilters() {
     setGrantTarget,
     inviteDialogOpen,
     setInviteDialogOpen,
+    deleteTarget,
+    setDeleteTarget,
   };
 }
 

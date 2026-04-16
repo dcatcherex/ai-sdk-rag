@@ -3,6 +3,7 @@
 import {
   CheckCircleIcon,
   CoinsIcon,
+  Trash2Icon,
   XCircleIcon,
   ActivityIcon,
   ZapIcon,
@@ -46,6 +47,7 @@ interface UserListProps {
   onPageChange: (page: number) => void;
   onSelectUser: (userId: string) => void;
   onGrantCredits: (user: AdminUser) => void;
+  onDeleteUser: (user: AdminUser) => void;
 }
 
 export function UserList({
@@ -64,6 +66,7 @@ export function UserList({
   onPageChange,
   onSelectUser,
   onGrantCredits,
+  onDeleteUser,
 }: UserListProps) {
   return (
     <section className="space-y-3">
@@ -213,6 +216,15 @@ export function UserList({
                       >
                         <CoinsIcon className="size-3.5" />
                         Grant
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => onDeleteUser(user)}
+                      >
+                        <Trash2Icon className="size-3.5" />
+                        Delete
                       </Button>
                     </div>
                   </TableCell>

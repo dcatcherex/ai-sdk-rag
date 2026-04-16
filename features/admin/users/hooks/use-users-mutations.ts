@@ -82,12 +82,26 @@ export function useUsersMutations() {
     },
   });
 
+  const deleteUser = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error ?? 'Failed to delete user');
+      return body;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'invites'] });
+    },
+  });
+
   return {
     approval,
     grantCredits,
     createInvite,
     resendInvite,
     cancelInvite,
+    deleteUser,
   };
 }
 

@@ -41,6 +41,8 @@ function SignInContent() {
   const nextUrl = searchParams.get("next") || "/";
   const prefilledEmail = searchParams.get("email") || "";
   const verificationCallbackURL = `/verified?next=${encodeURIComponent(nextUrl)}`;
+  const isInviteFlow = nextUrl.startsWith("/invite/");
+  const inviteToken = isInviteFlow ? (nextUrl.split("/")[2] ?? null) : null;
 
   const [view, setView] = useState<View>("sign-in");
   const [email, setEmail] = useState(prefilledEmail);
@@ -137,14 +139,46 @@ function SignInContent() {
       });
       if (error) {
         setError(getErrorMessage(error));
-      } else {
-        setSignUpSuccessEmail(signUpEmail);
-        setInboxEmail(signUpEmail);
-        setSignUpName("");
-        setSignUpEmail("");
-        setSignUpPassword("");
-        goTo("inbox");
+        return;
       }
+
+      // Invite flow: skip email verification — the invite link already proves email ownership
+      if (isInviteFlow && inviteToken) {
+        try {
+          const verifyRes = await fetch(`/api/invite/${inviteToken}/auto-verify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: signUpEmail }),
+          });
+          if (verifyRes.ok) {
+            const { error: signInError } = await authClient.signIn.email({
+              email: signUpEmail,
+              password: signUpPassword,
+              callbackURL: nextUrl,
+            });
+            if (!signInError) {
+              router.push(nextUrl);
+              return;
+            }
+            // Auto-verified but sign-in failed — user can sign in manually now
+            setSuccess("Account created. Sign in to accept your invite.");
+            setSignUpName("");
+            setSignUpEmail(prefilledEmail);
+            setSignUpPassword("");
+            goTo("sign-in");
+            return;
+          }
+        } catch {
+          // Auto-verify failed — fall through to normal email verification
+        }
+      }
+
+      setSignUpSuccessEmail(signUpEmail);
+      setInboxEmail(signUpEmail);
+      setSignUpName("");
+      setSignUpEmail("");
+      setSignUpPassword("");
+      goTo("inbox");
     } catch (e) {
       setError(getErrorMessage(e));
     } finally {
@@ -242,6 +276,14 @@ function SignInContent() {
             <h1 className="text-xl font-semibold text-foreground">{viewTitle[view]}</h1>
             <p className="text-sm text-muted-foreground">{viewSubtitle[view]}</p>
           </div>
+
+          {isInviteFlow && (view === "sign-in" || view === "sign-up") ? (
+            <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
+              {view === "sign-up"
+                ? "Create your account to accept the invite. No email verification needed."
+                : "You've been invited to Vaja AI — sign in or create an account to accept your invite."}
+            </p>
+          ) : null}
 
           {errorMsg ? (
             <p className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">

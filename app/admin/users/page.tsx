@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { MailPlusIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { UserList, InvitesList, UserDetailDialog, GrantCreditsDialog, InviteDialog } from '@/features/admin/users/components';
+import { UserList, InvitesList, UserDetailDialog, GrantCreditsDialog, DeleteUserDialog, InviteDialog } from '@/features/admin/users/components';
 import { useUsersFilters, useUsersQueries, useUsersMutations } from '@/features/admin/users/hooks';
 
 export default function AdminUsersPage() {
@@ -57,6 +57,9 @@ export default function AdminUsersPage() {
         onGrantCredits={(user) =>
           f.setGrantTarget({ id: user.id, name: user.name, email: user.email, balance: user.balance })
         }
+        onDeleteUser={(user) =>
+          f.setDeleteTarget({ id: user.id, name: user.name, email: user.email })
+        }
       />
 
       {/* Invites List */}
@@ -88,6 +91,13 @@ export default function AdminUsersPage() {
         target={f.grantTarget}
         open={!!f.grantTarget}
         onOpenChange={(open) => !open && f.setGrantTarget(null)}
+        mutations={m}
+      />
+
+      <DeleteUserDialog
+        target={f.deleteTarget}
+        open={!!f.deleteTarget}
+        onOpenChange={(open) => !open && f.setDeleteTarget(null)}
         mutations={m}
       />
 

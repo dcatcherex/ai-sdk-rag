@@ -38,6 +38,18 @@ export function InviteClaimCard({ token, appHref = "/" }: InviteClaimCardProps) 
 
         setState("accepted");
         setMessage(body?.alreadyAccepted ? "This invite was already linked to your account." : "Your invite is active and ready to use.");
+
+        // New passwordless accounts need to set a password before using the app
+        if (body?.needsPasswordSetup && !body?.alreadyAccepted) {
+          const setupRes = await fetch("/api/setup-password", { method: "POST" }).catch(() => null);
+          if (setupRes?.ok) {
+            const setupBody = await setupRes.json().catch(() => null);
+            if (setupBody?.redirectUrl) {
+              router.push(setupBody.redirectUrl);
+              return;
+            }
+          }
+        }
       } catch {
         if (!active) return;
         setState("error");

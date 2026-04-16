@@ -1,9 +1,10 @@
 import { createElement } from "react";
 
-import { desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
-import { adminUserInvite, creditTransaction, user, userCredit } from "@/db/schema";
+import { account, adminUserInvite, creditTransaction, user, userCredit, verification } from "@/db/schema";
+import { addCredits, SIGNUP_BONUS_CREDITS } from "@/lib/credits";
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { AdminInviteEmail } from "@/lib/email-templates";
@@ -277,6 +278,34 @@ export async function createAdminUserInvite(options: {
   }
 
   const [invite] = await mapInviteRecords([inviteRow]);
+
+  // Auto-create a passwordless account if none exists for the invited email.
+  // The user will be signed in automatically via magic link when they click the invite.
+  const existingUser = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(sql`lower(${user.email}) = ${normalizedEmail}`)
+    .limit(1);
+
+  if (!existingUser[0]) {
+    const newUserId = nanoid();
+    await db.insert(user).values({
+      id: newUserId,
+      name: parsed.name ?? normalizedEmail.split("@")[0],
+      email: normalizedEmail,
+      emailVerified: true,
+      approved: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await addCredits({
+      userId: newUserId,
+      amount: SIGNUP_BONUS_CREDITS,
+      type: "signup_bonus",
+      description: `Welcome bonus: ${SIGNUP_BONUS_CREDITS} credits`,
+    });
+  }
+
   await sendAdminInviteEmail({
     invite,
     baseUrl: getBaseUrl(options.requestOrigin),
@@ -378,6 +407,7 @@ export async function claimAdminUserInvite(options: {
   const normalizedEmail = normalizeEmail(options.userEmail);
   const now = new Date();
 
+  // Step 1: Read and validate
   const inviteRows = await db
     .select()
     .from(adminUserInvite)
@@ -391,26 +421,17 @@ export async function claimAdminUserInvite(options: {
 
   const effectiveStatus = getEffectiveInviteStatus(invite, now);
   if (effectiveStatus === "cancelled") {
-    throw new AdminInviteError("This invite has been cancelled.", {
-      code: "invite_cancelled",
-      status: 410,
-    });
+    throw new AdminInviteError("This invite has been cancelled.", { code: "invite_cancelled", status: 410 });
   }
-
   if (effectiveStatus === "expired") {
-    throw new AdminInviteError("This invite has expired.", {
-      code: "invite_expired",
-      status: 410,
-    });
+    throw new AdminInviteError("This invite has expired.", { code: "invite_expired", status: 410 });
   }
-
   if (normalizeEmail(invite.email) !== normalizedEmail) {
     throw new AdminInviteError("You must sign in with the invited email address.", {
       code: "invite_email_mismatch",
       status: 403,
     });
   }
-
   if (effectiveStatus === "accepted") {
     if (invite.acceptedUserId && invite.acceptedUserId !== options.userId) {
       throw new AdminInviteError("This invite has already been claimed by another account.", {
@@ -418,31 +439,45 @@ export async function claimAdminUserInvite(options: {
         status: 409,
       });
     }
-
-    return {
-      invite: (await mapInviteRecords([invite]))[0]!,
-      alreadyAccepted: true,
-    };
+    return { invite: (await mapInviteRecords([invite]))[0]!, alreadyAccepted: true, needsPasswordSetup: false };
   }
 
+  // Step 2: Atomic status transition — only one concurrent request wins
+  const claimedRows = await db
+    .update(adminUserInvite)
+    .set({ status: "accepted", acceptedAt: now, acceptedUserId: options.userId, updatedAt: now })
+    .where(and(eq(adminUserInvite.id, invite.id), eq(adminUserInvite.status, "invited")))
+    .returning();
+
+  if (claimedRows.length === 0) {
+    // Lost the race — re-read to give an accurate error
+    const [current] = await db
+      .select()
+      .from(adminUserInvite)
+      .where(eq(adminUserInvite.id, invite.id))
+      .limit(1);
+    if (current?.acceptedUserId === options.userId) {
+      return { invite: (await mapInviteRecords([current]))[0]!, alreadyAccepted: true, needsPasswordSetup: false };
+    }
+    throw new AdminInviteError("This invite has already been claimed by another account.", {
+      code: "invite_claimed_by_other_user",
+      status: 409,
+    });
+  }
+
+  // Step 3: Approve user if configured (runs only for the winning request)
   if (invite.approvedOnAccept) {
-    await db
-      .update(user)
-      .set({ approved: true, updatedAt: now })
-      .where(eq(user.id, options.userId));
+    await db.update(user).set({ approved: true, updatedAt: now }).where(eq(user.id, options.userId));
   }
 
+  // Step 4: Grant starting credits
   let creditGrantedAt = invite.creditGrantedAt;
-
   if (invite.initialCreditGrant > 0 && !invite.creditGrantedAt) {
     await db.insert(userCredit).values({ userId: options.userId, balance: 0 }).onConflictDoNothing();
 
     const updatedBalances = await db
       .update(userCredit)
-      .set({
-        balance: sql`${userCredit.balance} + ${invite.initialCreditGrant}`,
-        updatedAt: now,
-      })
+      .set({ balance: sql`${userCredit.balance} + ${invite.initialCreditGrant}`, updatedAt: now })
       .where(eq(userCredit.userId, options.userId))
       .returning({ balance: userCredit.balance });
 
@@ -457,22 +492,22 @@ export async function claimAdminUserInvite(options: {
     });
 
     creditGrantedAt = now;
+    await db
+      .update(adminUserInvite)
+      .set({ creditGrantedAt: now, updatedAt: now })
+      .where(eq(adminUserInvite.id, invite.id));
   }
 
-  const updatedRows = await db
-    .update(adminUserInvite)
-    .set({
-      status: "accepted",
-      acceptedAt: now,
-      acceptedUserId: options.userId,
-      creditGrantedAt,
-      updatedAt: now,
-    })
-    .where(eq(adminUserInvite.id, invite.id))
-    .returning();
+  // Check if user needs to set a password (auto-created accounts have no credential account)
+  const [credentialAccount] = await db
+    .select({ id: account.id })
+    .from(account)
+    .where(and(eq(account.userId, options.userId), eq(account.providerId, "credential")))
+    .limit(1);
 
   return {
-    invite: (await mapInviteRecords([updatedRows[0]!]))[0]!,
+    invite: (await mapInviteRecords([{ ...claimedRows[0]!, creditGrantedAt }]))[0]!,
     alreadyAccepted: false,
+    needsPasswordSetup: !credentialAccount,
   };
 }
