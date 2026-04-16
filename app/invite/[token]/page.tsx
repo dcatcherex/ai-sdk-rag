@@ -1,15 +1,11 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { and, eq, sql } from "drizzle-orm";
 import { CheckCircle2Icon, Clock3Icon, MailIcon, ShieldCheckIcon, TriangleAlertIcon, XCircleIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { account, user as userTable } from "@/db/schema";
-import { generateServerMagicLink } from "@/lib/server/magic-link";
 import { getAdminUserInviteByToken } from "@/features/admin/invites/service";
 
 import { InviteClaimCard, InviteSwitchAccountCard } from "./invite-claim-client";
@@ -52,30 +48,8 @@ export default async function InvitePage({ params }: PageProps) {
   const inviteHref = `/invite/${token}`;
 
   if (!session?.user) {
-    // Check if this is a passwordless auto-created account (no credential entry)
-    const [invitedUser] = await db
-      .select({ id: userTable.id })
-      .from(userTable)
-      .where(sql`lower(${userTable.email}) = ${invite.email.trim().toLowerCase()}`)
-      .limit(1);
-
-    if (invitedUser) {
-      const [credAccount] = await db
-        .select({ id: account.id })
-        .from(account)
-        .where(and(eq(account.userId, invitedUser.id), eq(account.providerId, "credential")))
-        .limit(1);
-
-      if (!credAccount) {
-        // Auto-login via magic link — no email sent, token is granted here server-side
-        const magicLinkUrl = await generateServerMagicLink(invite.email, inviteHref);
-        redirect(magicLinkUrl);
-      }
-    }
-
-    // Existing account with password, or no account yet — go to sign-in / register
-    const signInHref = `/sign-in?email=${encodeURIComponent(invite.email)}&next=${encodeURIComponent(inviteHref)}`;
-    redirect(signInHref);
+    // Auto-login handles passwordless users; falls back to sign-in for password accounts
+    redirect(`/api/invite/${token}/auto-login`);
   }
 
   const emailMatches = normalizeEmail(session.user.email) === normalizeEmail(invite.email);
