@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { getPollingService } from '@/lib/polling/GenerationPollingService';
 
-export type PollStatus = 'idle' | 'polling' | 'success' | 'failed' | 'timeout';
+export type PollStatus = 'idle' | 'polling' | 'success' | 'failed' | 'timeout' | 'delayed';
 
 export interface GenerationPollState {
   status: PollStatus;
@@ -23,6 +23,7 @@ export interface StartPollOptions {
 export interface UseGenerationPollReturn {
   state: GenerationPollState;
   startPoll: (opts: StartPollOptions) => Promise<void>;
+  checkNow: () => Promise<void>;
   reset: () => void;
 }
 
@@ -33,9 +34,11 @@ export interface UseGenerationPollReturn {
 export function useGenerationPoll(): UseGenerationPollReturn {
   const [state, setState] = useState<GenerationPollState>({ status: 'idle' });
   const abortRef = useRef(false);
+  const lastStartRef = useRef<StartPollOptions | null>(null);
 
   const startPoll = useCallback(async ({ taskId, generationId, modelId = '', promptTitle = '' }: StartPollOptions) => {
     abortRef.current = false;
+    lastStartRef.current = { taskId, generationId, modelId, promptTitle };
     setState({ status: 'polling', generationId });
 
     const service = getPollingService();
@@ -54,14 +57,26 @@ export function useGenerationPoll(): UseGenerationPollReturn {
     } else if (result.status === 'failed') {
       setState({ status: 'failed', error: result.error, generationId });
     } else {
-      setState({ status: 'timeout', error: 'Generation timed out. Please try again.', generationId });
+      setState({
+        status: 'delayed',
+        error: 'The provider is taking longer than usual. We will keep this job open and you can check again shortly.',
+        generationId,
+      });
     }
   }, []);
+
+  const checkNow = useCallback(async () => {
+    if (!lastStartRef.current || state.status === 'polling') {
+      return;
+    }
+
+    await startPoll(lastStartRef.current);
+  }, [startPoll, state.status]);
 
   const reset = useCallback(() => {
     abortRef.current = true;
     setState({ status: 'idle' });
   }, []);
 
-  return { state, startPoll, reset };
+  return { state, startPoll, checkNow, reset };
 }

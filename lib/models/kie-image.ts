@@ -318,7 +318,7 @@ export const KIE_IMAGE_MODELS: ModelDefinition[] = [
     imageOptions: {
       mode: 'generate',
       aspectRatios: ['1:1', '4:3', '3:4', '16:9', '9:16'],
-      hasSeed: true,
+      aspectRatioParam: 'aspect_ratio',
       iconProvider: 'qwen',
       badge: 'Fast',
       creditCost: 1,

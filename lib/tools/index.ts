@@ -18,6 +18,10 @@ export type BuildToolSetOptions = {
   rerankEnabled?: boolean;
   /** Execution context for tools with side effects. */
   source?: 'manual' | 'agent';
+  /** Thread-scoped context for media tools. */
+  threadId?: string;
+  /** Stable reference image URLs for the current request. */
+  referenceImageUrls?: string[];
   /** Optional per-tool recipient cap (certificate). */
   certificateMaxRecipients?: number;
 };
@@ -45,6 +49,8 @@ export function buildToolSet({
   documentIds,
   rerankEnabled,
   source,
+  threadId,
+  referenceImageUrls,
   certificateMaxRecipients,
 }: BuildToolSetOptions): ToolSet {
   const ids = enabledToolIds ?? ALL_TOOL_IDS;
@@ -66,6 +72,8 @@ export function buildToolSet({
     documentIds,
     rerankEnabled,
     source,
+    threadId,
+    referenceImageUrls,
     toolOptions: {
       certificateMaxRecipients,
     },

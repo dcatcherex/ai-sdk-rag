@@ -28,6 +28,8 @@ import type { PromptInputMessage } from '@/components/ai-elements/prompt-input';
 import { ThreadWorkingMemorySheet } from '@/features/memory/components/thread-working-memory-sheet';
 import { consumePendingChatIntent } from '@/features/chat/lib/pending-chat-intent';
 import { useUserPreferences } from '@/features/settings/hooks/use-user-preferences';
+import { GenerationProgressProvider } from '@/features/chat/context/generation-progress-context';
+import { GenerationProgressBar } from '@/features/chat/components/generation-progress-bar';
 
 const GENERAL_STARTER_PROMPTS = [
   'ช่วยเขียนข้อความตอบลูกค้า LINE ที่ถามเรื่องราคาและการจัดส่ง',
@@ -402,6 +404,7 @@ function ChatShell() {
                 onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
               />
 
+              <GenerationProgressProvider>
               <ToolApprovalProvider value={addToolApprovalResponse}>
                 <ChatMessageList
                   messages={messages}
@@ -438,6 +441,9 @@ function ChatShell() {
                   />
                 </div>
               )}
+
+              <GenerationProgressBar />
+              </GenerationProgressProvider>
 
               <ChatComposer
                 selectedDocCount={selectedDocIds.size}

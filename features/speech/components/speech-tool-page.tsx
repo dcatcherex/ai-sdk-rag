@@ -106,7 +106,7 @@ function SliderField({ label, value, min, max, step, onChange, disabled }: {
 
 function SpeechToolPageInner({ manifest }: Props) {
   const searchParams = useSearchParams();
-  const { state, startPoll, reset } = useGenerationPoll();
+  const { state, startPoll, checkNow, reset } = useGenerationPoll();
 
   const [text, setText] = useState('');
   const [voice, setVoice] = useState('BIvP0GN1cAtSRTxNHnWS');
@@ -180,7 +180,7 @@ function SpeechToolPageInner({ manifest }: Props) {
   const updateLine = (i: number, field: keyof DialogueLine, value: string) =>
     setLines(prev => prev.map((l, idx) => idx === i ? { ...l, [field]: value } : l));
 
-  const isPolling = state.status === 'polling';
+  const isPolling = state.status === 'polling' || state.status === 'delayed';
 
   return (
     <div className="flex h-full flex-col">
@@ -349,13 +349,29 @@ function SpeechToolPageInner({ manifest }: Props) {
               </div>
             )}
 
-            {(state.status === 'failed' || state.status === 'timeout') && (
+            {state.status === 'failed' && (
               <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 flex items-start gap-2 text-destructive text-sm">
                 <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
                 <div>
                   <p className="font-medium">Generation failed</p>
                   <p className="mt-0.5 text-xs">{state.error ?? 'Please try again.'}</p>
                   <Button variant="outline" size="sm" className="mt-2" onClick={reset}>Try again</Button>
+                </div>
+              </div>
+            )}
+
+            {(state.status === 'timeout' || state.status === 'delayed') && (
+              <div className="rounded-lg border border-amber-400/40 bg-amber-500/10 p-4 flex items-start gap-2 text-amber-700 dark:text-amber-300 text-sm">
+                <Loader2 className="h-4 w-4 mt-0.5 shrink-0 animate-spin" />
+                <div>
+                  <p className="font-medium">Generation is still running</p>
+                  <p className="mt-0.5 text-xs">
+                    {state.error ?? 'The provider is taking longer than usual. We will keep this job open for you.'}
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={checkNow}>Check now</Button>
+                    <Button variant="ghost" size="sm" onClick={reset}>Dismiss</Button>
+                  </div>
                 </div>
               </div>
             )}

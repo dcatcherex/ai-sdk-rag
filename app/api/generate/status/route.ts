@@ -62,7 +62,12 @@ export async function GET(req: NextRequest) {
 
     const apiKey = getKieApiKey();
     if (!apiKey) {
-        return NextResponse.json({ error: 'KIE_API_KEY not configured' }, { status: 500 });
+        return NextResponse.json({
+            status: 'failed',
+            error: 'KIE polling is unavailable because KIE_API_KEY is not configured on the server.',
+            generationId: record.id,
+            type: generationType,
+        });
     }
 
     try {
@@ -157,8 +162,8 @@ export async function GET(req: NextRequest) {
     } catch (pollError) {
         console.error('[status] Poll error:', pollError);
         return NextResponse.json({
-            status: 'failed',
-            error: `Status check failed: ${pollError instanceof Error ? pollError.message : 'Unknown error'}`,
+            status: 'processing',
+            warning: `Status check issue: ${pollError instanceof Error ? pollError.message : 'Unknown error'}`,
         });
     }
 }

@@ -191,7 +191,22 @@ export class GenerationPollingService {
     );
 
     if (!response.ok) {
-      throw new Error(`Status fetch failed: ${response.status}`);
+      let detail = '';
+      try {
+        const errorPayload = await response.json() as { error?: string; warning?: string; status?: string };
+        detail = errorPayload.error ?? errorPayload.warning ?? errorPayload.status ?? '';
+      } catch {
+        try {
+          detail = await response.text();
+        } catch {
+          detail = '';
+        }
+      }
+      throw new Error(
+        detail
+          ? `Status fetch failed: ${response.status} - ${detail}`
+          : `Status fetch failed: ${response.status}`
+      );
     }
 
     return response.json();

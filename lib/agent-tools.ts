@@ -7,12 +7,18 @@ export function createAgentTools(
   enabledTools: string[] | null,
   userId: string,
   documentIds?: string[],
+  options?: {
+    threadId?: string;
+    referenceImageUrls?: string[];
+  },
 ): ToolSet {
   return buildToolSet({
     enabledToolIds: enabledTools,
     userId,
     documentIds,
     source: 'agent',
+    threadId: options?.threadId,
+    referenceImageUrls: options?.referenceImageUrls,
     certificateMaxRecipients: 50,
   });
 }

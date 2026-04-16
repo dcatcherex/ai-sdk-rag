@@ -193,6 +193,7 @@ function ImageToolPageInner({ manifest }: Props) {
     isPolling,
     handleModelSelect,
     handleGenerate,
+    checkNow,
     pollState,
     resetPoll,
   } = useImageGenerator();
@@ -249,6 +250,7 @@ function ImageToolPageInner({ manifest }: Props) {
         <ResultPanel
           state={pollState}
           mode={mode}
+          onCheckNow={checkNow}
           onRetry={resetPoll}
           onNewImage={() => { resetPoll(); setPrompt(''); }}
           onUseAsReference={url => { setImageUrls([url]); setMode('edit'); }}

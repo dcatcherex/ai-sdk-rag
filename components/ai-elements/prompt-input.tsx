@@ -659,6 +659,30 @@ export const PromptInput = ({
     }
   };
 
+  const shouldConvertAttachmentUrl = (
+    url: string | undefined,
+    mediaType: string | undefined
+  ): boolean => {
+    if (!url || !mediaType?.startsWith("image/")) {
+      return false;
+    }
+
+    if (url.startsWith("blob:")) {
+      return true;
+    }
+
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      return false;
+    }
+
+    try {
+      const hostname = new URL(url).hostname.toLowerCase();
+      return hostname.endsWith("oaiusercontent.com") || hostname.endsWith("oausercontent.com");
+    } catch {
+      return false;
+    }
+  };
+
   const attachmentsCtx = useMemo<AttachmentsContext>(
     () => ({
       files: files.map((item) => ({ ...item, id: item.id })),
@@ -708,7 +732,7 @@ export const PromptInput = ({
     // Convert blob URLs to data URLs asynchronously
     Promise.all(
       files.map(async ({ id, ...item }) => {
-        if (item.url?.startsWith("blob:")) {
+        if (shouldConvertAttachmentUrl(item.url, item.mediaType)) {
           const dataUrl = await convertBlobUrlToDataUrl(item.url);
           // If conversion failed, keep the original blob URL
           return {

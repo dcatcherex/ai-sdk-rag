@@ -14,6 +14,7 @@ import { useGenerationPoll } from '@/lib/hooks/use-generation-poll';
 import { cn } from '@/lib/utils';
 import type { ImageGenerationToolOutput } from '@/components/message-renderer/types';
 import type { ChatReferenceImage } from '@/features/chat/types';
+import { useGenerationProgress } from '@/features/chat/context/generation-progress-context';
 
 type ImageGenerationToolPartProps = {
   partKey: string;
@@ -44,6 +45,7 @@ export function ImageGenerationToolPart({
   onUseImageInChat,
 }: ImageGenerationToolPartProps) {
   const { state, startPoll } = useGenerationPoll();
+  const upsertTask = useGenerationProgress()?.upsertTask;
   const [resolvedImageUrls, setResolvedImageUrls] = useState<string[]>(
     output.imageUrls?.length ? output.imageUrls : output.imageUrl ? [output.imageUrl] : [],
   );
@@ -77,6 +79,22 @@ export function ImageGenerationToolPart({
       setResolvedImageUrls(state.outputs?.length ? state.outputs : state.output ? [state.output] : []);
     }
   }, [state.output, state.outputs, state.status]);
+
+  // Report poll status into the shared progress context (mini-bar)
+  useEffect(() => {
+    if (!upsertTask || !output.generationId) return;
+    if (state.status === 'idle') return;
+    upsertTask({
+      generationId: output.generationId,
+      toolName: 'generate_image',
+      status: state.status === 'polling' ? 'polling'
+        : state.status === 'success' ? 'success'
+        : state.status === 'failed' ? 'failed'
+        : state.status === 'timeout' ? 'timeout'
+        : 'delayed',
+      startedAt: output.startedAt,
+    });
+  }, [upsertTask, output.generationId, output.startedAt, state.status]);
 
   useEffect(() => {
     if (resolvedImageUrls.length > 0 || state.status === 'failed' || state.status === 'timeout') {

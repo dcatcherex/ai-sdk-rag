@@ -214,12 +214,23 @@ export async function GET(
         );
     }
   }
+
+  const getHydrationAssetForPart = (messageId: string, partUrl: string) => {
+    const assetsForMessage = assetRows.filter((asset) => asset.messageId === messageId);
+    const exactMatch = assetsForMessage.find((asset) => asset.url === partUrl);
+    if (exactMatch) {
+      return exactMatch;
+    }
+    return assetsForMessage.length === 1 ? assetsForMessage[0] : undefined;
+  };
+
   const assetsByMessage = new Map<
     string,
     Map<
       string,
       {
         id: string;
+        url: string;
         thumbnailUrl?: string | null;
         width?: number | null;
         height?: number | null;
@@ -273,15 +284,16 @@ export async function GET(
         }
       }
 
-      if (!isImageFilePart(part) || part.thumbnailUrl) {
+      if (!isImageFilePart(part)) {
         return part;
       }
-      const asset = assetsByMessage.get(row.id)?.get(part.url);
+      const asset = assetsByMessage.get(row.id)?.get(part.url) ?? getHydrationAssetForPart(row.id, part.url);
       if (!asset) {
         return part;
       }
       return {
         ...part,
+        url: asset.url,
         thumbnailUrl: asset.thumbnailUrl ?? undefined,
         width: part.width ?? asset.width ?? undefined,
         height: part.height ?? asset.height ?? undefined,

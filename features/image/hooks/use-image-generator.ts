@@ -9,7 +9,7 @@ export type Mode = 'generate' | 'edit';
 
 export function useImageGenerator() {
   const searchParams = useSearchParams();
-  const { state, startPoll, reset } = useGenerationPoll();
+  const { state, startPoll, checkNow, reset } = useGenerationPoll();
 
   const [mode, setMode] = useState<Mode>('generate');
   const [modelId, setModelId] = useState('nano-banana-2');
@@ -54,7 +54,7 @@ export function useImageGenerator() {
   };
 
   const canGenerate = prompt.trim().length > 0 && (!modelConfig?.requiresImages || imageUrls.length > 0);
-  const isPolling = state.status === 'polling';
+  const isPolling = state.status === 'polling' || state.status === 'delayed';
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
@@ -107,6 +107,7 @@ export function useImageGenerator() {
     isPolling,
     handleModelSelect,
     handleGenerate,
+    checkNow,
     pollState: state,
     resetPoll: reset,
   };

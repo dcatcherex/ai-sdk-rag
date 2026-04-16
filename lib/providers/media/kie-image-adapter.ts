@@ -84,9 +84,7 @@ function buildKieInput(params: ImageAdapterInput): Record<string, unknown> {
     case 'z-image':
       return {
         prompt,
-        image_size: aspectRatio ?? '1:1',
-        output_format: outputFormat === 'jpg' ? 'jpeg' : outputFormat,
-        ...(seed !== undefined ? { seed } : {}),
+        aspect_ratio: aspectRatio ?? '1:1',
       };
 
     case 'qwen2/text-to-image':

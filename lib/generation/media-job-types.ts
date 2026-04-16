@@ -64,12 +64,32 @@ export function extractMediaOutputUrls(
   if (!outputJson) return { outputUrls: [], thumbnailUrls: [] };
 
   const outputUrls: string[] = [];
-  if (Array.isArray(outputJson.outputs)) {
-    for (const u of outputJson.outputs) {
+
+  // Detect the legacy mismatch: single-image persist updated `output` to R2 URL
+  // but left `outputs[0]` as the original source URL. In that case, `output`
+  // is more up-to-date than `outputs`, so prefer it.
+  const sourceOutput = typeof outputJson.sourceOutput === 'string' ? outputJson.sourceOutput : null;
+  const persistedSingle = typeof outputJson.output === 'string' && outputJson.output.length > 0
+    ? outputJson.output
+    : null;
+  const outputsArray = Array.isArray(outputJson.outputs) ? outputJson.outputs as unknown[] : null;
+  const outputsStillOriginal =
+    sourceOutput !== null &&
+    persistedSingle !== null &&
+    persistedSingle !== sourceOutput &&
+    outputsArray !== null &&
+    outputsArray.length === 1 &&
+    outputsArray[0] === sourceOutput;
+
+  if (outputsStillOriginal) {
+    // `outputs` was never updated after persistence — use the persisted single URL
+    outputUrls.push(persistedSingle!);
+  } else if (outputsArray !== null) {
+    for (const u of outputsArray) {
       if (typeof u === 'string' && u.length > 0) outputUrls.push(u);
     }
-  } else if (typeof outputJson.output === 'string' && outputJson.output.length > 0) {
-    outputUrls.push(outputJson.output);
+  } else if (persistedSingle) {
+    outputUrls.push(persistedSingle);
   }
 
   const thumbnailUrls: string[] = [];

@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
         }
 
         await db.update(toolRun)
-            .set({ outputJson: { ...outputJson, output: publicUrl } })
+            .set({ outputJson: { ...outputJson, output: publicUrl, outputs: [publicUrl] } })
             .where(eq(toolRun.id, generationId));
 
         return NextResponse.json({ success: true, publicUrl });

@@ -23,6 +23,20 @@ const parseDataUrl = (url: string) => {
   return { mediaType: match[1], data: Buffer.from(match[2], 'base64') };
 };
 
+const fetchRemoteImage = async (url: string): Promise<{ data: Buffer; mediaType: string } | null> => {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) return null;
+    const contentType = response.headers.get('content-type') ?? 'image/jpeg';
+    const mediaType = contentType.split(';')[0]?.trim() ?? 'image/jpeg';
+    if (!mediaType.startsWith('image/')) return null;
+    const arrayBuffer = await response.arrayBuffer();
+    return { data: Buffer.from(arrayBuffer), mediaType };
+  } catch {
+    return null;
+  }
+};
+
 export const uploadImagePart = async (options: {
   part: ImageFilePart;
   threadId: string;
@@ -31,14 +45,25 @@ export const uploadImagePart = async (options: {
   userId: string;
 }): Promise<UploadPartResult> => {
   const { part, threadId, messageId, index, userId } = options;
+
+  let imageData: Buffer;
+
   const dataUrl = parseDataUrl(part.url);
-  if (!dataUrl) return { part };
+  if (dataUrl) {
+    imageData = dataUrl.data;
+  } else if (part.url.startsWith('http')) {
+    const remote = await fetchRemoteImage(part.url);
+    if (!remote) return { part };
+    imageData = remote.data;
+  } else {
+    return { part };
+  }
 
   try {
-    const image = sharp(dataUrl.data);
+    const image = sharp(imageData);
     const metadata = await image.metadata();
     const webpBuffer = await image.webp({ quality: 80 }).toBuffer();
-    const thumbnailBuffer = await sharp(dataUrl.data)
+    const thumbnailBuffer = await sharp(imageData)
       .resize({ width: 320, withoutEnlargement: true })
       .webp({ quality: 70 })
       .toBuffer();

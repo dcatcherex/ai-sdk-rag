@@ -104,7 +104,12 @@ const SERVER_REGISTRY: RegisteredTool[] = [
   {
     manifest: imageManifest,
     getAgentDefinition: (ctx: AgentToolContext) =>
-      createImageAgentTools({ userId: ctx.userId }),
+      createImageAgentTools({
+        userId: ctx.userId,
+        threadId: ctx.threadId,
+        referenceImageUrls: ctx.referenceImageUrls,
+        source: ctx.source,
+      }),
     getSidebarPageHref: () => `/tools/${imageManifest.slug}`,
   },
   {

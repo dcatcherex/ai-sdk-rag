@@ -16,6 +16,7 @@ import type { Mode } from '../hooks/use-image-generator';
 interface Props {
   state: ImageGenerationState;
   mode: Mode;
+  onCheckNow: () => void | Promise<void>;
   onRetry: () => void;
   onNewImage: () => void;
   onUseAsReference: (url: string) => void;
@@ -31,7 +32,7 @@ function triggerBrowserDownload(url: string, filename: string) {
   anchor.remove();
 }
 
-export function ResultPanel({ state, mode, onRetry, onNewImage, onUseAsReference }: Props) {
+export function ResultPanel({ state, mode, onCheckNow, onRetry, onNewImage, onUseAsReference }: Props) {
   const outputUrls = state.outputs?.length ? state.outputs : state.output ? [state.output] : [];
   const handleDownloadAll = () => {
     outputUrls.forEach((url, index) => {
@@ -68,7 +69,7 @@ export function ResultPanel({ state, mode, onRetry, onNewImage, onUseAsReference
             {outputUrls.map((url, index) => (
               <div key={`${url}-${index}`} className="group relative rounded-xl overflow-hidden border">
                 <Image src={url} alt={`Generated image ${index + 1}`} width={1536} height={1024} unoptimized className="w-full object-contain max-h-[520px] h-auto" />
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/55 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                 <div className="absolute right-3 bottom-3 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
                   <Button asChild size="icon" variant="secondary" className="pointer-events-auto rounded-full shadow-sm">
                     <a href={url} target="_blank" rel="noopener noreferrer" aria-label={`Open image ${index + 1}`}>
@@ -141,13 +142,29 @@ export function ResultPanel({ state, mode, onRetry, onNewImage, onUseAsReference
         </div>
       )}
 
-      {(state.status === 'failed' || state.status === 'timeout') && (
+      {state.status === 'failed' && (
         <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 flex items-start gap-2 text-destructive text-sm">
           <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
           <div>
             <p className="font-medium">Generation failed</p>
             <p className="mt-0.5 text-xs">{state.error ?? 'Please try again.'}</p>
             <Button variant="outline" size="sm" className="mt-2" onClick={onRetry}>Try again</Button>
+          </div>
+        </div>
+      )}
+
+      {(state.status === 'timeout' || state.status === 'delayed') && (
+        <div className="rounded-lg border border-amber-400/40 bg-amber-500/10 p-4 flex items-start gap-2 text-amber-700 dark:text-amber-300 text-sm">
+          <Loader2 className="h-4 w-4 mt-0.5 shrink-0 animate-spin" />
+          <div>
+            <p className="font-medium">Generation is still running</p>
+            <p className="mt-0.5 text-xs">
+              {state.error ?? 'The provider is taking longer than usual. We will keep checking in the background.'}
+            </p>
+            <div className="mt-2 flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={onCheckNow}>Check now</Button>
+              <Button variant="ghost" size="sm" onClick={onRetry}>Dismiss</Button>
+            </div>
           </div>
         </div>
       )}

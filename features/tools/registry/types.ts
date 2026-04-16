@@ -60,6 +60,8 @@ export type AgentToolContext = {
   documentIds?: string[];
   rerankEnabled?: boolean;
   source?: 'manual' | 'agent';
+  threadId?: string;
+  referenceImageUrls?: string[];
   /** Per-tool options forwarded from buildToolSet callers */
   toolOptions?: {
     certificateMaxRecipients?: number;

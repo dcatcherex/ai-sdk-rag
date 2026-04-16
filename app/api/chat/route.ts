@@ -50,86 +50,17 @@ import {
   updateChatRunRouting,
 } from '@/features/chat/audit/audit';
 import type { ChatMessage, ChatMessageMetadata, RoutingMetadata } from '@/features/chat/types';
+import {
+  getImageAttachmentParts,
+  getLatestAssistantImageParts,
+  isImplicitImageEditRequest,
+  mapToKieImageModel,
+} from '@/features/chat/server/image-context';
+import { hydrateIncomingChatMessages } from '@/features/chat/server/message-hydration';
+import { isImageFilePart, uploadImagePart } from '@/features/chat/server/image-upload';
 
 export { type ChatMessage };
 export const maxDuration = 30;
-
-type ImageAttachmentPart = {
-  type: 'file';
-  url: string;
-  mediaType: string;
-};
-
-/**
- * Maps an AI SDK image-only model ID to a KIE async model.
- * Called when the user selects a direct image model in chat.
- */
-function mapToKieImageModel(
-  resolvedModel: string,
-  hasImages: boolean,
-): { kieModelId: string; enablePro?: boolean } {
-  switch (resolvedModel) {
-    case 'openai/gpt-image-1.5':
-      return { kieModelId: hasImages ? 'gpt-image/1.5-image-to-image' : 'gpt-image/1.5-text-to-image' };
-    case 'xai/grok-imagine-image':
-      return { kieModelId: hasImages ? 'grok-imagine/image-to-image' : 'grok-imagine/text-to-image' };
-    case 'xai/grok-imagine-image-pro':
-      return {
-        kieModelId: hasImages ? 'grok-imagine/image-to-image' : 'grok-imagine/text-to-image',
-        enablePro: true,
-      };
-    default:
-      return { kieModelId: 'grok-imagine/text-to-image' };
-  }
-}
-
-function isImplicitImageEditRequest(prompt: string | null | undefined): boolean {
-  if (!prompt) return false;
-
-  const lower = prompt.toLowerCase();
-  return (
-    /\b(change|edit|modify|update|replace|remove|erase|add|make|turn)\b/.test(lower) ||
-    lower.includes('make it') ||
-    lower.includes('change it') ||
-    lower.includes('edit this') ||
-    lower.includes('edit the image') ||
-    lower.includes('same image') ||
-    lower.includes('this image') ||
-    lower.includes('this one') ||
-    lower.includes('the cat') ||
-    lower.includes('the dog') ||
-    lower.includes('background') ||
-    lower.includes('color')
-  );
-}
-
-function getImageAttachmentParts(message: ChatMessage | undefined): ImageAttachmentPart[] {
-  if (!message?.parts?.length) return [];
-
-  return message.parts.filter((part): part is ImageAttachmentPart => {
-    if (!part || typeof part !== 'object') return false;
-    const record = part as Record<string, unknown>;
-    return (
-      record.type === 'file' &&
-      typeof record.url === 'string' &&
-      typeof record.mediaType === 'string' &&
-      record.mediaType.startsWith('image/')
-    );
-  });
-}
-
-function getLatestAssistantImageParts(messages: ChatMessage[]): ImageAttachmentPart[] {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message.role !== 'assistant') continue;
-
-    const imageParts = getImageAttachmentParts(message);
-    if (imageParts.length > 0) return imageParts;
-  }
-
-  return [];
-}
-
 
 export async function POST(req: Request) {
   let chatRunId: string | null = null;
@@ -148,6 +79,42 @@ export async function POST(req: Request) {
 
     const { messages, threadId, model, useWebSearch, selectedDocumentIds, enabledModelIds, agentId, brandId, quizContext } =
       requestSchema.parse(rawBody);
+    const hydratedMessages = await hydrateIncomingChatMessages(messages, session.user.id);
+
+    // ── Eager image upload ───────────────────────────────────────────────────
+    // Upload base64/HTTP images from the latest user message to R2 BEFORE the
+    // LLM processes them. This gives the LLM a stable R2 URL to use in
+    // generate_image.imageUrls instead of hunting for old expired URLs in history.
+    const latestUserMsgIdx = hydratedMessages.map((m) => m.role).lastIndexOf('user');
+    let eagerUploadedMessages = hydratedMessages;
+    if (latestUserMsgIdx !== -1) {
+      const latestUserMsg = hydratedMessages[latestUserMsgIdx]!;
+      const eagerMsgId = latestUserMsg.id ?? `eager-${Date.now()}`;
+      const eagerPartResults = await Promise.all(
+        (latestUserMsg.parts ?? []).map(async (part, index) => {
+          if (!isImageFilePart(part as Parameters<typeof isImageFilePart>[0])) return { part };
+          return uploadImagePart({
+            part: part as Parameters<typeof uploadImagePart>[0]['part'],
+            threadId,
+            messageId: eagerMsgId,
+            index,
+            userId: session.user.id,
+          });
+        }),
+      );
+      const hasUploads = eagerPartResults.some((r) => r.asset);
+      if (hasUploads) {
+        // Update message parts with R2 URLs so the LLM sees stable URLs.
+        // Do NOT insert mediaAsset here — chatMessage doesn't exist yet.
+        // persistChatResult will insert assets after chatMessage is saved.
+        eagerUploadedMessages = hydratedMessages.map((m, i) =>
+          i === latestUserMsgIdx
+            ? { ...m, id: eagerMsgId, parts: eagerPartResults.map((r) => r.part) }
+            : m,
+        );
+        console.log('[IMG-URL-TRACE] eager upload done', eagerPartResults.flatMap((r) => r.asset ? [r.asset.url] : []));
+      }
+    }
 
     // ── Stage 2: all independent DB queries in parallel ──────────────────────
     const [userRow, threadRows, prefsRows, balance, activeAgentRows] = await Promise.all([
@@ -289,29 +256,6 @@ export async function POST(req: Request) {
       ? [...new Set([...(baseToolIds ?? []), ...skillRuntime.skillToolIds])]
       : baseToolIds;
 
-    const baseTools = activeAgent
-      ? createAgentTools(activeToolIds, session.user.id, effectiveDocIds)
-      : buildToolSet({
-          enabledToolIds: activeToolIds,
-          userId: session.user.id,
-          documentIds: isGrounded ? effectiveDocIds : undefined,
-          rerankEnabled: userPrefs.rerankEnabled ?? false,
-          source: 'agent',
-        });
-
-    // Merge MCP tools from agent config (empty object when no MCP servers configured)
-    const mcpTools = activeAgent?.mcpServers?.length
-      ? await buildMCPToolSet(
-          activeAgent.mcpServers,
-          (userPrefs as { mcpCredentials?: Record<string, string> }).mcpCredentials ?? {},
-        ).catch((err: unknown) => {
-          console.error('[MCP] Tool build failed:', err);
-          return {};
-        })
-      : {};
-
-    const groundedTools = { ...baseTools, ...mcpTools };
-
     const examPrepToolEnabled = activeToolIds === null || activeToolIds.includes('exam_prep');
     const certificateToolEnabled = activeToolIds === null || activeToolIds.includes('certificate');
 
@@ -413,7 +357,6 @@ export async function POST(req: Request) {
     }
 
     const supportsTools = !toolDisabledModels.has(resolvedModel);
-    const activeTools = supportsTools ? groundedTools : undefined;
 
     // Inject tool guidance only when the message is relevant to that tool domain.
     // This avoids spending ~200 tokens of system prompt on every unrelated message.
@@ -457,14 +400,14 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
       : '';
     // ── Prompt enhancement ───────────────────────────────────────────────────
     let enhancedPrompt: string | undefined;
-    let messagesToSend = messages;
+    let messagesToSend = eagerUploadedMessages;
     if (userPrefs.promptEnhancementEnabled && lastUserPrompt && !isStrongModel(resolvedModel)) {
       const enhanced = await enhancePrompt(lastUserPrompt, memoryContext);
       if (enhanced !== lastUserPrompt) {
         enhancedPrompt = enhanced;
-        const lastUserIdx = messages.map((m) => m.role).lastIndexOf('user');
+        const lastUserIdx = eagerUploadedMessages.map((m) => m.role).lastIndexOf('user');
         if (lastUserIdx !== -1) {
-          messagesToSend = messages.map((m, i) =>
+          messagesToSend = eagerUploadedMessages.map((m, i) =>
             i !== lastUserIdx
               ? m
               : { ...m, parts: m.parts.map((p) => (p.type === 'text' ? { ...p, text: enhanced } : p)) }
@@ -484,11 +427,44 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
     }
 
     // ── System prompt assembly ───────────────────────────────────────────────
+
+    // DEBUG: trace image URL sources — full scan across all messages
+    const _dbgAllFileParts = messagesToSend.flatMap(m =>
+      (m.parts ?? [])
+        .filter(p => (p as {type?:string}).type === 'file')
+        .map(p => ({ role: m.role, url: (p as {url?:string}).url?.substring(0, 100) }))
+    );
+    const _dbgToolParts = messagesToSend.flatMap(m =>
+      (m.parts ?? [])
+        .filter(p => (p as {type?:string}).type?.startsWith('tool-') && (p as {toolName?:string}).toolName === 'generate_image')
+        .map(p => {
+          const part = p as {type?:string; input?:Record<string,unknown>; output?:Record<string,unknown>};
+          const inputUrls = (part.input?.imageUrls as string[] | undefined) ?? [];
+          const out = part.output ?? {};
+          const outputUrls = (out.imageUrls as string[] | undefined) ?? (out.imageUrl ? [out.imageUrl as string] : []);
+          return { type: part.type, inputUrls: inputUrls.map((u:string) => u.substring(0,100)), outputUrls: outputUrls.map((u:string) => u.substring(0,100)) };
+        })
+    );
+    console.log('[IMG-URL-TRACE] ALL file parts across messages:', JSON.stringify(_dbgAllFileParts));
+    console.log('[IMG-URL-TRACE] generate_image tool parts (input+output):', JSON.stringify(_dbgToolParts));
+
     const latestAssistantImageParts = getLatestAssistantImageParts(messagesToSend);
+    const latestUserMessage = [...messagesToSend].reverse().find((message) => message.role === 'user');
+    const latestUserImageParts = getImageAttachmentParts(latestUserMessage);
     const shouldAutoReuseLastImage =
       latestAssistantImageParts.length > 0 &&
-      getImageAttachmentParts([...messagesToSend].reverse().find((message) => message.role === 'user')).length === 0 &&
+      latestUserImageParts.length === 0 &&
       isImplicitImageEditRequest(lastUserPrompt);
+    const effectiveReferenceImageParts = latestUserImageParts.length > 0
+      ? latestUserImageParts
+      : shouldAutoReuseLastImage
+        ? latestAssistantImageParts
+        : [];
+
+    console.log('[IMG-URL-TRACE] latestAssistantImageParts:', JSON.stringify(latestAssistantImageParts.map(p => p.url)));
+    console.log('[IMG-URL-TRACE] threadWorkingMemoryBlock snippet:', threadWorkingMemoryBlock.substring(0, 400));
+    console.log('[IMG-URL-TRACE] sharedMemoryBlock snippet:', sharedMemoryBlock.substring(0, 200));
+    console.log('[IMG-URL-TRACE] memoryContext snippet:', memoryContext.substring(0, 600));
 
     const latestImageToolBlock =
       supportsTools && latestAssistantImageParts.length > 0
@@ -514,6 +490,35 @@ IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or con
       quizContextBlock: supportsTools ? quizContextBlock : '',
     }) + latestImageToolBlock;
 
+    const baseTools = activeAgent
+      ? createAgentTools(activeToolIds, session.user.id, effectiveDocIds, {
+          threadId,
+          referenceImageUrls: effectiveReferenceImageParts.map((part) => part.url),
+        })
+      : buildToolSet({
+          enabledToolIds: activeToolIds,
+          userId: session.user.id,
+          documentIds: isGrounded ? effectiveDocIds : undefined,
+          rerankEnabled: userPrefs.rerankEnabled ?? false,
+          source: 'agent',
+          threadId,
+          referenceImageUrls: effectiveReferenceImageParts.map((part) => part.url),
+        });
+
+    // Merge MCP tools from agent config (empty object when no MCP servers configured)
+    const mcpTools = activeAgent?.mcpServers?.length
+      ? await buildMCPToolSet(
+          activeAgent.mcpServers,
+          (userPrefs as { mcpCredentials?: Record<string, string> }).mcpCredentials ?? {},
+        ).catch((err: unknown) => {
+          console.error('[MCP] Tool build failed:', err);
+          return {};
+        })
+      : {};
+
+    const groundedTools = { ...baseTools, ...mcpTools };
+    const activeTools = supportsTools ? groundedTools : undefined;
+
     const messageMetadata = (): ChatMessageMetadata => ({
       routing: routingMetadata,
       ...(enhancedPrompt ? { enhancedPrompt } : {}),
@@ -535,16 +540,8 @@ IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or con
         ? baseImagePrompt + buildImageBrandSuffix(activeBrand)
         : baseImagePrompt;
 
-      const latestUserMessage = [...messagesToSend].reverse().find((message) => message.role === 'user');
-      const latestUserImageParts = getImageAttachmentParts(latestUserMessage);
-      const effectiveImageParts = latestUserImageParts.length > 0
-        ? latestUserImageParts
-        : shouldAutoReuseLastImage
-          ? latestAssistantImageParts
-          : [];
-
-      const hasImages = effectiveImageParts.length > 0;
-      const imageUrls = hasImages ? effectiveImageParts.map((p) => p.url) : undefined;
+      const hasImages = effectiveReferenceImageParts.length > 0;
+      const imageUrls = hasImages ? effectiveReferenceImageParts.map((p) => p.url) : undefined;
       const { kieModelId, enablePro } = mapToKieImageModel(resolvedModel, hasImages);
 
       const { taskId, generationId } = await triggerImageGeneration(
@@ -556,7 +553,7 @@ IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or con
           ...(enablePro !== undefined ? { enablePro } : {}),
         },
         session.user.id,
-        { threadId, source: 'chat' },
+        { threadId, source: 'chat', referenceImageUrls: imageUrls },
       );
 
       const toolCallId = crypto.randomUUID();

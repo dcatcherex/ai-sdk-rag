@@ -5,6 +5,7 @@ import { CoinsIcon, UsersIcon, ArrowRightLeftIcon, SearchIcon } from 'lucide-rea
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
+import { DashboardUsageCard } from '@/features/admin/usage/components/dashboard-usage-card';
 
 type AdminUser = {
   id: string;
@@ -172,6 +173,8 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <DashboardUsageCard />
 
       {/* Recent users */}
       <Card>
