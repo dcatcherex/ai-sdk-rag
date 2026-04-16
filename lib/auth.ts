@@ -41,7 +41,13 @@ if (!authBaseUrl) {
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg" }),
-  trustedOrigins: authBaseUrl ? [authBaseUrl] : undefined,
+  trustedOrigins: authBaseUrl
+    ? Array.from(new Set([
+        authBaseUrl,
+        authBaseUrl.replace(/^https?:\/\/www\./, "https://"),
+        authBaseUrl.replace(/^https?:\/\/(?!www\.)/, "https://www."),
+      ]))
+    : undefined,
   emailVerification: {
     sendOnSignUp: true,
     autoSignInAfterVerification: true,

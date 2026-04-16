@@ -19,11 +19,15 @@ export const sendEmail = async ({ to, subject, text, react }: SendEmailInput) =>
 
   const resend = new Resend(apiKey);
 
-  await resend.emails.send({
+  const { error } = await resend.emails.send({
     from,
     to,
     subject,
     text,
     react,
   });
+
+  if (error) {
+    throw new Error(`Resend error: ${error.message}`);
+  }
 };
