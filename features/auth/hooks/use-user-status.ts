@@ -7,6 +7,8 @@ export type UserStatus = {
   name: string;
   email: string;
   approved: boolean;
+  emailVerified: boolean;
+  requireEmailVerification: boolean;
 };
 
 export class UnauthorizedError extends Error {

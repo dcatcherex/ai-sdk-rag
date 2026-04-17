@@ -3,12 +3,14 @@
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Loader2Icon, LogOutIcon, ShieldAlertIcon } from 'lucide-react';
+import { Loader2Icon, LogOutIcon, ShieldAlertIcon, MailCheckIcon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { authClient } from '@/lib/auth-client';
 import { UnauthorizedError, useUserStatus } from '@/features/auth/hooks/use-user-status';
+import { useGuestSession } from '@/features/auth/hooks/use-guest-session';
+import { GuestSessionContext } from '@/features/auth/contexts/guest-session-context';
 
 type AppAccessGuardProps = {
   children: ReactNode;
@@ -48,22 +50,30 @@ export function AppAccessGuard({ children }: AppAccessGuardProps) {
   const { data: sessionData } = authClient.useSession();
   const { data, isLoading, error, refetch, isRefetching } = useUserStatus();
 
+  // Determine auth state first — before calling any conditional hooks
+  const isAuthenticated = !isLoading && !error && !!data;
+  const isUnauthorized = !isLoading && error instanceof UnauthorizedError;
+
+  // Guest session is only initialised when the user is definitely unauthenticated.
+  // Passing `false` here means the hook does nothing — avoids spurious POSTs for
+  // authenticated users while still keeping hook call order stable.
+  const guestState = useGuestSession(isUnauthorized);
+
   const signInHref = useMemo(() => {
     const nextPath = pathname || '/';
     return `/sign-in?next=${encodeURIComponent(nextPath)}`;
   }, [pathname]);
 
+  // Redirect to sign-in once we know guest access is not available
   useEffect(() => {
-    if (error instanceof UnauthorizedError) {
-      router.replace(signInHref);
-    }
-  }, [error, router, signInHref]);
+    if (!isUnauthorized) return;
+    if (guestState.status === 'idle' || guestState.status === 'loading') return;
+    if (guestState.status === 'ready') return;
+    router.replace(signInHref);
+  }, [isUnauthorized, guestState.status, router, signInHref]);
 
   const handleSignOut = async () => {
-    if (isSigningOut) {
-      return;
-    }
-
+    if (isSigningOut) return;
     setIsSigningOut(true);
     try {
       await authClient.signOut();
@@ -73,6 +83,7 @@ export function AppAccessGuard({ children }: AppAccessGuardProps) {
     }
   };
 
+  // ── Loading ──────────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <CenteredMessage
@@ -83,7 +94,29 @@ export function AppAccessGuard({ children }: AppAccessGuardProps) {
     );
   }
 
-  if (error instanceof UnauthorizedError) {
+  // ── Unauthenticated ──────────────────────────────────────────────────────────
+  if (isUnauthorized) {
+    // Still waiting to learn whether guest mode is available
+    if (guestState.status === 'idle' || guestState.status === 'loading') {
+      return (
+        <CenteredMessage
+          title="Preparing Vaja AI"
+          description="Setting up your guest session…"
+          loading
+        />
+      );
+    }
+
+    // Guest mode is active — render the app and share session via context
+    if (guestState.status === 'ready') {
+      return (
+        <GuestSessionContext.Provider value={guestState.session}>
+          {children}
+        </GuestSessionContext.Provider>
+      );
+    }
+
+    // Guest access is disabled or errored — useEffect handles the redirect
     return (
       <CenteredMessage
         title="Redirecting to sign in"
@@ -93,6 +126,7 @@ export function AppAccessGuard({ children }: AppAccessGuardProps) {
     );
   }
 
+  // ── Network / server error ───────────────────────────────────────────────────
   if (error) {
     return (
       <CenteredMessage
@@ -107,6 +141,29 @@ export function AppAccessGuard({ children }: AppAccessGuardProps) {
     );
   }
 
+  // ── Email verification required ──────────────────────────────────────────────
+  if (data?.requireEmailVerification && !data?.emailVerified) {
+    return (
+      <CenteredMessage
+        title="Please verify your email"
+        description={`We sent a verification link to ${sessionData?.user?.email ?? data?.email ?? 'your email address'}. Click the link in the email to activate your account.`}
+        action={(
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => void refetch()} disabled={isRefetching}>
+              <MailCheckIcon className="mr-2 size-4" />
+              {isRefetching ? 'Checking...' : 'Already verified — continue'}
+            </Button>
+            <Button variant="ghost" onClick={() => void handleSignOut()} disabled={isSigningOut}>
+              <LogOutIcon className="mr-2 size-4" />
+              {isSigningOut ? 'Signing out...' : 'Sign out'}
+            </Button>
+          </div>
+        )}
+      />
+    );
+  }
+
+  // ── Pending approval ─────────────────────────────────────────────────────────
   if (!data?.approved) {
     return (
       <CenteredMessage
@@ -127,5 +184,10 @@ export function AppAccessGuard({ children }: AppAccessGuardProps) {
     );
   }
 
-  return <>{children}</>;
+  // ── Authenticated ────────────────────────────────────────────────────────────
+  return (
+    <GuestSessionContext.Provider value={null}>
+      {children}
+    </GuestSessionContext.Provider>
+  );
 }

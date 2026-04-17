@@ -9,7 +9,8 @@ import { db } from "@/lib/db";
 import { user as userTable } from "@/db/schema";
 import { MagicLinkEmail, ResetPasswordEmail, VerificationEmail } from "@/lib/email-templates";
 import { sendEmail } from "@/lib/email";
-import { addCredits, SIGNUP_BONUS_CREDITS } from "@/lib/credits";
+import { addCredits } from "@/lib/credits";
+import { getPlatformSettings } from "@/lib/platform-settings";
 import { isAdminEmail } from "@/lib/admin";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
@@ -52,6 +53,9 @@ export const auth = betterAuth({
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }) => {
+      // Only send if the platform setting requires it
+      const settings = await getPlatformSettings();
+      if (!settings.requireEmailVerification) return;
       await sendEmail({
         to: user.email,
         subject: `Verify your email for ${appName}`,
@@ -68,7 +72,11 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: true,
+    // Enforcement is handled at the application level (AppAccessGuard) so that
+    // the admin can toggle it without redeploying. Better Auth itself does not
+    // block sign-in here — we let the user in and show a "verify your email"
+    // wall when the setting is on and emailVerified is false.
+    requireEmailVerification: false,
     sendResetPassword: async ({ user, url }) => {
       await sendEmail({
         to: user.email,
@@ -94,16 +102,26 @@ export const auth = betterAuth({
           return { data: userData };
         },
         after: async (user) => {
+          const settings = await getPlatformSettings();
+
           // If approval required and not an admin, mark as unapproved
           if (process.env.REQUIRE_APPROVAL === 'true' && !isAdminEmail(user.email)) {
             await db.update(userTable).set({ approved: false }).where(eq(userTable.id, user.id));
           }
-          await addCredits({
-            userId: user.id,
-            amount: SIGNUP_BONUS_CREDITS,
-            type: 'signup_bonus',
-            description: `Welcome bonus: ${SIGNUP_BONUS_CREDITS} credits`,
-          });
+
+          // Auto-verify email when verification is disabled by admin
+          if (!settings.requireEmailVerification) {
+            await db.update(userTable).set({ emailVerified: true }).where(eq(userTable.id, user.id));
+          }
+
+          if (settings.signupBonusCredits > 0) {
+            await addCredits({
+              userId: user.id,
+              amount: settings.signupBonusCredits,
+              type: 'signup_bonus',
+              description: `Welcome bonus: ${settings.signupBonusCredits} credits`,
+            });
+          }
         },
       },
     },

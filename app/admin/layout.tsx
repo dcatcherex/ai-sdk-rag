@@ -11,6 +11,7 @@ import {
   MenuIcon,
   SearchIcon,
   MessageSquareIcon,
+  SettingsIcon,
   SparklesIcon,
   ShieldIcon,
   TestTubeDiagonalIcon,
@@ -33,6 +34,7 @@ const navItems = [
   { href: '/admin/chat-runs', label: 'AI Runs', icon: SearchIcon },
   { href: '/admin/image-models', label: 'Image Models', icon: ImageIcon },
   { href: '/admin/tests', label: 'Tests', icon: TestTubeDiagonalIcon },
+  { href: '/admin/settings', label: 'Settings', icon: SettingsIcon },
 ];
 
 export default function AdminLayout({

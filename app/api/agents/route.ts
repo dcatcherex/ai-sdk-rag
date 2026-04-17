@@ -9,6 +9,10 @@ import { agent, agentShare, user as userTable } from '@/db/schema';
 import type { SharedUser } from '@/features/agents/types';
 import { getResolvedSkillIdsByAgentIds } from '@/features/skills/service';
 import { agentStructuredBehaviorSchema } from '@/lib/agent-structured-behavior';
+import {
+  ensureConfiguredStarterAgentForUser,
+  getConfiguredGuestStarterAgent,
+} from '@/features/agents/server/starter';
 
 const mcpServerSchema = z.object({
   name: z.string().min(1).max(50),
@@ -38,8 +42,18 @@ const createSchema = z.object({
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guestStarterAgent = await getConfiguredGuestStarterAgent();
+    const essentials = guestStarterAgent ? [{ ...guestStarterAgent, isDefault: true }] : [];
+    return NextResponse.json({
+      agents: [],
+      templates: essentials,
+      mine: [],
+      shared: [],
+      essentials,
+    });
   }
+
+  await ensureConfiguredStarterAgentForUser(session.user.id);
 
   // 1. Own agents (excluding templates)
   const ownAgents = await db

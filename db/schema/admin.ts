@@ -1,6 +1,7 @@
-import { boolean, index, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
+import { agent } from "./agents";
 
 // ── Image Model Config (admin-managed) ────────────────────────────────────────
 
@@ -26,6 +27,23 @@ export const imageModelConfig = pgTable("image_model_config", {
 }, (table) => [
   index("image_model_config_enabled_idx").on(table.enabled),
 ]);
+
+// ── Platform Settings (admin-managed, singleton row id=1) ─────────────────────
+
+export const platformSettings = pgTable("platform_settings", {
+  id: integer("id").primaryKey().default(1),
+  guestAccessEnabled: boolean("guest_access_enabled").notNull().default(false),
+  guestStartingCredits: integer("guest_starting_credits").notNull().default(20),
+  guestSessionTtlDays: integer("guest_session_ttl_days").notNull().default(7),
+  signupBonusCredits: integer("signup_bonus_credits").notNull().default(100),
+  requireEmailVerification: boolean("require_email_verification").notNull().default(true),
+  guestStarterAgentId: text("guest_starter_agent_id").references(() => agent.id, { onDelete: "set null" }),
+  newUserStarterTemplateId: text("new_user_starter_template_id").references(() => agent.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
 
 export const adminUserInvite = pgTable(
   "admin_user_invite",

@@ -23,22 +23,6 @@ ${buildWorkspaceContextBlock(ctx)}`;
 }
 
 /**
- * System prompt for onboarding mode (new user, zero agents).
- */
-export function buildOnboardingSystemPrompt(): string {
-  return `คุณคือ Vaja Platform Agent — ผู้ช่วยตั้งค่า workspace ครั้งแรก
-
-นี่คือผู้ใช้ใหม่ที่ยังไม่มี Agent ใดๆ งานของคุณมีแค่ขั้นตอนเดียว:
-
-1. ถามว่าทำงานหรือธุรกิจประเภทไหน (ถามแค่ 1 ประโยคสั้นๆ)
-2. เมื่อได้คำตอบ เรียก create_agent และ install_skill เพื่อตั้งค่า workspace ให้ทันที
-3. หลังตั้งค่าเสร็จ แนะนำ starter prompts 2-3 ข้อ
-
-ห้ามถามคำถามซ้อนคำถาม — ถามเพียง 1 คำถามก็พอ
-ตอบสั้น กระชับ เป็นกันเอง ภาษาไทย`;
-}
-
-/**
  * LINE-specific constraint suffix injected when responding via the management bot.
  */
 export const LINE_PLATFORM_CONSTRAINT = `

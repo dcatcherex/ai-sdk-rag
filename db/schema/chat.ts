@@ -3,14 +3,17 @@ import { boolean, foreignKey, index, integer, jsonb, pgTable, text, timestamp } 
 
 import { user } from "./auth";
 import { brand } from "./brands";
+import { guestSession } from "./guest";
 
 export const chatThread = pgTable(
   "chat_thread",
   {
     id: text("id").primaryKey(),
+    // Nullable: guest threads have userId=null, guestSessionId=set
     userId: text("user_id")
-      .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    guestSessionId: text("guest_session_id")
+      .references(() => guestSession.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     preview: text("preview").notNull(),
     pinned: boolean("pinned").default(false).notNull(),
@@ -21,7 +24,10 @@ export const chatThread = pgTable(
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
-  (table) => [index("chat_thread_userId_idx").on(table.userId)],
+  (table) => [
+    index("chat_thread_userId_idx").on(table.userId),
+    index("chat_thread_guestSessionId_idx").on(table.guestSessionId),
+  ],
 );
 
 export const chatMessage = pgTable(

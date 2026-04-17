@@ -383,12 +383,11 @@ export function ChatComposer({
                   onSelectAgent={onSelectAgent}
                 />
               )}
-              {!compareMode && selectedAgentId === null && (
+              {!compareMode && (
                 <ModelSelector open={modelSelectorOpen} onOpenChange={onModelSelectorOpenChange}>
                   <ModelSelectorTrigger asChild>
-                    <PromptInputButton>
+                    <PromptInputButton aria-label="Select model" title="Select model">
                       <ModelSelectorLogo provider={currentModel.provider} />
-                      <ModelSelectorName>{currentModel.name}</ModelSelectorName>
                     </PromptInputButton>
                   </ModelSelectorTrigger>
                   <ModelSelectorContent>
@@ -405,6 +404,7 @@ export function ChatComposer({
                       {selectorModels.map((model) => {
                         const fullModel = availableModels.find((m) => m.id === model.id);
                         const isAuto = model.id === 'auto';
+                        const isSelected = selectedModel === model.id;
                         return (
                           <ModelSelectorItem
                             key={model.id}
@@ -420,7 +420,7 @@ export function ChatComposer({
                                   <Dots filled={costTier(fullModel)} color="bg-amber-400" />
                                 </>
                               )}
-                              {selectedModel === model.id && (
+                              {isSelected && (
                                 <CheckIcon className="size-3.5 text-primary" />
                               )}
                             </div>

@@ -10,7 +10,7 @@ import { and, count, eq, exists, isNull, or } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { agent, agentShare, brand, brandShare, chatThread, user as userTable, userPreferences } from '@/db/schema';
-import { availableModels, maxSteps, isStrongModel } from '@/lib/ai';
+import { availableModels, chatModel, maxSteps, isStrongModel } from '@/lib/ai';
 import { getSystemPrompt, resolveSystemPromptTemplate } from '@/lib/prompt';
 import { enhancePrompt } from '@/lib/prompt-enhance';
 import { summarizeConversation, SUMMARY_THRESHOLD } from '@/lib/conversation-summary';
@@ -21,6 +21,7 @@ import { buildToolSet } from '@/lib/tools';
 import { createAgentTools } from '@/lib/agent-tools';
 import { buildMCPToolSet } from '@/lib/tools/mcp';
 import { getCreditCost, getUserBalance } from '@/lib/credits';
+import { parseGuestCookie, getGuestSessionById, deductGuestCredits } from '@/lib/guest-access';
 import { requestSchema } from '@/features/chat/server/schema';
 import { buildImageBrandSuffix } from '@/features/brands/service';
 import { assembleSystemPrompt } from '@/features/chat/server/prompt-assembly';
@@ -35,15 +36,17 @@ import {
   resolveSkillRuntimeContext,
 } from '@/features/skills/service';
 import { getWorkspaceContext } from '@/features/platform-agent/service';
-import {
-  buildPlatformAgentSystemPrompt,
-  buildOnboardingSystemPrompt,
-} from '@/features/platform-agent/prompts';
+import { buildPlatformAgentSystemPrompt } from '@/features/platform-agent/prompts';
 import { getPlatformAgentTools } from '@/features/platform-agent/agent';
+import type { Agent } from '@/features/agents/types';
 import type { Skill } from '@/features/skills/types';
 import { getLastUserPrompt } from '@/features/chat/server/thread-utils';
 import { toolDisabledModels, isImageOnlyModel, getModelByIntent } from '@/features/chat/server/routing';
 import { triggerImageGeneration } from '@/features/image/service';
+import {
+  ensureConfiguredStarterAgentForUser,
+  getConfiguredGuestStarterAgent,
+} from '@/features/agents/server/starter';
 import { persistChatResult } from '@/features/chat/server/persistence';
 import {
   buildChatRunInputSummary,
@@ -75,25 +78,38 @@ export async function POST(req: Request) {
 
   try {
     // ── Stage 1: auth + body parse in parallel ───────────────────────────────
-    const [session, rawBody] = await Promise.all([
+    const [session, rawBody, requestHeaders] = await Promise.all([
       headers().then((h) => auth.api.getSession({ headers: h })),
       req.json(),
+      headers(),
     ]);
+
+    // Guest session fallback when unauthenticated
+    let guestSessionId: string | null = null;
+    let guestBalance = 0;
     if (!session?.user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      const cookieHeader = requestHeaders.get('cookie');
+      const guestId = parseGuestCookie(cookieHeader);
+      if (guestId) {
+        const gs = await getGuestSessionById(guestId);
+        if (gs) { guestSessionId = gs.id; guestBalance = gs.credits; }
+      }
+      if (!guestSessionId) {
+        return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      }
     }
+
+    const isGuest = !session?.user;
+    const effectiveUserId = session?.user?.id ?? '';
 
     const { messages, threadId, model, useWebSearch, selectedDocumentIds, enabledModelIds, agentId, brandId, quizContext } =
       requestSchema.parse(rawBody);
-    const hydratedMessages = await hydrateIncomingChatMessages(messages, session.user.id);
+    const hydratedMessages = await hydrateIncomingChatMessages(messages, effectiveUserId);
 
-    // ── Eager image upload ───────────────────────────────────────────────────
-    // Upload base64/HTTP images from the latest user message to R2 BEFORE the
-    // LLM processes them. This gives the LLM a stable R2 URL to use in
-    // generate_image.imageUrls instead of hunting for old expired URLs in history.
+    // ── Eager image upload (authenticated users only) ────────────────────────
     const latestUserMsgIdx = hydratedMessages.map((m) => m.role).lastIndexOf('user');
     let eagerUploadedMessages = hydratedMessages;
-    if (latestUserMsgIdx !== -1) {
+    if (!isGuest && latestUserMsgIdx !== -1) {
       const latestUserMsg = hydratedMessages[latestUserMsgIdx]!;
       const eagerMsgId = latestUserMsg.id ?? `eager-${Date.now()}`;
       const eagerPartResults = await Promise.all(
@@ -104,15 +120,12 @@ export async function POST(req: Request) {
             threadId,
             messageId: eagerMsgId,
             index,
-            userId: session.user.id,
+            userId: effectiveUserId,
           });
         }),
       );
       const hasUploads = eagerPartResults.some((r) => r.asset);
       if (hasUploads) {
-        // Update message parts with R2 URLs so the LLM sees stable URLs.
-        // Do NOT insert mediaAsset here — chatMessage doesn't exist yet.
-        // persistChatResult will insert assets after chatMessage is saved.
         eagerUploadedMessages = hydratedMessages.map((m, i) =>
           i === latestUserMsgIdx
             ? { ...m, id: eagerMsgId, parts: eagerPartResults.map((r) => r.part) }
@@ -124,23 +137,19 @@ export async function POST(req: Request) {
 
     // ── Stage 2: all independent DB queries in parallel ──────────────────────
     const [userRow, threadRows, prefsRows, balance, activeAgentRows] = await Promise.all([
-      db
-        .select({ approved: userTable.approved })
-        .from(userTable)
-        .where(eq(userTable.id, session.user.id))
-        .limit(1),
-      db
-        .select({ id: chatThread.id, title: chatThread.title })
-        .from(chatThread)
-        .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, session.user.id)))
-        .limit(1),
-      db
-        .select()
-        .from(userPreferences)
-        .where(eq(userPreferences.userId, session.user.id))
-        .limit(1),
-      getUserBalance(session.user.id),
-      agentId
+      isGuest
+        ? Promise.resolve([{ approved: true }])
+        : db.select({ approved: userTable.approved }).from(userTable).where(eq(userTable.id, effectiveUserId)).limit(1),
+      isGuest
+        ? db.select({ id: chatThread.id, title: chatThread.title }).from(chatThread).where(and(eq(chatThread.id, threadId), eq(chatThread.guestSessionId, guestSessionId!))).limit(1)
+        : db.select({ id: chatThread.id, title: chatThread.title }).from(chatThread).where(and(eq(chatThread.id, threadId), eq(chatThread.userId, effectiveUserId))).limit(1),
+      isGuest
+        ? Promise.resolve([])
+        : db.select().from(userPreferences).where(eq(userPreferences.userId, effectiveUserId)).limit(1),
+      isGuest
+        ? Promise.resolve(guestBalance)
+        : getUserBalance(effectiveUserId),
+      (!isGuest && agentId)
         ? db
             .select()
             .from(agent)
@@ -148,9 +157,8 @@ export async function POST(req: Request) {
               and(
                 eq(agent.id, agentId),
                 or(
-                  eq(agent.userId, session.user.id),
+                  eq(agent.userId, effectiveUserId),
                   eq(agent.isPublic, true),
-                  // Published Essential templates are usable directly — no clone needed
                   and(
                     isNull(agent.userId),
                     eq(agent.managedByAdmin, true),
@@ -163,7 +171,7 @@ export async function POST(req: Request) {
                       .where(
                         and(
                           eq(agentShare.agentId, agentId),
-                          eq(agentShare.sharedWithUserId, session.user.id),
+                          eq(agentShare.sharedWithUserId, effectiveUserId),
                         ),
                       ),
                   ),
@@ -174,7 +182,7 @@ export async function POST(req: Request) {
         : Promise.resolve([]),
     ]);
 
-    if (!userRow[0]?.approved) {
+    if (!isGuest && !userRow[0]?.approved) {
       return Response.json(
         { error: 'Your account is pending approval. Please contact the admin.' },
         { status: 403 }
@@ -186,25 +194,37 @@ export async function POST(req: Request) {
 
     const currentTitle = threadRows[0]!.title ?? 'New chat';
     const userPrefs = prefsRows[0] ?? { memoryEnabled: true, memoryInjectEnabled: true, memoryExtractEnabled: true, promptEnhancementEnabled: true, followUpSuggestionsEnabled: true, enabledToolIds: null, rerankEnabled: false };
-    const activeAgent = activeAgentRows[0] ?? null;
-
-    // ── Platform agent detection ─────────────────────────────────────────────
-    // Detect first-time users (no user-owned agents) and activate the Vaja Platform Agent.
-    // Also activates when agentId === 'vaja-platform' is explicitly requested.
-    const isVajaPlatformRequest = agentId === 'vaja-platform';
-    let isPlatformAgentActive = isVajaPlatformRequest;
-    let isOnboardingMode = false;
-    if (!agentId) {
-      const agentCountRows = await db
-        .select({ count: count() })
-        .from(agent)
-        .where(eq(agent.userId, session.user.id));
-      const userAgentCount = agentCountRows[0]?.count ?? 0;
-      if (userAgentCount === 0) {
-        isPlatformAgentActive = true;
-        isOnboardingMode = true;
+    let activeAgent: (typeof activeAgentRows)[number] | Agent | null = activeAgentRows[0] ?? null;
+    let requiresConfiguredStarterTemplate = false;
+    if (!activeAgent) {
+      if (isGuest) {
+        const starterAgent = await getConfiguredGuestStarterAgent();
+        if (starterAgent) {
+          activeAgent = starterAgent;
+        }
+      } else if (!agentId) {
+        const starterAgent = await ensureConfiguredStarterAgentForUser(effectiveUserId);
+        if (starterAgent) {
+          activeAgent = starterAgent;
+        } else {
+          const agentCountRows = await db
+            .select({ count: count() })
+            .from(agent)
+            .where(eq(agent.userId, effectiveUserId));
+          requiresConfiguredStarterTemplate = (agentCountRows[0]?.count ?? 0) === 0;
+        }
       }
     }
+    if (requiresConfiguredStarterTemplate) {
+      return Response.json(
+        { error: 'A starter template must be configured before first-time users can chat. Ask an admin to update Platform Settings.' },
+        { status: 409 },
+      );
+    }
+
+    // ── Platform agent detection (authenticated users only) ──────────────────
+    const isVajaPlatformRequest = !isGuest && agentId === 'vaja-platform';
+    const isPlatformAgentActive = isVajaPlatformRequest;
     const lastUserPrompt = getLastUserPrompt(messages);
 
     // Load skills attached to the active agent
@@ -222,14 +242,13 @@ export async function POST(req: Request) {
           skillToolIds: [],
         };
 
-    // ── Stage 3: memory + brand in parallel ──────────────────────────────────
-    // Agent's brand takes priority over user's active brand.
-    const effectiveBrandId = activeAgent?.brandId ?? brandId ?? null;
+    // ── Stage 3: memory + brand (authenticated users only) ───────────────────
+    const effectiveBrandId = (!isGuest && (activeAgent?.brandId ?? brandId)) || null;
     const [memoryContext, brandRows] = await Promise.all([
-      (userPrefs.memoryEnabled && userPrefs.memoryInjectEnabled)
-        ? getUserMemoryContext(session.user.id)
+      (!isGuest && userPrefs.memoryEnabled && userPrefs.memoryInjectEnabled)
+        ? getUserMemoryContext(effectiveUserId)
         : Promise.resolve(''),
-      effectiveBrandId
+      (!isGuest && effectiveBrandId)
         ? db
             .select()
             .from(brand)
@@ -237,13 +256,13 @@ export async function POST(req: Request) {
               and(
                 eq(brand.id, effectiveBrandId),
                 or(
-                  eq(brand.userId, session.user.id),
+                  eq(brand.userId, effectiveUserId),
                   exists(
                     db.select({ id: brandShare.id })
                       .from(brandShare)
                       .where(and(
                         eq(brandShare.brandId, effectiveBrandId),
-                        eq(brandShare.sharedWithUserId, session.user.id),
+                        eq(brandShare.sharedWithUserId, effectiveUserId),
                       )),
                   ),
                 ),
@@ -255,8 +274,8 @@ export async function POST(req: Request) {
 
     const activeBrand = (brandRows[0] ?? null) as Brand | null;
     const [threadWorkingMemoryBlock, sharedMemoryBlock] = await Promise.all([
-      buildThreadWorkingMemoryPromptBlock(threadId),
-      buildBrandMemoryPromptBlock(session.user.id, activeBrand?.id ?? null, lastUserPrompt ?? ''),
+      isGuest ? Promise.resolve('') : buildThreadWorkingMemoryPromptBlock(threadId),
+      isGuest ? Promise.resolve('') : buildBrandMemoryPromptBlock(effectiveUserId, activeBrand?.id ?? null, lastUserPrompt ?? ''),
     ]);
 
     // Merge agent pre-associated docs + user-selected docs (union, deduplicated)
@@ -286,12 +305,8 @@ export async function POST(req: Request) {
     // Base system prompt: platform agent > agent > default
     let baseSystemPrompt: string;
     if (isPlatformAgentActive) {
-      if (isOnboardingMode) {
-        baseSystemPrompt = buildOnboardingSystemPrompt();
-      } else {
-        const workspaceCtx = await getWorkspaceContext(session.user.id);
-        baseSystemPrompt = buildPlatformAgentSystemPrompt(workspaceCtx);
-      }
+      const workspaceCtx = await getWorkspaceContext(effectiveUserId);
+      baseSystemPrompt = buildPlatformAgentSystemPrompt(workspaceCtx);
     } else {
       const rawSystemPrompt = activeAgent ? activeAgent.systemPrompt : getSystemPrompt();
       baseSystemPrompt = resolveSystemPromptTemplate(rawSystemPrompt);
@@ -305,12 +320,17 @@ export async function POST(req: Request) {
         : availableModels.map((m) => m.id);
 
     const agentSuggestedModel = activeAgent?.modelId ?? null;
-    const manualModel = model && model !== 'auto' ? model : (agentSuggestedModel ?? null);
+    const agentAutoModel =
+      (!model || model === 'auto') && agentSuggestedModel && availableModels.some((entry) => entry.id === agentSuggestedModel)
+        ? agentSuggestedModel
+        : null;
+    const guestFallbackModel = !model || model === 'auto' ? chatModel : null;
+    const manualModel = model && model !== 'auto' ? model : null;
     const manualResolved = manualModel && enabledIds.includes(manualModel) ? manualModel : null;
 
-    const userScores = manualResolved
+    const userScores = (manualResolved || isGuest)
       ? new Map<string, number>()
-      : await getUserModelScores(session.user.id);
+      : await getUserModelScores(effectiveUserId);
 
     // Rough token estimate: message history + injected skill content + system prompt overhead.
     // Used by the router to exclude models whose context window is too small.
@@ -325,16 +345,18 @@ export async function POST(req: Request) {
 
     const routingDecision = manualResolved
       ? { modelId: manualResolved, reason: 'Manual selection' }
-      : getModelByIntent({
-          prompt: lastUserPrompt,
-          enabledModelIds: enabledIds.length > 0 ? enabledIds : [availableModels[0]!.id],
-          useWebSearch,
-          userScores,
-          hasAgent: !!activeAgent,
-          hasActiveSkills: skillRuntime.activatedSkills.length > 0,
-          messageCount: messages.length,
-          estimatedContextTokens,
-        });
+      : agentAutoModel
+        ? { modelId: agentAutoModel, reason: 'Agent default model' }
+        : getModelByIntent({
+            prompt: lastUserPrompt,
+            enabledModelIds: enabledIds.length > 0 ? enabledIds : [guestFallbackModel ?? availableModels[0]!.id],
+            useWebSearch,
+            userScores,
+            hasAgent: !!activeAgent,
+            hasActiveSkills: skillRuntime.activatedSkills.length > 0,
+            messageCount: messages.length,
+            estimatedContextTokens,
+          });
 
     const resolvedModel = routingDecision.modelId;
     const routingMetadata: RoutingMetadata = {
@@ -345,43 +367,49 @@ export async function POST(req: Request) {
     chatRunRouteKind = isImageOnlyModel(resolvedModel) ? 'image' : 'text';
     chatRunResolvedModelId = resolvedModel;
 
-    const currentChatRunId = await startChatRun({
-      userId: session.user.id,
-      threadId,
-      agentId: activeAgent?.id ?? null,
-      brandId: activeBrand?.id ?? null,
-      requestedModelId: model ?? agentSuggestedModel ?? null,
-      useWebSearch,
-      inputJson: buildChatRunInputSummary({
-        messages,
-        requestedModelId: model ?? agentSuggestedModel ?? null,
-        useWebSearch,
-        selectedDocumentIds: effectiveDocIds,
-        enabledModelIds,
+    // chatRun audit skipped for guests (chatRun requires a real userId FK)
+    let currentChatRunId = '';
+    if (!isGuest) {
+      currentChatRunId = await startChatRun({
+        userId: effectiveUserId,
+        threadId,
         agentId: activeAgent?.id ?? null,
         brandId: activeBrand?.id ?? null,
-        quizContext,
-        activeToolIds,
-        activeSkillIds: skillRuntime.activatedSkills.map((entry) => entry.skill.id),
-        lastUserPrompt,
-      }),
-    });
-    chatRunId = currentChatRunId;
+        requestedModelId: model ?? agentSuggestedModel ?? null,
+        useWebSearch,
+        inputJson: buildChatRunInputSummary({
+          messages,
+          requestedModelId: model ?? agentSuggestedModel ?? null,
+          useWebSearch,
+          selectedDocumentIds: effectiveDocIds,
+          enabledModelIds,
+          agentId: activeAgent?.id ?? null,
+          brandId: activeBrand?.id ?? null,
+          quizContext,
+          activeToolIds,
+          activeSkillIds: skillRuntime.activatedSkills.map((entry) => entry.skill.id),
+          lastUserPrompt,
+        }),
+      });
+      chatRunId = currentChatRunId;
 
-    await updateChatRunRouting(currentChatRunId, {
-      routeKind: chatRunRouteKind,
-      resolvedModelId: resolvedModel,
-      routing: routingMetadata,
-    });
+      await updateChatRunRouting(currentChatRunId, {
+        routeKind: chatRunRouteKind,
+        resolvedModelId: resolvedModel,
+        routing: routingMetadata,
+      });
+    }
 
     // ── Credit check ─────────────────────────────────────────────────────────
     const creditCost = getCreditCost(resolvedModel);
     if (balance < creditCost) {
-      await completeChatRunError(currentChatRunId, {
-        errorMessage: `Insufficient credits for ${resolvedModel}`,
-        routeKind: chatRunRouteKind,
-        resolvedModelId: resolvedModel,
-      });
+      if (currentChatRunId) {
+        await completeChatRunError(currentChatRunId, {
+          errorMessage: `Insufficient credits for ${resolvedModel}`,
+          routeKind: chatRunRouteKind,
+          resolvedModelId: resolvedModel,
+        });
+      }
       return Response.json(
         {
           error: `Insufficient credits. This model costs ${creditCost} credits, but you have ${balance}. Please contact admin for more credits.`,
@@ -527,24 +555,28 @@ IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or con
     // When platform agent is active, expose platform management tools exclusively.
     // Platform tools must not bleed into regular agent or user tool sets.
     const baseTools = isPlatformAgentActive
-      ? getPlatformAgentTools({ userId: session.user.id })
+      ? getPlatformAgentTools({ userId: effectiveUserId })
       : activeAgent
-        ? createAgentTools(activeToolIds, session.user.id, effectiveDocIds, {
-            threadId,
-            referenceImageUrls: effectiveReferenceImageParts.map((part) => part.url),
-          })
-        : buildToolSet({
-            enabledToolIds: activeToolIds,
-            userId: session.user.id,
-            documentIds: isGrounded ? effectiveDocIds : undefined,
-            rerankEnabled: userPrefs.rerankEnabled ?? false,
-            source: 'agent',
-            threadId,
-            referenceImageUrls: effectiveReferenceImageParts.map((part) => part.url),
-          });
+        ? (isGuest
+            ? {}
+            : createAgentTools(activeToolIds, effectiveUserId, effectiveDocIds, {
+                threadId,
+                referenceImageUrls: effectiveReferenceImageParts.map((part) => part.url),
+              }))
+        : (isGuest
+            ? {}
+            : buildToolSet({
+                enabledToolIds: activeToolIds,
+                userId: effectiveUserId,
+                documentIds: isGrounded ? effectiveDocIds : undefined,
+                rerankEnabled: userPrefs.rerankEnabled ?? false,
+                source: 'agent',
+                threadId,
+                referenceImageUrls: effectiveReferenceImageParts.map((part) => part.url),
+              }));
 
     // Merge MCP tools from agent config (empty object when no MCP servers configured)
-    const mcpTools = activeAgent?.mcpServers?.length
+    const mcpTools = !isGuest && activeAgent?.mcpServers?.length
       ? await buildMCPToolSet(
           activeAgent.mcpServers,
           (userPrefs as { mcpCredentials?: Record<string, string> }).mcpCredentials ?? {},
@@ -566,11 +598,13 @@ IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or con
     if (isImageOnlyModel(resolvedModel)) {
       const baseImagePrompt = enhancedPrompt ?? lastUserPrompt;
       if (!baseImagePrompt) {
-        await completeChatRunError(currentChatRunId, {
-          errorMessage: 'Image generation requires a text prompt.',
-          routeKind: 'image',
-          resolvedModelId: resolvedModel,
-        });
+        if (currentChatRunId) {
+          await completeChatRunError(currentChatRunId, {
+            errorMessage: 'Image generation requires a text prompt.',
+            routeKind: 'image',
+            resolvedModelId: resolvedModel,
+          });
+        }
         return Response.json({ error: 'Image generation requires a text prompt.' }, { status: 400 });
       }
 
@@ -590,7 +624,7 @@ IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or con
           ...(imageUrls ? { imageUrls } : {}),
           ...(enablePro !== undefined ? { enablePro } : {}),
         },
-        session.user.id,
+        effectiveUserId,
         { threadId, source: 'chat', referenceImageUrls: imageUrls },
       );
 
@@ -613,7 +647,8 @@ IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or con
               await persistChatResult({
                 updatedMessages,
                 threadId,
-                userId: session.user.id,
+                userId: isGuest ? null : effectiveUserId,
+                guestSessionId: isGuest ? guestSessionId : null,
                 currentTitle,
                 resolvedModel,
                 creditCost,
@@ -621,7 +656,7 @@ IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or con
                 tokenUsageData: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
               });
 
-              await completeChatRunSuccess(currentChatRunId, {
+              if (currentChatRunId) await completeChatRunSuccess(currentChatRunId, {
                 routeKind: 'image',
                 resolvedModelId: resolvedModel,
                 creditCost,
@@ -637,11 +672,13 @@ IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or con
               });
             } catch (error) {
               console.error('Failed to finalize async image chat run:', error);
-              await completeChatRunError(currentChatRunId, {
-                errorMessage: error instanceof Error ? error.message : 'Unknown finalization error',
-                routeKind: 'image',
-                resolvedModelId: resolvedModel,
-              }).catch((auditError) => console.error('Failed to mark image chat run as error:', auditError));
+              if (currentChatRunId) {
+                await completeChatRunError(currentChatRunId, {
+                  errorMessage: error instanceof Error ? error.message : 'Unknown finalization error',
+                  routeKind: 'image',
+                  resolvedModelId: resolvedModel,
+                }).catch((auditError) => console.error('Failed to mark image chat run as error:', auditError));
+              }
             }
           },
           execute: ({ writer }) => {
@@ -680,7 +717,7 @@ IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or con
       messages: await convertToModelMessages(messagesForLLM),
       stopWhen: stepCountIs(maxSteps),
       ...(supportsTools ? { tools: activeTools } : {}),
-      experimental_context: { autonomyLevel, userId: session.user.id },
+      experimental_context: { autonomyLevel, userId: effectiveUserId || null },
     });
 
     return result.toUIMessageStreamResponse({
@@ -718,7 +755,8 @@ IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or con
           await persistChatResult({
             updatedMessages: messagesWithSuggestions,
             threadId,
-            userId: session.user.id,
+            userId: isGuest ? null : effectiveUserId,
+            guestSessionId: isGuest ? guestSessionId : null,
             currentTitle,
             resolvedModel,
             creditCost,
@@ -726,49 +764,55 @@ IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or con
             tokenUsageData: usage,
           });
 
-          await refreshThreadWorkingMemoryFromMessages({
-            threadId,
-            brandId: activeBrand?.id ?? null,
-            messages: messagesWithSuggestions as Array<{
-              id?: string;
-              role: string;
-              parts?: Array<{ type?: string; text?: string }>;
-            }>,
-          }).catch((error) => console.error('Failed to refresh thread working memory:', error));
-
-          const shouldExtractMemory = userPrefs.memoryEnabled && userPrefs.memoryExtractEnabled;
-          if (shouldExtractMemory) {
-            void extractAndStoreMemory(
-              session.user.id,
-              messagesWithSuggestions as Array<{ role: string; parts?: Array<{ type: string; text?: string }> }>,
+          if (!isGuest) {
+            await refreshThreadWorkingMemoryFromMessages({
               threadId,
-              memoryContext
-            );
-          }
+              brandId: activeBrand?.id ?? null,
+              messages: messagesWithSuggestions as Array<{
+                id?: string;
+                role: string;
+                parts?: Array<{ type?: string; text?: string }>;
+              }>,
+            }).catch((error) => console.error('Failed to refresh thread working memory:', error));
 
-          const toolCallCount = getToolCallCount(messagesWithSuggestions);
-          await completeChatRunSuccess(currentChatRunId, {
-            routeKind: 'text',
-            resolvedModelId: resolvedModel,
-            creditCost,
-            toolCallCount,
-            promptTokens: usage?.promptTokens,
-            completionTokens: usage?.completionTokens,
-            totalTokens: usage?.totalTokens,
-            outputJson: buildChatRunOutputSummary({
-              routeKind: 'text',
-              messages: messagesWithSuggestions,
-              followUpSuggestionCount: getFollowUpSuggestionCount(messagesWithSuggestions),
-              memoryExtracted: shouldExtractMemory,
-            }),
-          });
+            const shouldExtractMemory = userPrefs.memoryEnabled && userPrefs.memoryExtractEnabled;
+            if (shouldExtractMemory) {
+              void extractAndStoreMemory(
+                effectiveUserId,
+                messagesWithSuggestions as Array<{ role: string; parts?: Array<{ type: string; text?: string }> }>,
+                threadId,
+                memoryContext
+              );
+            }
+
+            const toolCallCount = getToolCallCount(messagesWithSuggestions);
+            if (currentChatRunId) {
+              await completeChatRunSuccess(currentChatRunId, {
+                routeKind: 'text',
+                resolvedModelId: resolvedModel,
+                creditCost,
+                toolCallCount,
+                promptTokens: usage?.promptTokens,
+                completionTokens: usage?.completionTokens,
+                totalTokens: usage?.totalTokens,
+                outputJson: buildChatRunOutputSummary({
+                  routeKind: 'text',
+                  messages: messagesWithSuggestions,
+                  followUpSuggestionCount: getFollowUpSuggestionCount(messagesWithSuggestions),
+                  memoryExtracted: shouldExtractMemory,
+                }),
+              });
+            }
+          }
         } catch (error) {
           console.error('Failed to finalize chat run:', error);
-          await completeChatRunError(currentChatRunId, {
-            errorMessage: error instanceof Error ? error.message : 'Unknown finalization error',
-            routeKind: 'text',
-            resolvedModelId: resolvedModel,
-          }).catch((auditError) => console.error('Failed to mark chat run as error:', auditError));
+          if (currentChatRunId) {
+            await completeChatRunError(currentChatRunId, {
+              errorMessage: error instanceof Error ? error.message : 'Unknown finalization error',
+              routeKind: 'text',
+              resolvedModelId: resolvedModel,
+            }).catch((auditError) => console.error('Failed to mark chat run as error:', auditError));
+          }
         }
       },
     });

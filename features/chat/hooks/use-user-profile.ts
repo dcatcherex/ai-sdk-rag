@@ -1,9 +1,11 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { authClient } from '@/lib/auth-client';
 
 export const useUserProfile = () => {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: sessionData } = authClient.useSession();
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -34,7 +36,9 @@ export const useUserProfile = () => {
     setIsSigningOut(true);
     try {
       await authClient.signOut();
-      router.push('/sign-in');
+      // Navigate to root and let AppAccessGuard decide: guest session if enabled,
+      // or redirect to sign-in if guest access is off.
+      router.push('/');
     } finally {
       setIsSigningOut(false);
     }

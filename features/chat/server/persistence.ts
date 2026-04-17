@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid';
 import { db } from '@/lib/db';
 import { chatMessage, chatThread, mediaAsset, tokenUsage } from '@/db/schema';
 import { deductCredits } from '@/lib/credits';
+import { deductGuestCredits } from '@/lib/guest-access';
 import type { ChatMessage } from '@/features/chat/types';
 import type { TokenUsageSnapshot } from './schema';
 import { isImageFilePart, uploadImagePart } from './image-upload';
@@ -11,7 +12,8 @@ import { getThreadPreviewFromMessages, getThreadTitleFromMessages } from './thre
 type PersistChatResultOptions = {
   updatedMessages: ChatMessage[];
   threadId: string;
-  userId: string;
+  userId: string | null;
+  guestSessionId?: string | null;
   currentTitle: string;
   resolvedModel: string;
   creditCost: number;
@@ -20,7 +22,7 @@ type PersistChatResultOptions = {
 };
 
 export const persistChatResult = async (options: PersistChatResultOptions): Promise<void> => {
-  const { updatedMessages, threadId, userId, currentTitle, resolvedModel, creditCost, tokenUsageData, brandId } =
+  const { updatedMessages, threadId, userId, guestSessionId, currentTitle, resolvedModel, creditCost, tokenUsageData, brandId } =
     options;
 
   // Assign stable IDs and upload any inline data-URL images to R2
@@ -30,7 +32,7 @@ export const persistChatResult = async (options: PersistChatResultOptions): Prom
     messagesWithIds.map(async (message) => {
       const partResults = await Promise.all(
         message.parts.map(async (part, index) => {
-          if (!isImageFilePart(part as any)) return { part };
+          if (!isImageFilePart(part as any) || !userId) return { part };
           return uploadImagePart({ part: part as any, threadId, messageId: message.id, index, userId });
         })
       );
@@ -82,11 +84,16 @@ export const persistChatResult = async (options: PersistChatResultOptions): Prom
     await db.insert(mediaAsset).values(assets);
   }
 
-  await deductCredits({
-    userId,
-    amount: creditCost,
-    description: `Chat: ${resolvedModel} (thread ${threadId})`,
-  }).catch((e) => console.error('Failed to deduct credits:', e));
+  if (userId) {
+    await deductCredits({
+      userId,
+      amount: creditCost,
+      description: `Chat: ${resolvedModel} (thread ${threadId})`,
+    }).catch((e) => console.error('Failed to deduct credits:', e));
+  } else if (guestSessionId) {
+    await deductGuestCredits(guestSessionId, creditCost)
+      .catch((e) => console.error('Failed to deduct guest credits:', e));
+  }
 
   if (tokenUsageData) {
     await db

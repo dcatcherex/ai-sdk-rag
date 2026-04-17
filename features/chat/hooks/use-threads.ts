@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { authClient } from '@/lib/auth-client';
 import type { ChatMessage, ThreadItem } from '../types';
 
 // Module-level flag so cross-page navigation can signal "open as new chat"
@@ -12,6 +13,12 @@ export const setPendingThread = (id: string) => { pendingThreadId = id; };
 
 export const useThreads = () => {
   const queryClient = useQueryClient();
+  // Include the current user ID in the query key so that switching between
+  // authenticated and guest sessions always triggers a fresh fetch rather than
+  // showing stale data from the previous identity.
+  const { data: sessionData } = authClient.useSession();
+  const sessionKey = sessionData?.user?.id ?? 'guest';
+
   const [activeThreadId, setActiveThreadId] = useState(() => {
     const id = pendingThreadId;
     pendingThreadId = '';
@@ -24,7 +31,7 @@ export const useThreads = () => {
   pendingNewChatMode = false;
 
   const { data: threads = [], isLoading: isThreadsLoading } = useQuery<ThreadItem[]>({
-    queryKey: ['threads'],
+    queryKey: ['threads', sessionKey],
     queryFn: async () => {
       const response = await fetch('/api/threads');
       if (!response.ok) {
@@ -157,6 +164,15 @@ export const useThreads = () => {
     () => threads.find((thread: ThreadItem) => thread.id === activeThreadId),
     [activeThreadId, threads]
   );
+
+  // Clear the active thread whenever the session identity changes (sign-in/out)
+  const prevSessionKeyRef = useRef(sessionKey);
+  useEffect(() => {
+    if (prevSessionKeyRef.current !== sessionKey) {
+      prevSessionKeyRef.current = sessionKey;
+      setActiveThreadId('');
+    }
+  }, [sessionKey]);
 
   // Auto-select first thread on initial load only (not when user clicks New chat)
   useEffect(() => {

@@ -20,4 +20,5 @@ export * from "./schema/collaboration";
 export * from "./schema/analytics";
 export * from "./schema/memory";
 export * from "./schema/admin";
+export * from "./schema/guest";
 export * from "./schema/integrations";

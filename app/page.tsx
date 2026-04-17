@@ -27,6 +27,7 @@ import type { ChatMessage, ChatReferenceImage, QuizFollowUpContext, RoutingMetad
 import type { PromptInputMessage } from '@/components/ai-elements/prompt-input';
 import { ThreadWorkingMemorySheet } from '@/features/memory/components/thread-working-memory-sheet';
 import { consumePendingChatIntent } from '@/features/chat/lib/pending-chat-intent';
+import { GuestBanner } from '@/features/auth/components/guest-banner';
 import { useUserPreferences } from '@/features/settings/hooks/use-user-preferences';
 import { GenerationProgressProvider } from '@/features/chat/context/generation-progress-context';
 import { GenerationProgressBar } from '@/features/chat/components/generation-progress-bar';
@@ -90,10 +91,12 @@ function ChatShell() {
   const { isPersonalVisible, isEssentialVisible } = useChatVisibleAgents();
   const allAgents = agentsData?.agents ?? [];
   const allEssentials = agentsData?.essentials ?? [];
+  const defaultPersonalAgent = allAgents.find((agent) => agent.isDefault) ?? null;
   const defaultEssentialAgent =
     allEssentials.find((agent) => agent.isDefault) ??
-    allEssentials.find((agent) => agent.name.toLowerCase() === 'general assistant') ??
+    allEssentials[0] ??
     null;
+  const initialSelectedAgent = defaultPersonalAgent ?? defaultEssentialAgent;
   // Personal agents: opt-in (green dot must be ON to appear in picker)
   // Essentials: opt-out (green dot is ON by default, user can turn off)
   const agents = allAgents.filter((a) => isPersonalVisible(a.id));
@@ -102,10 +105,10 @@ function ChatShell() {
 
   useEffect(() => {
     if (selectedAgentId !== null) return;
-    if (!defaultEssentialAgent) return;
+    if (!initialSelectedAgent) return;
 
-    setSelectedAgentId(defaultEssentialAgent.id);
-  }, [defaultEssentialAgent, selectedAgentId]);
+    setSelectedAgentId(initialSelectedAgent.id);
+  }, [initialSelectedAgent, selectedAgentId]);
 
   const { data: docStats } = useDocumentStats();
 
@@ -136,6 +139,14 @@ function ChatShell() {
     modelSelectorOpen,
     setModelSelectorOpen,
   } = useModelSelector();
+  const activeAgentModel = selectedAgent?.modelId ?? null;
+  const effectiveAutoModel =
+    activeAgentModel && availableModels.some((model) => model.id === activeAgentModel)
+      ? availableModels.find((model) => model.id === activeAgentModel) ?? null
+      : null;
+  const effectiveComposerModel = selectedModel === 'auto'
+    ? (effectiveAutoModel ?? currentModel)
+    : currentModel;
 
   const { sessionData, userProfile, isSigningOut, handleSignOut } = useUserProfile();
 
@@ -211,21 +222,25 @@ function ChatShell() {
 
   const handleSelectModel = useCallback(
     (modelId: string) => {
+      selectedModelRef.current = modelId;
       setSelectedModel(modelId);
       setModelSelectorOpen(false);
     },
-    [setSelectedModel, setModelSelectorOpen]
+    [selectedModelRef, setSelectedModel, setModelSelectorOpen]
   );
 
   // Reset model to 'auto' when activating an agent so the agent's configured
   // model isn't silently bypassed by a previously pinned manual selection.
   const handleSelectAgent = useCallback(
     (id: string | null) => {
-      const nextAgentId = id ?? defaultEssentialAgent?.id ?? null;
+      const nextAgentId = id ?? initialSelectedAgent?.id ?? null;
       setSelectedAgentId(nextAgentId);
-      if (nextAgentId !== null) setSelectedModel('auto');
+      if (nextAgentId !== null) {
+        selectedModelRef.current = 'auto';
+        setSelectedModel('auto');
+      }
     },
-    [defaultEssentialAgent, setSelectedModel]
+    [initialSelectedAgent, selectedModelRef, setSelectedModel]
   );
 
   const handleToggleWebSearch = useCallback(() => {
@@ -310,7 +325,7 @@ function ChatShell() {
       queryClient.setQueryData(['threads', threadId, 'messages'], freshMessages);
 
       // Exact: true — only refresh the sidebar thread list, not child queries.
-      await queryClient.invalidateQueries({ queryKey: ['threads'], exact: true });
+      await queryClient.invalidateQueries({ queryKey: ['threads'] });
     },
     [ensureThread, queryClient, setMessages]
   );
@@ -374,6 +389,7 @@ function ChatShell() {
         />
 
         <main className="flex h-[calc(100dvh-1rem)] flex-1 flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-border bg-card/80 dark:bg-card/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur md:h-[calc(100vh-3rem)] md:rounded-3xl">
+          <GuestBanner />
           {editorOpen && selectedAsset ? (
             <ImageEditor
               asset={selectedAsset}
@@ -387,6 +403,8 @@ function ChatShell() {
                 status={status}
                 lastRouting={lastRouting}
                 lastRoutingModel={lastRoutingModel}
+                currentModelName={effectiveComposerModel.name}
+                isManualOverride={selectedModel !== 'auto'}
                 onDeleteThread={(threadId) => deleteThreadMutation.mutate(threadId)}
                 isDeleting={deleteThreadMutation.isPending}
                 onExport={handleExportConversation}
@@ -452,7 +470,7 @@ function ChatShell() {
                 selectedModel={selectedModel}
                 queuedMessageCount={queuedMessageCount}
                 selectorModels={selectorModels}
-                currentModel={currentModel}
+                currentModel={effectiveComposerModel}
                 modelSelectorOpen={modelSelectorOpen}
                 useWebSearch={useWebSearch}
                 agents={agents}

@@ -50,6 +50,8 @@ type ChatHeaderProps = {
         name: string;
       }
     | undefined;
+  currentModelName?: string;
+  isManualOverride?: boolean;
   onDeleteThread: (threadId: string) => void;
   isDeleting: boolean;
   onExport: (format: 'json' | 'markdown') => void;
@@ -72,6 +74,8 @@ export const ChatHeader = ({
   status,
   lastRouting: _lastRouting,
   lastRoutingModel,
+  currentModelName,
+  isManualOverride = false,
   onDeleteThread,
   isDeleting,
   onExport,
@@ -97,8 +101,9 @@ export const ChatHeader = ({
   };
 
   const fontSizeIndex = FONT_SIZES.indexOf(fontSize);
+  const displayedModelName = currentModelName ?? lastRoutingModel?.name;
   const headerSubtitle = activeThread
-    ? (lastRoutingModel ? `กำลังใช้ ${lastRoutingModel.name}` : 'พร้อมช่วยงานถัดไปของคุณ')
+    ? (displayedModelName ? `กำลังใช้ ${displayedModelName}` : 'พร้อมช่วยงานถัดไปของคุณ')
     : 'เริ่มจากงาน คำถาม หรือร่างข้อความที่คุณอยากให้ช่วย';
 
   return (
@@ -116,7 +121,14 @@ export const ChatHeader = ({
           <h2 className="truncate text-base font-medium text-foreground md:text-lg">
             {activeThread?.title ?? 'New chat'}
           </h2>
-          <p className="truncate text-xs text-muted-foreground">{headerSubtitle}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="truncate text-xs text-muted-foreground">{headerSubtitle}</p>
+            {isManualOverride && (
+              <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                Override
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
 
