@@ -222,6 +222,23 @@ export async function createAdminUserInvite(options: {
   const expiresAt = new Date(now.getTime() + parsed.expiresInDays * 24 * 60 * 60 * 1000);
   const token = nanoid(32);
 
+  const [existingUser] = await db
+    .select({
+      id: user.id,
+      approved: user.approved,
+      emailVerified: user.emailVerified,
+    })
+    .from(user)
+    .where(sql`lower(${user.email}) = ${normalizedEmail}`)
+    .limit(1);
+
+  if (existingUser?.approved) {
+    throw new AdminInviteError("This email already belongs to an active user. Ask them to sign in instead of sending a new invite.", {
+      code: "invite_user_already_active",
+      status: 409,
+    });
+  }
+
   const existingRows = await db
     .select()
     .from(adminUserInvite)
@@ -281,13 +298,7 @@ export async function createAdminUserInvite(options: {
 
   // Auto-create a passwordless account if none exists for the invited email.
   // The user will be signed in automatically via magic link when they click the invite.
-  const existingUser = await db
-    .select({ id: user.id })
-    .from(user)
-    .where(sql`lower(${user.email}) = ${normalizedEmail}`)
-    .limit(1);
-
-  if (!existingUser[0]) {
+  if (!existingUser) {
     const newUserId = nanoid();
     await db.insert(user).values({
       id: newUserId,
