@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { resolveApprovalRequest } from '@/features/collaboration/service';
 
 const resolveSchema = z.object({
@@ -13,8 +12,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new NextResponse('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
   const body = await req.json();
@@ -22,7 +21,7 @@ export async function PATCH(
   if (!result.success) return new NextResponse('Bad Request', { status: 400 });
 
   try {
-    const updated = await resolveApprovalRequest(id, session.user.id, {
+    const updated = await resolveApprovalRequest(id, authResult.user.id, {
       status: result.data.status,
       note: result.data.note,
     });

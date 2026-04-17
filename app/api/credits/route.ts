@@ -1,17 +1,14 @@
 import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { getUserBalance } from '@/lib/credits';
 import { db } from '@/lib/db';
 import { creditTransaction } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
 
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const balance = await getUserBalance(session.user.id);
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
+  const balance = await getUserBalance(authResult.user.id);
 
   const recentTransactions = await db
     .select({
@@ -23,7 +20,7 @@ export async function GET() {
       createdAt: creditTransaction.createdAt,
     })
     .from(creditTransaction)
-    .where(eq(creditTransaction.userId, session.user.id))
+    .where(eq(creditTransaction.userId, authResult.user.id))
     .orderBy(desc(creditTransaction.createdAt))
     .limit(20);
 

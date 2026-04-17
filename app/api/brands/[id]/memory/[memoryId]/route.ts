@@ -1,15 +1,14 @@
-import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { updateBrandMemorySchema } from "@/features/memory/schema";
 import { deleteBrandMemory, updateBrandMemory } from "@/features/memory/service";
 
 type Params = { params: Promise<{ id: string; memoryId: string }> };
 
 export async function PATCH(request: NextRequest, { params }: Params) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new NextResponse("Unauthorized", { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id: brandId, memoryId } = await params;
   const body = await request.json();
@@ -20,7 +19,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   }
 
   try {
-    const record = await updateBrandMemory(session.user.id, brandId, memoryId, parsed.data);
+    const record = await updateBrandMemory(authResult.user.id, brandId, memoryId, parsed.data);
     return NextResponse.json(record);
   } catch (error) {
     if (error instanceof Error) {
@@ -32,13 +31,13 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(_request: NextRequest, { params }: Params) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new NextResponse("Unauthorized", { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id: brandId, memoryId } = await params;
 
   try {
-    await deleteBrandMemory(session.user.id, brandId, memoryId);
+    await deleteBrandMemory(authResult.user.id, brandId, memoryId);
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     if (error instanceof Error) {

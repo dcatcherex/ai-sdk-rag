@@ -1,9 +1,8 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import type { UIMessage, UIMessagePart } from "ai";
 
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { db } from "@/lib/db";
 import { chatMessage, chatThread, mediaAsset, toolRun } from "@/db/schema";
 import { extractMediaOutputUrls } from "@/lib/generation/media-job-types";
@@ -99,15 +98,12 @@ export async function GET(
   { params }: { params: Promise<{ threadId: string }> }
 ) {
   const { threadId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   const thread = await db
     .select({ id: chatThread.id })
     .from(chatThread)
-    .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, session.user.id)))
+    .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, authResult.user.id)))
     .limit(1);
 
   if (thread.length === 0) {
@@ -142,7 +138,7 @@ export async function GET(
           errorMessage: toolRun.errorMessage,
         })
         .from(toolRun)
-        .where(and(eq(toolRun.userId, session.user.id), inArray(toolRun.id, generationIds)))
+        .where(and(eq(toolRun.userId, authResult.user.id), inArray(toolRun.id, generationIds)))
     : [];
 
   const toolRunsById = new Map<string, ToolRunHydrationRow>();
@@ -187,7 +183,7 @@ export async function GET(
         .from(mediaAsset)
         .where(
           and(
-            eq(mediaAsset.userId, session.user.id),
+            eq(mediaAsset.userId, authResult.user.id),
             inArray(mediaAsset.messageId, messageIds)
           )
         );
@@ -208,7 +204,7 @@ export async function GET(
         .from(mediaAsset)
         .where(
           and(
-            eq(mediaAsset.userId, session.user.id),
+            eq(mediaAsset.userId, authResult.user.id),
             inArray(mediaAsset.messageId, messageIds)
           )
         );

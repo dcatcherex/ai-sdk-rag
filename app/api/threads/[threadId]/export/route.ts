@@ -1,6 +1,6 @@
 import { headers } from 'next/headers';
 import { eq, and } from 'drizzle-orm';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { chatMessage, chatThread } from '@/db/schema';
 
@@ -9,11 +9,8 @@ export async function GET(
   { params }: { params: Promise<{ threadId: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    const authResult = await requireUser();
+    if (!authResult.ok) return authResult.response;
     const { threadId } = await params;
     const { searchParams } = new URL(req.url);
     const format = searchParams.get('format') || 'json'; // json or markdown
@@ -22,7 +19,7 @@ export async function GET(
     const thread = await db
       .select()
       .from(chatThread)
-      .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, session.user.id)))
+      .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, authResult.user.id)))
       .limit(1);
 
     if (thread.length === 0) {

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Inter, Playfair_Display, Noto_Sans_Thai, Sarabun,IBM_Plex_Sans_Thai , Anuphan} from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import Providers from "@/app/providers";
 import { Toaster } from "sonner";
@@ -71,9 +72,11 @@ export default function RootLayout({
   return (
     <html lang="th" className={fontClasses}>
       <body className="antialiased">
-        <Providers>{children}</Providers>
-        <Toaster richColors position="bottom-center" />
-        <FontApplier />
+        <ClerkProvider>
+          <Providers>{children}</Providers>
+          <Toaster richColors position="bottom-center" />
+          <FontApplier />
+        </ClerkProvider>
       </body>
     </html>
   );

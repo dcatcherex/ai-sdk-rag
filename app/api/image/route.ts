@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { refundGenerationCredits } from '@/lib/api/creditGate';
 import { enforceRateLimit, enforceCredits } from '@/lib/api/routeGuards';
 import { internalError } from '@/lib/api/errorResponse';
@@ -14,11 +14,9 @@ import { IMAGE_MODEL_CONFIGS, resolveImageCredits } from '@/features/image/types
  */
 
 export async function POST(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  const userId = session.user.id;
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
+  const userId = authResult.user.id;
 
   const rateLimitResponse = await enforceRateLimit(userId);
   if (rateLimitResponse) return rateLimitResponse;

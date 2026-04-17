@@ -1,8 +1,7 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { agent, lineOaChannel } from '@/db/schema';
 
@@ -17,11 +16,8 @@ const createSchema = z.object({
 });
 
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   const channels = await db
     .select({
       id: lineOaChannel.id,
@@ -37,18 +33,15 @@ export async function GET() {
     })
     .from(lineOaChannel)
     .leftJoin(agent, eq(lineOaChannel.agentId, agent.id))
-    .where(eq(lineOaChannel.userId, session.user.id))
+    .where(eq(lineOaChannel.userId, authResult.user.id))
     .orderBy(desc(lineOaChannel.createdAt));
 
   return NextResponse.json({ channels });
 }
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   const body = createSchema.parse(await req.json());
 
   // Verify agentId belongs to the user (if provided)
@@ -56,7 +49,7 @@ export async function POST(req: Request) {
     const agentRow = await db
       .select({ id: agent.id })
       .from(agent)
-      .where(and(eq(agent.id, body.agentId), eq(agent.userId, session.user.id)))
+      .where(and(eq(agent.id, body.agentId), eq(agent.userId, authResult.user.id)))
       .limit(1);
     if (agentRow.length === 0) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
@@ -65,7 +58,7 @@ export async function POST(req: Request) {
 
   const newChannel = {
     id: crypto.randomUUID(),
-    userId: session.user.id,
+    userId: authResult.user.id,
     name: body.name,
     lineChannelId: body.lineChannelId,
     channelSecret: body.channelSecret,

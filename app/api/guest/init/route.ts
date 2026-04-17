@@ -1,5 +1,5 @@
 import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { getCurrentUser } from "@/lib/auth-server";
 import { getPlatformSettings } from '@/lib/platform-settings';
 import { parseGuestCookie, getGuestSessionById, initGuestSession, buildGuestCookieHeader } from '@/lib/guest-access';
 import { getConfiguredGuestStarterAgent } from '@/features/agents/server/starter';
@@ -7,8 +7,8 @@ import { getConfiguredGuestStarterAgent } from '@/features/agents/server/starter
 export async function POST(req: Request) {
   // Authenticated users don't need guest sessions
   const h = await headers();
-  const session = await auth.api.getSession({ headers: h });
-  if (session?.user) {
+  const user = await getCurrentUser();
+  if (user) {
     return Response.json({ error: 'Already authenticated' }, { status: 400 });
   }
 

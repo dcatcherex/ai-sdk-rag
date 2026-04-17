@@ -2,17 +2,17 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth-server";
 import { db } from "@/lib/db";
 import { chatThread, mediaAsset } from "@/db/schema";
 import { parseGuestCookie, getGuestSessionById } from "@/lib/guest-access";
 
 export async function GET() {
   const h = await headers();
-  const session = await auth.api.getSession({ headers: h });
+  const user = await getCurrentUser();
 
   // Guest thread listing
-  if (!session?.user) {
+  if (!user) {
     const guestId = parseGuestCookie(h.get('cookie'));
     if (!guestId) return NextResponse.json({ threads: [] });
     const gs = await getGuestSessionById(guestId);
@@ -38,7 +38,7 @@ export async function GET() {
       updatedAt: chatThread.updatedAt,
     })
     .from(chatThread)
-    .where(and(eq(chatThread.userId, session.user.id), isNull(chatThread.guestSessionId)))
+    .where(and(eq(chatThread.userId, user.id), isNull(chatThread.guestSessionId)))
     .orderBy(desc(chatThread.updatedAt));
 
   const imageAssets = await db
@@ -48,7 +48,7 @@ export async function GET() {
       url: mediaAsset.url,
     })
     .from(mediaAsset)
-    .where(eq(mediaAsset.userId, session.user.id))
+    .where(eq(mediaAsset.userId, user.id))
     .orderBy(desc(mediaAsset.createdAt));
 
   const firstImageByThread = new Map<string, string>();
@@ -83,10 +83,10 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const h = await headers();
-  const session = await auth.api.getSession({ headers: h });
+  const user = await getCurrentUser();
 
   // Guest thread creation
-  if (!session?.user) {
+  if (!user) {
     const guestId = parseGuestCookie(h.get('cookie'));
     if (!guestId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const gs = await getGuestSessionById(guestId);
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
   const now = new Date();
   const thread = {
     id: crypto.randomUUID(),
-    userId: session.user.id,
+    userId: user.id,
     title: "New chat",
     preview: "Start a conversation…",
     createdAt: now,

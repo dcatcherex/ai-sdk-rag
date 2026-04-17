@@ -6,8 +6,7 @@
  * Stores a signed state cookie to verify the callback.
  */
 
-import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
+import { requireUser } from "@/lib/auth-server";
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { env } from '@/lib/env';
@@ -43,8 +42,8 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ platform: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { platform } = await params;
   const { searchParams } = new URL(req.url);
@@ -52,7 +51,7 @@ export async function GET(
 
   const baseUrl = env.BETTER_AUTH_URL ?? new URL(req.url).origin;
   const nonce = randomBytes(16).toString('hex');
-  const state = buildState(session.user.id, returnTo, nonce);
+  const state = buildState(authResult.user.id, returnTo, nonce);
 
   const cookieStore = await cookies();
 

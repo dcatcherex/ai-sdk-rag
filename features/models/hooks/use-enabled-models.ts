@@ -5,40 +5,55 @@ import { availableModels } from '@/lib/ai';
 const QUERY_KEY = ['user-enabled-models'] as const;
 const ALL_MODEL_IDS = availableModels.map((m) => m.id);
 
-async function fetchEnabledModelIds(): Promise<string[]> {
+type EnabledModelsResponse = {
+  enabledModelIds: string[];
+  adminEnabledModelIds: string[];
+};
+
+async function fetchEnabledModels(): Promise<EnabledModelsResponse> {
   const res = await fetch('/api/user/enabled-models');
-  if (res.status === 401) return ALL_MODEL_IDS; // unauthenticated fallback
+  if (res.status === 401) return { enabledModelIds: ALL_MODEL_IDS, adminEnabledModelIds: ALL_MODEL_IDS };
   if (!res.ok) throw new Error('Failed to load model preferences');
-  const data = (await res.json()) as { enabledModelIds: string[] };
-  return data.enabledModelIds;
+  return res.json() as Promise<EnabledModelsResponse>;
 }
 
-async function saveEnabledModelIds(ids: string[]): Promise<string[]> {
+async function saveEnabledModelIds(ids: string[]): Promise<EnabledModelsResponse> {
   const res = await fetch('/api/user/enabled-models', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ enabledModelIds: ids }),
   });
   if (!res.ok) throw new Error('Failed to save model preferences');
-  const data = (await res.json()) as { enabledModelIds: string[] };
-  return data.enabledModelIds;
+  return res.json() as Promise<EnabledModelsResponse>;
 }
 
 export function useEnabledModels() {
   const queryClient = useQueryClient();
 
-  const { data: enabledModelIds = ALL_MODEL_IDS, isLoading } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: QUERY_KEY,
-    queryFn: fetchEnabledModelIds,
+    queryFn: fetchEnabledModels,
     staleTime: 5 * 60 * 1000,
   });
+
+  const enabledModelIds = data?.enabledModelIds ?? ALL_MODEL_IDS;
+  const adminEnabledModelIds = data?.adminEnabledModelIds ?? ALL_MODEL_IDS;
+
+  // Models the admin has made available on this platform
+  const adminAllowedModels = useMemo(
+    () => availableModels.filter((m) => adminEnabledModelIds.includes(m.id)),
+    [adminEnabledModelIds]
+  );
 
   const mutation = useMutation({
     mutationFn: saveEnabledModelIds,
     onMutate: async (newIds) => {
       await queryClient.cancelQueries({ queryKey: QUERY_KEY });
-      const previous = queryClient.getQueryData<string[]>(QUERY_KEY);
-      queryClient.setQueryData<string[]>(QUERY_KEY, newIds);
+      const previous = queryClient.getQueryData<EnabledModelsResponse>(QUERY_KEY);
+      queryClient.setQueryData<EnabledModelsResponse>(QUERY_KEY, (prev) => ({
+        enabledModelIds: newIds,
+        adminEnabledModelIds: prev?.adminEnabledModelIds ?? ALL_MODEL_IDS,
+      }));
       return { previous };
     },
     onError: (_err, _vars, context) => {
@@ -50,11 +65,10 @@ export function useEnabledModels() {
 
   const toggleModel = useCallback(
     (modelId: string) => {
-      const current = queryClient.getQueryData<string[]>(QUERY_KEY) ?? ALL_MODEL_IDS;
+      const current = queryClient.getQueryData<EnabledModelsResponse>(QUERY_KEY)?.enabledModelIds ?? ALL_MODEL_IDS;
       const isEnabled = current.includes(modelId);
       let next = isEnabled ? current.filter((id) => id !== modelId) : [...current, modelId];
-      if (next.length === 0) return; // prevent disabling all
-      // preserve order from availableModels
+      if (next.length === 0) return;
       next = availableModels.filter((m) => next.includes(m.id)).map((m) => m.id);
       mutation.mutate(next);
     },
@@ -78,6 +92,7 @@ export function useEnabledModels() {
   return {
     enabledModelIds,
     enabledModels,
+    adminAllowedModels,
     isLoading,
     toggleModel,
     setEnabledModelIds,

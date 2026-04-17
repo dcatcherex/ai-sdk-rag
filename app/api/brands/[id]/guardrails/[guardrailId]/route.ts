@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { updateGuardrail, deleteGuardrail } from '@/features/brand-guardrails/service';
 import { updateGuardrailSchema } from '@/features/brand-guardrails/schema';
 import { db } from '@/lib/db';
@@ -16,13 +15,13 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; guardrailId: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new NextResponse('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id: brandId, guardrailId } = await params;
 
   const ownerId = await getBrandOwner(brandId);
-  if (ownerId !== session.user.id) return new NextResponse('Forbidden', { status: 403 });
+  if (ownerId !== authResult.user.id) return new NextResponse('Forbidden', { status: 403 });
 
   const body = await req.json();
   const result = updateGuardrailSchema.safeParse(body);
@@ -37,13 +36,13 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string; guardrailId: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new NextResponse('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id: brandId, guardrailId } = await params;
 
   const ownerId = await getBrandOwner(brandId);
-  if (ownerId !== session.user.id) return new NextResponse('Forbidden', { status: 403 });
+  if (ownerId !== authResult.user.id) return new NextResponse('Forbidden', { status: 403 });
 
   await deleteGuardrail(brandId, guardrailId);
   return new NextResponse(null, { status: 204 });

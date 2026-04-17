@@ -2,7 +2,7 @@ import { and, eq, gt, isNull } from 'drizzle-orm';
 import { messagingApi } from '@line/bot-sdk';
 import { db } from '@/lib/db';
 import { lineAccountLink, lineAccountLinkToken, lineOaChannel } from '@/db/schema';
-import { user as userTable, account as accountTable } from '@/db/schema/auth';
+import { user as userTable } from '@/db/schema/auth';
 import { addCredits, SIGNUP_BONUS_CREDITS } from '@/lib/credits';
 import { mergeLineMemoryToUser } from '@/lib/memory';
 
@@ -307,18 +307,7 @@ export async function registerLineUser(
         updatedAt: now,
       });
 
-      // 2. Create Better Auth account row for LINE provider
-      //    Enables future LINE OAuth linking and clean provider tracking
-      await tx.insert(accountTable).values({
-        id: crypto.randomUUID(),
-        accountId: lineUserId,
-        providerId: 'line',
-        userId,
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      // 3. Link LINE identity to new account
+      // 2. Link LINE identity to new account
       await tx.insert(lineAccountLink).values({
         id: crypto.randomUUID(),
         userId,

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
 import { db } from '@/lib/db';
 import { sql } from 'drizzle-orm';
-import { auth } from '@/lib/auth';
+import { getCurrentUser } from "@/lib/auth-server";
 import { listDocuments, createPendingDocument } from '@/lib/vector-store';
 import { analyzeDocument, detectImageBasedPdf, isImageFileType, IMAGE_MIME_TYPES } from '@/lib/document-analysis';
 import { uploadPublicObject } from '@/lib/r2';
@@ -15,9 +14,9 @@ function sanitizeText(text: string): string {
     .trim();
 }
 
-async function getSessionUserId(): Promise<string | null> {
-  const session = await auth.api.getSession({ headers: await headers() });
-  return session?.user?.id ?? null;
+async function getSessionUserId() {
+  const user = await getCurrentUser();
+  return user?.id ?? null;
 }
 
 export async function GET(req: NextRequest) {

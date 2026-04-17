@@ -1,17 +1,13 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { and, count, eq } from 'drizzle-orm';
 
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { chatThread, chatMessage } from '@/db/schema';
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   const body = (await req.json()) as { threadId?: string; userText?: string; aiText?: string };
   const { threadId, userText = '', aiText = '' } = body;
 
@@ -23,7 +19,7 @@ export async function POST(req: Request) {
   const [thread] = await db
     .select({ id: chatThread.id })
     .from(chatThread)
-    .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, session.user.id)))
+    .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, authResult.user.id)))
     .limit(1);
 
   if (!thread) {

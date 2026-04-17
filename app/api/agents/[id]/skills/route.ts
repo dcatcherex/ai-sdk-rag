@@ -1,9 +1,8 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { agent } from '@/db/schema';
 import {
@@ -36,13 +35,10 @@ async function assertOwnedAgent(agentId: string, userId: string) {
 }
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   const { id } = await params;
-  const ownedAgent = await assertOwnedAgent(id, session.user.id);
+  const ownedAgent = await assertOwnedAgent(id, authResult.user.id);
   if (!ownedAgent) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
@@ -52,13 +48,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   const { id } = await params;
-  const ownedAgent = await assertOwnedAgent(id, session.user.id);
+  const ownedAgent = await assertOwnedAgent(id, authResult.user.id);
   if (!ownedAgent) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
@@ -68,7 +61,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   await db
     .update(agent)
     .set({ updatedAt: new Date() })
-    .where(and(eq(agent.id, id), eq(agent.userId, session.user.id)));
+    .where(and(eq(agent.id, id), eq(agent.userId, authResult.user.id)));
 
   const attachments = await getSkillAttachmentsForAgent(id);
   return NextResponse.json({ attachments });

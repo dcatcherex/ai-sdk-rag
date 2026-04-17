@@ -1,7 +1,6 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { contentPiece, distributionRecord } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
@@ -26,15 +25,15 @@ function toPlainText(markdown: string): string {
 }
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const body = await req.json();
   const result = schema.safeParse(body);
   if (!result.success) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
 
   const { contentPieceId, channelId } = result.data;
-  const userId = session.user.id;
+  const userId = authResult.user.id;
 
   // Load content piece (verify ownership)
   const [piece] = await db

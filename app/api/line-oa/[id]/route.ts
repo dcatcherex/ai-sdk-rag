@@ -1,8 +1,7 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { agent, lineOaChannel } from '@/db/schema';
 
@@ -21,11 +20,8 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   const { id } = await params;
   const body = updateSchema.parse(await req.json());
 
@@ -34,7 +30,7 @@ export async function PATCH(
     const agentRow = await db
       .select({ id: agent.id })
       .from(agent)
-      .where(and(eq(agent.id, body.agentId), eq(agent.userId, session.user.id)))
+      .where(and(eq(agent.id, body.agentId), eq(agent.userId, authResult.user.id)))
       .limit(1);
     if (agentRow.length === 0) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
@@ -54,7 +50,7 @@ export async function PATCH(
       ...('memberRichMenuLineId' in body && { memberRichMenuLineId: body.memberRichMenuLineId ?? null }),
       updatedAt: new Date(),
     })
-    .where(and(eq(lineOaChannel.id, id), eq(lineOaChannel.userId, session.user.id)))
+    .where(and(eq(lineOaChannel.id, id), eq(lineOaChannel.userId, authResult.user.id)))
     .returning();
 
   if (updated.length === 0) {
@@ -68,16 +64,13 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   const { id } = await params;
 
   const deleted = await db
     .delete(lineOaChannel)
-    .where(and(eq(lineOaChannel.id, id), eq(lineOaChannel.userId, session.user.id)))
+    .where(and(eq(lineOaChannel.id, id), eq(lineOaChannel.userId, authResult.user.id)))
     .returning({ id: lineOaChannel.id });
 
   if (deleted.length === 0) {

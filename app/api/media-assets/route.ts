@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { and, desc, eq, or } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { db } from "@/lib/db";
 import { mediaAsset } from "@/db/schema";
 
@@ -21,11 +21,8 @@ const isMissingColumnError = (error: unknown) => {
 };
 
 export async function GET(request: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   const { searchParams } = new URL(request.url);
   const limitParam = Number(searchParams.get("limit") ?? "120");
   const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), MAX_LIMIT) : 120;
@@ -34,7 +31,7 @@ export async function GET(request: Request) {
   const threadId = searchParams.get("threadId");
   const messageId = searchParams.get("messageId");
 
-  const conditions = [eq(mediaAsset.userId, session.user.id)];
+  const conditions = [eq(mediaAsset.userId, authResult.user.id)];
   if (type) {
     conditions.push(eq(mediaAsset.type, type));
   }

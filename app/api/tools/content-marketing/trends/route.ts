@@ -1,4 +1,4 @@
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { headers } from 'next/headers';
 import { deductCredits, getUserBalance } from '@/lib/credits';
 import { getTrends } from '@/features/content-marketing/trend-service';
@@ -7,8 +7,8 @@ import type { TrendPlatform } from '@/features/content-marketing/types';
 const ON_DEMAND_CREDIT_COST = 5;
 
 export async function GET(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { searchParams } = new URL(req.url);
   const platform = searchParams.get('platform') as TrendPlatform | null;
@@ -19,15 +19,15 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const body = (await req.json()) as { platform?: string; industry?: string };
   const platform = body.platform as TrendPlatform | undefined;
   const industry = body.industry ?? 'all';
 
   // Check credits for on-demand refresh
-  const balance = await getUserBalance(session.user.id);
+  const balance = await getUserBalance(authResult.user.id);
   if (balance < ON_DEMAND_CREDIT_COST) {
     return new Response(
       JSON.stringify({ error: 'Insufficient credits', required: ON_DEMAND_CREDIT_COST, balance }),
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     );
   }
 
-  await deductCredits({ userId: session.user.id, amount: ON_DEMAND_CREDIT_COST, description: 'Trend refresh' });
+  await deductCredits({ userId: authResult.user.id, amount: ON_DEMAND_CREDIT_COST, description: 'Trend refresh' });
 
   const result = await getTrends({ platform, industry, forceRefresh: true });
   return Response.json({ ...result, creditsUsed: ON_DEMAND_CREDIT_COST });

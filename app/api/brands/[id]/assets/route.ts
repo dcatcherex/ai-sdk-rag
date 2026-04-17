@@ -1,8 +1,7 @@
-import { headers } from 'next/headers';
 import { and, eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { brand } from '@/db/schema';
 import { getBrandAssets, createBrandAsset } from '@/features/brands/service';
@@ -24,11 +23,11 @@ async function verifyOwnership(userId: string, brandId: string) {
 }
 
 export async function GET(_req: Request, { params }: Params) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
-  if (!(await verifyOwnership(session.user.id, id))) {
+  if (!(await verifyOwnership(authResult.user.id, id))) {
     return Response.json({ error: 'Not found' }, { status: 404 });
   }
 
@@ -37,11 +36,11 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 export async function POST(req: Request, { params }: Params) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
-  if (!(await verifyOwnership(session.user.id, id))) {
+  if (!(await verifyOwnership(authResult.user.id, id))) {
     return Response.json({ error: 'Not found' }, { status: 404 });
   }
 

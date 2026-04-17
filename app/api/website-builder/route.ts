@@ -1,12 +1,12 @@
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { listUserWebsites } from '@/features/website-builder/service';
 
 export async function GET(req: Request) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   try {
-    const websites = await listUserWebsites(session.user.id);
+    const websites = await listUserWebsites(authResult.user.id);
     return Response.json({ websites });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal error';

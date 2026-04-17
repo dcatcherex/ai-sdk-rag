@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { toolRun } from '@/db/schema';
 import { getKieApiKey } from '@/lib/api/routeGuards';
@@ -22,7 +22,8 @@ import type { GenerationType } from '../_shared/kieStatus';
  *  - { status: 'failed', error }
  */
 export async function GET(req: NextRequest) {
-    const session = await auth.api.getSession({ headers: req.headers });
+    const authResult = await requireUser();
+    if (!authResult.ok) return authResult.response;
     const { searchParams } = new URL(req.url);
     const taskId = searchParams.get('taskId');
     const generationId = searchParams.get('generationId');
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Authorization: if session exists, verify ownership
-    if (session?.user && record.userId !== session.user.id) {
+    if (authResult.user && record.userId !== authResult.user.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 

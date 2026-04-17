@@ -1,31 +1,24 @@
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { userMemory } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   const facts = await db
     .select()
     .from(userMemory)
-    .where(eq(userMemory.userId, session.user.id))
+    .where(eq(userMemory.userId, authResult.user.id))
     .orderBy(desc(userMemory.createdAt));
 
   return Response.json(facts);
 }
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   const body = await req.json() as { category: string; fact: string };
   if (!body.category || !body.fact) {
     return Response.json({ error: 'category and fact are required' }, { status: 400 });
@@ -35,7 +28,7 @@ export async function POST(req: Request) {
     .insert(userMemory)
     .values({
       id: nanoid(),
-      userId: session.user.id,
+      userId: authResult.user.id,
       category: body.category,
       fact: body.fact.slice(0, 500),
     })
@@ -45,11 +38,8 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  await db.delete(userMemory).where(eq(userMemory.userId, session.user.id));
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
+  await db.delete(userMemory).where(eq(userMemory.userId, authResult.user.id));
   return Response.json({ ok: true });
 }

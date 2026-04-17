@@ -1,8 +1,7 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { eq, and, desc } from 'drizzle-orm';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { lineOaChannel, lineRichMenu } from '@/db/schema';
 import type { RichMenuAreaConfig } from '@/features/line-oa/webhook/rich-menu';
@@ -33,8 +32,8 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
 
@@ -42,7 +41,7 @@ export async function GET(
   const channel = await db
     .select({ id: lineOaChannel.id })
     .from(lineOaChannel)
-    .where(and(eq(lineOaChannel.id, id), eq(lineOaChannel.userId, session.user.id)))
+    .where(and(eq(lineOaChannel.id, id), eq(lineOaChannel.userId, authResult.user.id)))
     .limit(1);
   if (channel.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
@@ -59,15 +58,15 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
 
   const channel = await db
     .select({ id: lineOaChannel.id })
     .from(lineOaChannel)
-    .where(and(eq(lineOaChannel.id, id), eq(lineOaChannel.userId, session.user.id)))
+    .where(and(eq(lineOaChannel.id, id), eq(lineOaChannel.userId, authResult.user.id)))
     .limit(1);
   if (channel.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 

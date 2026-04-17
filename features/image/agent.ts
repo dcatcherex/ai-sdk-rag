@@ -6,6 +6,9 @@
 
 import { tool } from 'ai';
 import { z } from 'zod';
+import { eq } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { imageModelConfig } from '@/db/schema/admin';
 import { KIE_IMAGE_MODELS } from '@/lib/models/kie-image';
 import type { AgentToolContext } from '@/features/tools/registry/types';
 import { triggerImageGeneration } from './service';
@@ -39,13 +42,37 @@ export function createImageAgentTools(ctx: Pick<AgentToolContext, 'userId' | 'th
         'Use this when the user asks to create, draw, generate, or edit an image.',
       inputSchema: z.object({
         prompt: z.string().min(1).describe('Detailed image description. Include subject, style, composition, location.'),
-        modelId: z.enum(imageAgentModelIds).optional().default('grok-imagine/text-to-image').describe('Model to use. Default: grok-imagine/text-to-image'),
+        modelId: z.enum(imageAgentModelIds).optional().describe('Model to use. Leave unset to use the platform default.'),
         aspectRatio: z.string().optional().describe('Aspect ratio e.g. "16:9", "1:1", "9:16"'),
         quality: z.enum(['medium', 'high']).optional().describe('Quality for GPT Image models'),
         enablePro: z.boolean().optional().describe('Enable pro/quality mode for Grok Imagine models'),
         imageUrls: z.array(z.string()).optional().describe('Optional reference or edit images. Use these when the user uploaded or selected images for the next generation.'),
       }),
       async execute(params) {
+        // Resolve model: use LLM choice if given, else use admin-configured default
+        let modelId = params.modelId;
+        let { enablePro } = params;
+
+        if (!modelId) {
+          const [defaultModel] = await db
+            .select({ id: imageModelConfig.id, defaultEnablePro: imageModelConfig.defaultEnablePro })
+            .from(imageModelConfig)
+            .where(eq(imageModelConfig.isDefault, true))
+            .limit(1);
+          modelId = (defaultModel?.id as typeof imageAgentModelIds[number] | undefined) ?? 'grok-imagine/text-to-image';
+          if (enablePro === undefined && defaultModel) enablePro = defaultModel.defaultEnablePro;
+        }
+
+        // Apply admin enablePro default for the resolved model when LLM didn't set it
+        if (enablePro === undefined) {
+          const [adminConfig] = await db
+            .select({ defaultEnablePro: imageModelConfig.defaultEnablePro })
+            .from(imageModelConfig)
+            .where(eq(imageModelConfig.id, modelId))
+            .limit(1);
+          if (adminConfig) enablePro = adminConfig.defaultEnablePro;
+        }
+
         const sanitizedImageUrls = params.imageUrls?.length
           ? params.imageUrls.map((url, index) =>
               isTemporaryProviderImageUrl(url) && referenceImageUrls?.[index]
@@ -54,7 +81,7 @@ export function createImageAgentTools(ctx: Pick<AgentToolContext, 'userId' | 'th
             )
           : params.imageUrls;
         const { taskId, generationId } = await triggerImageGeneration(
-          { ...params, imageUrls: sanitizedImageUrls, promptTitle: params.prompt.substring(0, 50) },
+          { ...params, modelId, enablePro, imageUrls: sanitizedImageUrls, promptTitle: params.prompt.substring(0, 50) },
           userId,
           { threadId, source: source ?? 'agent', referenceImageUrls },
         );

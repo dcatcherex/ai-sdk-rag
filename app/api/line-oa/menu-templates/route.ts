@@ -1,8 +1,7 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { lineRichMenuTemplate } from '@/db/schema';
 import type { RichMenuAreaConfig } from '@/features/line-oa/webhook/rich-menu';
@@ -33,21 +32,21 @@ const createSchema = z.object({
 });
 
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const templates = await db
     .select()
     .from(lineRichMenuTemplate)
-    .where(eq(lineRichMenuTemplate.userId, session.user.id))
+    .where(eq(lineRichMenuTemplate.userId, authResult.user.id))
     .orderBy(desc(lineRichMenuTemplate.createdAt));
 
   return NextResponse.json({ templates });
 }
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const parsed = createSchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
@@ -57,7 +56,7 @@ export async function POST(req: Request) {
 
   const template = {
     id: crypto.randomUUID(),
-    userId: session.user.id,
+    userId: authResult.user.id,
     name,
     chatBarText,
     areas: areas as RichMenuAreaConfig[],

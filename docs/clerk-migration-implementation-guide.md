@@ -1,8 +1,56 @@
 # Clerk Migration Implementation Guide
 
-**Status:** Planned
+**Status:** ✅ Migration Complete — Pending QA (2026-04-17)
 **Audience:** AI coders + human developers maintaining Vaja AI
 **Scope:** Replace Better Auth with Clerk as the primary authentication provider, keeping all downstream code (skills, agents, credits, content, LINE OA, etc.) untouched.
+
+---
+
+## 0. Implementation Progress
+
+### Phase 1 — Infrastructure ✅ Complete (2026-04-17)
+| Area | Status |
+|------|--------|
+| `@clerk/nextjs@7` + `svix` installed | ✅ |
+| `proxy.ts` — `clerkMiddleware()` with public route matcher | ✅ |
+| `app/layout.tsx` wrapped in `<ClerkProvider>` | ✅ |
+| `lib/auth-server.ts` — `getCurrentUser`, `requireUser`, `requireAdmin` | ✅ |
+| `lib/auth-client.ts` — Clerk hooks + `authClient` compat shim | ✅ |
+| `lib/admin.ts` + `lib/admin-emails.ts` refactored to re-export from seam | ✅ |
+| `lib/auth.ts` — Clerk-backed shim for legacy `auth.api.getSession` callers | ✅ |
+| `/sign-in/[[...rest]]/page.tsx` + `/sign-up/[[...rest]]/page.tsx` | ✅ |
+| `/api/webhooks/clerk/route.ts` — Svix-verified, idempotent, handles lifecycle | ✅ |
+| `features/admin/invites/service.ts` — rewritten to use `clerkClient.invitations` | ✅ |
+| Old sign-in, invite, setup-password, magic-link files deleted | ✅ |
+
+### Phase 2 — Mass caller refactor ✅ Complete (2026-04-17)
+| Area | Status |
+|------|--------|
+| 191 route files → `requireUser()` (Pattern A) | ✅ |
+| 3 routes with guest/optional auth → `getCurrentUser()` (Pattern B) | ✅ |
+| `app/api/chat/route.ts` — restructured `Promise.all` + `getCurrentUser()` | ✅ |
+| `lib/support.ts`, `lib/quiz-print.ts` — helper functions updated | ✅ |
+| Stale `import { auth } from '@/lib/auth'` removed where no longer used | ✅ |
+| `pnpm exec tsc --noEmit` — zero errors | ✅ |
+
+### Phase 3 — Schema cleanup ✅ Complete (2026-04-17)
+| Area | Status |
+|------|--------|
+| `session`, `account`, `verification` removed from `db/schema/auth.ts` | ✅ |
+| `userRelations` for session/account removed | ✅ |
+| `clerkInvitationId` column added to `db/schema/admin.ts` | ✅ |
+| `features/line-oa/link/service.ts` — removed dead `accountTable` insert | ✅ |
+| Migration applied directly to Neon via SQL console | ✅ |
+| Webhook idempotency fixed — checks by email, not just Clerk ID | ✅ |
+| Existing Better Auth users migrated to Clerk IDs via SQL | ✅ |
+| New users created directly in Clerk Dashboard → webhook auto-creates DB row | ✅ |
+
+### Phase 4 — QA ⏳ Pending
+See §15 for full testing checklist.
+
+### What remains
+1. QA against §15 checklist
+2. (Optional) Delete `lib/auth.ts` shim after 2 weeks of stable operation
 
 ---
 
@@ -69,7 +117,7 @@ lib/
   auth-client.ts          ← useCurrentUser hook + re-exports of <SignedIn/>, etc.
   admin.ts                ← isAdminEmail (unchanged) + requireAdmin re-exported from auth-server
 
-middleware.ts             ← clerkMiddleware() with public route matcher
+proxy.ts                  ← clerkMiddleware() with public route matcher (Next 16 convention)
 
 app/
   layout.tsx              ← wrap children in <ClerkProvider>
@@ -248,7 +296,10 @@ export { clerkClient, currentUser };
 
 ```ts
 "use client";
-export { useUser, useAuth, SignedIn, SignedOut, UserButton, SignInButton } from "@clerk/nextjs";
+// NOTE: Use `<Show when="signed-in">` / `<Show when="signed-out">` from
+// @clerk/nextjs for conditional rendering. The old `<SignedIn>` / `<SignedOut>`
+// components are deprecated in Clerk 7+.
+export { useUser, useAuth, UserButton, SignInButton, SignUpButton, SignOutButton } from "@clerk/nextjs";
 
 import { useUser } from "@clerk/nextjs";
 
@@ -271,30 +322,40 @@ export function useCurrentUser() {
 
 ---
 
-## 8. Middleware
+## 8. Proxy (Request Interception)
+
+Next.js 16 + Clerk 7 uses `proxy.ts` at the project root (replaces the older `middleware.ts` convention). The exported `clerkMiddleware()` function name stays the same.
 
 ```ts
-// middleware.ts (root)
+// proxy.ts (root)
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-const isPublic = createRouteMatcher([
+const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks/clerk",
-  "/api/line/webhook",        // LINE webhook — uses LINE signature, not Clerk
+  "/api/line/webhook",        // LINE webhook — verifies its own signature
   "/agent/(.*)",              // public agent share links
   "/api/agents/(.*)/public-share",
+  "/",                        // guest-enabled landing
+  "/api/guest/init",
+  "/api/user/status",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
-  if (isPublic(req)) return;
+  if (isPublicRoute(req)) return;
   await auth.protect();
 });
 
 export const config = {
-  matcher: ["/((?!_next|.*\\..*).*)", "/(api|trpc)(.*)"],
+  matcher: [
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/(api|trpc)(.*)",
+  ],
 };
 ```
+
+**Do not reintroduce `middleware.ts`.** Both files cannot coexist; Next 16 prefers `proxy.ts`.
 
 ---
 

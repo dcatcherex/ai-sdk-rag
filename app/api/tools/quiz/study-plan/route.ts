@@ -1,11 +1,10 @@
-import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
+import { requireUser } from "@/lib/auth-server";
 import { createStudyPlanInputSchema } from '@/features/quiz/schema';
 import { runCreateStudyPlan } from '@/features/quiz/service';
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const body = await req.json();
   const result = createStudyPlanInputSchema.safeParse(body);

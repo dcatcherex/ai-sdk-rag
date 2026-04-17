@@ -7,11 +7,10 @@ import {
   type UIMessage,
 } from 'ai';
 import { z } from 'zod';
-import { headers } from 'next/headers';
 import { and, eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import sharp from 'sharp';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { chatMessage, chatThread, mediaAsset, tokenUsage, userPreferences } from '@/db/schema';
 import { availableModels, isStrongModel, type Capability } from '@/lib/ai';
@@ -41,11 +40,8 @@ const isImageCapableModel = (modelId: string) =>
 
 export async function POST(req: Request) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    const authResult = await requireUser();
+    if (!authResult.ok) return authResult.response;
     const { messages, modelId, compareGroupId, threadId, userMessageId, userPrompt } =
       requestSchema.parse(await req.json());
 
@@ -53,23 +49,23 @@ export async function POST(req: Request) {
     const threadRows = await db
       .select({ id: chatThread.id })
       .from(chatThread)
-      .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, session.user.id)))
+      .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, authResult.user.id)))
       .limit(1);
     if (threadRows.length === 0) {
       return Response.json({ error: 'Thread not found' }, { status: 404 });
     }
 
     const creditCost = getCreditCost(modelId);
-    const balance = await getUserBalance(session.user.id);
+    const balance = await getUserBalance(authResult.user.id);
     if (balance < creditCost) {
       return Response.json({ error: 'Insufficient credits' }, { status: 402 });
     }
 
     // Prompt enhancement (respects user preference, same as regular chat)
-    const prefsRows = await db.select().from(userPreferences).where(eq(userPreferences.userId, session.user.id)).limit(1);
+    const prefsRows = await db.select().from(userPreferences).where(eq(userPreferences.userId, authResult.user.id)).limit(1);
     const prefs = prefsRows[0] ?? null;
     const { shouldInject } = resolveMemoryPreferences(prefs);
-    const memoryContext = shouldInject ? await getUserMemoryContext(session.user.id) : '';
+    const memoryContext = shouldInject ? await getUserMemoryContext(authResult.user.id) : '';
     let effectivePrompt = userPrompt;
     // Skip enhancement for strong models — they handle ambiguity natively (same gate as chat route).
     if ((prefs?.promptEnhancementEnabled ?? true) && !isStrongModel(modelId)) {
@@ -125,7 +121,7 @@ export async function POST(req: Request) {
 
         await db.insert(mediaAsset).values({
           id: assetId,
-          userId: session.user.id,
+          userId: authResult.user.id,
           threadId,
           messageId: assistantMessageId,
           rootAssetId: assetId,
@@ -161,7 +157,7 @@ export async function POST(req: Request) {
       });
 
       await deductCredits({
-        userId: session.user.id,
+        userId: authResult.user.id,
         amount: creditCost,
         description: `Compare: ${modelId}`,
       });
@@ -219,7 +215,7 @@ export async function POST(req: Request) {
         }
 
         await deductCredits({
-          userId: session.user.id,
+          userId: authResult.user.id,
           amount: creditCost,
           description: `Compare: ${modelId}`,
         });

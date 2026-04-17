@@ -1,14 +1,14 @@
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { runPublishWebsite } from '@/features/website-builder/service';
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
 
   try {
-    const result = await runPublishWebsite(id, { userId: session.user.id, source: 'sidebar' });
+    const result = await runPublishWebsite(id, { userId: authResult.user.id, source: 'sidebar' });
     return Response.json({ liveUrl: result.liveUrl });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal error';

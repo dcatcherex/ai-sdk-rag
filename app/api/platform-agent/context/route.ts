@@ -1,6 +1,5 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { getWorkspaceContext } from '@/features/platform-agent/service';
 
 /**
@@ -9,11 +8,8 @@ import { getWorkspaceContext } from '@/features/platform-agent/service';
  * Called at runtime — not by end users directly.
  */
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const ctx = await getWorkspaceContext(session.user.id);
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
+  const ctx = await getWorkspaceContext(authResult.user.id);
   return NextResponse.json(ctx);
 }

@@ -197,6 +197,20 @@
       "when": 1776393276860,
       "tag": "0034_mighty_randall_flagg",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1776414284233,
+      "tag": "0035_numerous_lockheed",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1776422412119,
+      "tag": "0036_slow_alex_wilder",
+      "breakpoints": true
     }
   ]
 }

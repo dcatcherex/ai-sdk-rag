@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { getWorkspaceMembers, addWorkspaceMember } from '@/features/collaboration/service';
 
 const addMemberSchema = z.object({
@@ -13,8 +12,8 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new NextResponse('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id: brandId } = await params;
   const members = await getWorkspaceMembers(brandId);
@@ -25,8 +24,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new NextResponse('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id: brandId } = await params;
   const body = await req.json();
@@ -37,7 +36,7 @@ export async function POST(
     brandId,
     result.data.userId,
     result.data.role,
-    session.user.id,
+    authResult.user.id,
   );
   return NextResponse.json(member, { status: 201 });
 }

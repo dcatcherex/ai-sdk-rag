@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { getBrandGuardrails, createGuardrail } from '@/features/brand-guardrails/service';
 import { createGuardrailSchema } from '@/features/brand-guardrails/schema';
 import { db } from '@/lib/db';
@@ -16,8 +15,8 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new NextResponse('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id: brandId } = await params;
   const guardrails = await getBrandGuardrails(brandId);
@@ -28,14 +27,14 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new NextResponse('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id: brandId } = await params;
 
   // Only brand owner can create guardrails
   const ownerId = await getBrandOwner(brandId);
-  if (ownerId !== session.user.id) return new NextResponse('Forbidden', { status: 403 });
+  if (ownerId !== authResult.user.id) return new NextResponse('Forbidden', { status: 403 });
 
   const body = await req.json();
   const result = createGuardrailSchema.safeParse(body);

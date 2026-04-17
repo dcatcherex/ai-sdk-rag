@@ -1,15 +1,14 @@
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { checkSkillSync } from '@/features/skills/service';
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
 
   try {
-    const result = await checkSkillSync(session.user.id, id);
+    const result = await checkSkillSync(authResult.user.id, id);
     return Response.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

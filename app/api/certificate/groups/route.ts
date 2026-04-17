@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
 import { eq, desc } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
-import { auth } from '@/lib/auth';
+import { getCurrentUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { recipientGroup } from '@/db/schema';
 
-async function getUserId() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  return session?.user?.id ?? null;
+async function getUserId()  {
+  const user = await getCurrentUser();
+  return user?.id ?? null;
 }
 
 // GET /api/certificate/groups — list all groups for the user

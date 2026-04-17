@@ -1,5 +1,4 @@
-import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
+import { requireUser } from "@/lib/auth-server";
 import { z } from 'zod';
 import { updatePost } from '@/features/content-marketing/service';
 import { socialPlatformSchema } from '@/features/content-marketing/schema';
@@ -18,8 +17,8 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
   const body = await req.json();
@@ -30,7 +29,7 @@ export async function PATCH(
 
   const post = await updatePost({
     postId: id,
-    userId: session.user.id,
+    userId: authResult.user.id,
     ...rest,
     ...(scheduledAt !== undefined
       ? { scheduledAt: scheduledAt ? new Date(scheduledAt) : null }

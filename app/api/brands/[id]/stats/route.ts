@@ -1,6 +1,5 @@
-import { headers } from 'next/headers';
 import { and, count, desc, eq } from 'drizzle-orm';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { brand, chatThread } from '@/db/schema';
 
@@ -8,8 +7,8 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
 
@@ -17,7 +16,7 @@ export async function GET(
   const brandRow = await db
     .select({ id: brand.id })
     .from(brand)
-    .where(and(eq(brand.id, id), eq(brand.userId, session.user.id)))
+    .where(and(eq(brand.id, id), eq(brand.userId, authResult.user.id)))
     .limit(1);
 
   if (!brandRow.length) return Response.json({ error: 'Not found' }, { status: 404 });
@@ -26,11 +25,11 @@ export async function GET(
     db
       .select({ total: count() })
       .from(chatThread)
-      .where(and(eq(chatThread.brandId, id), eq(chatThread.userId, session.user.id))),
+      .where(and(eq(chatThread.brandId, id), eq(chatThread.userId, authResult.user.id))),
     db
       .select({ id: chatThread.id, title: chatThread.title, updatedAt: chatThread.updatedAt })
       .from(chatThread)
-      .where(and(eq(chatThread.brandId, id), eq(chatThread.userId, session.user.id)))
+      .where(and(eq(chatThread.brandId, id), eq(chatThread.userId, authResult.user.id)))
       .orderBy(desc(chatThread.updatedAt))
       .limit(5),
   ]);

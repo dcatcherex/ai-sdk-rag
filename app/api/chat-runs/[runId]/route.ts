@@ -1,21 +1,17 @@
 import { NextResponse } from 'next/server';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { getChatRunById } from '@/features/chat/audit/queries';
 
 export async function GET(
   _req: Request,
   context: { params: Promise<{ runId: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   const { runId } = await context.params;
 
   try {
-    const run = await getChatRunById(runId, session.user.id);
+    const run = await getChatRunById(runId, authResult.user.id);
     if (!run) {
       return NextResponse.json({ error: 'Chat run not found' }, { status: 404 });
     }

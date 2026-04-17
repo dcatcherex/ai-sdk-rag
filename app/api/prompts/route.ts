@@ -1,20 +1,16 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { and, desc, eq, ne, or } from 'drizzle-orm';
 
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { promptLibrary } from '@/db/schema';
 import { createPromptSchema } from '@/features/prompts/schema';
 import { BUILT_IN_PROMPTS } from '@/features/prompts/constants';
 
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const userId = session.user.id;
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
+  const userId = authResult.user.id;
 
   // Own prompts + public prompts from other users
   const dbPrompts = await db
@@ -49,11 +45,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   const result = createPromptSchema.safeParse(await req.json());
   if (!result.success) return NextResponse.json({ error: 'Bad Request' }, { status: 400 });
   const body = result.data;
@@ -61,7 +54,7 @@ export async function POST(req: Request) {
 
   const newPrompt = {
     id: crypto.randomUUID(),
-    userId: session.user.id,
+    userId: authResult.user.id,
     title: body.title,
     content: body.content,
     category: body.category,

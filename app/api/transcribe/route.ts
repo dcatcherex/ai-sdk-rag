@@ -1,6 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 const TRANSCRIPTION_MODEL = 'gemini-2.5-flash-lite';
@@ -9,11 +8,8 @@ export const maxDuration = 30;
 
 export async function POST(req: Request) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    const authResult = await requireUser();
+    if (!authResult.ok) return authResult.response;
     const formData = await req.formData();
     const audioBlob = formData.get('audio') as Blob | null;
 

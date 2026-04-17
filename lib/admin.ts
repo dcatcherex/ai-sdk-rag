@@ -1,36 +1,28 @@
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+// Thin facade over the auth seam. Kept so existing callers that import
+// `requireAdmin` / `isAdminEmail` from `@/lib/admin` do not need to change.
+// New code should prefer importing from `@/lib/auth-server` directly.
 
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? '')
-  .split(',')
-  .map((e) => e.trim())
-  .filter(Boolean);
+import { requireAdmin as requireAdminFromAuth, type AppUser } from '@/lib/auth-server';
+
+export { isAdminEmail } from '@/lib/admin-emails';
 
 export type AdminSession = {
   user: { id: string; email: string; name: string; image: string | null };
 };
 
+// Legacy shape: existing callers destructure `session.user`. We wrap the
+// new `{ user }` return as `{ session: { user } }` so no caller breaks.
 export const requireAdmin = async (): Promise<
   | { ok: true; session: AdminSession }
   | { ok: false; response: Response }
 > => {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return {
-      ok: false,
-      response: Response.json({ error: 'Unauthorized' }, { status: 401 }),
-    };
-  }
-
-  if (!ADMIN_EMAILS.includes(session.user.email)) {
-    return {
-      ok: false,
-      response: Response.json({ error: 'Forbidden: admin only' }, { status: 403 }),
-    };
-  }
-
-  return { ok: true, session: session as AdminSession };
+  const result = await requireAdminFromAuth();
+  if (!result.ok) return result;
+  const u: AppUser = result.user;
+  return {
+    ok: true,
+    session: {
+      user: { id: u.id, email: u.email, name: u.name, image: u.image },
+    },
+  };
 };
-
-export const isAdminEmail = (email: string): boolean =>
-  ADMIN_EMAILS.includes(email);

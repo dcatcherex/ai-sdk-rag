@@ -1,10 +1,9 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { eq, desc, asc } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import { nanoid } from 'nanoid';
 
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { agentTeam, agentTeamMember, agent } from '@/db/schema';
 
@@ -25,13 +24,13 @@ const createSchema = z.object({
 
 // ── GET /api/agent-teams — list user's teams with member counts ───────────────
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const teams = await db
     .select()
     .from(agentTeam)
-    .where(eq(agentTeam.userId, session.user.id))
+    .where(eq(agentTeam.userId, authResult.user.id))
     .orderBy(desc(agentTeam.updatedAt));
 
   // Fetch members for all teams in one query
@@ -78,15 +77,15 @@ export async function GET() {
 
 // ── POST /api/agent-teams — create a new team ─────────────────────────────────
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const body = createSchema.parse(await req.json());
   const now = new Date();
 
   const newTeam = {
     id: nanoid(),
-    userId: session.user.id,
+    userId: authResult.user.id,
     name: body.name,
     description: body.description ?? null,
     routingStrategy: body.routingStrategy ?? 'sequential',

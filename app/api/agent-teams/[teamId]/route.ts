@@ -1,9 +1,8 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { and, eq, asc } from 'drizzle-orm';
 import { z } from 'zod/v4';
 
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { agentTeam, agentTeamMember, agent } from '@/db/schema';
 
@@ -26,15 +25,15 @@ const updateSchema = z.object({
 
 // ── GET /api/agent-teams/[teamId] — team with full member+agent details ────────
 export async function GET(_req: Request, { params }: Params) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { teamId } = await params;
 
   const [team] = await db
     .select()
     .from(agentTeam)
-    .where(and(eq(agentTeam.id, teamId), eq(agentTeam.userId, session.user.id)))
+    .where(and(eq(agentTeam.id, teamId), eq(agentTeam.userId, authResult.user.id)))
     .limit(1);
 
   if (!team) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -70,8 +69,8 @@ export async function GET(_req: Request, { params }: Params) {
 
 // ── PUT /api/agent-teams/[teamId] — update team config ────────────────────────
 export async function PUT(req: Request, { params }: Params) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { teamId } = await params;
   const body = updateSchema.parse(await req.json());
@@ -79,7 +78,7 @@ export async function PUT(req: Request, { params }: Params) {
   const [existing] = await db
     .select({ id: agentTeam.id })
     .from(agentTeam)
-    .where(and(eq(agentTeam.id, teamId), eq(agentTeam.userId, session.user.id)))
+    .where(and(eq(agentTeam.id, teamId), eq(agentTeam.userId, authResult.user.id)))
     .limit(1);
 
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -87,7 +86,7 @@ export async function PUT(req: Request, { params }: Params) {
   const [updated] = await db
     .update(agentTeam)
     .set({ ...body, updatedAt: new Date() })
-    .where(and(eq(agentTeam.id, teamId), eq(agentTeam.userId, session.user.id)))
+    .where(and(eq(agentTeam.id, teamId), eq(agentTeam.userId, authResult.user.id)))
     .returning();
 
   return NextResponse.json({ team: updated });
@@ -95,15 +94,15 @@ export async function PUT(req: Request, { params }: Params) {
 
 // ── DELETE /api/agent-teams/[teamId] — delete team (cascades to members/runs) ─
 export async function DELETE(_req: Request, { params }: Params) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { teamId } = await params;
 
   const [existing] = await db
     .select({ id: agentTeam.id })
     .from(agentTeam)
-    .where(and(eq(agentTeam.id, teamId), eq(agentTeam.userId, session.user.id)))
+    .where(and(eq(agentTeam.id, teamId), eq(agentTeam.userId, authResult.user.id)))
     .limit(1);
 
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });

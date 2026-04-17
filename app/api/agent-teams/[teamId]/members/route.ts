@@ -1,10 +1,9 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { and, eq, count } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import { nanoid } from 'nanoid';
 
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { agentTeam, agentTeamMember, agent } from '@/db/schema';
 
@@ -21,8 +20,8 @@ const addMemberSchema = z.object({
 
 // ── POST /api/agent-teams/[teamId]/members — add a member to a team ──────────
 export async function POST(req: Request, { params }: Params) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { teamId } = await params;
 
@@ -30,7 +29,7 @@ export async function POST(req: Request, { params }: Params) {
   const [team] = await db
     .select({ id: agentTeam.id })
     .from(agentTeam)
-    .where(and(eq(agentTeam.id, teamId), eq(agentTeam.userId, session.user.id)))
+    .where(and(eq(agentTeam.id, teamId), eq(agentTeam.userId, authResult.user.id)))
     .limit(1);
 
   if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 });

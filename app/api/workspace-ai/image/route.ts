@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { refundGenerationCredits } from '@/lib/api/creditGate';
 import { enforceCredits, enforceRateLimit } from '@/lib/api/routeGuards';
 import { buildWorkspaceAiAuditInput, completeWorkspaceAiRun, startWorkspaceAiRun } from '@/features/workspace-ai/audit';
@@ -8,12 +7,9 @@ import { workspaceImageAssistRequestSchema } from '@/features/workspace-ai/schem
 import { resolveWorkspaceImageAssistCost, runWorkspaceImageAssist } from '@/features/workspace-ai/service';
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const rateLimitResponse = await enforceRateLimit(session.user.id);
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
+  const rateLimitResponse = await enforceRateLimit(authResult.user.id);
   if (rateLimitResponse) return rateLimitResponse;
 
   const parsed = workspaceImageAssistRequestSchema.safeParse(await req.json());
@@ -26,11 +22,11 @@ export async function POST(req: Request) {
 
   const resolvedCost = resolveWorkspaceImageAssistCost(parsed.data);
   const modelIdForCredits = parsed.data.modelId ?? 'nano-banana-2';
-  const creditResponse = await enforceCredits(session.user.id, modelIdForCredits, resolvedCost);
+  const creditResponse = await enforceCredits(authResult.user.id, modelIdForCredits, resolvedCost);
   if (creditResponse) return creditResponse;
 
   const runId = await startWorkspaceAiRun({
-    userId: session.user.id,
+    userId: authResult.user.id,
     kind: parsed.data.kind,
     route: 'image',
     entityType: parsed.data.context.entityType,
@@ -39,7 +35,7 @@ export async function POST(req: Request) {
   });
 
   try {
-    const result = await runWorkspaceImageAssist(parsed.data, session.user.id);
+    const result = await runWorkspaceImageAssist(parsed.data, authResult.user.id);
     await completeWorkspaceAiRun(runId, {
       modelId: result.modelId,
       outputJson: {
@@ -51,7 +47,7 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ async: true, status: 'processing', ...result });
   } catch (error) {
-    await refundGenerationCredits(session.user.id, modelIdForCredits, resolvedCost).catch(() => {});
+    await refundGenerationCredits(authResult.user.id, modelIdForCredits, resolvedCost).catch(() => {});
     console.error('Workspace AI image assist failed', error);
     await completeWorkspaceAiRun(runId, {
       status: 'error',

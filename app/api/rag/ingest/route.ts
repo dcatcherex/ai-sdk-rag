@@ -7,8 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import {
   ingestTextDocument,
   ingestDocuments,
@@ -19,8 +18,9 @@ import {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    const userId = session?.user?.id;
+    const authResult = await requireUser();
+    if (!authResult.ok) return authResult.response;
+    const userId = authResult.user.id;
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

@@ -1,0 +1,1 @@
+ALTER TABLE "platform_settings" ADD COLUMN "admin_enabled_model_ids" text[];

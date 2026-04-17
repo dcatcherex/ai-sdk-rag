@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { getContentComments, createComment } from '@/features/collaboration/service';
 
 const createCommentSchema = z.object({
@@ -13,8 +12,8 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new NextResponse('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id: contentPieceId } = await params;
   const comments = await getContentComments(contentPieceId);
@@ -25,8 +24,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new NextResponse('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id: contentPieceId } = await params;
   const body = await req.json();
@@ -35,7 +34,7 @@ export async function POST(
 
   const comment = await createComment({
     contentPieceId,
-    userId: session.user.id,
+    userId: authResult.user.id,
     parentId: result.data.parentId ?? null,
     body: result.data.body,
   });

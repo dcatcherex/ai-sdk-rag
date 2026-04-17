@@ -1,7 +1,6 @@
-import { headers } from 'next/headers';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { env } from '@/lib/env';
 import {
   GOOGLE_WORKSPACE_SCOPES,
@@ -11,8 +10,8 @@ import {
 } from '@/lib/google/oauth';
 
 export async function GET(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   if (!isGoogleWorkspaceConfigured()) {
     return new Response('Google Workspace OAuth not configured', { status: 503 });
   }
@@ -20,7 +19,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const returnTo = searchParams.get('returnTo') ?? '/tools/google-sheets';
   const state = encodeOAuthState({
-    userId: session.user.id,
+    userId: authResult.user.id,
     returnTo,
   });
 

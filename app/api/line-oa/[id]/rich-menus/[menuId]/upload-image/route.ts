@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { lineOaChannel, lineRichMenu } from '@/db/schema';
 import { uploadPublicObject } from '@/lib/r2';
@@ -53,8 +53,8 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string; menuId: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id: channelId, menuId } = await params;
 
@@ -67,7 +67,7 @@ export async function POST(
     .limit(1);
 
   if (!rows[0]) return new Response('Not found', { status: 404 });
-  if (rows[0].channelUserId !== session.user.id) return new Response('Forbidden', { status: 403 });
+  if (rows[0].channelUserId !== authResult.user.id) return new Response('Forbidden', { status: 403 });
 
   const formData = await req.formData();
   const file = formData.get('image') as File | null;

@@ -1,6 +1,5 @@
-import { headers } from 'next/headers';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { deleteSkill, getSkillById, updateSkill } from '@/features/skills/service';
 
 const updateSchema = z.object({
@@ -17,35 +16,35 @@ const updateSchema = z.object({
 });
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
-  const skill = await getSkillById(session.user.id, id);
+  const skill = await getSkillById(authResult.user.id, id);
   if (!skill) return new Response('Not Found', { status: 404 });
   return Response.json(skill);
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
   const body = await req.json();
   const result = updateSchema.safeParse(body);
   if (!result.success) return new Response('Bad Request', { status: 400 });
 
-  const skill = await updateSkill(session.user.id, id, result.data);
+  const skill = await updateSkill(authResult.user.id, id, result.data);
   if (!skill) return new Response('Not Found', { status: 404 });
   return Response.json(skill);
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
-  const ok = await deleteSkill(session.user.id, id);
+  const ok = await deleteSkill(authResult.user.id, id);
   if (!ok) return new Response('Not Found', { status: 404 });
   return Response.json({ success: true });
 }

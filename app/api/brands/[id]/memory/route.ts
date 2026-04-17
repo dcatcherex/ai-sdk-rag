@@ -1,20 +1,19 @@
-import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { createBrandMemorySchema } from "@/features/memory/schema";
 import { createBrandMemory, listBrandMemory } from "@/features/memory/service";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_request: NextRequest, { params }: Params) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new NextResponse("Unauthorized", { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id: brandId } = await params;
 
   try {
-    const payload = await listBrandMemory(session.user.id, brandId);
+    const payload = await listBrandMemory(authResult.user.id, brandId);
     return NextResponse.json(payload);
   } catch (error) {
     if (error instanceof Error && error.message === "FORBIDDEN") {
@@ -25,8 +24,8 @@ export async function GET(_request: NextRequest, { params }: Params) {
 }
 
 export async function POST(request: NextRequest, { params }: Params) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new NextResponse("Unauthorized", { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id: brandId } = await params;
   const body = await request.json();
@@ -37,7 +36,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
 
   try {
-    const record = await createBrandMemory(session.user.id, brandId, parsed.data);
+    const record = await createBrandMemory(authResult.user.id, brandId, parsed.data);
     return NextResponse.json(record, { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.message === "FORBIDDEN") {

@@ -1,7 +1,6 @@
-import { headers } from 'next/headers';
 import { z } from 'zod';
 
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { getCalendarEntries, createCalendarEntry } from '@/features/content-calendar/service';
 
 const createSchema = z.object({
@@ -18,8 +17,8 @@ const createSchema = z.object({
 });
 
 export async function GET(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const url = new URL(req.url);
   const brandId = url.searchParams.get('brandId') ?? undefined;
@@ -29,19 +28,19 @@ export async function GET(req: Request) {
   const year = yearStr ? parseInt(yearStr, 10) : undefined;
   const month = monthStr ? parseInt(monthStr, 10) : undefined;
 
-  const entries = await getCalendarEntries(session.user.id, { brandId, campaignId, year, month });
+  const entries = await getCalendarEntries(authResult.user.id, { brandId, campaignId, year, month });
   return Response.json(entries);
 }
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const body = await req.json() as unknown;
   const result = createSchema.safeParse(body);
   if (!result.success) return new Response('Bad Request', { status: 400 });
 
-  const entry = await createCalendarEntry(session.user.id, {
+  const entry = await createCalendarEntry(authResult.user.id, {
     ...result.data,
     brandId: result.data.brandId ?? null,
     campaignId: result.data.campaignId ?? null,

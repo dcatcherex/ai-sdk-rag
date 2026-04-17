@@ -1,16 +1,12 @@
 import { NextResponse } from 'next/server';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { workspaceTextAssistRequestSchema } from '@/features/workspace-ai/schema';
 import { buildWorkspaceAiAuditInput, completeWorkspaceAiRun, startWorkspaceAiRun } from '@/features/workspace-ai/audit';
 import { runWorkspaceTextAssist } from '@/features/workspace-ai/service';
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   const parsed = workspaceTextAssistRequestSchema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json(
@@ -20,7 +16,7 @@ export async function POST(req: Request) {
   }
 
   const runId = await startWorkspaceAiRun({
-    userId: session.user.id,
+    userId: authResult.user.id,
     kind: parsed.data.kind,
     route: 'text',
     entityType: parsed.data.context.entityType,

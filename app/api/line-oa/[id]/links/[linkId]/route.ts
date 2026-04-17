@@ -1,16 +1,15 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { deleteLink } from '@/features/line-oa/link/service';
 
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string; linkId: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { linkId } = await params;
-  await deleteLink(linkId, session.user.id);
+  await deleteLink(linkId, authResult.user.id);
   return NextResponse.json({ ok: true });
 }

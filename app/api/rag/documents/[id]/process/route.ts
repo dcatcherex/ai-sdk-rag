@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { getCurrentUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { sql } from 'drizzle-orm';
 import { finalizeDocument, finalizeDocumentPrecise } from '@/lib/vector-store';
@@ -8,9 +7,9 @@ import { cleanDocument } from '@/lib/document-cleaner';
 import { extractDocumentPrecise, DEFAULT_PRECISE_MODEL } from '@/lib/document-precise';
 import { downloadObject } from '@/lib/r2';
 
-async function getSessionUserId(): Promise<string | null> {
-  const session = await auth.api.getSession({ headers: await headers() });
-  return session?.user?.id ?? null;
+async function getSessionUserId() {
+  const user = await getCurrentUser();
+  return user?.id ?? null;
 }
 
 export async function POST(

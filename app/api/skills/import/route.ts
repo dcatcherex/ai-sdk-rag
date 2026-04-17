@@ -1,6 +1,5 @@
-import { headers } from 'next/headers';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { importSkillFromUrl } from '@/features/skills/service';
 
 const importSchema = z.object({
@@ -8,8 +7,8 @@ const importSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const body = await req.json();
   const result = importSchema.safeParse(body);
@@ -23,7 +22,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const skill = await importSkillFromUrl(session.user.id, url);
+    const skill = await importSkillFromUrl(authResult.user.id, url);
     return Response.json(skill, { status: 201 });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Import failed';

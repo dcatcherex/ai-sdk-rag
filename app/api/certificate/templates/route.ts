@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { getCurrentUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { certificateTemplate } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -15,9 +14,9 @@ import {
 import { nanoid } from 'nanoid';
 import type { TextFieldConfig } from '@/lib/certificate-generator';
 
-async function getSessionUserId(): Promise<string | null> {
-  const session = await auth.api.getSession({ headers: await headers() });
-  return session?.user?.id ?? null;
+async function getSessionUserId() {
+  const user = await getCurrentUser();
+  return user?.id ?? null;
 }
 
 /** GET /api/certificate/templates — list all templates for the user */

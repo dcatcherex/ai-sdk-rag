@@ -1,8 +1,7 @@
-import { headers } from 'next/headers';
 import { and, eq, sql } from 'drizzle-orm';
 import { generateText, stepCountIs } from 'ai';
 import { nanoid } from 'nanoid';
-import { auth } from '@/lib/auth';
+import { requireUser } from '@/lib/auth-server';
 import { isAdminEmail } from '@/lib/admin';
 import { agent, user, userPreferences } from '@/db/schema';
 import { db } from '@/lib/db';
@@ -409,13 +408,8 @@ export const requireSupportSession = async (): Promise<
   | { ok: true; value: SupportSession }
   | { ok: false; response: Response }
 > => {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return {
-      ok: false,
-      response: Response.json({ error: 'Unauthorized' }, { status: 401 }),
-    };
-  }
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult;
 
   const ownerUserId = getSupportOwnerUserId();
   if (!ownerUserId) {
@@ -425,7 +419,7 @@ export const requireSupportSession = async (): Promise<
     };
   }
 
-  if (session.user.id !== ownerUserId && !isAdminEmail(session.user.email)) {
+  if (authResult.user.id !== ownerUserId && !isAdminEmail(authResult.user.email)) {
     return {
       ok: false,
       response: Response.json({ error: 'Forbidden' }, { status: 403 }),
@@ -435,7 +429,7 @@ export const requireSupportSession = async (): Promise<
   return {
     ok: true,
     value: {
-      session: session as SupportSession['session'],
+      session: { user: authResult.user } as SupportSession['session'],
       ownerUserId,
     },
   };

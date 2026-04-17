@@ -1,8 +1,7 @@
-import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, inArray } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { db } from "@/lib/db";
 import { chatMessage, chatThread } from "@/db/schema";
 
@@ -11,11 +10,8 @@ export async function DELETE(
   { params }: { params: Promise<{ messageId: string }> }
 ) {
   const { messageId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   // Optional partner message to delete together (pair deletion)
   let alsoDeleteId: string | undefined;
   try {
@@ -35,7 +31,7 @@ export async function DELETE(
     .where(
       and(
         inArray(chatMessage.id, idsToDelete),
-        eq(chatThread.userId, session.user.id)
+        eq(chatThread.userId, authResult.user.id)
       )
     );
 

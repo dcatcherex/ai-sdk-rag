@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { getCurrentUser } from "@/lib/auth-server";
 import { exportContentPiece } from '@/features/distribution/service';
 import { z } from 'zod';
 
@@ -9,9 +8,9 @@ const exportSchema = z.object({
   format: z.enum(['markdown', 'html', 'plain']),
 });
 
-async function getUserId(): Promise<string | null> {
-  const session = await auth.api.getSession({ headers: await headers() });
-  return session?.user?.id ?? null;
+async function getUserId(): Promise<string | null>  {
+  const user = await getCurrentUser();
+  return user?.id ?? null;
 }
 
 export async function POST(req: NextRequest) {

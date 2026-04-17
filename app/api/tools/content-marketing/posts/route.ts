@@ -1,5 +1,4 @@
-import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
+import { requireUser } from "@/lib/auth-server";
 import { z } from 'zod';
 import { createPost, getUserPosts, deletePost } from '@/features/content-marketing/service';
 import { socialPlatformSchema } from '@/features/content-marketing/schema';
@@ -22,14 +21,14 @@ const createPostBody = z.object({
 });
 
 export async function GET(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get('status') ?? 'all';
 
   const posts = await getUserPosts(
-    session.user.id,
+    authResult.user.id,
     status as Parameters<typeof getUserPosts>[1],
   );
 
@@ -37,8 +36,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const body = await req.json();
   const result = createPostBody.safeParse(body);
@@ -48,7 +47,7 @@ export async function POST(req: Request) {
   }
 
   const post = await createPost({
-    userId: session.user.id,
+    userId: authResult.user.id,
     caption: result.data.caption,
     platforms: result.data.platforms,
     platformOverrides: result.data.platformOverrides,
@@ -62,13 +61,13 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { searchParams } = new URL(req.url);
   const postId = searchParams.get('id');
   if (!postId) return new Response('Missing id', { status: 400 });
 
-  await deletePost(postId, session.user.id);
+  await deletePost(postId, authResult.user.id);
   return new Response(null, { status: 204 });
 }

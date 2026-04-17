@@ -1,5 +1,4 @@
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { userPreferences } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -7,13 +6,13 @@ import { ALL_TOOL_IDS } from '@/lib/tool-registry';
 import { WORKSPACE_ITEM_IDS } from '@/features/workspace/catalog';
 
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const prefs = await db
     .select()
     .from(userPreferences)
-    .where(eq(userPreferences.userId, session.user.id))
+    .where(eq(userPreferences.userId, authResult.user.id))
     .limit(1);
 
   if (prefs.length === 0) {
@@ -48,8 +47,8 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const body = await req.json() as {
     memoryEnabled?: boolean;
@@ -90,7 +89,7 @@ export async function PUT(req: Request) {
   await db
     .insert(userPreferences)
     .values({
-      userId: session.user.id,
+      userId: authResult.user.id,
       memoryEnabled: body.memoryEnabled ?? true,
       memoryInjectEnabled: body.memoryInjectEnabled ?? true,
       memoryExtractEnabled: body.memoryExtractEnabled ?? true,

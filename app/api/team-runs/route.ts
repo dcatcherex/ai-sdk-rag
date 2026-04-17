@@ -1,13 +1,12 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { listTeamRuns, getTeamRunWithSteps } from '@/features/agent-teams/server/queries';
 
 // ── GET /api/team-runs?teamId=xxx[&runId=yyy] ─────────────────────────────────
 export async function GET(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { searchParams } = new URL(req.url);
   const teamId = searchParams.get('teamId');
@@ -19,12 +18,12 @@ export async function GET(req: Request) {
 
   // Single run with steps
   if (runId) {
-    const run = await getTeamRunWithSteps(runId, session.user.id);
+    const run = await getTeamRunWithSteps(runId, authResult.user.id);
     if (!run) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     return NextResponse.json({ run });
   }
 
   // List runs for a team
-  const runs = await listTeamRuns(teamId, session.user.id);
+  const runs = await listTeamRuns(teamId, authResult.user.id);
   return NextResponse.json({ runs });
 }

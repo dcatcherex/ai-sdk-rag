@@ -1,7 +1,6 @@
-import { headers } from 'next/headers';
 import { z } from 'zod';
 
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import {
   getCalendarEntries,
   updateCalendarEntry,
@@ -25,11 +24,11 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
-  const entries = await getCalendarEntries(session.user.id);
+  const entries = await getCalendarEntries(authResult.user.id);
   const entry = entries.find((e) => e.id === id);
   if (!entry) return new Response('Not Found', { status: 404 });
   return Response.json(entry);
@@ -39,15 +38,15 @@ export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const body = await req.json() as unknown;
   const result = updateSchema.safeParse(body);
   if (!result.success) return new Response('Bad Request', { status: 400 });
 
   const { id } = await params;
-  const updated = await updateCalendarEntry(session.user.id, id, {
+  const updated = await updateCalendarEntry(authResult.user.id, id, {
     ...result.data,
     brandId: result.data.brandId ?? undefined,
     campaignId: result.data.campaignId ?? undefined,
@@ -64,10 +63,10 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
-  await deleteCalendarEntry(session.user.id, id);
+  await deleteCalendarEntry(authResult.user.id, id);
   return new Response(null, { status: 204 });
 }

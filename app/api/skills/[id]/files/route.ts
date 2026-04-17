@@ -1,6 +1,5 @@
-import { headers } from 'next/headers';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { createSkillFile, deleteSkillFile, getSkillFiles, SkillFileMutationError } from '@/features/skills/service';
 
 const createFileSchema = z.object({
@@ -9,11 +8,11 @@ const createFileSchema = z.object({
 });
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
-  const files = await getSkillFiles(session.user.id, id);
+  const files = await getSkillFiles(authResult.user.id, id);
   if (!files) return new Response('Not Found', { status: 404 });
 
   return Response.json(files.map((file) => ({
@@ -30,8 +29,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
   const body = await req.json();
@@ -39,7 +38,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!result.success) return new Response('Bad Request', { status: 400 });
 
   try {
-    const file = await createSkillFile(session.user.id, id, result.data.path, result.data.textContent);
+    const file = await createSkillFile(authResult.user.id, id, result.data.path, result.data.textContent);
     return Response.json(file, { status: 201 });
   } catch (error) {
     return toMutationErrorResponse(error);
@@ -47,15 +46,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
   const path = new URL(req.url).searchParams.get('path');
   if (!path) return new Response('Bad Request: path is required', { status: 400 });
 
   try {
-    await deleteSkillFile(session.user.id, id, path);
+    await deleteSkillFile(authResult.user.id, id, path);
     return Response.json({ success: true });
   } catch (error) {
     return toMutationErrorResponse(error);

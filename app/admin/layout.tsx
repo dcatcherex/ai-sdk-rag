@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   BotIcon,
+  BrainCircuitIcon,
   CoinsIcon,
   ImageIcon,
   LayoutDashboardIcon,
@@ -32,6 +33,7 @@ const navItems = [
   { href: '/admin/users', label: 'Users', icon: UsersIcon },
   { href: '/admin/credits', label: 'Credits', icon: CoinsIcon },
   { href: '/admin/chat-runs', label: 'AI Runs', icon: SearchIcon },
+  { href: '/admin/models', label: 'Models', icon: BrainCircuitIcon },
   { href: '/admin/image-models', label: 'Image Models', icon: ImageIcon },
   { href: '/admin/tests', label: 'Tests', icon: TestTubeDiagonalIcon },
   { href: '/admin/settings', label: 'Settings', icon: SettingsIcon },

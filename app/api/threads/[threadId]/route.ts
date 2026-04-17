@@ -1,8 +1,7 @@
-import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { db } from "@/lib/db";
 import { chatThread } from "@/db/schema";
 
@@ -11,11 +10,8 @@ export async function PATCH(
   { params }: { params: Promise<{ threadId: string }> }
 ) {
   const { threadId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   const body = (await request.json()) as { pinned?: boolean; title?: string };
   const updates: { pinned?: boolean; title?: string } = {};
 
@@ -38,7 +34,7 @@ export async function PATCH(
   const result = await db
     .update(chatThread)
     .set(updates)
-    .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, session.user.id)))
+    .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, authResult.user.id)))
     .returning({ id: chatThread.id, pinned: chatThread.pinned, title: chatThread.title });
 
   if (result.length === 0) {
@@ -57,14 +53,11 @@ export async function DELETE(
   { params }: { params: Promise<{ threadId: string }> }
 ) {
   const { threadId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   const result = await db
     .delete(chatThread)
-    .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, session.user.id)))
+    .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, authResult.user.id)))
     .returning({ id: chatThread.id });
 
   if (result.length === 0) {

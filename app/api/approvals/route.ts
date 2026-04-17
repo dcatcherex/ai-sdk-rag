@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { getApprovalQueue, createApprovalRequest } from '@/features/collaboration/service';
 
 const createApprovalSchema = z.object({
@@ -12,19 +11,19 @@ const createApprovalSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new NextResponse('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const brandId = req.nextUrl.searchParams.get('brandId');
   if (!brandId) return new NextResponse('brandId is required', { status: 400 });
 
-  const queue = await getApprovalQueue(brandId, session.user.id);
+  const queue = await getApprovalQueue(brandId, authResult.user.id);
   return NextResponse.json(queue);
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new NextResponse('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const body = await req.json();
   const result = createApprovalSchema.safeParse(body);
@@ -33,7 +32,7 @@ export async function POST(req: NextRequest) {
   const approval = await createApprovalRequest({
     contentPieceId: result.data.contentPieceId,
     brandId: result.data.brandId ?? null,
-    requesterId: session.user.id,
+    requesterId: authResult.user.id,
     assigneeId: result.data.assigneeId ?? null,
     dueAt: result.data.dueAt ? new Date(result.data.dueAt) : null,
   });

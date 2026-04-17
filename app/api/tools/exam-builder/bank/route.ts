@@ -1,11 +1,10 @@
-import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
+import { requireUser } from "@/lib/auth-server";
 import { bankFilterSchema } from '@/features/exam-builder/schema';
 import { getUserBankQuestions } from '@/features/exam-builder/service';
 
 export async function GET(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { searchParams } = new URL(req.url);
   const raw = {
@@ -17,7 +16,7 @@ export async function GET(req: Request) {
 
   const filters = bankFilterSchema.safeParse(raw);
   const questions = await getUserBankQuestions(
-    session.user.id,
+    authResult.user.id,
     filters.success ? filters.data : undefined,
   );
 

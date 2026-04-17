@@ -1,5 +1,4 @@
-import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
+import { requireUser } from "@/lib/auth-server";
 import { nanoid } from 'nanoid';
 import sharp from 'sharp';
 import { uploadPublicObject } from '@/lib/r2';
@@ -11,8 +10,8 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024;  // 10 MB
 const MAX_VIDEO_BYTES = 200 * 1024 * 1024; // 200 MB
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const formData = await req.formData();
   const file = formData.get('file');
@@ -34,7 +33,7 @@ export async function POST(req: Request) {
     'image/gif': 'gif',
   };
   const ext = extMap[file.type] ?? (file.type.split('/')[1] ?? 'bin');
-  const key = `content-marketing/${session.user.id}/${nanoid()}.${ext}`;
+  const key = `content-marketing/${authResult.user.id}/${nanoid()}.${ext}`;
 
   // Get image dimensions (skip for video)
   let width: number | undefined;

@@ -1,17 +1,13 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 
 /**
  * POST /api/platform-agent/onboard
  * Legacy onboarding path is disabled in favor of admin-configured starter templates.
  */
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   void req;
   return NextResponse.json(
     {

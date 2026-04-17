@@ -1,14 +1,10 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { uploadImage } from '@/lib/storage/uploadImage';
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   const formData = await req.formData();
   const file = formData.get('file');
   if (!(file instanceof File)) {
@@ -17,7 +13,7 @@ export async function POST(req: Request) {
 
   try {
     const result = await uploadImage(file, {
-      prefix: `line-oa-covers/${session.user.id}`,
+      prefix: `line-oa-covers/${authResult.user.id}`,
       optimization: { format: 'webp', quality: 85, maxWidth: 1200 },
       maxSizeBytes: 5 * 1024 * 1024,
     });

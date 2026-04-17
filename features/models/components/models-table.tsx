@@ -315,7 +315,8 @@ const DEFAULT_HIDDEN: VisibilityState = {
 
 // ─── Inner table (shared between embedded and dialog views) ──────────────────
 
-function ModelsTableInner({
+export function ModelsTableInner({
+  models = availableModels as ModelOption[],
   enabledModelIds,
   enabledCount,
   toggleModel,
@@ -323,6 +324,7 @@ function ModelsTableInner({
   showMaximize = false,
   onMaximize,
 }: {
+  models?: ModelOption[];
   enabledModelIds: string[];
   enabledCount: number;
   toggleModel: (id: string) => void;
@@ -352,7 +354,7 @@ function ModelsTableInner({
   );
 
   const table = useReactTable({
-    data: availableModels as ModelOption[],
+    data: models,
     columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
@@ -370,7 +372,7 @@ function ModelsTableInner({
       {/* Toolbar */}
       <div className="flex items-center gap-2 pb-3">
         <span className="text-sm text-muted-foreground shrink-0">
-          {enabledCount} of {availableModels.length} enabled
+          {enabledCount} of {models.length} enabled
         </span>
         <Input
           placeholder="Search models..."
@@ -489,9 +491,10 @@ function ModelsTableInner({
 
 export function ModelsTable() {
   const [maximized, setMaximized] = React.useState(false);
-  const { enabledModelIds, enabledModels, toggleModel, setEnabledModelIds } = useEnabledModels();
+  const { enabledModelIds, enabledModels, adminAllowedModels, toggleModel, setEnabledModelIds } = useEnabledModels();
 
   const innerProps = {
+    models: adminAllowedModels as ModelOption[],
     enabledModelIds,
     enabledCount: enabledModels.length,
     toggleModel,

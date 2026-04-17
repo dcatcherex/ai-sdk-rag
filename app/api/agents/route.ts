@@ -1,9 +1,8 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { and, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { auth } from '@/lib/auth';
+import { requireUser, getCurrentUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { agent, agentShare, user as userTable } from '@/db/schema';
 import type { SharedUser } from '@/features/agents/types';
@@ -40,8 +39,8 @@ const createSchema = z.object({
 });
 
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
+  const currentUser = await getCurrentUser();
+  if (!currentUser) {
     const guestStarterAgent = await getConfiguredGuestStarterAgent();
     const essentials = guestStarterAgent ? [{ ...guestStarterAgent, isDefault: true }] : [];
     return NextResponse.json({
@@ -53,13 +52,14 @@ export async function GET() {
     });
   }
 
-  await ensureConfiguredStarterAgentForUser(session.user.id);
+  const authResult = { ok: true as const, user: currentUser };
+  await ensureConfiguredStarterAgentForUser(authResult.user.id);
 
   // 1. Own agents (excluding templates)
   const ownAgents = await db
     .select()
     .from(agent)
-    .where(and(eq(agent.userId, session.user.id), eq(agent.isTemplate, false)))
+    .where(and(eq(agent.userId, authResult.user.id), eq(agent.isTemplate, false)))
     .orderBy(desc(agent.updatedAt));
 
   // 2. Share lists for own agents
@@ -121,7 +121,7 @@ export async function GET() {
     })
     .from(agent)
     .innerJoin(userTable, eq(agent.userId, userTable.id))
-    .where(and(eq(agent.isPublic, true), ne(agent.userId, session.user.id)))
+    .where(and(eq(agent.isPublic, true), ne(agent.userId, authResult.user.id)))
     .orderBy(desc(agent.updatedAt));
 
   // 4. Targeted shares (non-public agents shared specifically with me)
@@ -164,8 +164,8 @@ export async function GET() {
     .innerJoin(userTable, eq(agent.userId, userTable.id))
     .where(
       and(
-        eq(agentShare.sharedWithUserId, session.user.id),
-        ne(agent.userId, session.user.id),
+        eq(agentShare.sharedWithUserId, authResult.user.id),
+        ne(agent.userId, authResult.user.id),
       ),
     )
     .orderBy(desc(agent.updatedAt));
@@ -216,17 +216,14 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   const body = createSchema.parse(await req.json());
   const now = new Date();
 
   const newAgent = {
     id: crypto.randomUUID(),
-    userId: session.user.id,
+    userId: authResult.user.id,
     name: body.name,
     description: body.description ?? null,
     systemPrompt: body.systemPrompt,

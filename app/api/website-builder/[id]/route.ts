@@ -1,14 +1,14 @@
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { runGetWebsiteStatus, deleteWebsite } from '@/features/website-builder/service';
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
 
   try {
-    const record = await runGetWebsiteStatus(id, { userId: session.user.id });
+    const record = await runGetWebsiteStatus(id, { userId: authResult.user.id });
     return Response.json({ website: record });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal error';
@@ -18,13 +18,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { id } = await params;
 
   try {
-    await deleteWebsite(id, { userId: session.user.id });
+    await deleteWebsite(id, { userId: authResult.user.id });
     return Response.json({ success: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal error';

@@ -1,13 +1,10 @@
-import { headers } from 'next/headers'
-import { auth } from '@/lib/auth'
+import { requireUser } from '@/lib/auth-server'
 import { getDeployHistory } from '@/features/deploy/service'
 
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const authResult = await requireUser()
+  if (!authResult.ok) return authResult.response
 
-  const history = await getDeployHistory(session.user.id)
+  const history = await getDeployHistory(authResult.user.id)
   return Response.json(history)
 }

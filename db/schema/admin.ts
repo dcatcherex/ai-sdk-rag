@@ -39,6 +39,8 @@ export const platformSettings = pgTable("platform_settings", {
   requireEmailVerification: boolean("require_email_verification").notNull().default(true),
   guestStarterAgentId: text("guest_starter_agent_id").references(() => agent.id, { onDelete: "set null" }),
   newUserStarterTemplateId: text("new_user_starter_template_id").references(() => agent.id, { onDelete: "set null" }),
+  // null = all models available; set to restrict platform-wide model access
+  adminEnabledModelIds: text("admin_enabled_model_ids").array(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
     .$onUpdate(() => new Date())
@@ -62,6 +64,7 @@ export const adminUserInvite = pgTable(
     cancelledAt: timestamp("cancelled_at"),
     lastSentAt: timestamp("last_sent_at"),
     creditGrantedAt: timestamp("credit_granted_at"),
+    clerkInvitationId: text("clerk_invitation_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

@@ -1,8 +1,7 @@
-import { headers } from "next/headers";
 import { and, eq } from "drizzle-orm";
 import type { PrintableQuizQuestion, PrintableQuizReference } from "@/components/chat/printable-quiz";
 import { chatMessage, chatThread } from "@/db/schema";
-import { auth } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth-server";
 import { db } from "@/lib/db";
 
 export type PrintableQuizMode = "worksheet" | "answer-key" | "both";
@@ -114,9 +113,8 @@ const isQuizToolOutput = (value: unknown): value is QuizToolOutput => {
 };
 
 export async function getQuizPrintSessionUserId(): Promise<string | null> {
-  const session = await auth.api.getSession({ headers: await headers() });
-
-  return session?.user?.id ?? null;
+  const user = await getCurrentUser();
+  return user?.id ?? null;
 }
 
 export async function getQuizPrintDataForUser(userId: string, threadId: string, messageId: string): Promise<PrintableQuizData | null> {

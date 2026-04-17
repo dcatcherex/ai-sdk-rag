@@ -1,7 +1,6 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { eq, and, sql, gte } from 'drizzle-orm';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { agent, publicAgentShare, publicAgentShareEvent } from '@/db/schema';
 
@@ -9,14 +8,14 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: Request, { params }: Params) {
   const { id } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   // Verify ownership
   const [agentRow] = await db
     .select({ id: agent.id })
     .from(agent)
-    .where(and(eq(agent.id, id), eq(agent.userId, session.user.id)))
+    .where(and(eq(agent.id, id), eq(agent.userId, authResult.user.id)))
     .limit(1);
   if (!agentRow) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 

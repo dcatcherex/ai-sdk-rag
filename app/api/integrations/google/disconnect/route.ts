@@ -1,11 +1,10 @@
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { disconnectGoogleAccount } from '@/lib/google/oauth';
 
 export async function POST() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
-  await disconnectGoogleAccount(session.user.id);
+  await disconnectGoogleAccount(authResult.user.id);
   return Response.json({ ok: true });
 }

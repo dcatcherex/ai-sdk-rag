@@ -1,11 +1,10 @@
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { generateLandingPage, createContentPiece } from '@/features/long-form/service';
 import { generateLandingPageSchema } from '@/features/long-form/schema';
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const body = await req.json() as unknown;
   const result = generateLandingPageSchema.safeParse(body);
@@ -14,7 +13,7 @@ export async function POST(req: Request) {
   }
 
   const generated = await generateLandingPage(result.data);
-  const piece = await createContentPiece(session.user.id, {
+  const piece = await createContentPiece(authResult.user.id, {
     contentType: 'landing_page',
     title: generated.title,
     body: generated.body,

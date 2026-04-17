@@ -13,13 +13,12 @@
  *   { type: 'text', text: string }                                 — final answer
  */
 
-import { headers } from 'next/headers';
 import { and, eq, max } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import { createUIMessageStreamResponse, createUIMessageStream } from 'ai';
 import { nanoid } from 'nanoid';
 
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { agentTeam, agentTeamMember, agent, chatThread, chatMessage } from '@/db/schema';
 import { getUserBalance } from '@/lib/credits';
@@ -52,11 +51,8 @@ const requestSchema = z.object({
 
 export async function POST(req: Request) {
   // ── Auth ──────────────────────────────────────────────────────────────────
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   // ── Parse + validate request ──────────────────────────────────────────────
   let body: z.infer<typeof requestSchema>;
   try {
@@ -69,7 +65,7 @@ export async function POST(req: Request) {
   const [teamRow] = await db
     .select()
     .from(agentTeam)
-    .where(and(eq(agentTeam.id, body.teamId), eq(agentTeam.userId, session.user.id)))
+    .where(and(eq(agentTeam.id, body.teamId), eq(agentTeam.userId, authResult.user.id)))
     .limit(1);
 
   if (!teamRow) {
@@ -132,7 +128,7 @@ export async function POST(req: Request) {
     const [thread] = await db
       .select({ id: chatThread.id })
       .from(chatThread)
-      .where(and(eq(chatThread.id, body.threadId), eq(chatThread.userId, session.user.id)))
+      .where(and(eq(chatThread.id, body.threadId), eq(chatThread.userId, authResult.user.id)))
       .limit(1);
 
     if (!thread) {
@@ -142,7 +138,7 @@ export async function POST(req: Request) {
 
   // ── Credit pre-check ──────────────────────────────────────────────────────
   const estimatedCost = estimateRunCost(team);
-  const balance = await getUserBalance(session.user.id);
+  const balance = await getUserBalance(authResult.user.id);
   if (balance < estimatedCost) {
     return Response.json(
       {
@@ -155,7 +151,7 @@ export async function POST(req: Request) {
   }
 
   // ── Stream the run ────────────────────────────────────────────────────────
-  const userId = session.user.id;
+  const userId = authResult.user.id;
 
   return createUIMessageStreamResponse({
     stream: createUIMessageStream({

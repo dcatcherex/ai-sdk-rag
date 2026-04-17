@@ -1,19 +1,18 @@
-import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { refreshThreadWorkingMemory } from "@/features/memory/service";
 
 type Params = { params: Promise<{ threadId: string }> };
 
 export async function POST(_request: NextRequest, { params }: Params) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new NextResponse("Unauthorized", { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { threadId } = await params;
 
   try {
-    const record = await refreshThreadWorkingMemory(session.user.id, threadId);
+    const record = await refreshThreadWorkingMemory(authResult.user.id, threadId);
     return NextResponse.json({ workingMemory: record });
   } catch (error) {
     if (error instanceof Error && error.message === "NOT_FOUND") {

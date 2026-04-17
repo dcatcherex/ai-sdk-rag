@@ -1,17 +1,14 @@
-import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
 
 import { user } from "@/db/schema";
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { db } from "@/lib/db";
 import { getPlatformSettings } from "@/lib/platform-settings";
 
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
-  if (!session?.user) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   const [rows, settings] = await Promise.all([
     db
@@ -23,7 +20,7 @@ export async function GET() {
         emailVerified: user.emailVerified,
       })
       .from(user)
-      .where(eq(user.id, session.user.id))
+      .where(eq(user.id, authResult.user.id))
       .limit(1),
     getPlatformSettings(),
   ]);

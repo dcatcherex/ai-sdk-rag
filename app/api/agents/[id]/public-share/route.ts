@@ -1,8 +1,7 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { eq, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { agent, publicAgentShare } from '@/db/schema';
 import { hashPassword } from '@/lib/guest-session';
@@ -20,13 +19,13 @@ function toClient(row: typeof publicAgentShare.$inferSelect) {
 
 export async function GET(req: Request, { params }: Params) {
   const { id } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const [agentRow] = await db
     .select({ id: agent.id })
     .from(agent)
-    .where(and(eq(agent.id, id), eq(agent.userId, session.user.id)))
+    .where(and(eq(agent.id, id), eq(agent.userId, authResult.user.id)))
     .limit(1);
   if (!agentRow) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
@@ -41,13 +40,13 @@ export async function GET(req: Request, { params }: Params) {
 
 export async function POST(req: Request, { params }: Params) {
   const { id } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const [agentRow] = await db
     .select({ id: agent.id })
     .from(agent)
-    .where(and(eq(agent.id, id), eq(agent.userId, session.user.id)))
+    .where(and(eq(agent.id, id), eq(agent.userId, authResult.user.id)))
     .limit(1);
   if (!agentRow) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
@@ -113,13 +112,13 @@ export async function POST(req: Request, { params }: Params) {
 
 export async function DELETE(req: Request, { params }: Params) {
   const { id } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const [agentRow] = await db
     .select({ id: agent.id })
     .from(agent)
-    .where(and(eq(agent.id, id), eq(agent.userId, session.user.id)))
+    .where(and(eq(agent.id, id), eq(agent.userId, authResult.user.id)))
     .limit(1);
   if (!agentRow) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 

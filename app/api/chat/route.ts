@@ -7,7 +7,7 @@ import {
 } from 'ai';
 import { headers } from 'next/headers';
 import { and, count, eq, exists, isNull, or } from 'drizzle-orm';
-import { auth } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth-server';
 import { db } from '@/lib/db';
 import { agent, agentShare, brand, brandShare, chatThread, user as userTable, userPreferences } from '@/db/schema';
 import { availableModels, chatModel, maxSteps, isStrongModel } from '@/lib/ai';
@@ -78,11 +78,12 @@ export async function POST(req: Request) {
 
   try {
     // ── Stage 1: auth + body parse in parallel ───────────────────────────────
-    const [session, rawBody, requestHeaders] = await Promise.all([
-      headers().then((h) => auth.api.getSession({ headers: h })),
+    const [sessionUser, rawBody, requestHeaders] = await Promise.all([
+      getCurrentUser(),
       req.json(),
       headers(),
     ]);
+    const session = sessionUser ? { user: sessionUser } : null;
 
     // Guest session fallback when unauthenticated
     let guestSessionId: string | null = null;

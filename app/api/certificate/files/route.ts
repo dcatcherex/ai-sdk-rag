@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { and, eq } from 'drizzle-orm';
 import { certificateTemplate } from '@/db/schema';
-import { auth } from '@/lib/auth';
+import { getCurrentUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { downloadObject } from '@/lib/r2';
 
-async function getSessionUserId(): Promise<string | null> {
-  const session = await auth.api.getSession({ headers: await headers() });
-  return session?.user?.id ?? null;
+async function getSessionUserId() {
+  const user = await getCurrentUser();
+  return user?.id ?? null;
 }
 
 function getContentTypeFromKey(key: string) {

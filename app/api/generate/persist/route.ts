@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { toolRun } from '@/db/schema';
 import { persistToolRunOutputToStorage } from '@/lib/generation/persist-tool-run-output';
@@ -16,11 +16,8 @@ import { validateUrl } from '@/lib/security/ssrfProtection';
  *   - updateUrl:      Updates DB record with a permanent URL after client-side upload
  */
 export async function POST(req: NextRequest) {
-    const session = await auth.api.getSession({ headers: req.headers });
-    if (!session?.user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    const authResult = await requireUser();
+    if (!authResult.ok) return authResult.response;
     const body = await req.json();
     const { generationId, action, publicUrl } = body;
 
@@ -35,7 +32,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Generation not found' }, { status: 404 });
     }
 
-    if (record.userId !== session.user.id) {
+    if (record.userId !== authResult.user.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 

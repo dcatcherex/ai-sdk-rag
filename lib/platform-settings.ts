@@ -10,6 +10,8 @@ export type PlatformSettings = {
   requireEmailVerification: boolean;
   guestStarterAgentId: string | null;
   newUserStarterTemplateId: string | null;
+  // null = all models available platform-wide
+  adminEnabledModelIds: string[] | null;
 };
 
 const DEFAULTS: PlatformSettings = {
@@ -20,6 +22,7 @@ const DEFAULTS: PlatformSettings = {
   requireEmailVerification: true,
   guestStarterAgentId: null,
   newUserStarterTemplateId: null,
+  adminEnabledModelIds: null,
 };
 
 // Simple in-process cache — refreshes after 60 s
@@ -46,6 +49,7 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
         requireEmailVerification: rows[0].requireEmailVerification,
         guestStarterAgentId: rows[0].guestStarterAgentId,
         newUserStarterTemplateId: rows[0].newUserStarterTemplateId,
+        adminEnabledModelIds: rows[0].adminEnabledModelIds ?? null,
       }
     : { ...DEFAULTS };
 

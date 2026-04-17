@@ -10,11 +10,10 @@
  * Response:     PlanPreviewResponse
  */
 
-import { headers } from 'next/headers';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
 
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { agentTeam, agentTeamMember, agent } from '@/db/schema';
 import { generatePlan } from '@/features/agent-teams/server/orchestrator';
@@ -31,11 +30,8 @@ const requestSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
   let body: z.infer<typeof requestSchema>;
   try {
     body = requestSchema.parse(await req.json());
@@ -47,7 +43,7 @@ export async function POST(req: Request) {
   const [teamRow] = await db
     .select()
     .from(agentTeam)
-    .where(and(eq(agentTeam.id, body.teamId), eq(agentTeam.userId, session.user.id)))
+    .where(and(eq(agentTeam.id, body.teamId), eq(agentTeam.userId, authResult.user.id)))
     .limit(1);
 
   if (!teamRow) {

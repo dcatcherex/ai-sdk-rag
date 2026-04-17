@@ -1,6 +1,5 @@
-import { headers } from 'next/headers';
 import { eq, desc, sum } from 'drizzle-orm';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { tokenUsage } from '@/db/schema';
 
@@ -9,11 +8,8 @@ export async function GET(
   { params }: { params: Promise<{ threadId: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    const authResult = await requireUser();
+    if (!authResult.ok) return authResult.response;
     const { threadId } = await params;
 
     // Get all token usage records for this thread

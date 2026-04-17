@@ -1,6 +1,5 @@
-import { headers } from 'next/headers';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { updateModelScore } from '@/lib/model-scores';
 
 const voteSchema = z.object({
@@ -12,17 +11,14 @@ const voteSchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    const authResult = await requireUser();
+    if (!authResult.ok) return authResult.response;
     const { modelId, previousReaction, newReaction, persona } = voteSchema.parse(
       await req.json()
     );
 
     await updateModelScore({
-      userId: session.user.id,
+      userId: authResult.user.id,
       modelId,
       persona,
       previousReaction,

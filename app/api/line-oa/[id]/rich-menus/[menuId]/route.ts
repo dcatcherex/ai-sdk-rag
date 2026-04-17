@@ -1,8 +1,7 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { lineOaChannel, lineRichMenu } from '@/db/schema';
 import { deleteDeployedRichMenu } from '@/features/line-oa/webhook/rich-menu';
@@ -45,11 +44,11 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string; menuId: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { menuId } = await params;
-  const menu = await verifyOwnership(menuId, session.user.id);
+  const menu = await verifyOwnership(menuId, authResult.user.id);
   if (!menu) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const parsed = updateSchema.safeParse(await req.json());
@@ -85,13 +84,13 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string; menuId: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUser();
+  if (!authResult.ok) return authResult.response;
 
   const { menuId } = await params;
-  const menu = await verifyOwnership(menuId, session.user.id);
+  const menu = await verifyOwnership(menuId, authResult.user.id);
   if (!menu) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  await deleteDeployedRichMenu(menuId, session.user.id);
+  await deleteDeployedRichMenu(menuId, authResult.user.id);
   return new Response(null, { status: 204 });
 }

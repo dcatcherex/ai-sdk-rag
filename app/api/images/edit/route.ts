@@ -1,11 +1,10 @@
 import { generateImage } from 'ai';
 import { and, desc, eq } from 'drizzle-orm';
-import { headers } from 'next/headers';
 import sharp from 'sharp';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 
-import { auth } from '@/lib/auth';
+import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { chatMessage, chatThread, mediaAsset } from '@/db/schema';
 import { uploadPublicObject } from '@/lib/r2';
@@ -57,17 +56,14 @@ const fetchImageBuffer = async (url: string) => {
 
 export async function POST(req: Request) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    const authResult = await requireUser();
+    if (!authResult.ok) return authResult.response;
     const { threadId, sourceAssetId, prompt, maskDataUrl, model } = requestSchema.parse(await req.json());
 
     const [threadRow] = await db
       .select({ id: chatThread.id })
       .from(chatThread)
-      .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, session.user.id)))
+      .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, authResult.user.id)))
       .limit(1);
 
     if (!threadRow) {
@@ -88,7 +84,7 @@ export async function POST(req: Request) {
         and(
           eq(mediaAsset.id, sourceAssetId),
           eq(mediaAsset.threadId, threadId),
-          eq(mediaAsset.userId, session.user.id),
+          eq(mediaAsset.userId, authResult.user.id),
           eq(mediaAsset.type, 'image')
         )
       )
@@ -100,7 +96,7 @@ export async function POST(req: Request) {
 
     const modelId = model ?? 'openai/gpt-image-1.5';
     const creditCost = getCreditCost(modelId);
-    const currentBalance = await getUserBalance(session.user.id);
+    const currentBalance = await getUserBalance(authResult.user.id);
     if (currentBalance < creditCost) {
       return Response.json(
         {
@@ -188,7 +184,7 @@ export async function POST(req: Request) {
 
     await db.insert(mediaAsset).values({
       id: assetId,
-      userId: session.user.id,
+      userId: authResult.user.id,
       threadId,
       messageId,
       parentAssetId: sourceAsset.id,
@@ -215,7 +211,7 @@ export async function POST(req: Request) {
       .where(eq(chatThread.id, threadId));
 
     await deductCredits({
-      userId: session.user.id,
+      userId: authResult.user.id,
       amount: creditCost,
       description: `Image edit: ${modelId} (thread ${threadId})`,
     });
