@@ -12,9 +12,11 @@ export async function GET(_req: Request, context: Context) {
   const { token } = await context.params;
   const inviteHref = `/invite/${token}`;
   const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
-  const signInHref = `/sign-in?next=${encodeURIComponent(inviteHref)}`;
 
   const invite = await getAdminUserInviteByToken(token);
+  const signInHref = invite
+    ? `/sign-in?email=${encodeURIComponent(invite.email)}&next=${encodeURIComponent(inviteHref)}`
+    : `/sign-in?next=${encodeURIComponent(inviteHref)}`;
   if (!invite) {
     return NextResponse.redirect(new URL(signInHref, baseUrl));
   }
@@ -43,6 +45,6 @@ export async function GET(_req: Request, context: Context) {
     );
   }
 
-  const magicLinkPath = await generateServerMagicLink(invite.email, inviteHref);
+  const magicLinkPath = await generateServerMagicLink(invite.email, inviteHref, signInHref);
   return NextResponse.redirect(new URL(magicLinkPath, baseUrl));
 }
