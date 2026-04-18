@@ -539,6 +539,19 @@ ${latestAssistantImageParts.map((part, index) => `${index + 1}. ${part.url}`).jo
 IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or continue from the most recently generated image without attaching a new image, treat the image above as the reference image automatically. When calling the \`generate_image\` tool for that kind of follow-up, include these URL(s) in \`imageUrls\` instead of generating from scratch.`
         : '';
 
+    const userAttachedImageUrls = latestUserImageParts
+      .map((p) => p.url)
+      .filter((u) => u.startsWith('http'));
+    const userAttachedImagesBlock =
+      supportsTools && userAttachedImageUrls.length > 0
+        ? `\n\n<user_attached_images>
+The user has attached the following image(s) to their current message:
+${userAttachedImageUrls.map((url, index) => `${index + 1}. ${url}`).join('\n')}
+</user_attached_images>
+
+IMPORTANT: These are the exact URL(s) the user attached. If they want to generate, edit, or transform an image based on these attachments, you MUST include these URL(s) in the \`imageUrls\` parameter when calling \`generate_image\`. Do not omit \`imageUrls\` when the user has attached images.`
+        : '';
+
     const effectiveSystemPrompt = assembleSystemPrompt({
       base: baseSystemPrompt,
       conversationSummaryBlock,
@@ -551,7 +564,7 @@ IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or con
       examPrepBlock: examPrepToolInstructions,
       certBlock: certificateToolInstructions,
       quizContextBlock: supportsTools ? quizContextBlock : '',
-    }) + latestImageToolBlock;
+    }) + latestImageToolBlock + userAttachedImagesBlock;
 
     // When platform agent is active, expose platform management tools exclusively.
     // Platform tools must not bleed into regular agent or user tool sets.

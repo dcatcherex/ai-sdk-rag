@@ -209,13 +209,34 @@ export async function triggerImageGeneration(
   const apiKey = getKieApiKey();
   if (!apiKey) throw new Error('KIE_API_KEY is not configured');
 
+  const hasReferenceImages = (params.imageUrls?.length ?? 0) > 0;
+
+  // Auto-upgrade text-to-image models to their image-to-image counterpart when
+  // reference images are present. Prevents silent fallback to text-only generation.
+  const TEXT_TO_IMAGE_UPGRADES: Record<string, string> = {
+    'grok-imagine/text-to-image':    'grok-imagine/image-to-image',
+    'gpt-image/1.5-text-to-image':   'gpt-image/1.5-image-to-image',
+    'seedream/5-lite-text-to-image':  'seedream/5-lite-image-to-image',
+    'qwen2/text-to-image':            'qwen2/image-edit',
+    'qwen/text-to-image':             'qwen/image-edit',
+    'google/nano-banana':             'google/nano-banana-edit',
+  };
+  const resolvedModelId = hasReferenceImages && params.modelId in TEXT_TO_IMAGE_UPGRADES
+    ? TEXT_TO_IMAGE_UPGRADES[params.modelId]!
+    : params.modelId;
+
+  const effectiveParams = resolvedModelId !== params.modelId
+    ? { ...params, modelId: resolvedModelId }
+    : params;
+
   console.log('[IMG-URL-TRACE] triggerImageGeneration called', {
     modelId: params.modelId,
+    resolvedModelId,
     imageUrls: params.imageUrls?.map(u => u.substring(0, 80)),
   });
 
-  const sanitizedEnablePro = params.modelId.startsWith('grok-imagine/')
-    ? params.enablePro
+  const sanitizedEnablePro = resolvedModelId.startsWith('grok-imagine/')
+    ? effectiveParams.enablePro
     : undefined;
 
   // Normalize reference images to stable R2 URLs when possible.
@@ -285,9 +306,9 @@ export async function triggerImageGeneration(
   const callbackUrl = buildKieCallbackUrl();
   const { taskId } = await createKieImageTask(
     {
-      ...params,
+      ...effectiveParams,
       enablePro: sanitizedEnablePro,
-      imageUrls: resolvedImageUrls ?? params.imageUrls,
+      imageUrls: resolvedImageUrls ?? effectiveParams.imageUrls,
     },
     apiKey,
     callbackUrl,
@@ -299,8 +320,8 @@ export async function triggerImageGeneration(
     threadId: options?.threadId,
     source: options?.source,
     inputJson: {
-      prompt: params.prompt,
-      modelId: params.modelId,
+      prompt: effectiveParams.prompt,
+      modelId: resolvedModelId,
       kieTaskId: taskId,
       kieProvider: 'kie',
       callbackUrl,
@@ -323,7 +344,7 @@ export async function triggerImageGeneration(
   console.info('[image] generation_started', {
     generationId,
     taskId,
-    modelId: params.modelId,
+    modelId: resolvedModelId,
     threadId: options?.threadId ?? null,
     source: options?.source ?? 'api',
     hasReferenceImages: (resolvedImageUrls?.length ?? 0) > 0,

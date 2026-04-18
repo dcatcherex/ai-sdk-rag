@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { AudioLinesIcon, Volume2Icon, VolumeXIcon } from 'lucide-react';
 import {
   PromptInputSubmit,
+  usePromptInputAttachments,
   usePromptInputController,
 } from '@/components/ai-elements/prompt-input';
 import { SpeechInput } from '@/components/ai-elements/speech-input';
@@ -36,6 +37,7 @@ export const ComposerActionButtons = ({
   onTranscriptionChange,
 }: ComposerActionButtonsProps) => {
   const { textInput } = usePromptInputController();
+  const { anyUploading } = usePromptInputAttachments();
   const [isDictating, setIsDictating] = useState(false);
   const isEmpty = textInput.value.trim() === '';
   const isGenerating = status === 'submitted' || status === 'streaming';
@@ -135,7 +137,7 @@ export const ComposerActionButtons = ({
           <AudioLinesIcon className="size-4" />
         </button>
       ) : (
-        <PromptInputSubmit onStop={onStop} status={status} />
+        <PromptInputSubmit onStop={onStop} status={status} disabled={anyUploading || undefined} />
       )}
     </div>
   );

@@ -6,6 +6,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import type { FileUIPart, SourceDocumentUIPart } from "ai";
 import {
@@ -25,7 +26,7 @@ import { createContext, useContext, useMemo } from "react";
 // ============================================================================
 
 export type AttachmentData =
-  | (FileUIPart & { id: string })
+  | (FileUIPart & { id: string; uploading?: boolean })
   | (SourceDocumentUIPart & { id: string });
 
 export type AttachmentMediaCategory =
@@ -207,6 +208,7 @@ export const AttachmentPreview = ({
   ...props
 }: AttachmentPreviewProps) => {
   const { data, mediaCategory, variant } = useAttachmentContext();
+  const uploading = data.type === "file" && (data as { uploading?: boolean }).uploading === true;
 
   const iconSize = variant === "inline" ? "size-3" : "size-4";
 
@@ -262,7 +264,7 @@ export const AttachmentPreview = ({
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center justify-center overflow-hidden",
+        "relative flex shrink-0 items-center justify-center overflow-hidden",
         variant === "grid" && "size-full bg-muted",
         variant === "inline" && "size-5 rounded bg-background",
         variant === "list" && "size-12 rounded bg-muted",
@@ -271,6 +273,11 @@ export const AttachmentPreview = ({
       {...props}
     >
       {renderContent()}
+      {uploading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+          <Spinner className="size-4 text-white" />
+        </div>
+      )}
     </div>
   );
 };

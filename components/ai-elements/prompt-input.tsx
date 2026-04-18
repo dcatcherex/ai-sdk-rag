@@ -70,13 +70,16 @@ import {
 // Provider Context & Types
 // ============================================================================
 
+export type AttachmentFileEntry = FileUIPart & { id: string; uploading?: boolean };
+
 export interface AttachmentsContext {
-  files: (FileUIPart & { id: string })[];
+  files: AttachmentFileEntry[];
   add: (files: File[] | FileList) => void;
   remove: (id: string) => void;
   clear: () => void;
   openFileDialog: () => void;
   fileInputRef: RefObject<HTMLInputElement | null>;
+  anyUploading: boolean;
 }
 
 export interface TextInputContext {
@@ -146,47 +149,72 @@ export function PromptInputProvider({
   const clearInput = useCallback(() => setTextInput(""), []);
 
   // ----- attachments state (global when wrapped)
-  const [attachmentFiles, setAttachmentFiles] = useState<
-    (FileUIPart & { id: string })[]
-  >([]);
+  const [attachmentFiles, setAttachmentFiles] = useState<AttachmentFileEntry[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const openRef = useRef<() => void>(() => undefined);
+  const uploadControllers = useRef<Map<string, AbortController>>(new Map());
 
   const add = useCallback((files: File[] | FileList) => {
     const incoming = Array.from(files);
-    if (incoming.length === 0) {
-      return;
-    }
+    if (incoming.length === 0) return;
 
-    setAttachmentFiles((prev) =>
-      prev.concat(
-        incoming.map((file) => ({
-          id: nanoid(),
-          type: "file" as const,
-          url: URL.createObjectURL(file),
-          mediaType: file.type,
-          filename: file.name,
-        }))
-      )
-    );
+    const placeholders: AttachmentFileEntry[] = incoming.map((file) => ({
+      id: nanoid(),
+      type: "file" as const,
+      url: URL.createObjectURL(file),
+      mediaType: file.type,
+      filename: file.name,
+      uploading: true,
+    }));
+
+    setAttachmentFiles((prev) => prev.concat(placeholders));
+
+    placeholders.forEach((placeholder, i) => {
+      const file = incoming[i]!;
+      const controller = new AbortController();
+      uploadControllers.current.set(placeholder.id, controller);
+
+      const body = new FormData();
+      body.append("file", file);
+
+      fetch("/api/chat/upload-image", { method: "POST", body, signal: controller.signal })
+        .then(async (res) => {
+          if (!res.ok) throw new Error("Upload failed");
+          const { url } = (await res.json()) as { url: string };
+          URL.revokeObjectURL(placeholder.url);
+          setAttachmentFiles((prev) =>
+            prev.map((f) => (f.id === placeholder.id ? { ...f, url, uploading: false } : f))
+          );
+        })
+        .catch((err: unknown) => {
+          if (err instanceof Error && err.name === "AbortError") return;
+          // Keep the blob URL as fallback — data-URL conversion at submit time will handle it
+          setAttachmentFiles((prev) =>
+            prev.map((f) => (f.id === placeholder.id ? { ...f, uploading: false } : f))
+          );
+        })
+        .finally(() => {
+          uploadControllers.current.delete(placeholder.id);
+        });
+    });
   }, []);
 
   const remove = useCallback((id: string) => {
+    uploadControllers.current.get(id)?.abort();
+    uploadControllers.current.delete(id);
     setAttachmentFiles((prev) => {
       const found = prev.find((f) => f.id === id);
-      if (found?.url) {
-        URL.revokeObjectURL(found.url);
-      }
+      if (found?.url) URL.revokeObjectURL(found.url);
       return prev.filter((f) => f.id !== id);
     });
   }, []);
 
   const clear = useCallback(() => {
+    uploadControllers.current.forEach((ctrl) => ctrl.abort());
+    uploadControllers.current.clear();
     setAttachmentFiles((prev) => {
       for (const f of prev) {
-        if (f.url) {
-          URL.revokeObjectURL(f.url);
-        }
+        if (f.url) URL.revokeObjectURL(f.url);
       }
       return [];
     });
@@ -196,13 +224,12 @@ export function PromptInputProvider({
   const attachmentsRef = useRef(attachmentFiles);
   attachmentsRef.current = attachmentFiles;
 
-  // Cleanup blob URLs on unmount to prevent memory leaks
+  // Cleanup blob URLs and pending uploads on unmount
   useEffect(
     () => () => {
+      uploadControllers.current.forEach((ctrl) => ctrl.abort());
       for (const f of attachmentsRef.current) {
-        if (f.url) {
-          URL.revokeObjectURL(f.url);
-        }
+        if (f.url) URL.revokeObjectURL(f.url);
       }
     },
     []
@@ -220,6 +247,7 @@ export function PromptInputProvider({
       clear,
       openFileDialog,
       fileInputRef,
+      anyUploading: attachmentFiles.some((f) => f.uploading === true),
     }),
     [attachmentFiles, add, remove, clear, openFileDialog]
   );
@@ -668,6 +696,7 @@ export const PromptInput = ({
       clear: clearAttachments,
       openFileDialog,
       fileInputRef: inputRef,
+      anyUploading: false,
     }),
     [files, add, remove, clearAttachments, openFileDialog]
   );

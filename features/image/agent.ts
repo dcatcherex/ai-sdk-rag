@@ -39,7 +39,9 @@ export function createImageAgentTools(ctx: Pick<AgentToolContext, 'userId' | 'th
         'Generate or edit an image using KIE AI models (Nano Banana 2, GPT Image 1.5, Qwen Z-Image, Grok Imagine, etc.). ' +
         'For best results include: subject, composition, action, location, and style in the prompt. ' +
         'Starts the generation asynchronously. The chat UI will show a waiting state, then display the final image inline when it is ready. ' +
-        'Use this when the user asks to create, draw, generate, or edit an image.',
+        'Use this when the user asks to create, draw, generate, or edit an image. ' +
+        'IMPORTANT: If the result contains errorType "reference_image_inaccessible", do NOT retry without the image. ' +
+        'Instead stop and ask the user: do they want to re-upload the image, or proceed with text-only generation?',
       inputSchema: z.object({
         prompt: z.string().min(1).describe('Detailed image description. Include subject, style, composition, location.'),
         modelId: z.enum(imageAgentModelIds).optional().describe('Model to use. Leave unset to use the platform default.'),
@@ -80,19 +82,34 @@ export function createImageAgentTools(ctx: Pick<AgentToolContext, 'userId' | 'th
                 : url
             )
           : params.imageUrls;
-        const { taskId, generationId } = await triggerImageGeneration(
-          { ...params, modelId, enablePro, imageUrls: sanitizedImageUrls, promptTitle: params.prompt.substring(0, 50) },
-          userId,
-          { threadId, source: source ?? 'agent', referenceImageUrls },
-        );
-        return {
-          started: true,
-          status: 'processing' as const,
-          taskId,
-          generationId,
-          startedAt: new Date().toISOString(),
-          message: 'Image generation started. The image will appear in this chat when it is ready.',
-        };
+
+        try {
+          const { taskId, generationId } = await triggerImageGeneration(
+            { ...params, modelId, enablePro, imageUrls: sanitizedImageUrls, promptTitle: params.prompt.substring(0, 50) },
+            userId,
+            { threadId, source: source ?? 'agent', referenceImageUrls },
+          );
+          return {
+            started: true,
+            status: 'processing' as const,
+            taskId,
+            generationId,
+            startedAt: new Date().toISOString(),
+            message: 'Image generation started. The image will appear in this chat when it is ready.',
+          };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Unknown error';
+          const isRefImageError = message.includes('Reference image') || message.includes('no longer accessible') || message.includes('re-upload');
+          if (isRefImageError) {
+            return {
+              error: true,
+              errorType: 'reference_image_inaccessible' as const,
+              message,
+              instruction: 'STOP. Do not retry without the reference image. Inform the user that the reference image could not be loaded, then ask: do they want to re-upload the image, or proceed with text-only generation using just the prompt description?',
+            };
+          }
+          throw err;
+        }
       },
     }),
   };
