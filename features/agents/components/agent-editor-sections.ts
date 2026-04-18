@@ -2,6 +2,7 @@ import {
   BlocksIcon,
   BookOpenIcon,
   BotIcon,
+  EyeIcon,
   PlugIcon,
   Settings2Icon,
   ShieldIcon,
@@ -9,7 +10,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-export type AgentEditorSectionId = 'general' | 'behavior' | 'skills' | 'knowledge' | 'tools' | 'mcp' | 'sharing';
+export type AgentEditorSectionId = 'general' | 'behavior' | 'skills' | 'knowledge' | 'tools' | 'mcp' | 'sharing' | 'preview';
 
 export type AgentEditorSection = {
   id: AgentEditorSectionId;
@@ -60,5 +61,11 @@ export const AGENT_EDITOR_SECTIONS: AgentEditorSection[] = [
     icon: ShieldIcon,
     label: 'Sharing',
     description: 'Control who can access this agent and how it is shared.',
+  },
+  {
+    id: 'preview',
+    icon: EyeIcon,
+    label: 'Preview Prompt',
+    description: 'See the fully assembled system prompt the model receives, including injected skills and context blocks.',
   },
 ];

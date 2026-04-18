@@ -23,6 +23,7 @@ import { AgentSharingSection } from './agent-sharing-section';
 import { AgentSkillsSection } from './agent-skills-section';
 import { AgentToolsSection } from './agent-tools-section';
 import { AgentMcpSection } from './agent-mcp-section';
+import { AgentPromptPreviewSection } from './agent-prompt-preview-section';
 import { AGENT_EDITOR_SECTIONS, type AgentEditorSection, type AgentEditorSectionId } from './agent-editor-sections';
 import type { Agent, AgentWithSharing, CreateAgentInput, McpServerConfig, SharedUser } from '../types';
 
@@ -562,6 +563,13 @@ export function AgentForm({
     tools: toolsSection,
     mcp: mcpSection,
     sharing: sharingSection,
+    preview: (
+      <AgentPromptPreviewSection
+        agentId={agent?.id}
+        skillIds={skillAttachments.filter((a) => a.isEnabled !== false).map((a) => a.skillId)}
+        enabledTools={enabledTools}
+      />
+    ),
   };
   for (const section of customSections ?? []) {
     panelSectionContent[section.id] = section.content;

@@ -6,8 +6,9 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks/clerk",
-  // LINE OA webhook verifies its own signature — must not be Clerk-protected
+  // LINE OA webhooks verify their own signature — must not be Clerk-protected
   "/api/line/webhook",
+  "/api/line/(.*)",
   // Public agent share routes
   "/agent/(.*)",
   "/api/agents/(.*)/public-share",

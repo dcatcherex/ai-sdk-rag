@@ -12,7 +12,8 @@
       "Bash(python -c \"import json,sys; j=json.load\\(sys.stdin\\); print\\(j[''''entries''''][-1]\\)\")",
       "Bash(python3 -c ':*)",
       "Bash(python -c ':*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(pnpm build *)"
     ]
   },
   "enabledPlugins": {
