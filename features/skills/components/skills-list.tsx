@@ -5,7 +5,6 @@ import {
   DownloadIcon,
   EyeIcon,
   GlobeIcon,
-  LinkIcon,
   PlusIcon,
   SparklesIcon,
 } from 'lucide-react';
@@ -34,7 +33,8 @@ import {
   useUseSkillTemplate,
 } from '../hooks/use-skills';
 import { SkillEditorPanel } from './skill-editor-panel';
-import { SkillImportDialog } from './skill-import-dialog';
+import { SkillImportButton } from './skill-import-button';
+import { SkillExportButton } from './skill-export-button';
 import { SkillDetailDialog } from './skill-detail-dialog';
 import type { CreateSkillInput, Skill } from '../types';
 
@@ -53,7 +53,6 @@ export const SkillsList = () => {
   const [editTarget, setEditTarget] = useState<Skill | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Skill | null>(null);
   const [detailTarget, setDetailTarget] = useState<Skill | null>(null);
-  const [importOpen, setImportOpen] = useState(false);
 
   const skills = data?.skills ?? [];
   const mySkills = data?.mine ?? skills.filter((s) => s.userId === currentUserId);
@@ -130,15 +129,7 @@ export const SkillsList = () => {
         description="เพิ่ม skills เพื่อให้ Vaja และ AI coworker เข้าใจงานเฉพาะทางของคุณมากขึ้น"
         action={(
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => setImportOpen(true)}
-            >
-              <LinkIcon className="size-4" />
-              นำเข้าจาก GitHub
-            </Button>
+            <SkillImportButton />
             <Button onClick={openCreate} size="sm" className="gap-1.5">
               <PlusIcon className="size-4" />
               สร้าง skill
@@ -244,8 +235,6 @@ export const SkillsList = () => {
         </DialogContent>
       </Dialog>
 
-      <SkillImportDialog open={importOpen} onOpenChange={setImportOpen} />
-
       <SkillDetailDialog
         skill={detailTarget}
         sourceTemplate={
@@ -349,7 +338,18 @@ const SkillGrid = ({
           className={!isOwner && isTemplateCatalog && installingId === skill.id ? 'pointer-events-none opacity-70' : undefined}
           footer={
             isOwner
-              ? undefined
+              ? (
+                <div className="flex gap-1.5">
+                  <SkillExportButton
+                    skillId={skill.id}
+                    skillName={skill.name}
+                    variant="ghost"
+                    size="sm"
+                    label="Export"
+                    iconOnly={false}
+                  />
+                </div>
+              )
               : (isTemplateCatalog ? undefined : (
                 <div className="flex gap-2">
                   <Button

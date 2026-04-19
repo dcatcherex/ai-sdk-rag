@@ -34,6 +34,8 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { ImageUploadZone } from '@/components/ui/image-upload-zone';
 import { SKILL_CATEGORY_LABELS, SKILL_CATEGORY_OPTIONS } from '@/features/skills/categories';
+import { SkillImportButton } from '@/features/skills/components/skill-import-button';
+import { SkillExportButton } from '@/features/skills/components/skill-export-button';
 
 type AdminSkill = {
   id: string;
@@ -260,10 +262,13 @@ export default function AdminSkillsPage() {
             Manage official starter skills, publish them to the essentials catalog, and define how strictly they stay managed.
           </p>
         </div>
-        <Button className="gap-2" onClick={openCreate}>
-          <PlusIcon className="size-4" />
-          New template
-        </Button>
+        <div className="flex gap-2">
+          <SkillImportButton label="Import Skill" />
+          <Button className="gap-2" onClick={openCreate}>
+            <PlusIcon className="size-4" />
+            New template
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -319,6 +324,7 @@ export default function AdminSkillsPage() {
                   ) : null}
                 </div>
                 <div className="flex shrink-0 gap-2">
+                  <SkillExportButton skillId={skill.id} skillName={skill.name} />
                   <Button variant="outline" size="sm" className="gap-1.5" onClick={() => openEdit(skill)}>
                     <PencilIcon className="size-3.5" />
                     Edit
