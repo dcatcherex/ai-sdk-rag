@@ -1,3 +1,4 @@
+import { after } from 'next/server';
 import { and, eq } from 'drizzle-orm';
 import { messagingApi, validateSignature } from '@line/bot-sdk';
 import { db } from '@/lib/db';
@@ -62,6 +63,18 @@ export async function POST(
     events: WebhookEvent[];
   };
 
+  // Return 200 immediately — LINE has a short timeout for webhook verification.
+  // All event processing runs after the response via after().
+  after(() => processEvents(body, channel));
+  return new Response('OK', { status: 200 });
+}
+
+async function processEvents(
+  body: { destination: string; events: WebhookEvent[] },
+  channel: typeof lineOaChannel.$inferSelect,
+) {
+  if (body.events.length === 0) return;
+
   // 5. Load agent config, then brand logo sequentially (logo depends on agentId)
   const agentRow: AgentRow = channel.agentId
     ? ((await db.select().from(agent).where(eq(agent.id, channel.agentId)).limit(1))[0] as AgentRow) ?? null
@@ -80,9 +93,9 @@ export async function POST(
   const systemPrompt = agentRow?.systemPrompt ?? getSystemPrompt();
   const modelId = agentRow?.modelId ?? chatModel;
 
-  // ② Sender shown on every message bubble
+  // ② Sender shown on every message bubble (LINE limits sender.name to 20 chars)
   const sender: Sender | undefined = agentRow?.name
-    ? { name: agentRow.name, ...(brandLogoUrl ? { iconUrl: brandLogoUrl } : {}) }
+    ? { name: agentRow.name.slice(0, 20), ...(brandLogoUrl ? { iconUrl: brandLogoUrl } : {}) }
     : undefined;
 
   // 6. Initialise LINE client
@@ -176,7 +189,7 @@ export async function POST(
             effectiveSystemPrompt = userAgent.systemPrompt ?? getSystemPrompt();
             effectiveModelId = userAgent.modelId ?? chatModel;
             effectiveSender = userAgent.name
-              ? { name: userAgent.name }
+              ? { name: userAgent.name.slice(0, 20) }
               : undefined;
           }
         }
@@ -245,6 +258,4 @@ export async function POST(
       console.error('[LINE webhook] Error processing event:', eventError);
     }
   }
-
-  return new Response('OK', { status: 200 });
 }
