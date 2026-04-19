@@ -201,7 +201,7 @@ export function RichMenuEditor({ open, menu, onClose, onSubmit, isPending }: Pro
               const canvasW = Math.max(...areas.map((a) => a.bounds!.x + a.bounds!.width));
               const canvasH = Math.max(...areas.map((a) => a.bounds!.y + a.bounds!.height));
               return (
-                <div className="rounded-lg overflow-hidden border relative w-full" style={{ aspectRatio: `${canvasW} / ${canvasH}`, maxHeight: 120 }}>
+                <div className="rounded-lg overflow-hidden border relative w-full" style={{ aspectRatio: `${canvasW} / ${canvasH}` }}>
                   {areas.map((area, i) => (
                     <div
                       key={i}
