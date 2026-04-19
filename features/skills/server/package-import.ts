@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { readFile, readdir, stat } from 'node:fs/promises';
+import { join, relative, resolve } from 'node:path';
 import type { SkillFileKind, SkillPackageManifest, SkillTriggerType } from '../types';
 import { buildPackageManifest, guessSkillFileMediaType, inferSkillFileKind, normalizeReferencedPath } from './package-manifest';
 import { parseSkillMarkdown } from './parser';
@@ -336,4 +338,109 @@ function encodePath(path: string): string {
     .split('/')
     .map((segment) => encodeURIComponent(segment))
     .join('/');
+}
+
+// ── Local path loader ─────────────────────────────────────────────────────────
+
+export type LocalSkillSource = {
+  sourceType: 'local_path';
+  canonicalUrl: string;
+  sourceUrl: string;
+  localPath: string;
+  entryFilePath: string;
+};
+
+export type LocalImportedSkillPackage = {
+  source: LocalSkillSource;
+  files: ImportedSkillFile[];
+  parsed: ReturnType<typeof parseSkillMarkdown>;
+  manifest: SkillPackageManifest;
+};
+
+export async function loadSkillPackageFromLocalPath(inputPath: string): Promise<LocalImportedSkillPackage> {
+  const absolutePath = resolve(inputPath);
+  const stats = await stat(absolutePath).catch(() => {
+    throw new Error(`Path not found: ${absolutePath}`);
+  });
+
+  let skillDir: string;
+  let entryFilePath: string;
+
+  if (stats.isDirectory()) {
+    skillDir = absolutePath;
+    entryFilePath = 'SKILL.md';
+  } else {
+    skillDir = join(absolutePath, '..');
+    entryFilePath = absolutePath.slice(skillDir.length + 1).replace(/\\/g, '/');
+  }
+
+  const source: LocalSkillSource = {
+    sourceType: 'local_path',
+    canonicalUrl: `local://${absolutePath.replace(/\\/g, '/')}`,
+    sourceUrl: inputPath,
+    localPath: absolutePath,
+    entryFilePath,
+  };
+
+  const files = await collectLocalFiles(skillDir, skillDir);
+
+  if (files.length === 0) {
+    throw new Error('No supported skill files found at the given path');
+  }
+
+  const skillFile = files.find((f) => f.relativePath === entryFilePath);
+  if (!skillFile?.textContent) {
+    throw new Error(`Could not find ${entryFilePath} in ${skillDir}`);
+  }
+
+  const parsed = parseSkillMarkdown(skillFile.textContent);
+  const manifest = buildPackageManifest(files, { repo: 'local', repoRef: 'local', subdirPath: '' });
+
+  return { source, files, parsed, manifest };
+}
+
+async function collectLocalFiles(baseDir: string, currentDir: string): Promise<ImportedSkillFile[]> {
+  const entries = await readdir(currentDir, { withFileTypes: true });
+  const files: ImportedSkillFile[] = [];
+
+  for (const entry of entries) {
+    const fullPath = join(currentDir, entry.name);
+    const relativePath = relative(baseDir, fullPath).replace(/\\/g, '/');
+
+    const topLevel = relativePath.split('/')[0] ?? '';
+    if (IGNORED_TOP_LEVEL_DIRS.has(topLevel)) continue;
+    if (!normalizeReferencedPath(relativePath)) continue;
+
+    if (entry.isDirectory()) {
+      const nested = await collectLocalFiles(baseDir, fullPath);
+      files.push(...nested);
+      continue;
+    }
+
+    const extension = entry.name.split('.').pop()?.toLowerCase() ?? '';
+    const isText = TEXT_FILE_EXTENSIONS.has(extension);
+    let textContent: string | null = null;
+    let checksum: string | null = null;
+    let sizeBytes: number | null = null;
+
+    if (isText) {
+      const raw = await readFile(fullPath);
+      sizeBytes = raw.byteLength;
+      if (sizeBytes <= MAX_TEXT_FILE_BYTES) {
+        textContent = raw.toString('utf-8');
+        checksum = createHash('sha256').update(textContent).digest('hex');
+      }
+    } else {
+      const info = await stat(fullPath);
+      sizeBytes = info.size;
+    }
+
+    const fileKind = inferSkillFileKind(relativePath, 'SKILL.md');
+    const mediaType = guessSkillFileMediaType(relativePath);
+
+    files.push({ relativePath, fileKind, mediaType, textContent, sizeBytes, checksum });
+  }
+
+  files.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+  return files;
 }

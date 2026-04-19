@@ -19,6 +19,7 @@ export {
   deleteSkill,
   installSkill,
   importSkillFromUrl,
+  importSkillFromLocalPath,
 } from './server/mutations';
 
 export {

@@ -20,7 +20,7 @@ export function createBrandProfileAgentTools(
   return {
     get_brand_profile: tool({
       description:
-        'Retrieve the stored brand profile for this user. Call this FIRST before generating any marketing or content output. If required fields are missing (brand_name, products, tone, target_audience), ask the user for them one at a time and save each answer with save_brand_profile.',
+        'Retrieve the stored brand profile for this user. Call this FIRST before generating any marketing or content output. If required fields are missing (products, tone), ask the user for them one at a time and save each answer with save_brand_profile before proceeding.',
       inputSchema: getBrandProfileInputSchema,
       async execute(input) {
         return { success: true, ...(await runGetBrandProfile(input, brandCtx)) };

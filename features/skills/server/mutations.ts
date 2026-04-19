@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { db } from '@/lib/db';
 import { agentSkill, agentSkillFile, skillSource } from '@/db/schema';
-import { fetchLatestGitHubCommitSha, loadSkillPackageFromUrl } from './package-import';
+import { fetchLatestGitHubCommitSha, loadSkillPackageFromLocalPath, loadSkillPackageFromUrl } from './package-import';
 import { buildCreatedSkillFiles } from './package-files';
 import { buildPackageManifest } from './package-manifest';
 import { mapSkillRow, normaliseTrigger } from './shared';
@@ -170,6 +170,100 @@ export async function installSkill(userId: string, skillId: string): Promise<Ski
       sourceFiles.map((file) => ({
         id: nanoid(),
         skillId: cloneId,
+        relativePath: file.relativePath,
+        fileKind: file.fileKind,
+        mediaType: file.mediaType,
+        textContent: file.textContent,
+        sizeBytes: file.sizeBytes,
+        checksum: file.checksum,
+        createdAt: now,
+        updatedAt: now,
+      })),
+    );
+  }
+
+  return mapSkillRow(row!);
+}
+
+export async function importSkillFromLocalPath(
+  userId: string,
+  localPath: string,
+): Promise<Skill> {
+  const importedPackage = await loadSkillPackageFromLocalPath(localPath);
+  const now = new Date();
+
+  let sourceId: string;
+  const [existingSource] = await db
+    .select()
+    .from(skillSource)
+    .where(eq(skillSource.canonicalUrl, importedPackage.source.canonicalUrl))
+    .limit(1);
+
+  if (existingSource) {
+    sourceId = existingSource.id;
+  } else {
+    sourceId = nanoid();
+    await db.insert(skillSource).values({
+      id: sourceId,
+      sourceType: importedPackage.source.sourceType,
+      canonicalUrl: importedPackage.source.canonicalUrl,
+      repoOwner: null,
+      repoName: null,
+      repoRef: null,
+      subdirPath: null,
+      defaultEntryPath: importedPackage.source.entryFilePath,
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+
+    const [resolvedSource] = await db
+      .select()
+      .from(skillSource)
+      .where(eq(skillSource.canonicalUrl, importedPackage.source.canonicalUrl))
+      .limit(1);
+
+    if (!resolvedSource) throw new Error('Failed to resolve imported skill source');
+    sourceId = resolvedSource.id;
+  }
+
+  const skillId = nanoid();
+  const [row] = await db
+    .insert(agentSkill)
+    .values({
+      id: skillId,
+      userId,
+      name: importedPackage.parsed.name,
+      category: null,
+      description: importedPackage.parsed.description ?? `Imported skill: ${importedPackage.parsed.name}`,
+      triggerType: importedPackage.parsed.triggerType,
+      trigger: normaliseTrigger(importedPackage.parsed.triggerType, importedPackage.parsed.trigger),
+      promptFragment: importedPackage.parsed.body,
+      enabledTools: importedPackage.parsed.enabledTools,
+      sourceUrl: importedPackage.source.sourceUrl,
+      sourceId,
+      skillKind: 'package',
+      activationMode: 'rule',
+      entryFilePath: importedPackage.source.entryFilePath,
+      installedRef: null,
+      installedCommitSha: null,
+      upstreamCommitSha: null,
+      syncStatus: 'local',
+      pinnedToInstalledVersion: false,
+      hasBundledFiles: importedPackage.files.some((f) => f.relativePath !== importedPackage.source.entryFilePath),
+      packageManifest: importedPackage.manifest,
+      lastSyncCheckedAt: now,
+      lastSyncedAt: now,
+      isPublic: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning();
+
+  if (importedPackage.files.length > 0) {
+    await db.insert(agentSkillFile).values(
+      importedPackage.files.map((file) => ({
+        id: nanoid(),
+        skillId,
         relativePath: file.relativePath,
         fileKind: file.fileKind,
         mediaType: file.mediaType,
