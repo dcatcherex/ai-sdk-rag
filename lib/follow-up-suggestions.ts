@@ -1,24 +1,42 @@
 import { generateText } from 'ai';
 
-const SUGGEST_MODEL = 'google/gemini-2.5-flash-lite';
+const DEFAULT_MODEL = 'google/gemini-2.5-flash-lite';
+const DEFAULT_MAX_CHARS = 60;
 
-const SUGGEST_SYSTEM = `You are a conversation assistant. Your only job is to generate follow-up questions.
+function buildSystemPrompt(maxChars: number, languageHint?: string): string {
+  const langRule = languageHint
+    ? `- Reply in ${languageHint}.\n`
+    : `- Reply in the same language as the conversation.\n`;
+
+  return `You are a conversation assistant. Your only job is to generate follow-up questions.
 
 Rules:
 - Return ONLY a JSON array of exactly 3 strings.
-- Each question must be ≤60 characters.
-- Questions must be specific to the conversation, not generic.
+- Each question must be ≤${maxChars} characters.
+${langRule}- Questions must be specific to the conversation, not generic.
 - Make questions that logically extend the last exchange.
 - No explanations, no preamble — only the raw JSON array.
 - Example output: ["How does caching affect this?", "Can you show a TypeScript example?", "What are the trade-offs?"]`;
+}
+
+export type FollowUpOptions = {
+  model?: string;
+  maxChars?: number;
+  languageHint?: string;
+};
 
 export async function generateFollowUpSuggestions(
-  conversationContext: string
+  conversationContext: string,
+  options: FollowUpOptions = {},
 ): Promise<string[]> {
+  const model = options.model ?? DEFAULT_MODEL;
+  const maxChars = options.maxChars ?? DEFAULT_MAX_CHARS;
+
   try {
     const { text } = await generateText({
-      model: SUGGEST_MODEL,
-      system: SUGGEST_SYSTEM,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      model: model as any,
+      system: buildSystemPrompt(maxChars, options.languageHint),
       prompt: `Conversation so far:\n${conversationContext}\n\nGenerate 3 follow-up questions as a JSON array:`,
     });
 
@@ -30,7 +48,7 @@ export async function generateFollowUpSuggestions(
 
     return parsed
       .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
-      .map((item) => item.trim().slice(0, 60))
+      .map((item) => item.trim().slice(0, maxChars))
       .slice(0, 3);
   } catch (error) {
     console.error('Follow-up suggestion generation failed:', error);

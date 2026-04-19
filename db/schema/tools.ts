@@ -96,3 +96,18 @@ export const workspaceAiRunRelations = relations(workspaceAiRun, ({ one }) => ({
 export const toolArtifactRelations = relations(toolArtifact, ({ one }) => ({
   toolRun: one(toolRun, { fields: [toolArtifact.toolRunId], references: [toolRun.id] }),
 }));
+
+// ── Brand Profile (persistent brand guidelines per user or LINE user) ─────────
+
+export const brandProfile = pgTable("brand_profile", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+  lineUserId: text("line_user_id"),
+  channelId: text("channel_id"),
+  field: text("field").notNull(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("brand_profile_userId_idx").on(table.userId),
+  index("brand_profile_lineUserId_channelId_idx").on(table.lineUserId, table.channelId),
+]);

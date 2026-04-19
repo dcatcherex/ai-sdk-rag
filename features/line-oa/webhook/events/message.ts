@@ -3,7 +3,7 @@ import { asc, eq } from 'drizzle-orm';
 import { messagingApi } from '@line/bot-sdk';
 import { db } from '@/lib/db';
 import { chatMessage, chatThread, userPreferences } from '@/db/schema';
-import { generateFollowUpSuggestions } from '@/lib/follow-up-suggestions';
+import { generateLineFollowUpSuggestions as generateFollowUpSuggestions } from '../utils/follow-up-suggestions';
 import {
   getUserMemoryContext,
   getLineUserMemoryContext,
@@ -25,6 +25,7 @@ import { CREDIT_PACKAGES, formatPackageMenu } from '@/features/line-oa/payment/p
 import { uploadPublicObject } from '@/lib/r2';
 import { buildContentMarketingLineTools } from '@/features/content-marketing/line-tools';
 import { buildContentPlannerLineTools } from '@/features/content-calendar/line-tools';
+import { createBrandProfileAgentTools } from '@/features/brand-profile/agent';
 import { buildLineMetricsTools } from '@/features/line-oa/metrics-tools';
 import { FRIENDLY_STICKERS, pickRandom, shouldAddFriendlySticker } from '@/features/line-oa/utils/stickers';
 import { recordMessageEvent } from '@/features/line-oa/analytics';
@@ -958,8 +959,19 @@ export async function handleMessageEvent(
   const metricsTools = isMetricsAgent
     ? buildLineMetricsTools(linkedUser?.userId ?? null, channel.id)
     : undefined;
-  const mergedTools = (contentTools || plannerTools || metricsTools)
-    ? { ...contentTools, ...plannerTools, ...metricsTools }
+
+  // Brand profile is always available for content/marketing agents — supports both
+  // linked users (userId) and non-member LINE users (lineUserId + channelId).
+  const brandProfileTools = (isContentAgent || isPlannerAgent)
+    ? createBrandProfileAgentTools({
+        userId: linkedUser?.userId,
+        lineUserId,
+        channelId: channel.id,
+      })
+    : undefined;
+
+  const mergedTools = (contentTools || plannerTools || metricsTools || brandProfileTools)
+    ? { ...contentTools, ...plannerTools, ...metricsTools, ...brandProfileTools }
     : undefined;
 
   const generateResult = await generateText({

@@ -48,6 +48,8 @@ import { webDeployManifest } from '@/features/deploy/manifest';
 import { createWebDeployAgentTools } from '@/features/deploy/agent';
 import { platformAgentManifest } from '@/features/platform-agent/manifest';
 import { getPlatformAgentTools } from '@/features/platform-agent/agent';
+import { brandProfileManifest } from '@/features/brand-profile/manifest';
+import { createBrandProfileAgentTools } from '@/features/brand-profile/agent';
 
 const SERVER_REGISTRY: RegisteredTool[] = [
   {
@@ -187,6 +189,12 @@ const SERVER_REGISTRY: RegisteredTool[] = [
     getAgentDefinition: (ctx: AgentToolContext) =>
       getPlatformAgentTools({ userId: ctx.userId }),
     getSidebarPageHref: () => '/',
+  },
+  {
+    manifest: brandProfileManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createBrandProfileAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${brandProfileManifest.slug}`,
   },
 ];
 
