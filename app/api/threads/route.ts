@@ -25,7 +25,7 @@ export async function GET() {
       .orderBy(desc(chatThread.updatedAt));
 
     return NextResponse.json({
-      threads: threads.map((t) => ({ id: t.id, title: t.title, preview: t.preview, pinned: t.pinned, hasGeneratedImage: false, imageThumbnailUrl: null, updatedAtMs: t.updatedAt.getTime() })),
+      threads: threads.map((t) => ({ id: t.id, title: t.title, preview: t.preview, pinned: t.pinned, hasGeneratedImage: false, imageThumbnailUrl: null, updatedAtMs: t.updatedAt.getTime(), agentId: null })),
     });
   }
 
@@ -35,6 +35,7 @@ export async function GET() {
       title: chatThread.title,
       preview: chatThread.preview,
       pinned: chatThread.pinned,
+      agentId: chatThread.agentId,
       updatedAt: chatThread.updatedAt,
     })
     .from(chatThread)
@@ -53,9 +54,7 @@ export async function GET() {
 
   const firstImageByThread = new Map<string, string>();
   imageAssets.forEach((asset) => {
-    if (!asset.threadId) {
-      return;
-    }
+    if (!asset.threadId) return;
     if (!firstImageByThread.has(asset.threadId)) {
       firstImageByThread.set(asset.threadId, asset.thumbnailUrl ?? asset.url);
     }
@@ -68,6 +67,7 @@ export async function GET() {
         title: thread.title,
         preview: thread.preview,
         pinned: thread.pinned,
+        agentId: thread.agentId ?? null,
         hasGeneratedImage: firstImageByThread.has(thread.id),
         imageThumbnailUrl: firstImageByThread.get(thread.id) ?? null,
         updatedAtMs: thread.updatedAt.getTime(),
@@ -85,6 +85,14 @@ export async function POST(req: Request) {
   const h = await headers();
   const user = await getCurrentUser();
 
+  let agentId: string | null = null;
+  try {
+    const body = await req.json() as { agentId?: string | null };
+    agentId = body.agentId ?? null;
+  } catch {
+    // No body is fine
+  }
+
   // Guest thread creation
   if (!user) {
     const guestId = parseGuestCookie(h.get('cookie'));
@@ -95,13 +103,14 @@ export async function POST(req: Request) {
     const now = new Date();
     const thread = { id: crypto.randomUUID(), guestSessionId: guestId, title: "New chat", preview: "Start a conversation…", createdAt: now, updatedAt: now };
     await db.insert(chatThread).values(thread);
-    return NextResponse.json({ thread: { id: thread.id, title: thread.title, preview: thread.preview, pinned: false, hasGeneratedImage: false, imageThumbnailUrl: null, updatedAtMs: now.getTime() } });
+    return NextResponse.json({ thread: { id: thread.id, title: thread.title, preview: thread.preview, pinned: false, hasGeneratedImage: false, imageThumbnailUrl: null, updatedAtMs: now.getTime(), agentId: null } });
   }
 
   const now = new Date();
   const thread = {
     id: crypto.randomUUID(),
     userId: user.id,
+    agentId,
     title: "New chat",
     preview: "Start a conversation…",
     createdAt: now,
@@ -116,6 +125,7 @@ export async function POST(req: Request) {
       title: thread.title,
       preview: thread.preview,
       pinned: false,
+      agentId: thread.agentId ?? null,
       hasGeneratedImage: false,
       imageThumbnailUrl: null,
       updatedAtMs: thread.updatedAt.getTime(),

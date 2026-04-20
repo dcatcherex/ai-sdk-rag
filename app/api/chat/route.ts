@@ -428,6 +428,11 @@ export async function POST(req: Request) {
       ? '\nIMPORTANT: When the user asks to be quizzed, wants practice questions, asks you to grade an answer, wants a study plan, asks you to diagnose weak areas or misconceptions, or asks for flashcards or memorization cards, you MUST call the exam prep tools directly. Do NOT pretend to grade or generate a quiz freehand when the exam prep tools are available. If selected documents are attached to the chat, the exam prep tools already ground themselves in those documents automatically, so use the relevant exam prep tool directly unless you need extra document exploration beyond the tool result. Use generate_practice_quiz for quizzes and mock questions, grade_practice_answer for scoring or feedback on an answer, create_study_plan for revision schedules and topic prioritization, analyze_learning_gaps for weakness diagnosis, misconceptions, and what to study next, and generate_flashcards for revision cards and recall practice. If an exam prep tool call fails, explain the real issue briefly and ask only for the missing information.'
       : '';
 
+    const brandProfileToolEnabled = activeToolIds === null || activeToolIds.includes('brand_profile');
+    const brandProfileToolInstructions = supportsTools && brandProfileToolEnabled
+      ? '\nIMPORTANT: You have access to brand profile tools. ALWAYS call get_brand_profile at the start of any content or marketing task. When a required field (products, tone) is missing, ask for it, then IMMEDIATELY call save_brand_profile with the user\'s answer before continuing. Never skip saving — call save_brand_profile as a tool call, not just acknowledge the answer in text. Ask one field at a time. After all required fields are saved, proceed with the content task.'
+      : '';
+
     const certRelevant = /certif|template|recipient|generate cert|preview cert|ใบรับรอง|ใบประกาศ|ใบวุฒิ/i.test(lastUserPrompt ?? '');
     const certificateBrandHint = activeBrand
       ? (() => {
@@ -561,6 +566,7 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
       memoryContext,
       sharedMemoryBlock,
       skillRuntime,
+      brandProfileBlock: brandProfileToolInstructions,
       examPrepBlock: examPrepToolInstructions,
       certBlock: certificateToolInstructions,
       quizContextBlock: supportsTools ? quizContextBlock : '',

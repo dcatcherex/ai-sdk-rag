@@ -9,6 +9,7 @@ export type ThreadItem = {
   hasGeneratedImage: boolean;
   imageThumbnailUrl: string | null;
   updatedAtMs: number;
+  agentId: string | null;
 };
 
 export type RoutingMetadata = {

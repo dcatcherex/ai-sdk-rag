@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { date, index, jsonb, numeric, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { date, index, integer, jsonb, numeric, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
 import { chatThread } from "./chat";
@@ -96,6 +96,25 @@ export const workspaceAiRunRelations = relations(workspaceAiRun, ({ one }) => ({
 export const toolArtifactRelations = relations(toolArtifact, ({ one }) => ({
   toolRun: one(toolRun, { fields: [toolArtifact.toolRunId], references: [toolRun.id] }),
 }));
+
+// ── Brand Photo Bank ──────────────────────────────────────────────────────────
+
+export const brandPhoto = pgTable("brand_photo", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+  lineUserId: text("line_user_id"),
+  channelId: text("channel_id"),
+  url: text("url").notNull(),
+  r2Key: text("r2_key").notNull(),
+  filename: text("filename"),
+  tags: text("tags").array().notNull().default([]),
+  usageCount: integer("usage_count").notNull().default(0),
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("brand_photo_userId_idx").on(table.userId),
+  index("brand_photo_lineUserId_channelId_idx").on(table.lineUserId, table.channelId),
+]);
 
 // ── Brand Profile (persistent brand guidelines per user or LINE user) ─────────
 

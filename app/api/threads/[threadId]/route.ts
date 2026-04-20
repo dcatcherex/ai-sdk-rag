@@ -12,8 +12,8 @@ export async function PATCH(
   const { threadId } = await params;
   const authResult = await requireUser();
   if (!authResult.ok) return authResult.response;
-  const body = (await request.json()) as { pinned?: boolean; title?: string };
-  const updates: { pinned?: boolean; title?: string } = {};
+  const body = (await request.json()) as { pinned?: boolean; title?: string; agentId?: string | null };
+  const updates: { pinned?: boolean; title?: string; agentId?: string | null } = {};
 
   if (typeof body.pinned === "boolean") {
     updates.pinned = body.pinned;
@@ -25,6 +25,10 @@ export async function PATCH(
       return NextResponse.json({ error: "Title cannot be empty" }, { status: 400 });
     }
     updates.title = trimmedTitle;
+  }
+
+  if ("agentId" in body) {
+    updates.agentId = body.agentId ?? null;
   }
 
   if (Object.keys(updates).length === 0) {

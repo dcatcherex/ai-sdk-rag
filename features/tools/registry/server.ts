@@ -50,6 +50,8 @@ import { platformAgentManifest } from '@/features/platform-agent/manifest';
 import { getPlatformAgentTools } from '@/features/platform-agent/agent';
 import { brandProfileManifest } from '@/features/brand-profile/manifest';
 import { createBrandProfileAgentTools } from '@/features/brand-profile/agent';
+import { brandPhotosManifest } from '@/features/brand-photos/manifest';
+import { createBrandPhotosAgentTools } from '@/features/brand-photos/agent';
 
 const SERVER_REGISTRY: RegisteredTool[] = [
   {
@@ -195,6 +197,12 @@ const SERVER_REGISTRY: RegisteredTool[] = [
     getAgentDefinition: (ctx: AgentToolContext) =>
       createBrandProfileAgentTools({ userId: ctx.userId }),
     getSidebarPageHref: () => `/tools/${brandProfileManifest.slug}`,
+  },
+  {
+    manifest: brandPhotosManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createBrandPhotosAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${brandPhotosManifest.slug}`,
   },
 ];
 

@@ -218,6 +218,13 @@
       "when": 1776579394775,
       "tag": "0037_past_owl",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1776660425639,
+      "tag": "0038_previous_the_hunter",
+      "breakpoints": true
     }
   ]
 }

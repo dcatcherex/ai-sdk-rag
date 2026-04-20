@@ -18,6 +18,7 @@ export const chatThread = pgTable(
     preview: text("preview").notNull(),
     pinned: boolean("pinned").default(false).notNull(),
     brandId: text("brand_id").references(() => brand.id, { onDelete: "set null" }),
+    agentId: text("agent_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

@@ -129,6 +129,17 @@ function ChatShell() {
     queryClient,
   } = useThreads();
 
+  // Restore the agent that was active when this thread was last used.
+  useEffect(() => {
+    if (!activeThread) return;
+    if (activeThread.agentId) {
+      setSelectedAgentId(activeThread.agentId);
+    } else if (initialSelectedAgent) {
+      setSelectedAgentId(initialSelectedAgent.id);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeThread?.id]);
+
   const {
     selectedModel,
     setSelectedModel,
@@ -239,8 +250,16 @@ function ChatShell() {
         selectedModelRef.current = 'auto';
         setSelectedModel('auto');
       }
+      // Persist the new agent to the active thread so it's restored on next visit
+      if (activeThreadId) {
+        void fetch(`/api/threads/${activeThreadId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agentId: nextAgentId }),
+        });
+      }
     },
-    [initialSelectedAgent, selectedModelRef, setSelectedModel]
+    [activeThreadId, initialSelectedAgent, selectedModelRef, setSelectedModel]
   );
 
   const handleToggleWebSearch = useCallback(() => {

@@ -115,4 +115,10 @@ export const TOOL_PAGE_LOADERS: Record<string, ToolPageLoader> = {
     );
     return BrandProfileToolPage;
   },
+  'brand-photos': async () => {
+    const { BrandPhotosToolPage } = await import(
+      '@/features/brand-photos/components/brand-photos-tool-page'
+    );
+    return BrandPhotosToolPage;
+  },
 };

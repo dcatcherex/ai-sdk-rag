@@ -36,7 +36,7 @@ type UseChatSessionOptions = {
   selectedAgentIdRef: React.RefObject<string | null>;
   activeMessages: ChatMessage[];
   queryClient: QueryClient;
-  ensureThread: () => Promise<string>;
+  ensureThread: (agentId?: string | null) => Promise<string>;
   followUpSuggestionsEnabled?: boolean;
   latestQuizContextRef: React.RefObject<QuizFollowUpContext | null>;
 };
@@ -118,10 +118,10 @@ export const useChatSession = ({
 
   const dispatchMessage = useCallback(
     async ({ text, files }: PromptInputMessage) => {
-      await ensureThread();
+      await ensureThread(selectedAgentIdRef.current);
       sendMessage({ text, files });
     },
-    [ensureThread, sendMessage]
+    [ensureThread, selectedAgentIdRef, sendMessage]
   );
 
   const mergeFollowUpSuggestions = useCallback((messagesToMerge: ChatMessage[]) => {

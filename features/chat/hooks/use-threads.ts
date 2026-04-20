@@ -189,11 +189,15 @@ export const useThreads = () => {
     setActiveThreadId('');
   }, []);
 
-  const ensureThread = useCallback(async (): Promise<string> => {
+  const ensureThread = useCallback(async (agentId?: string | null): Promise<string> => {
     if (activeThreadId) {
       return activeThreadId;
     }
-    const response = await fetch('/api/threads', { method: 'POST' });
+    const response = await fetch('/api/threads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId: agentId ?? null }),
+    });
     if (!response.ok) {
       throw new Error('Failed to create thread');
     }

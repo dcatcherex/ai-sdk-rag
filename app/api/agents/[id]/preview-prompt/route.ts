@@ -70,6 +70,7 @@ export async function POST(
     memoryContext: '',
     sharedMemoryBlock: '',
     skillRuntime,
+    brandProfileBlock: '',
     examPrepBlock: '',
     certBlock: '',
     quizContextBlock: '',

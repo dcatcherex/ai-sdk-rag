@@ -533,6 +533,7 @@ export async function handleMessageEvent(
     memoryContext,
     sharedMemoryBlock: '',
     skillRuntime: { catalogBlock: '', activeSkillsBlock: '', skillResourcesBlock: '' },
+    brandProfileBlock: '',
     examPrepBlock: '',
     certBlock: '',
     quizContextBlock: '',
