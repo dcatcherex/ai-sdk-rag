@@ -16,7 +16,6 @@ import {
 } from '@/components/ai-elements/attachments';
 import {
   PromptInput,
-  PromptInputActionAddAttachments,
   PromptInputBody,
   PromptInputFooter,
   PromptInputHeader,
@@ -40,6 +39,22 @@ function getOrCreateGuestId(token: string): string {
   }
   return id;
 }
+
+// Plain button that opens the file dialog (avoids DropdownMenuItem context requirement)
+const AttachButton = () => {
+  const attachments = usePromptInputAttachments();
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="size-8 rounded-lg text-muted-foreground hover:text-foreground shrink-0"
+      onClick={() => attachments.openFileDialog()}
+    >
+      <ImageIcon className="size-4" />
+    </Button>
+  );
+};
 
 // Inline attachment strip shown above the textarea
 const ComposerAttachments = () => {
@@ -312,7 +327,7 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
               />
             </PromptInputBody>
             <PromptInputFooter className="px-2 py-1.5 flex items-center justify-between">
-              <PromptInputActionAddAttachments className="text-muted-foreground hover:text-foreground" />
+              <AttachButton />
               <Button
                 type="submit"
                 size="icon"
