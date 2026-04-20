@@ -9,9 +9,9 @@ import {
   createUIMessageStreamResponse,
   createUIMessageStream,
 } from 'ai';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, asc } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { agent, publicAgentShare } from '@/db/schema';
+import { agent, publicAgentShare, chatThread, chatMessage } from '@/db/schema';
 import { getCreditCost, getUserBalance, deductCredits } from '@/lib/credits';
 import { availableModels, chatModel, maxSteps } from '@/lib/ai';
 import { toolDisabledModels } from '@/features/chat/server/routing';
@@ -88,6 +88,37 @@ export async function POST(req: Request, { params }: Params) {
       }
     }
 
+    // ── Find or create per-device thread ─────────────────────────────────────
+    const guestId = req.headers.get('x-guest-id') ?? null;
+    let threadId: string | null = null;
+    if (guestId) {
+      const [existing] = await db
+        .select({ id: chatThread.id })
+        .from(chatThread)
+        .where(and(eq(chatThread.shareToken, token), eq(chatThread.guestId, guestId)))
+        .limit(1);
+      if (existing) {
+        threadId = existing.id;
+      } else {
+        const newId = nanoid();
+        await db.insert(chatThread).values({
+          id: newId,
+          title: 'Guest chat',
+          preview: '',
+          shareToken: token,
+          guestId,
+          agentId: agentRow.id,
+        }).onConflictDoNothing();
+        // In case of a race, fetch the winner
+        const [created] = await db
+          .select({ id: chatThread.id })
+          .from(chatThread)
+          .where(and(eq(chatThread.shareToken, token), eq(chatThread.guestId, guestId)))
+          .limit(1);
+        threadId = created?.id ?? null;
+      }
+    }
+
     const resolvedModel = agentRow.modelId && availableModels.some((m) => m.id === agentRow.modelId)
       ? agentRow.modelId
       : chatModel;
@@ -135,6 +166,31 @@ export async function POST(req: Request, { params }: Params) {
       messages: await convertToModelMessages(messages as Parameters<typeof convertToModelMessages>[0]),
       stopWhen: stepCountIs(maxSteps),
       ...(agentTools ? { tools: agentTools } : {}),
+      onFinish: async ({ text }) => {
+        if (!threadId) return;
+        try {
+          type UIPart = { type: string; text?: string };
+          type UIMsg = { id?: string; role: string; parts: UIPart[] };
+          const allMessages = [
+            ...(messages as UIMsg[]),
+            { id: nanoid(), role: 'assistant', parts: [{ type: 'text', text }] },
+          ];
+          await db.delete(chatMessage).where(eq(chatMessage.threadId, threadId));
+          await db.insert(chatMessage).values(
+            allMessages.map((msg, i) => ({
+              id: (msg.id as string | undefined) || nanoid(),
+              threadId: threadId!,
+              role: msg.role,
+              parts: msg.parts,
+              position: i,
+            })),
+          );
+          const preview = text.slice(0, 120);
+          await db.update(chatThread).set({ preview, updatedAt: new Date() }).where(eq(chatThread.id, threadId));
+        } catch (e) {
+          console.error('[guest-chat] persist messages error', e);
+        }
+      },
     });
 
     // ── Record analytics event (fire and forget) ─────────────────────────────

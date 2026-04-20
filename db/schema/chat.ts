@@ -1,5 +1,5 @@
-import { relations } from "drizzle-orm";
-import { boolean, foreignKey, index, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { relations, sql } from "drizzle-orm";
+import { boolean, foreignKey, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
 import { brand } from "./brands";
@@ -19,6 +19,9 @@ export const chatThread = pgTable(
     pinned: boolean("pinned").default(false).notNull(),
     brandId: text("brand_id").references(() => brand.id, { onDelete: "set null" }),
     agentId: text("agent_id"),
+    // Share-chat threads: keyed by (shareToken, guestId) for per-device persistence
+    shareToken: text("share_token"),
+    guestId: text("guest_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -28,6 +31,9 @@ export const chatThread = pgTable(
   (table) => [
     index("chat_thread_userId_idx").on(table.userId),
     index("chat_thread_guestSessionId_idx").on(table.guestSessionId),
+    uniqueIndex("chat_thread_share_guest_idx")
+      .on(table.shareToken, table.guestId)
+      .where(sql`share_token IS NOT NULL AND guest_id IS NOT NULL`),
   ],
 );
 

@@ -7,12 +7,23 @@ import { ArrowLeftIcon, BotIcon, SendIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { MarkdownText } from '@/components/message-renderer/markdown-text';
 
 type AgentMeta = { name: string; description: string | null; starterPrompts: string[] };
 type ShareMeta = { welcomeMessage: string | null };
 
 const SESSION_KEY = (token: string) => `guest-session-${token}`;
 const SESSION_ID_KEY = (token: string) => `guest-sid-${token}`;
+const GUEST_ID_KEY = (token: string) => `guest-id-${token}`;
+
+function getOrCreateGuestId(token: string): string {
+  let id = localStorage.getItem(GUEST_ID_KEY(token));
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(GUEST_ID_KEY(token), id);
+  }
+  return id;
+}
 
 export default function GuestChatPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
@@ -31,14 +42,14 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
     () => new DefaultChatTransport({
       api: `/api/agent/${token}/chat`,
       headers: () => {
+        const guestId = getOrCreateGuestId(token);
         const sessionToken = sessionStorage.getItem(SESSION_KEY(token)) ?? '';
-        // Generate a persistent session ID for analytics (once per browser session)
         let sessionId = sessionStorage.getItem(SESSION_ID_KEY(token));
         if (!sessionId) {
           sessionId = crypto.randomUUID();
           sessionStorage.setItem(SESSION_ID_KEY(token), sessionId);
         }
-        const h: Record<string, string> = { 'x-session-id': sessionId };
+        const h: Record<string, string> = { 'x-session-id': sessionId, 'x-guest-id': guestId };
         if (sessionToken) h['x-guest-token'] = sessionToken;
         return h;
       },
@@ -46,7 +57,19 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
     [token],
   );
 
-  const { messages, sendMessage, status } = useChat({ transport });
+  const { messages, sendMessage, status, setMessages } = useChat({ transport });
+
+  // Rehydrate thread history on mount
+  useEffect(() => {
+    const guestId = getOrCreateGuestId(token);
+    fetch(`/api/agent/${token}/thread`, { headers: { 'x-guest-id': guestId } })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.messages?.length > 0) setMessages(data.messages);
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   const isLoading = status === 'streaming' || status === 'submitted';
 
@@ -140,15 +163,20 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
               </div>
             )}
             <div
-              className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap ${
+              className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${
                 msg.role === 'user'
-                  ? 'bg-primary text-primary-foreground rounded-br-sm'
+                  ? 'bg-primary text-primary-foreground rounded-br-sm whitespace-pre-wrap'
                   : 'bg-white/90 dark:bg-card/90 border border-black/5 dark:border-border rounded-bl-sm'
               }`}
             >
-              {msg.parts.map((part, i) =>
-                part.type === 'text' ? <span key={i}>{part.text}</span> : null
-              )}
+              {msg.role === 'user'
+                ? msg.parts.map((part, i) =>
+                    part.type === 'text' ? <span key={i}>{part.text}</span> : null
+                  )
+                : msg.parts.map((part, i) =>
+                    part.type === 'text' ? <MarkdownText key={i} content={part.text} isAssistant /> : null
+                  )
+              }
             </div>
           </div>
         ))}
