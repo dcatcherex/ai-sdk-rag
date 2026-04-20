@@ -1,13 +1,29 @@
 'use client';
 
-import { use, useEffect, useMemo, useRef, useState } from 'react';
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { ArrowLeftIcon, BotIcon, SendIcon } from 'lucide-react';
+import type { FileUIPart } from 'ai';
+import { ArrowLeftIcon, BotIcon, ImageIcon, SendIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { MarkdownText } from '@/components/message-renderer/markdown-text';
+import {
+  Attachment,
+  AttachmentPreview,
+  AttachmentRemove,
+  Attachments,
+} from '@/components/ai-elements/attachments';
+import {
+  PromptInput,
+  PromptInputActionAddAttachments,
+  PromptInputBody,
+  PromptInputFooter,
+  PromptInputHeader,
+  PromptInputTextarea,
+  usePromptInputAttachments,
+  type PromptInputMessage,
+} from '@/components/ai-elements/prompt-input';
 
 type AgentMeta = { name: string; description: string | null; starterPrompts: string[] };
 type ShareMeta = { welcomeMessage: string | null };
@@ -25,11 +41,56 @@ function getOrCreateGuestId(token: string): string {
   return id;
 }
 
+// Inline attachment strip shown above the textarea
+const ComposerAttachments = () => {
+  const attachments = usePromptInputAttachments();
+  if (attachments.files.length === 0) return null;
+  return (
+    <Attachments variant="inline">
+      {attachments.files.map((attachment) => (
+        <Attachment
+          data={attachment}
+          key={attachment.id}
+          onRemove={() => attachments.remove(attachment.id)}
+        >
+          <AttachmentPreview />
+          <AttachmentRemove />
+        </Attachment>
+      ))}
+    </Attachments>
+  );
+};
+
+// File part thumbnail shown inside user message bubble
+function FilePart({ part }: { part: FileUIPart }) {
+  const isImage = part.mediaType?.startsWith('image/');
+  const isPdf = part.mediaType === 'application/pdf';
+  if (isImage) {
+    return (
+      <img
+        src={part.url}
+        alt={part.filename ?? 'image'}
+        className="mt-2 max-h-48 max-w-full rounded-lg object-contain"
+      />
+    );
+  }
+  if (isPdf) {
+    return (
+      <div className="mt-2 flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs">
+        <span className="font-medium">📄</span>
+        <span className="truncate">{part.filename ?? 'document.pdf'}</span>
+      </div>
+    );
+  }
+  return null;
+}
+
 export default function GuestChatPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
   const [agentMeta, setAgentMeta] = useState<AgentMeta | null>(null);
   const [shareMeta, setShareMeta] = useState<ShareMeta | null>(null);
-  const [input, setInput] = useState('');
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounter = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -77,19 +138,37 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = () => {
-    const text = input.trim();
-    if (!text || isLoading) return;
-    setInput('');
-    sendMessage({ parts: [{ type: 'text', text }] });
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+  const handleSubmit = useCallback(({ text, files }: PromptInputMessage) => {
+    if ((!text.trim() && files.length === 0) || isLoading) return;
+    type Part = { type: 'text'; text: string } | { type: 'file'; url: string; mediaType: string; filename?: string };
+    const parts: Part[] = [];
+    if (text.trim()) parts.push({ type: 'text', text: text.trim() });
+    for (const f of files) {
+      parts.push({ type: 'file', url: f.url, mediaType: f.mediaType, filename: f.filename });
     }
-  };
+    sendMessage({ parts } as Parameters<typeof sendMessage>[0]);
+  }, [isLoading, sendMessage]);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    dragCounter.current += 1;
+    if (dragCounter.current === 1) setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    dragCounter.current -= 1;
+    if (dragCounter.current === 0) setIsDragOver(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+  }, []);
+
+  const handleDrop = useCallback(() => {
+    dragCounter.current = 0;
+    setIsDragOver(false);
+  }, []);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#fdf5e6,_#f6eee1_45%,_#efe6d7_100%)] dark:bg-[radial-gradient(circle_at_top,_#1c1a2e,_#181628_55%,_#141220_100%)] flex flex-col">
@@ -134,7 +213,6 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
             ) : (
               <p className="text-xs text-muted-foreground mt-2">Type a message to start…</p>
             )}
-            {/* Conversation starters */}
             {agentMeta?.starterPrompts && agentMeta.starterPrompts.length > 0 && (
               <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-sm">
                 {agentMeta.starterPrompts.map((prompt, i) => (
@@ -165,14 +243,16 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
             <div
               className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${
                 msg.role === 'user'
-                  ? 'bg-primary text-primary-foreground rounded-br-sm whitespace-pre-wrap'
+                  ? 'bg-primary text-primary-foreground rounded-br-sm'
                   : 'bg-white/90 dark:bg-card/90 border border-black/5 dark:border-border rounded-bl-sm'
               }`}
             >
               {msg.role === 'user'
-                ? msg.parts.map((part, i) =>
-                    part.type === 'text' ? <span key={i}>{part.text}</span> : null
-                  )
+                ? msg.parts.map((part, i) => {
+                    if (part.type === 'text') return <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
+                    if (part.type === 'file') return <FilePart key={i} part={part as FileUIPart} />;
+                    return null;
+                  })
                 : msg.parts.map((part, i) =>
                     part.type === 'text' ? <MarkdownText key={i} content={part.text} isAssistant /> : null
                   )
@@ -200,28 +280,49 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
       </div>
 
       {/* Input */}
-      <div className="sticky bottom-0 border-t border-black/5 dark:border-border bg-white/80 dark:bg-card/80 backdrop-blur px-4 py-3">
-        <div className="max-w-2xl mx-auto">
-          <div className="flex gap-2 items-end">
-            <Textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type your message…"
-              className="min-h-[44px] max-h-32 resize-none rounded-xl text-sm"
-              rows={1}
-              disabled={isLoading}
-            />
-            <Button
-              type="button"
-              size="icon"
-              className="size-11 rounded-xl shrink-0"
-              disabled={!input.trim() || isLoading}
-              onClick={handleSend}
-            >
-              <SendIcon className="size-4" />
-            </Button>
+      <div
+        className="relative sticky bottom-0 border-t border-black/5 dark:border-border bg-white/80 dark:bg-card/80 backdrop-blur px-4 py-3"
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
+        {isDragOver && (
+          <div className="pointer-events-none absolute inset-0 z-10 m-2 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/50 bg-primary/5 backdrop-blur-[2px]">
+            <ImageIcon className="size-6 text-primary/70" />
+            <p className="text-sm font-medium text-primary/80">Drop to attach</p>
           </div>
+        )}
+        <div className="max-w-2xl mx-auto">
+          <PromptInput
+            globalDrop
+            accept="image/*,application/pdf"
+            multiple
+            className="rounded-xl"
+            onSubmit={handleSubmit}
+          >
+            <PromptInputHeader>
+              <ComposerAttachments />
+            </PromptInputHeader>
+            <PromptInputBody>
+              <PromptInputTextarea
+                placeholder="Type your message…"
+                className="min-h-[44px] max-h-32 text-sm px-3 py-2.5"
+                disabled={isLoading}
+              />
+            </PromptInputBody>
+            <PromptInputFooter className="px-2 py-1.5 flex items-center justify-between">
+              <PromptInputActionAddAttachments className="text-muted-foreground hover:text-foreground" />
+              <Button
+                type="submit"
+                size="icon"
+                className="size-8 rounded-lg shrink-0"
+                disabled={isLoading}
+              >
+                <SendIcon className="size-3.5" />
+              </Button>
+            </PromptInputFooter>
+          </PromptInput>
           <p className="text-center text-[11px] text-muted-foreground mt-2">
             Powered by AI · Free, no account needed
           </p>
