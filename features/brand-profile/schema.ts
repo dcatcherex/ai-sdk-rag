@@ -31,9 +31,9 @@ export const BRAND_FIELDS = [
   'visual_style',          // optional — aesthetic direction for image/video/media generation
   'color_palette',         // optional — brand colors for media generation
   'logo_url',              // optional — brand logo image URL (R2)
-  'style_reference_url',   // optional — uploaded reference image URL (R2)
+  'style_reference_urls',  // optional — JSON array of reference image URLs (R2)
   'style_reference_mode',  // optional — 'direct' (default) | 'extracted'
-  'style_description',     // optional — cached AI-extracted style description from reference image
+  'style_description',     // optional — cached AI-extracted style description from reference images
 ] as const;
 export type BrandField = typeof BRAND_FIELDS[number];
 
@@ -58,7 +58,7 @@ export const saveBrandProfileInputSchema = z.object({
     .string()
     .min(1)
     .describe(
-      'The field to save. Required: products, tone. Messaging: brand_name, usp, brand_voice_examples, do_not_say, promotion_style, keywords. Strategy: target_audience, price_range, competitors, customer_pain_points, platforms (comma-separated: line_oa,instagram,facebook,tiktok,shopee). Visuals: visual_style, color_palette, logo_url, style_reference_url, style_reference_mode, style_description.',
+      'The field to save. Required: products, tone. Messaging: brand_name, usp, brand_voice_examples, do_not_say, promotion_style, keywords. Strategy: target_audience, price_range, competitors, customer_pain_points, platforms (comma-separated: line_oa,instagram,facebook,tiktok,shopee). Visuals: visual_style, color_palette, logo_url, style_reference_mode, style_description. Do NOT use this for style_reference_urls — use add_style_reference / remove_style_reference instead.',
     ),
   value: z.string().min(1).describe('The value to store for this field.'),
 });
@@ -74,3 +74,25 @@ export const saveBrandProfileOutputSchema = z.object({
 });
 
 export type SaveBrandProfileOutput = z.infer<typeof saveBrandProfileOutputSchema>;
+
+// ── add_style_reference / remove_style_reference ──────────────────────────────
+
+export const addStyleReferenceInputSchema = z.object({
+  url: z
+    .string()
+    .url()
+    .startsWith('https://')
+    .describe('A confirmed https:// image URL (from user_attached_images context). Never invent or guess URLs.'),
+});
+export type AddStyleReferenceInput = z.infer<typeof addStyleReferenceInputSchema>;
+
+export const removeStyleReferenceInputSchema = z.object({
+  url: z.string().url().describe('The exact URL to remove from the style reference list.'),
+});
+export type RemoveStyleReferenceInput = z.infer<typeof removeStyleReferenceInputSchema>;
+
+export const styleReferenceOutputSchema = z.object({
+  urls: z.array(z.string()).describe('Current list of style reference image URLs after the operation'),
+  count: z.number(),
+});
+export type StyleReferenceOutput = z.infer<typeof styleReferenceOutputSchema>;

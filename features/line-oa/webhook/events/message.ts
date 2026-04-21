@@ -1,4 +1,4 @@
-import { generateText, generateImage } from 'ai';
+import { generateText, generateImage, stepCountIs } from 'ai';
 import { asc, eq } from 'drizzle-orm';
 import { messagingApi } from '@line/bot-sdk';
 import { db } from '@/lib/db';
@@ -23,10 +23,6 @@ import { consumeLinkToken, registerLineUser } from '@/features/line-oa/link/serv
 import { createPaymentOrder, verifySlipAndCredit, sendPaymentQr } from '@/features/line-oa/payment/service';
 import { CREDIT_PACKAGES, formatPackageMenu } from '@/features/line-oa/payment/packages';
 import { uploadPublicObject } from '@/lib/r2';
-import { buildContentMarketingLineTools } from '@/features/content-marketing/line-tools';
-import { buildContentPlannerLineTools } from '@/features/content-calendar/line-tools';
-import { createBrandProfileAgentTools } from '@/features/brand-profile/agent';
-import { buildLineMetricsTools } from '@/features/line-oa/metrics-tools';
 import { FRIENDLY_STICKERS, pickRandom, shouldAddFriendlySticker } from '@/features/line-oa/utils/stickers';
 import { recordMessageEvent } from '@/features/line-oa/analytics';
 import { chatModel } from '@/lib/ai';
@@ -35,9 +31,7 @@ import { SIGNUP_BONUS_CREDITS } from '@/lib/credits';
 import { GoogleGenAI } from '@google/genai';
 import { getKieApiKey } from '@/lib/api/routeGuards';
 import { KieService } from '@/lib/providers/kieService';
-
-/** Default model used for LINE image generation requests */
-const LINE_IMAGE_MODEL = 'openai/gpt-image-1.5';
+import { buildLineToolSet, LINE_IMAGE_MODEL } from '../tools';
 
 /**
  * Falls back to chatModel (Gemini) for vision if agent uses an unsupported model.
@@ -60,29 +54,6 @@ type ChannelInfo = {
   channelAccessToken: string;
   memberRichMenuLineId?: string | null;
 };
-
-/** Returns true when the user's text is asking to generate an image */
-function wantsImageGeneration(text: string): boolean {
-  const lower = text.toLowerCase();
-  // English triggers
-  if (
-    lower.startsWith('create image') ||
-    lower.startsWith('generate image') ||
-    lower.includes('image of') ||
-    lower.includes('draw ') ||
-    lower.includes('illustration')
-  ) return true;
-  // Thai triggers: สร้างรูป, สร้างภาพ, วาดรูป, วาด, ทำรูป, ภาพของ, รูปของ
-  return (
-    lower.includes('สร้างรูป') ||
-    lower.includes('สร้างภาพ') ||
-    lower.includes('วาดรูป') ||
-    lower.includes('วาด') ||
-    lower.includes('ทำรูป') ||
-    lower.includes('ภาพของ') ||
-    lower.includes('รูปของ')
-  );
-}
 
 /** Read an AsyncIterable stream into a Buffer */
 async function streamToBuffer(stream: AsyncIterable<Uint8Array>): Promise<Buffer> {
@@ -849,64 +820,6 @@ export async function handleMessageEvent(
   // ⑥ Text message
   const userText = event.message!.text!.trim();
 
-  // ⑥a Image generation request
-  if (wantsImageGeneration(userText)) {
-    try {
-      const imageResult = await generateImage({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        model: LINE_IMAGE_MODEL as any,
-        prompt: userText,
-      });
-      const { base64, mediaType } = imageResult.image;
-      const ext = mediaType.includes('png') ? 'png' : 'jpg';
-      const key = `line-images/${crypto.randomUUID()}.${ext}`;
-      const { url } = await uploadPublicObject({
-        key,
-        body: Buffer.from(base64, 'base64'),
-        contentType: mediaType,
-      });
-
-      await Promise.all([
-        db.insert(chatMessage).values([
-          {
-            id: crypto.randomUUID(),
-            threadId,
-            role: 'user',
-            parts: [{ type: 'text', text: userText }],
-            position: nextPosition,
-            createdAt: now,
-          },
-          {
-            id: crypto.randomUUID(),
-            threadId,
-            role: 'assistant',
-            parts: [{ type: 'text', text: `[Generated image: ${url}]` }],
-            position: nextPosition + 1,
-            createdAt: now,
-          },
-        ]),
-        db.update(chatThread).set({ updatedAt: now }).where(eq(chatThread.id, threadId)),
-      ]);
-
-      const imageMsg: LineMessage = {
-        type: 'image',
-        originalContentUrl: url,
-        previewImageUrl: url,
-      } as LineMessage;
-      await lineClient.replyMessage({ replyToken: event.replyToken, messages: [imageMsg] });
-      recordMessageEvent(channel.id, lineUserId, { imagesSent: 1 }).catch(() => {});
-      return;
-    } catch (err) {
-      console.error('[LINE] Image generation failed:', err);
-      await lineClient.replyMessage({
-        replyToken: event.replyToken,
-        messages: [{ type: 'text', text: 'ขออภัย ไม่สามารถสร้างภาพได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง' }],
-      });
-      recordMessageEvent(channel.id, lineUserId).catch(() => {});
-      return;
-    }
-  }
-
   // ⑥b Video generation request
   if (wantsVideoGeneration(userText)) {
     // Save the request to history
@@ -945,42 +858,24 @@ export async function handleMessageEvent(
     return;
   }
 
-  // ⑥c Standard text → text response (with optional tool use for content agents)
-  const enabledTools = [...new Set([...(agentRow?.enabledTools ?? []), ...(skillToolIds ?? [])])];
-  const isContentAgent = enabledTools.includes('content_marketing');
-  const isPlannerAgent = enabledTools.includes('content_planning');
-  const isMetricsAgent = enabledTools.includes('line_analytics');
+  // ⑥c Standard text → text response
+  const enabledToolIds = [...new Set([...(agentRow?.enabledTools ?? []), ...(skillToolIds ?? [])])];
 
-  const contentTools = isContentAgent
-    ? buildContentMarketingLineTools(linkedUser?.userId ?? null)
-    : undefined;
-  const plannerTools = isPlannerAgent
-    ? buildContentPlannerLineTools(linkedUser?.userId ?? null)
-    : undefined;
-  const metricsTools = isMetricsAgent
-    ? buildLineMetricsTools(linkedUser?.userId ?? null, channel.id)
-    : undefined;
-
-  // Brand profile is always available for content/marketing agents — supports both
-  // linked users (userId) and non-member LINE users (lineUserId + channelId).
-  const brandProfileTools = (isContentAgent || isPlannerAgent)
-    ? createBrandProfileAgentTools({
-        userId: linkedUser?.userId,
-        lineUserId,
-        channelId: channel.id,
-      })
-    : undefined;
-
-  const mergedTools = (contentTools || plannerTools || metricsTools || brandProfileTools)
-    ? { ...contentTools, ...plannerTools, ...metricsTools, ...brandProfileTools }
-    : undefined;
+  const mergedTools = buildLineToolSet({
+    enabledToolIds,
+    userId: linkedUser?.userId,
+    lineUserId,
+    channelId: channel.id,
+    threadId,
+  });
 
   const generateResult = await generateText({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     model: modelId as any,
     system: lineSystemPrompt,
     messages: [...historyMessages, { role: 'user', content: userText }],
-    ...(mergedTools ? { tools: mergedTools, maxSteps: 3 } : {}),
+    tools: mergedTools,
+    stopWhen: stepCountIs(5),
   });
 
   const rawReplyText = generateResult.text;
@@ -990,7 +885,7 @@ export async function handleMessageEvent(
   // Collect any image URLs produced by tool calls (e.g. generate_image tool)
   const toolImageUrls: string[] = (generateResult.toolResults ?? [])
     .flatMap((tr) => {
-      const r = (tr as { output?: Record<string, unknown> }).output;
+      const r = (tr as { result?: Record<string, unknown> }).result;
       return r?.imageUrl && typeof r.imageUrl === 'string' ? [r.imageUrl] : [];
     });
 

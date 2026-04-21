@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth';
 import { generateText } from 'ai';
 import { chatModel } from '@/lib/ai';
-import { getBrandProfileAction, saveBrandProfileAction } from '@/features/brand-profile/service';
+import { getBrandProfileAction, saveBrandProfileAction, parseStyleUrls } from '@/features/brand-profile/service';
 
 export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -9,8 +9,9 @@ export async function POST(req: Request) {
 
   const ctx = { userId: session.user.id };
   const profile = await getBrandProfileAction({}, ctx);
-  const imageUrl = profile.data.fields['style_reference_url'];
-  if (!imageUrl) return new Response('No style reference image uploaded', { status: 400 });
+  const urls = parseStyleUrls(profile.data.fields);
+  if (urls.length === 0) return new Response('No style reference images uploaded', { status: 400 });
+  const imageUrl = urls[0]!
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { text } = await generateText({

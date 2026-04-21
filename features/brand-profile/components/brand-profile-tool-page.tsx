@@ -2,12 +2,14 @@
 
 import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { BookMarked, ImageIcon, Loader2, Pencil, Save, Sparkles, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { ToolPageProps } from '@/features/tools/registry/page-loaders';
 import type { BrandProfileOutput } from '../types';
+import { parseStyleUrls } from '../utils';
 
 // ── Platform options ──────────────────────────────────────────────────────────
 
@@ -63,7 +65,7 @@ const TABS = [
 // All fields that count toward the progress ring
 const PROGRESS_FIELDS = [
   ...TABS.flatMap(t => t.fields),
-  'style_reference_url',
+  'style_reference_urls',
 ];
 
 // ── Progress ring ─────────────────────────────────────────────────────────────
@@ -112,6 +114,7 @@ export function BrandProfileToolPage({ manifest }: ToolPageProps) {
   const [uploadingStyle, setUploadingStyle] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const [removingUrl, setRemovingUrl] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<BrandProfileOutput>({
     queryKey: ['brand-profile'],
@@ -143,7 +146,7 @@ export function BrandProfileToolPage({ manifest }: ToolPageProps) {
     endpoint: string,
     field: string,
     setLoading: (v: boolean) => void,
-    inputRef: React.RefObject<HTMLInputElement | null>,
+    inputRef?: React.RefObject<HTMLInputElement | null>,
   ) => {
     setLoading(true);
     try {
@@ -153,9 +156,37 @@ export function BrandProfileToolPage({ manifest }: ToolPageProps) {
       if (!res.ok) throw new Error(await res.text());
       const { url } = await res.json() as { url: string };
       await saveMutation.mutateAsync({ field, value: url });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setLoading(false);
-      if (inputRef.current) inputRef.current.value = '';
+      if (inputRef?.current) inputRef.current.value = '';
+    }
+  };
+
+  const handleStylePaste = (e: React.ClipboardEvent) => {
+    const imageFile = Array.from(e.clipboardData.items)
+      .find(item => item.type.startsWith('image/'))
+      ?.getAsFile();
+    if (!imageFile) return;
+    e.preventDefault();
+    uploadFile(imageFile, '/api/tools/brand-profile/style-image', 'style_reference_url', setUploadingStyle);
+  };
+
+  const handleRemoveStyleImage = async (url: string) => {
+    setRemovingUrl(url);
+    try {
+      const res = await fetch('/api/tools/brand-profile/style-image', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      queryClient.invalidateQueries({ queryKey: ['brand-profile'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Remove failed');
+    } finally {
+      setRemovingUrl(null);
     }
   };
 
@@ -187,9 +218,11 @@ export function BrandProfileToolPage({ manifest }: ToolPageProps) {
   }
 
   const fields = data?.fields ?? {};
-  const filledCount = PROGRESS_FIELDS.filter(f => fields[f]?.trim()).length;
+  const styleUrls = parseStyleUrls(fields);
+  const filledCount = PROGRESS_FIELDS.filter(f =>
+    f === 'style_reference_urls' ? styleUrls.length > 0 : fields[f]?.trim(),
+  ).length;
   const pct = Math.round((filledCount / PROGRESS_FIELDS.length) * 100);
-  const styleImageUrl = fields['style_reference_url'];
   const styleMode = (fields['style_reference_mode'] ?? 'direct') as 'direct' | 'extracted';
   const styleDescription = fields['style_description'];
 
@@ -344,7 +377,7 @@ export function BrandProfileToolPage({ manifest }: ToolPageProps) {
           })}
           <TabsTrigger value="style" className="gap-2">
             Style
-            <TabDot filled={styleImageUrl ? 1 : 0} total={1} />
+            <TabDot filled={styleUrls.length > 0 ? 1 : 0} total={1} />
           </TabsTrigger>
         </TabsList>
 
@@ -358,64 +391,90 @@ export function BrandProfileToolPage({ manifest }: ToolPageProps) {
         ))}
 
         {/* Style Reference tab */}
-        <TabsContent value="style" className="mt-4 space-y-3">
+        <TabsContent value="style" className="mt-4 space-y-4" onPaste={handleStylePaste}>
+          {/* Image grid */}
           <div className="rounded-xl border bg-card p-4 space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium flex items-center gap-1.5">
                 <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                Reference Image
+                Reference Images
+                {styleUrls.length > 0 && (
+                  <span className="text-xs text-muted-foreground font-normal">({styleUrls.length})</span>
+                )}
               </span>
-              <input
-                ref={styleFileRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (file) uploadFile(file, '/api/tools/brand-profile/style-image', 'style_reference_url', setUploadingStyle, styleFileRef);
-                }}
-              />
-              <Button variant="outline" size="sm" disabled={uploadingStyle} onClick={() => styleFileRef.current?.click()}>
-                {uploadingStyle ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
-                {styleImageUrl ? 'Replace' : 'Upload'}
-              </Button>
+              <div className="flex items-center gap-1.5">
+                <input
+                  ref={styleFileRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={e => {
+                    const files = Array.from(e.target.files ?? []);
+                    files.forEach(file => uploadFile(file, '/api/tools/brand-profile/style-image', 'style_reference_urls', setUploadingStyle, styleFileRef));
+                  }}
+                />
+                <Button variant="outline" size="sm" disabled={uploadingStyle} onClick={() => styleFileRef.current?.click()}>
+                  {uploadingStyle ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+                  Add
+                </Button>
+              </div>
             </div>
 
-            {!styleImageUrl && (
+            {styleUrls.length === 0 ? (
               <p className="text-sm text-muted-foreground italic">
-                Upload a sample image (e.g. Instagram post, ad creative) to guide AI media generation style.
+                Upload or paste (Ctrl+V) sample images (Instagram posts, ad creatives, etc.) to guide AI media generation style.
               </p>
-            )}
-
-            {styleImageUrl && (
-              <>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={styleImageUrl} alt="Style reference" className="rounded-lg w-full max-h-52 object-cover border" />
-
-                <div className="space-y-1.5">
-                  <p className="text-xs text-muted-foreground font-medium">How agents use this image</p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant={styleMode === 'direct' ? 'default' : 'outline'}
-                      size="sm" className="flex-1 text-xs"
-                      onClick={() => saveMutation.mutate({ field: 'style_reference_mode', value: 'direct' })}
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {styleUrls.map((url) => (
+                  <div key={url} className="group relative rounded-lg overflow-hidden border aspect-video bg-muted">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="Style reference" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      disabled={removingUrl === url}
+                      onClick={() => handleRemoveStyleImage(url)}
+                      className="absolute top-1 right-1 flex items-center justify-center h-6 w-6 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80 disabled:opacity-50"
+                      aria-label="Remove"
                     >
-                      Direct Reference
-                    </Button>
-                    <Button
-                      variant={styleMode === 'extracted' ? 'default' : 'outline'}
-                      size="sm" className="flex-1 text-xs"
-                      onClick={() => saveMutation.mutate({ field: 'style_reference_mode', value: 'extracted' })}
-                    >
-                      Extract Description
-                    </Button>
+                      {removingUrl === url
+                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                        : <X className="h-3 w-3" />}
+                    </button>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {styleMode === 'direct'
-                      ? 'Image URL passed directly to image generation APIs as a style guide (default).'
-                      : 'AI reads the image once and saves a reusable text description — works with any model.'}
-                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Agent usage settings — shown only when images exist */}
+          {styleUrls.length > 0 && (
+            <div className="rounded-xl border bg-card p-4 space-y-4">
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground font-medium">How agents use these images</p>
+                <div className="flex gap-2">
+                  <Button
+                    variant={styleMode === 'direct' ? 'default' : 'outline'}
+                    size="sm" className="flex-1 text-xs"
+                    onClick={() => saveMutation.mutate({ field: 'style_reference_mode', value: 'direct' })}
+                  >
+                    Direct Reference
+                  </Button>
+                  <Button
+                    variant={styleMode === 'extracted' ? 'default' : 'outline'}
+                    size="sm" className="flex-1 text-xs"
+                    onClick={() => saveMutation.mutate({ field: 'style_reference_mode', value: 'extracted' })}
+                  >
+                    Extract Description
+                  </Button>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  {styleMode === 'direct'
+                    ? 'All image URLs passed directly to image generation APIs as style guides.'
+                    : 'AI reads the first image and saves a reusable text description — works with any model.'}
+                </p>
+              </div>
 
                 {styleMode === 'extracted' && (
                   <div className="space-y-2">
@@ -456,14 +515,13 @@ export function BrandProfileToolPage({ manifest }: ToolPageProps) {
                       </div>
                     ) : (
                       <p className="text-sm text-muted-foreground italic">
-                        Click Extract to analyze the image and generate a reusable style description.
+                        Click Extract to analyze the first image and generate a reusable style description.
                       </p>
                     )}
                   </div>
                 )}
-              </>
-            )}
-          </div>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

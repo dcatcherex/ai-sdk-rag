@@ -15,7 +15,12 @@ import {
   type SaveBrandProfileInput,
   type BrandProfileOutput,
   type SaveBrandProfileOutput,
+  type AddStyleReferenceInput,
+  type RemoveStyleReferenceInput,
+  type StyleReferenceOutput,
 } from './schema';
+import { parseStyleUrls } from './utils';
+export { parseStyleUrls } from './utils';
 
 export type BrandProfileContext = {
   userId?: string;
@@ -59,10 +64,36 @@ export async function runGetBrandProfile(
   return { fields, ...computeStatus(fields) };
 }
 
+const URL_FIELDS = new Set(['logo_url']);
+
+export async function runAddStyleReference(
+  input: AddStyleReferenceInput,
+  ctx: BrandProfileContext,
+): Promise<StyleReferenceOutput> {
+  const profile = await runGetBrandProfile({}, ctx);
+  const urls = parseStyleUrls(profile.fields);
+  if (!urls.includes(input.url)) urls.push(input.url);
+  await runSaveBrandProfile({ field: 'style_reference_urls', value: JSON.stringify(urls) }, ctx);
+  return { urls, count: urls.length };
+}
+
+export async function runRemoveStyleReference(
+  input: RemoveStyleReferenceInput,
+  ctx: BrandProfileContext,
+): Promise<StyleReferenceOutput> {
+  const profile = await runGetBrandProfile({}, ctx);
+  const urls = parseStyleUrls(profile.fields).filter((u) => u !== input.url);
+  await runSaveBrandProfile({ field: 'style_reference_urls', value: JSON.stringify(urls) }, ctx);
+  return { urls, count: urls.length };
+}
+
 export async function runSaveBrandProfile(
   input: SaveBrandProfileInput,
   ctx: BrandProfileContext,
 ): Promise<SaveBrandProfileOutput> {
+  if (URL_FIELDS.has(input.field) && !input.value.startsWith('https://')) {
+    throw new Error(`${input.field} must be a valid https:// URL`);
+  }
   const existing = await db
     .select({ id: brandProfile.id })
     .from(brandProfile)
@@ -119,4 +150,20 @@ export async function saveBrandProfileAction(
     data,
     createdAt: new Date().toISOString(),
   };
+}
+
+export async function addStyleReferenceAction(
+  input: AddStyleReferenceInput,
+  ctx: BrandProfileContext,
+): Promise<ToolExecutionResult<StyleReferenceOutput>> {
+  const data = await runAddStyleReference(input, ctx);
+  return { tool: 'brand_profile', runId: nanoid(), title: 'Added style reference', data, createdAt: new Date().toISOString() };
+}
+
+export async function removeStyleReferenceAction(
+  input: RemoveStyleReferenceInput,
+  ctx: BrandProfileContext,
+): Promise<ToolExecutionResult<StyleReferenceOutput>> {
+  const data = await runRemoveStyleReference(input, ctx);
+  return { tool: 'brand_profile', runId: nanoid(), title: 'Removed style reference', data, createdAt: new Date().toISOString() };
 }
