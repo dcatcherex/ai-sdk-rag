@@ -22,8 +22,6 @@ export type SystemPromptInput = {
     activeSkillsBlock: string;
     skillResourcesBlock: string;
   };
-  /** Brand profile tool guidance. Already '\nIMPORTANT:...' or '' (gated by caller). */
-  brandProfileBlock: string;
   /** Exam prep tool guidance. Already '\nIMPORTANT:...' or '' (gated by caller). */
   examPrepBlock: string;
   /** Certificate tool guidance. Already '\nIMPORTANT:...' or '' (gated by caller). */
@@ -77,7 +75,6 @@ export function assembleSystemPrompt(input: SystemPromptInput): string {
     + input.skillRuntime.catalogBlock
     + input.skillRuntime.activeSkillsBlock
     + input.skillRuntime.skillResourcesBlock
-    + input.brandProfileBlock
     + input.examPrepBlock
     + input.certBlock
     + input.quizContextBlock

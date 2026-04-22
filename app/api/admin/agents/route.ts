@@ -5,6 +5,11 @@ import {
   createAdminAgentTemplate,
   listAdminAgentTemplates,
 } from '@/features/agents/server/catalog';
+import {
+  brandAccessPolicySchema,
+  brandModeSchema,
+  fallbackBehaviorSchema,
+} from '@/features/agents/server/brand-config';
 
 const mcpServerSchema = z.object({
   name: z.string().min(1).max(50),
@@ -32,6 +37,11 @@ const createSchema = z.object({
   enabledTools: z.array(z.string()).optional(),
   skillAttachments: z.array(attachmentSchema).optional(),
   starterPrompts: z.array(z.string().max(100)).max(4).optional(),
+  brandId: z.string().nullable().optional(),
+  brandMode: brandModeSchema.optional(),
+  brandAccessPolicy: brandAccessPolicySchema.optional(),
+  requiresBrandForRun: z.boolean().optional(),
+  fallbackBehavior: fallbackBehaviorSchema.optional(),
   imageUrl: z.string().url().nullable().optional(),
   cloneBehavior: z.enum(['locked', 'editable_copy']).optional(),
   updatePolicy: z.enum(['none', 'notify', 'auto_for_locked']).optional(),

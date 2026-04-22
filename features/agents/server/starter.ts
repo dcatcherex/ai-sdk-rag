@@ -3,7 +3,16 @@ import { and, count, eq, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { getPlatformSettings } from '@/lib/platform-settings';
 import { agent } from '@/db/schema';
-import type { Agent, CatalogScope, CatalogStatus, CloneBehavior, UpdatePolicy } from '@/features/agents/types';
+import type {
+  Agent,
+  BrandAccessPolicy,
+  BrandMode,
+  CatalogScope,
+  CatalogStatus,
+  CloneBehavior,
+  FallbackBehavior,
+  UpdatePolicy,
+} from '@/features/agents/types';
 import { usePublishedAgentTemplate } from './catalog';
 
 type StarterAgentCandidate = typeof agent.$inferSelect;
@@ -15,6 +24,9 @@ function mapAgentRow(row: StarterAgentCandidate): Agent {
     catalogStatus: row.catalogStatus as CatalogStatus,
     cloneBehavior: row.cloneBehavior as CloneBehavior,
     updatePolicy: row.updatePolicy as UpdatePolicy,
+    brandMode: row.brandMode as BrandMode,
+    brandAccessPolicy: row.brandAccessPolicy as BrandAccessPolicy,
+    fallbackBehavior: row.fallbackBehavior as FallbackBehavior,
   };
 }
 

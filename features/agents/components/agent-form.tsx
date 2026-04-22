@@ -25,7 +25,16 @@ import { AgentToolsSection } from './agent-tools-section';
 import { AgentMcpSection } from './agent-mcp-section';
 import { AgentPromptPreviewSection } from './agent-prompt-preview-section';
 import { AGENT_EDITOR_SECTIONS, type AgentEditorSection, type AgentEditorSectionId } from './agent-editor-sections';
-import type { Agent, AgentWithSharing, CreateAgentInput, McpServerConfig, SharedUser } from '../types';
+import type {
+  Agent,
+  AgentWithSharing,
+  BrandAccessPolicy,
+  BrandMode,
+  CreateAgentInput,
+  FallbackBehavior,
+  McpServerConfig,
+  SharedUser,
+} from '../types';
 
 type AgentFormProps = {
   activeSection?: string;
@@ -97,6 +106,10 @@ export function AgentForm({
   const [enabledTools, setEnabledTools] = useState<string[]>([]);
   const [documentIds, setDocumentIds] = useState<string[]>([]);
   const [brandId, setBrandId] = useState<string>('none');
+  const [brandMode, setBrandMode] = useState<BrandMode>('optional');
+  const [brandAccessPolicy, setBrandAccessPolicy] = useState<BrandAccessPolicy>('any_accessible');
+  const [requiresBrandForRun, setRequiresBrandForRun] = useState(false);
+  const [fallbackBehavior, setFallbackBehavior] = useState<FallbackBehavior>('ask_or_continue');
   const [imageUrl, setImageUrl] = useState<string>('');
   const [docSearch, setDocSearch] = useState('');
   const [isPublic, setIsPublic] = useState(false);
@@ -155,6 +168,10 @@ export function AgentForm({
       setEnabledTools(agent.enabledTools ?? []);
       setDocumentIds(agent.documentIds ?? []);
       setBrandId(agent.brandId ?? 'none');
+      setBrandMode(agent.brandMode ?? (agent.brandId ? 'locked' : 'optional'));
+      setBrandAccessPolicy(agent.brandAccessPolicy ?? (agent.brandId ? 'specific_brand' : 'any_accessible'));
+      setRequiresBrandForRun(agent.requiresBrandForRun ?? Boolean(agent.brandId));
+      setFallbackBehavior(agent.fallbackBehavior ?? 'ask_or_continue');
       setImageUrl(agent.imageUrl ?? '');
       setIsPublic(agent.isPublic ?? false);
       setSharedWith((agent as AgentWithSharing).sharedWith ?? []);
@@ -169,6 +186,10 @@ export function AgentForm({
       setEnabledTools([]);
       setDocumentIds([]);
       setBrandId('none');
+      setBrandMode('optional');
+      setBrandAccessPolicy('any_accessible');
+      setRequiresBrandForRun(false);
+      setFallbackBehavior('ask_or_continue');
       setImageUrl('');
       setIsPublic(false);
       setSharedWith([]);
@@ -212,7 +233,7 @@ export function AgentForm({
   // Dirty tracking
   const currentSnapshot = JSON.stringify({
     name, description, systemPrompt, modelId, enabledTools, documentIds,
-    brandId, imageUrl, isPublic, starterPrompts,
+    brandId, brandMode, brandAccessPolicy, requiresBrandForRun, fallbackBehavior, imageUrl, isPublic, starterPrompts,
     sharedUserIds: sharedWith.map((u) => u.id),
     skillAttachments: sortSkillAttachments(skillAttachments),
     mcpServers,
@@ -456,6 +477,10 @@ export function AgentForm({
       documentIds,
       skillAttachments: sortSkillAttachments(skillAttachments),
       brandId: brandId === 'none' ? null : brandId,
+      brandMode,
+      brandAccessPolicy,
+      requiresBrandForRun,
+      fallbackBehavior,
       imageUrl: imageUrl || null,
       isPublic,
       starterPrompts,
@@ -498,8 +523,33 @@ export function AgentForm({
   const behaviorSection = (
     <AgentBehaviorSection
       brandId={brandId}
+      brandMode={brandMode}
+      brandAccessPolicy={brandAccessPolicy}
       brands={enableBrandSelection ? brands : []}
+      fallbackBehavior={fallbackBehavior}
       onBrandChange={(value) => { markUserEdited(); setBrandId(value); }}
+      onBrandAccessPolicyChange={(value) => { markUserEdited(); setBrandAccessPolicy(value); }}
+      onBrandModeChange={(value) => {
+        markUserEdited();
+        setBrandMode(value);
+        if (value === 'none') {
+          setBrandId('none');
+          setBrandAccessPolicy('no_brand');
+          setRequiresBrandForRun(false);
+        } else if (value === 'optional') {
+          setBrandId('none');
+          setBrandAccessPolicy('any_accessible');
+          setRequiresBrandForRun(false);
+        } else if (value === 'suggested') {
+          setBrandAccessPolicy((current) => current === 'no_brand' ? 'specific_brand' : current);
+        } else {
+          setBrandAccessPolicy('specific_brand');
+          setRequiresBrandForRun(true);
+        }
+      }}
+      onFallbackBehaviorChange={(value) => { markUserEdited(); setFallbackBehavior(value); }}
+      onRequiresBrandForRunChange={(value) => { markUserEdited(); setRequiresBrandForRun(value); }}
+      requiresBrandForRun={requiresBrandForRun}
       systemPrompt={systemPrompt}
       onSystemPromptChange={(value) => { markUserEdited(); setSystemPrompt(value); }}
     />
@@ -568,6 +618,12 @@ export function AgentForm({
         agentId={agent?.id}
         skillIds={skillAttachments.filter((a) => a.isEnabled !== false).map((a) => a.skillId)}
         enabledTools={enabledTools}
+        activeBrandId={brandId === 'none' ? null : brandId}
+        brandId={brandId === 'none' ? null : brandId}
+        brandMode={brandMode}
+        brandAccessPolicy={brandAccessPolicy}
+        requiresBrandForRun={requiresBrandForRun}
+        fallbackBehavior={fallbackBehavior}
       />
     ),
   };

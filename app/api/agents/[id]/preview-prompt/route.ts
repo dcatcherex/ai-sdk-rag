@@ -6,6 +6,12 @@ import { db } from '@/lib/db';
 import { agent } from '@/db/schema';
 import { getSkillsForAgent, getSkillsByIds, resolveSkillRuntimeContext } from '@/features/skills/service';
 import { assembleSystemPrompt } from '@/features/chat/server/prompt-assembly';
+import { resolveEffectiveBrand } from '@/features/agents/server/brand-resolution';
+import {
+  brandAccessPolicySchema,
+  brandModeSchema,
+  fallbackBehaviorSchema,
+} from '@/features/agents/server/brand-config';
 import { resolveSystemPromptTemplate } from '@/lib/prompt';
 import { TOOL_MANIFESTS } from '@/features/tools/registry/client';
 
@@ -14,6 +20,12 @@ const bodySchema = z.object({
   // Current in-editor state — overrides what's saved in the DB
   skillIds: z.array(z.string()).optional(),
   enabledTools: z.array(z.string()).optional(),
+  activeBrandId: z.string().nullable().optional(),
+  brandId: z.string().nullable().optional(),
+  brandMode: brandModeSchema.optional(),
+  brandAccessPolicy: brandAccessPolicySchema.optional(),
+  requiresBrandForRun: z.boolean().optional(),
+  fallbackBehavior: fallbackBehaviorSchema.optional(),
 });
 
 export async function POST(
@@ -24,7 +36,17 @@ export async function POST(
   if (!authResult.ok) return authResult.response;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
-  const { testMessage, skillIds, enabledTools } = bodySchema.parse(body);
+  const {
+    testMessage,
+    skillIds,
+    enabledTools,
+    activeBrandId,
+    brandId,
+    brandMode,
+    brandAccessPolicy,
+    requiresBrandForRun,
+    fallbackBehavior,
+  } = bodySchema.parse(body);
 
   const [agentRow] = await db
     .select()
@@ -61,20 +83,33 @@ export async function POST(
         skillToolIds: [],
       };
 
+  const brandResolution = await resolveEffectiveBrand({
+    userId: authResult.user.id,
+    activeBrandId: activeBrandId ?? null,
+    agent: {
+      brandId: brandId ?? agentRow.brandId,
+      brandMode: brandMode ?? agentRow.brandMode,
+      brandAccessPolicy: brandAccessPolicy ?? agentRow.brandAccessPolicy,
+      requiresBrandForRun: requiresBrandForRun ?? agentRow.requiresBrandForRun,
+      fallbackBehavior: fallbackBehavior ?? agentRow.fallbackBehavior,
+    },
+  });
+
   const assembled = assembleSystemPrompt({
     base: baseSystemPrompt,
     conversationSummaryBlock: '',
     threadWorkingMemoryBlock: '',
     isGrounded: false,
-    activeBrand: null,
+    activeBrand: brandResolution.effectiveBrand,
     memoryContext: '',
     sharedMemoryBlock: '',
     skillRuntime,
-    brandProfileBlock: '',
     examPrepBlock: '',
     certBlock: '',
     quizContextBlock: '',
-  });
+  }) + (brandResolution.promptInstruction
+    ? `\n\n<brand_resolution>\n${brandResolution.promptInstruction}\n</brand_resolution>`
+    : '');
 
   const estimatedTokens = Math.ceil(assembled.length / 4);
 
@@ -90,6 +125,21 @@ export async function POST(
 
   const blocks = [
     { label: 'System Prompt', content: baseSystemPrompt, tokens: Math.ceil(baseSystemPrompt.length / 4) },
+    ...(brandResolution.effectiveBrand
+      ? [{
+          label: 'Brand Context',
+          content: `Resolved brand: ${brandResolution.effectiveBrand.name}`,
+          tokens: 0,
+          note: `Mode: ${brandResolution.mode}. Reason: ${brandResolution.reason}.`,
+        }]
+      : []),
+    ...(brandResolution.promptInstruction
+      ? [{
+          label: 'Brand Resolution Instruction',
+          content: brandResolution.promptInstruction,
+          tokens: Math.ceil(brandResolution.promptInstruction.length / 4),
+        }]
+      : []),
     ...(skillRuntime.catalogBlock ? [{ label: 'Skill Catalog', content: skillRuntime.catalogBlock.trim(), tokens: Math.ceil(skillRuntime.catalogBlock.length / 4) }] : []),
     ...(skillRuntime.activeSkillsBlock ? [{ label: 'Active Skills', content: skillRuntime.activeSkillsBlock.trim(), tokens: Math.ceil(skillRuntime.activeSkillsBlock.length / 4) }] : []),
     ...(skillRuntime.skillResourcesBlock ? [{ label: 'Skill Resources', content: skillRuntime.skillResourcesBlock.trim(), tokens: Math.ceil(skillRuntime.skillResourcesBlock.length / 4) }] : []),
@@ -104,6 +154,13 @@ export async function POST(
     attachedSkillCount: skills.length,
     attachedSkillNames: skills.map((s) => s.name),
     activeTools: activeTools.map((t) => ({ id: t.id, title: t.title })),
+    brandResolution: {
+      mode: brandResolution.mode,
+      reason: brandResolution.reason,
+      effectiveBrandName: brandResolution.effectiveBrand?.name ?? null,
+      canOverride: brandResolution.canOverride,
+      blocked: brandResolution.shouldBlock,
+    },
     blocks,
   });
 }

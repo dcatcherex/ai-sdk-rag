@@ -3,8 +3,6 @@ import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex }
 
 import { user } from "./auth";
 
-// ── Brands ───────────────────────────────────────────────────────────────────
-
 export const brand = pgTable("brand", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
@@ -12,15 +10,27 @@ export const brand = pgTable("brand", {
   overview: text("overview"),
   websiteUrl: text("website_url"),
   industry: text("industry"),
+  productsServices: text("products_services"),
   targetAudience: text("target_audience"),
   toneOfVoice: text("tone_of_voice").array().notNull().default(sql`'{}'::text[]`),
   brandValues: text("brand_values").array().notNull().default(sql`'{}'::text[]`),
+  voiceExamples: text("voice_examples").array().notNull().default(sql`'{}'::text[]`),
+  forbiddenPhrases: text("forbidden_phrases").array().notNull().default(sql`'{}'::text[]`),
   visualAesthetics: text("visual_aesthetics").array().notNull().default(sql`'{}'::text[]`),
   fonts: text("fonts").array().notNull().default(sql`'{}'::text[]`),
   colors: jsonb("colors").notNull().default(sql`'[]'::jsonb`),
+  colorNotes: text("color_notes"),
+  styleReferenceMode: text("style_reference_mode").notNull().default("direct"),
+  styleDescription: text("style_description"),
   writingDos: text("writing_dos"),
   writingDonts: text("writing_donts"),
-  // ── Strategy layer ────────────────────────────────────────────────────────
+  usp: text("usp"),
+  priceRange: text("price_range"),
+  keywords: text("keywords").array().notNull().default(sql`'{}'::text[]`),
+  platforms: text("platforms").array().notNull().default(sql`'{}'::text[]`),
+  promotionStyle: text("promotion_style"),
+  competitors: text("competitors").array().notNull().default(sql`'{}'::text[]`),
+  customerPainPoints: text("customer_pain_points").array().notNull().default(sql`'{}'::text[]`),
   positioningStatement: text("positioning_statement"),
   messagingPillars: text("messaging_pillars").array().notNull().default(sql`'{}'::text[]`),
   proofPoints: text("proof_points").array().notNull().default(sql`'{}'::text[]`),
@@ -30,8 +40,6 @@ export const brand = pgTable("brand", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (table) => [index("brand_userId_idx").on(table.userId)]);
-
-// ── Brand ICP (Ideal Customer Profiles / Audience Personas) ──────────────────
 
 export const brandIcp = pgTable("brand_icp", {
   id: text("id").primaryKey(),

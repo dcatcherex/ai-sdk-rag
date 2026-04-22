@@ -174,7 +174,7 @@ function AdminAgentEditor({
                 ),
               },
             ]}
-            enableBrandSelection={false}
+            enableBrandSelection
             isPending={isPending}
             layout="panel"
             onCancel={handleBack}
@@ -244,6 +244,11 @@ export default function AdminAgentsPage() {
         enabledTools: payload.input.enabledTools ?? [],
         skillAttachments: payload.input.skillAttachments ?? [],
         starterPrompts: payload.input.starterPrompts ?? [],
+        brandId: payload.input.brandId ?? null,
+        brandMode: payload.input.brandMode ?? 'optional',
+        brandAccessPolicy: payload.input.brandAccessPolicy ?? 'any_accessible',
+        requiresBrandForRun: payload.input.requiresBrandForRun ?? false,
+        fallbackBehavior: payload.input.fallbackBehavior ?? 'ask_or_continue',
         imageUrl: payload.input.imageUrl ?? null,
         cloneBehavior: payload.input.cloneBehavior,
         updatePolicy: payload.input.updatePolicy,

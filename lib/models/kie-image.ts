@@ -142,7 +142,7 @@ export const KIE_IMAGE_MODELS: ModelDefinition[] = [
   },
   {
     id: "gpt-image/1.5-image-to-image",
-    name: "GPT Image 1.5 Edit",
+    name: "GPT Image 1.5 image",
     description: "Identity-preserving image edits with quality control",
     capabilities: ["image"],
     provider: 'kie',

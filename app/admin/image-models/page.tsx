@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -50,9 +51,19 @@ interface AdminImageModel {
   defaultResolution: string | null;
   defaultEnablePro: boolean;
   defaultGoogleSearch: boolean;
+  taskDefaults: string[];
   adminNotes: string | null;
   updatedAt: string | null;
 }
+
+const TASK_OPTIONS = [
+  { value: 'social_post',    label: 'Social Post / Marketing graphic' },
+  { value: 'photorealistic', label: 'Photorealistic photo / scene' },
+  { value: 'illustration',   label: 'Illustration / art / anime' },
+  { value: 'edit',           label: 'Image editing (img-to-img)' },
+] as const;
+
+const TASK_LABELS: Record<string, string> = Object.fromEntries(TASK_OPTIONS.map(t => [t.value, t.label]));
 
 // ── Provider badge colors ─────────────────────────────────────────────────────
 
@@ -98,7 +109,11 @@ function ConfigDialog({
   const [defaultResolution, setDefaultResolution] = useState(model.defaultResolution ?? NONE);
   const [defaultEnablePro, setDefaultEnablePro] = useState(model.defaultEnablePro);
   const [defaultGoogleSearch, setDefaultGoogleSearch] = useState(model.defaultGoogleSearch);
+  const [taskDefaults, setTaskDefaults] = useState<string[]>(model.taskDefaults ?? []);
   const [adminNotes, setAdminNotes] = useState(model.adminNotes ?? '');
+
+  const toggleTask = (task: string) =>
+    setTaskDefaults(prev => prev.includes(task) ? prev.filter(t => t !== task) : [...prev, task]);
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -185,6 +200,28 @@ function ConfigDialog({
             </div>
           )}
 
+          {/* Task defaults (multi-select) */}
+          <div className="space-y-2">
+            <Label>Task defaults</Label>
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+              {TASK_OPTIONS.map(t => (
+                <div key={t.value} className="flex items-center gap-2.5">
+                  <Checkbox
+                    id={`task-${t.value}`}
+                    checked={taskDefaults.includes(t.value)}
+                    onCheckedChange={() => toggleTask(t.value)}
+                  />
+                  <label htmlFor={`task-${t.value}`} className="text-sm cursor-pointer select-none">
+                    {t.label}
+                  </label>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Agents use the task-default model when the task matches, overriding the global default. A model can cover multiple tasks.
+            </p>
+          </div>
+
           {/* Admin notes */}
           <div className="space-y-1.5">
             <Label>Admin notes</Label>
@@ -207,6 +244,7 @@ function ConfigDialog({
                   defaultResolution: defaultResolution === NONE ? null : defaultResolution,
                   defaultEnablePro,
                   defaultGoogleSearch,
+                  taskDefaults,
                   adminNotes: adminNotes || null,
                 })
               }
@@ -301,6 +339,11 @@ export default function ImageModelsPage() {
                         Default
                       </span>
                     )}
+                    {model.taskDefaults?.map(t => (
+                      <span key={t} className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                        {TASK_LABELS[t] ?? t}
+                      </span>
+                    ))}
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{model.description}</p>
 

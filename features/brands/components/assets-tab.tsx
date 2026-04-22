@@ -12,8 +12,7 @@ import { useBrandAssets, useDeleteBrandAsset, useUploadBrandAsset } from '../hoo
 
 const KIND_LABELS: Record<BrandAssetKind, string> = {
   logo: 'Logo',
-  product: 'Product',
-  creative: 'Creative',
+  style_reference: 'Style Reference',
   document: 'Document',
   font: 'Font',
   other: 'Other',
@@ -24,7 +23,7 @@ export function AssetsTab({ brandId }: { brandId: string }) {
   const uploadMutation = useUploadBrandAsset(brandId);
   const deleteMutation = useDeleteBrandAsset(brandId);
 
-  const [kind, setKind] = useState<BrandAssetKind>('creative');
+  const [kind, setKind] = useState<BrandAssetKind>('logo');
   const [collection, setCollection] = useState('');
   const [title, setTitle] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -158,34 +157,33 @@ export function AssetsTab({ brandId }: { brandId: string }) {
           {Object.entries(grouped).map(([col, items]) => (
             <div key={col}>
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">{col}</p>
-              <div className="space-y-1">
+              <div className="grid grid-cols-4 gap-2">
                 {items.map((a) => (
-                  <div
-                    key={a.id}
-                    className="group flex items-center gap-3 rounded-md border border-black/5 dark:border-border bg-white/40 dark:bg-white/3 px-3 py-2"
-                  >
-                    {a.mimeType.startsWith('image/') ? (
-                      <div className="relative h-10 w-10 overflow-hidden rounded">
+                  <div key={a.id} className="group relative overflow-hidden rounded-lg border border-black/5 dark:border-border bg-muted/20">
+                    <div className="aspect-square w-full">
+                      {a.mimeType.startsWith('image/') ? (
                         <Image src={a.url} alt={a.title} fill unoptimized className="object-cover" />
-                      </div>
-                    ) : (
-                      <div className="flex h-10 w-10 items-center justify-center rounded bg-muted text-xs text-muted-foreground">
-                        {KIND_LABELS[a.kind][0]}
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm">{a.title}</p>
-                      <p className="text-xs text-muted-foreground">{KIND_LABELS[a.kind]}</p>
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-muted text-lg font-semibold text-muted-foreground">
+                          {KIND_LABELS[a.kind][0]}
+                        </div>
+                      )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => deleteMutation.mutate(a.id)}
-                      disabled={deleteMutation.isPending}
-                      className="p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 disabled:opacity-50"
-                      aria-label="Delete asset"
-                    >
-                      <Trash2Icon className="size-3.5" />
-                    </button>
+                    <div className="absolute inset-0 flex flex-col justify-between p-1.5 opacity-0 transition-opacity group-hover:opacity-100 bg-black/50">
+                      <button
+                        type="button"
+                        onClick={() => deleteMutation.mutate(a.id)}
+                        disabled={deleteMutation.isPending}
+                        className="self-end rounded bg-destructive/90 p-1 text-white hover:bg-destructive"
+                        aria-label="Delete asset"
+                      >
+                        <Trash2Icon className="size-3" />
+                      </button>
+                      <div>
+                        <p className="truncate text-[10px] font-medium text-white leading-tight">{a.title}</p>
+                        <p className="text-[10px] text-white/70">{KIND_LABELS[a.kind]}</p>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>

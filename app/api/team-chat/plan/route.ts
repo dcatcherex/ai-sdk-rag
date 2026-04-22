@@ -16,6 +16,7 @@ import { z } from 'zod/v4';
 import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { agentTeam, agentTeamMember, agent } from '@/db/schema';
+import { applyBrandContextToTeamMembers } from '@/features/agent-teams/server/brand-context';
 import { generatePlan } from '@/features/agent-teams/server/orchestrator';
 import type {
   AgentTeamMemberWithAgent,
@@ -78,6 +79,10 @@ export async function POST(req: Request) {
         documentIds: agent.documentIds,
         skillIds: agent.skillIds,
         brandId: agent.brandId,
+        brandMode: agent.brandMode,
+        brandAccessPolicy: agent.brandAccessPolicy,
+        requiresBrandForRun: agent.requiresBrandForRun,
+        fallbackBehavior: agent.fallbackBehavior,
         isPublic: agent.isPublic,
         starterPrompts: agent.starterPrompts,
         isTemplate: agent.isTemplate,
@@ -92,8 +97,20 @@ export async function POST(req: Request) {
     .where(eq(agentTeamMember.teamId, body.teamId))
     .orderBy(agentTeamMember.position);
 
-  const orchestrator = memberRows.find((m) => m.role === 'orchestrator') as AgentTeamMemberWithAgent | undefined;
-  const specialists = memberRows.filter((m) => m.role === 'specialist') as AgentTeamMemberWithAgent[];
+  const membersWithBrandContext = await applyBrandContextToTeamMembers({
+    userId: authResult.user.id,
+    activeBrandId: teamRow.brandId ?? null,
+    members: memberRows as AgentTeamMemberWithAgent[],
+  });
+
+  if (!membersWithBrandContext.ok) {
+    return Response.json({ error: membersWithBrandContext.error }, { status: 409 });
+  }
+
+  const resolvedMembers = membersWithBrandContext.members;
+
+  const orchestrator = resolvedMembers.find((m) => m.role === 'orchestrator') as AgentTeamMemberWithAgent | undefined;
+  const specialists = resolvedMembers.filter((m) => m.role === 'specialist') as AgentTeamMemberWithAgent[];
 
   if (!orchestrator) {
     return Response.json({ error: 'Team has no orchestrator' }, { status: 422 });

@@ -27,6 +27,7 @@ import { FRIENDLY_STICKERS, pickRandom, shouldAddFriendlySticker } from '@/featu
 import { recordMessageEvent } from '@/features/line-oa/analytics';
 import { chatModel } from '@/lib/ai';
 import { modelSupportsCapability } from '@/features/chat/server/routing';
+import { resolveEffectiveBrand } from '@/features/agents/server/brand-resolution';
 import { SIGNUP_BONUS_CREDITS } from '@/lib/credits';
 import { GoogleGenAI } from '@google/genai';
 import { getKieApiKey } from '@/lib/api/routeGuards';
@@ -495,20 +496,29 @@ export async function handleMessageEvent(
     lineBase += `\n\nThe user you are talking to is named ${linkedUser.displayName}. Address them by name naturally when appropriate.`;
   }
 
+  const brandResolution = linkedUser?.userId
+    ? await resolveEffectiveBrand({
+        userId: linkedUser.userId,
+        activeBrandId: null,
+        agent: agentRow,
+      })
+    : null;
+
   const lineSystemPrompt = assembleSystemPrompt({
     base: lineBase,
     conversationSummaryBlock: '',
     threadWorkingMemoryBlock: '',
     isGrounded: false,
-    activeBrand: null,
+    activeBrand: brandResolution?.effectiveBrand ?? null,
     memoryContext,
     sharedMemoryBlock: '',
     skillRuntime: { catalogBlock: '', activeSkillsBlock: '', skillResourcesBlock: '' },
-    brandProfileBlock: '',
     examPrepBlock: '',
     certBlock: '',
     quizContextBlock: '',
-  });
+  }) + (brandResolution?.promptInstruction
+    ? `\n\n<brand_resolution>\n${brandResolution.promptInstruction}\n</brand_resolution>`
+    : '');
 
   const now = new Date();
   const nextPosition = historyRows.length;

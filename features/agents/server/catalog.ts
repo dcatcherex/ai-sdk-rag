@@ -2,13 +2,23 @@ import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/lib/db';
 import { agent } from '@/db/schema';
-import type { Agent, CatalogScope, CatalogStatus, CloneBehavior, UpdatePolicy } from '../types';
+import type {
+  Agent,
+  BrandAccessPolicy,
+  BrandMode,
+  CatalogScope,
+  CatalogStatus,
+  CloneBehavior,
+  FallbackBehavior,
+  UpdatePolicy,
+} from '../types';
 import type { AgentSkillAttachmentInput } from '@/features/skills/types';
 import {
   getResolvedSkillIdsByAgentIds,
   getSkillAttachmentsForAgent,
   replaceSkillAttachmentsForAgent,
 } from '@/features/skills/service';
+import { normalizeAgentBrandConfig } from './brand-config';
 
 type AdminAgentTemplateInput = {
   name: string;
@@ -18,6 +28,11 @@ type AdminAgentTemplateInput = {
   enabledTools?: string[];
   skillAttachments?: AgentSkillAttachmentInput[];
   starterPrompts?: string[];
+  brandId?: string | null;
+  brandMode?: BrandMode;
+  brandAccessPolicy?: BrandAccessPolicy;
+  requiresBrandForRun?: boolean;
+  fallbackBehavior?: FallbackBehavior;
   imageUrl?: string | null;
   cloneBehavior?: CloneBehavior;
   updatePolicy?: UpdatePolicy;
@@ -33,6 +48,9 @@ function mapAgentRow(row: typeof agent.$inferSelect): Agent {
     catalogStatus: row.catalogStatus as CatalogStatus,
     cloneBehavior: row.cloneBehavior as CloneBehavior,
     updatePolicy: row.updatePolicy as UpdatePolicy,
+    brandMode: row.brandMode as BrandMode,
+    brandAccessPolicy: row.brandAccessPolicy as BrandAccessPolicy,
+    fallbackBehavior: row.fallbackBehavior as FallbackBehavior,
   };
 }
 
@@ -79,6 +97,13 @@ export async function getAdminAgentTemplateById(id: string): Promise<Agent | nul
 
 export async function createAdminAgentTemplate(input: AdminAgentTemplateInput): Promise<Agent> {
   const now = new Date();
+  const brandConfig = normalizeAgentBrandConfig({
+    brandId: input.brandId,
+    brandMode: input.brandMode,
+    brandAccessPolicy: input.brandAccessPolicy,
+    requiresBrandForRun: input.requiresBrandForRun,
+    fallbackBehavior: input.fallbackBehavior,
+  });
   const [row] = await db
     .insert(agent)
     .values({
@@ -92,7 +117,11 @@ export async function createAdminAgentTemplate(input: AdminAgentTemplateInput): 
       enabledTools: input.enabledTools ?? [],
       documentIds: [],
       skillIds: [],
-      brandId: null,
+      brandId: brandConfig.brandId,
+      brandMode: brandConfig.brandMode,
+      brandAccessPolicy: brandConfig.brandAccessPolicy,
+      requiresBrandForRun: brandConfig.requiresBrandForRun,
+      fallbackBehavior: brandConfig.fallbackBehavior,
       imageUrl: input.imageUrl ?? null,
       isPublic: false,
       starterPrompts: input.starterPrompts ?? [],
@@ -127,6 +156,40 @@ export async function updateAdminAgentTemplate(
   id: string,
   input: Partial<AdminAgentTemplateInput>,
 ): Promise<Agent | null> {
+  let normalizedBrandConfig:
+    | ReturnType<typeof normalizeAgentBrandConfig>
+    | undefined;
+
+  if (
+    input.brandId !== undefined ||
+    input.brandMode !== undefined ||
+    input.brandAccessPolicy !== undefined ||
+    input.requiresBrandForRun !== undefined ||
+    input.fallbackBehavior !== undefined
+  ) {
+    const [existing] = await db
+      .select({
+        brandId: agent.brandId,
+        brandMode: agent.brandMode,
+        brandAccessPolicy: agent.brandAccessPolicy,
+        requiresBrandForRun: agent.requiresBrandForRun,
+        fallbackBehavior: agent.fallbackBehavior,
+      })
+      .from(agent)
+      .where(and(eq(agent.id, id), isNull(agent.userId), eq(agent.isTemplate, true), eq(agent.managedByAdmin, true)))
+      .limit(1);
+
+    if (!existing) return null;
+
+    normalizedBrandConfig = normalizeAgentBrandConfig({
+      brandId: input.brandId ?? existing.brandId,
+      brandMode: input.brandMode ?? (existing.brandMode as BrandMode),
+      brandAccessPolicy: input.brandAccessPolicy ?? (existing.brandAccessPolicy as BrandAccessPolicy),
+      requiresBrandForRun: input.requiresBrandForRun ?? existing.requiresBrandForRun,
+      fallbackBehavior: input.fallbackBehavior ?? (existing.fallbackBehavior as FallbackBehavior),
+    });
+  }
+
   const [row] = await db
     .update(agent)
     .set({
@@ -135,6 +198,7 @@ export async function updateAdminAgentTemplate(
       ...(input.systemPrompt !== undefined && { systemPrompt: input.systemPrompt }),
       ...(input.modelId !== undefined && { modelId: input.modelId ?? null }),
       ...(input.enabledTools !== undefined && { enabledTools: input.enabledTools }),
+      ...(normalizedBrandConfig && normalizedBrandConfig),
       ...(input.starterPrompts !== undefined && { starterPrompts: input.starterPrompts }),
       ...(input.imageUrl !== undefined && { imageUrl: input.imageUrl ?? null }),
       ...(input.cloneBehavior !== undefined && { cloneBehavior: input.cloneBehavior }),
@@ -229,7 +293,11 @@ export async function usePublishedAgentTemplate(userId: string, templateId: stri
     enabledTools: template.enabledTools,
     documentIds: [],
     skillIds: [],
-    brandId: null,
+    brandId: template.brandId,
+    brandMode: template.brandMode,
+    brandAccessPolicy: template.brandAccessPolicy,
+    requiresBrandForRun: template.requiresBrandForRun,
+    fallbackBehavior: template.fallbackBehavior,
     imageUrl: template.imageUrl,
     isPublic: false,
     starterPrompts: template.starterPrompts,

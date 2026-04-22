@@ -13,6 +13,9 @@ export type McpServerConfig = {
 export type CatalogStatus = 'draft' | 'published' | 'archived';
 export type CloneBehavior = 'locked' | 'editable_copy';
 export type UpdatePolicy = 'none' | 'notify' | 'auto_for_locked';
+export type BrandMode = 'none' | 'optional' | 'suggested' | 'locked';
+export type BrandAccessPolicy = 'no_brand' | 'any_accessible' | 'workspace_only' | 'specific_brand';
+export type FallbackBehavior = 'ask_or_continue' | 'ask_to_select' | 'block_run' | 'use_default';
 
 export type Agent = {
   id: string;
@@ -26,6 +29,10 @@ export type Agent = {
   documentIds: string[];
   skillIds: string[];
   brandId: string | null;
+  brandMode: BrandMode;
+  brandAccessPolicy: BrandAccessPolicy;
+  requiresBrandForRun: boolean;
+  fallbackBehavior: FallbackBehavior;
   imageUrl: string | null;
   isPublic: boolean;
   starterPrompts: string[];
@@ -58,6 +65,10 @@ export type CreateAgentInput = {
   documentIds?: string[];
   skillAttachments?: AgentSkillAttachmentInput[];
   brandId?: string | null;
+  brandMode?: BrandMode;
+  brandAccessPolicy?: BrandAccessPolicy;
+  requiresBrandForRun?: boolean;
+  fallbackBehavior?: FallbackBehavior;
   imageUrl?: string | null;
   isPublic?: boolean;
   isDefault?: boolean;

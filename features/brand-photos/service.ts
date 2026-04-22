@@ -6,6 +6,7 @@ import type { GetBrandPhotosInput, GetBrandPhotosOutput, BrandPhotoItem } from '
 import type { BrandPhotoContext } from './types';
 
 function buildWhere(ctx: BrandPhotoContext) {
+  if (ctx.brandId) return eq(brandPhoto.brandId, ctx.brandId);
   if (ctx.userId) return eq(brandPhoto.userId, ctx.userId);
   if (ctx.lineUserId && ctx.channelId) {
     return and(
@@ -16,7 +17,7 @@ function buildWhere(ctx: BrandPhotoContext) {
   if (ctx.lineUserId) {
     return and(eq(brandPhoto.lineUserId, ctx.lineUserId), isNull(brandPhoto.channelId));
   }
-  throw new Error('BrandPhotoContext requires userId or lineUserId');
+  throw new Error('BrandPhotoContext requires brandId, userId, or lineUserId');
 }
 
 /**
@@ -101,6 +102,7 @@ export async function saveBrandPhoto(
   const row = {
     id: nanoid(),
     userId: ctx.userId ?? null,
+    brandId: ctx.brandId ?? null,
     lineUserId: ctx.lineUserId ?? null,
     channelId: ctx.channelId ?? null,
     url: data.url,

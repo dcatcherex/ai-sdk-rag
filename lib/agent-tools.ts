@@ -10,11 +10,13 @@ export function createAgentTools(
   options?: {
     threadId?: string;
     referenceImageUrls?: string[];
+    brandId?: string;
   },
 ): ToolSet {
   return buildToolSet({
     enabledToolIds: enabledTools,
     userId,
+    brandId: options?.brandId,
     documentIds,
     source: 'agent',
     threadId: options?.threadId,

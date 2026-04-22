@@ -16,6 +16,8 @@ import { getCreditCost, getUserBalance, deductCredits } from '@/lib/credits';
 import { availableModels, chatModel, maxSteps } from '@/lib/ai';
 import { toolDisabledModels } from '@/features/chat/server/routing';
 import { createAgentTools } from '@/lib/agent-tools';
+import { buildBrandBlock } from '@/features/brands/service';
+import { resolveEffectiveBrand } from '@/features/agents/server/brand-resolution';
 import { verifySessionToken } from '@/lib/guest-session';
 import { publicAgentShareEvent } from '@/db/schema';
 import { nanoid } from 'nanoid';
@@ -127,6 +129,19 @@ export async function POST(req: Request, { params }: Params) {
       return Response.json({ error: 'Agent not available.' }, { status: 400 });
     }
     const ownerId = agentRow.userId;
+    const brandResolution = await resolveEffectiveBrand({
+      userId: ownerId,
+      activeBrandId: null,
+      agent: agentRow,
+    });
+
+    if (brandResolution.shouldBlock) {
+      return Response.json(
+        { error: brandResolution.blockMessage ?? 'This shared agent requires a valid brand before it can run.' },
+        { status: 409 },
+      );
+    }
+
     const creditCost = getCreditCost(resolvedModel);
 
     // ── Credit limit check (link budget) ──────────────────────────────────────
@@ -155,7 +170,16 @@ export async function POST(req: Request, { params }: Params) {
         )
       : undefined;
 
+    const brandBlock = brandResolution.effectiveBrand
+      ? `\n\n${buildBrandBlock(brandResolution.effectiveBrand)}`
+      : '';
+    const brandResolutionBlock = brandResolution.promptInstruction
+      ? `\n\n<brand_resolution>\n${brandResolution.promptInstruction}\n</brand_resolution>`
+      : '';
+
     const systemPrompt = agentRow.systemPrompt +
+      brandBlock +
+      brandResolutionBlock +
       (agentRow.documentIds.length > 0
         ? '\nIMPORTANT: Use the searchKnowledge tool to find relevant information before answering.'
         : '');

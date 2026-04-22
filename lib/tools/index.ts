@@ -12,6 +12,8 @@ export type BuildToolSetOptions = {
   enabledToolIds: string[] | null;
   /** The user ID — needed for user-scoped tools (certificate). */
   userId: string;
+  /** Active brand ID — scopes brand photos to the correct brand. */
+  brandId?: string;
   /** When set, RAG tools are scoped to these document IDs only. */
   documentIds?: string[];
   /** Enable Cohere cross-encoder reranking after hybrid retrieval. */
@@ -46,6 +48,7 @@ export type BuildToolSetOptions = {
 export function buildToolSet({
   enabledToolIds,
   userId,
+  brandId,
   documentIds,
   rerankEnabled,
   source,
@@ -69,6 +72,7 @@ export function buildToolSet({
   // ── Registry-managed tools (single delegation point) ──────────────────────
   const ctx: AgentToolContext = {
     userId,
+    brandId,
     documentIds,
     rerankEnabled,
     source,

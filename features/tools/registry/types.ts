@@ -57,6 +57,7 @@ export type RegisteredTool = {
 /** Context passed to agent tool factories */
 export type AgentToolContext = {
   userId: string;
+  brandId?: string;
   documentIds?: string[];
   rerankEnabled?: boolean;
   source?: 'manual' | 'agent';

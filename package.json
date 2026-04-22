@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "deploy:trigger": "trigger deploy",
-    "test": "tsx --test features/skills/server/*.test.ts",
+    "test": "tsx --test features/skills/server/*.test.ts features/agents/server/*.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:install": "playwright install chromium"

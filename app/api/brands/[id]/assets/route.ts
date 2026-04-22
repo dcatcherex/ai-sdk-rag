@@ -9,7 +9,7 @@ import { uploadPublicObject } from '@/lib/r2';
 import { uploadImage, UploadError } from '@/lib/storage/uploadImage';
 import type { BrandAssetKind } from '@/features/brands/types';
 
-const ALLOWED_KINDS = new Set<string>(['logo', 'product', 'creative', 'document', 'font', 'other']);
+const ALLOWED_KINDS = new Set<string>(['logo', 'product', 'creative', 'style_reference', 'document', 'font', 'other']);
 
 type Params = { params: Promise<{ id: string }> };
 

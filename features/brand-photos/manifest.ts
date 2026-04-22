@@ -10,14 +10,9 @@ export const brandPhotosManifest: ToolManifest = {
   category: 'content',
   professions: ['all', 'marketer', 'business'],
   supportsAgent: true,
-  supportsSidebar: true,
+  supportsSidebar: false,
   supportsExport: false,
   defaultEnabled: false,
-  sidebar: {
-    label: 'Brand Photos',
-    defaultPinned: false,
-    order: 52,
-  },
   access: {
     requiresAuth: true,
     enabled: true,

@@ -2,6 +2,7 @@ export type { GetBrandPhotosInput, GetBrandPhotosOutput, BrandPhotoItem } from '
 
 export type BrandPhotoContext = {
   userId?: string;
+  brandId?: string;
   lineUserId?: string;
   channelId?: string;
 };

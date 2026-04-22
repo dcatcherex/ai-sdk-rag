@@ -23,6 +23,7 @@ import { db } from '@/lib/db';
 import { agentTeam, agentTeamMember, agent, chatThread, chatMessage } from '@/db/schema';
 import { getUserBalance } from '@/lib/credits';
 import { estimateRunCost, executeTeamRun, TeamRunError } from '@/features/agent-teams/server/run-engine';
+import { applyBrandContextToTeamMembers } from '@/features/agent-teams/server/brand-context';
 import type { AgentTeamWithMembers, AgentTeamMemberWithAgent, TeamRunStatusUpdate } from '@/features/agent-teams/types';
 import type { Agent } from '@/features/agents/types';
 
@@ -95,6 +96,10 @@ export async function POST(req: Request) {
         documentIds: agent.documentIds,
         skillIds: agent.skillIds,
         brandId: agent.brandId,
+        brandMode: agent.brandMode,
+        brandAccessPolicy: agent.brandAccessPolicy,
+        requiresBrandForRun: agent.requiresBrandForRun,
+        fallbackBehavior: agent.fallbackBehavior,
         isPublic: agent.isPublic,
         starterPrompts: agent.starterPrompts,
         isTemplate: agent.isTemplate,
@@ -118,9 +123,19 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Team has no orchestrator member' }, { status: 422 });
   }
 
+  const membersWithBrandContext = await applyBrandContextToTeamMembers({
+    userId: authResult.user.id,
+    activeBrandId: teamRow.brandId ?? null,
+    members: memberRows as AgentTeamMemberWithAgent[],
+  });
+
+  if (!membersWithBrandContext.ok) {
+    return Response.json({ error: membersWithBrandContext.error }, { status: 409 });
+  }
+
   const team: AgentTeamWithMembers = {
     ...teamRow,
-    members: memberRows as AgentTeamMemberWithAgent[],
+    members: membersWithBrandContext.members,
   };
 
   // ── Thread validation (optional — just a reference) ───────────────────────

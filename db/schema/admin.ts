@@ -1,4 +1,5 @@
 import { boolean, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 import { user } from "./auth";
 import { agent } from "./agents";
@@ -19,6 +20,7 @@ export const imageModelConfig = pgTable("image_model_config", {
   defaultResolution: text("default_resolution"),          // '1K' | '2K' | '4K'
   defaultEnablePro: boolean("default_enable_pro").notNull().default(false),
   defaultGoogleSearch: boolean("default_google_search").notNull().default(false),
+  taskDefaults: text("task_defaults").array().notNull().default(sql`'{}'::text[]`),
   adminNotes: text("admin_notes"),
   updatedAt: timestamp("updated_at")
     .defaultNow()

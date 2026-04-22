@@ -26,7 +26,6 @@ import { googleDriveManifest } from '@/features/google-drive/manifest';
 import { googleSlidesManifest } from '@/features/google-slides/manifest';
 import { webDeployManifest } from '@/features/deploy/manifest';
 import { platformAgentManifest } from '@/features/platform-agent/manifest';
-import { brandProfileManifest } from '@/features/brand-profile/manifest';
 import { brandPhotosManifest } from '@/features/brand-photos/manifest';
 
 /** All registered tool manifests */
@@ -52,7 +51,6 @@ export const TOOL_MANIFESTS: ToolManifest[] = [
   googleSlidesManifest,
   webDeployManifest,
   platformAgentManifest,
-  brandProfileManifest,
   brandPhotosManifest,
 ];
 

@@ -10,6 +10,7 @@ const ALLOWED_IMAGE_TYPES = new Set([
   'image/png',
   'image/webp',
   'image/gif',
+  'image/svg+xml',
 ]);
 
 const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
@@ -36,19 +37,30 @@ export type UploadImageOptions = {
  * Validates → optimizes via Sharp → stores to R2.
  * Use this in all API routes that accept image uploads.
  */
+const isSvg = (file: File) =>
+  file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg');
+
 export async function uploadImage(
   file: File,
   options: UploadImageOptions,
 ): Promise<UploadImageResult> {
   const maxSize = options.maxSizeBytes ?? MAX_SIZE_BYTES;
 
-  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-    throw new UploadError('Invalid file type. Use JPEG, PNG, WebP, or GIF.', 400);
+  if (!ALLOWED_IMAGE_TYPES.has(file.type) && !isSvg(file)) {
+    throw new UploadError('Invalid file type. Use JPEG, PNG, WebP, GIF, or SVG.', 400);
   }
 
   if (file.size > maxSize) {
     const mb = (maxSize / 1024 / 1024).toFixed(0);
     throw new UploadError(`File too large. Maximum ${mb} MB.`, 400);
+  }
+
+  // SVGs are vector XML — skip Sharp, upload as-is
+  if (isSvg(file)) {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const key = `${options.prefix}/${nanoid()}.svg`;
+    const { url } = await uploadPublicObject({ key, body: buffer, contentType: 'image/svg+xml' });
+    return { url, key, originalSize: buffer.length, optimizedSize: buffer.length, contentType: 'image/svg+xml' };
   }
 
   const opts: ImageOptimizationOptions = {

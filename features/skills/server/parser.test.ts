@@ -35,6 +35,7 @@ test('parseSkillMarkdown reads frontmatter and body', () => {
     description: 'Handle support inbox triage',
     triggerType: 'slash',
     trigger: '/triage',
+    enabledTools: [],
     body: 'Review the inbox, group issues, and propose next actions.',
   });
 });

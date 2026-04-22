@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { imageModelConfig } from '@/db/schema';
 import { requireAdmin } from '@/lib/admin';
@@ -39,6 +39,7 @@ export async function GET(req: Request) {
       defaultResolution: cfg?.defaultResolution ?? null,
       defaultEnablePro: cfg?.defaultEnablePro ?? false,
       defaultGoogleSearch: cfg?.defaultGoogleSearch ?? false,
+      taskDefaults: cfg?.taskDefaults ?? [],
       adminNotes: cfg?.adminNotes ?? null,
       updatedAt: cfg?.updatedAt ?? null,
     };
@@ -50,6 +51,7 @@ export async function GET(req: Request) {
 // PATCH /api/admin/image-models
 // Upserts config for a model. Sends only the fields to change.
 export async function PATCH(req: Request) {
+  try {
   const adminCheck = await requireAdmin();
   if (!adminCheck.ok) return adminCheck.response;
 
@@ -62,6 +64,7 @@ export async function PATCH(req: Request) {
     defaultResolution?: string | null;
     defaultEnablePro?: boolean;
     defaultGoogleSearch?: boolean;
+    taskDefaults?: string[];
     adminNotes?: string | null;
   };
 
@@ -75,12 +78,20 @@ export async function PATCH(req: Request) {
     return Response.json({ error: 'Unknown model id' }, { status: 400 });
   }
 
-  // If setting as default, clear default from all other models first
+  // If setting as global default, clear it from all other models first
   if (body.isDefault === true) {
-    await db
-      .update(imageModelConfig)
-      .set({ isDefault: false })
-      .where(eq(imageModelConfig.isDefault, true));
+    await db.update(imageModelConfig).set({ isDefault: false }).where(eq(imageModelConfig.isDefault, true));
+  }
+
+  // For each task being assigned, remove it from any other model that currently holds it
+  if (body.taskDefaults && body.taskDefaults.length > 0) {
+    for (const task of body.taskDefaults) {
+      await db.execute(sql`
+        UPDATE image_model_config
+        SET task_defaults = array_remove(task_defaults, ${task})
+        WHERE id != ${body.id} AND ${task} = ANY(task_defaults)
+      `);
+    }
   }
 
   // Upsert the config row
@@ -98,6 +109,7 @@ export async function PATCH(req: Request) {
   if ('defaultResolution' in body) updateData.defaultResolution = body.defaultResolution ?? undefined;
   if (body.defaultEnablePro !== undefined) updateData.defaultEnablePro = body.defaultEnablePro;
   if (body.defaultGoogleSearch !== undefined) updateData.defaultGoogleSearch = body.defaultGoogleSearch;
+  if (body.taskDefaults !== undefined) updateData.taskDefaults = body.taskDefaults;
   if ('adminNotes' in body) updateData.adminNotes = body.adminNotes ?? undefined;
 
   if (existing.length > 0) {
@@ -115,10 +127,15 @@ export async function PATCH(req: Request) {
       defaultResolution: body.defaultResolution ?? undefined,
       defaultEnablePro: body.defaultEnablePro ?? false,
       defaultGoogleSearch: body.defaultGoogleSearch ?? false,
+      taskDefaults: body.taskDefaults ?? [],
       adminNotes: body.adminNotes ?? undefined,
       updatedAt: new Date(),
     });
   }
 
   return Response.json({ ok: true });
+  } catch (err) {
+    console.error('[PATCH /api/admin/image-models]', err);
+    return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+  }
 }

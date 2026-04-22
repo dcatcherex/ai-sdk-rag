@@ -26,6 +26,10 @@ const AGENT_LOCK_FIELDS = [
   'enabledTools',
   'modelId',
   'brandId',
+  'brandMode',
+  'brandAccessPolicy',
+  'requiresBrandForRun',
+  'fallbackBehavior',
   'documentIds',
   'starterPrompts',
 ] as const;

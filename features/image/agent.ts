@@ -6,7 +6,7 @@
 
 import { tool } from 'ai';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
+import { arrayContains, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { imageModelConfig } from '@/db/schema/admin';
 import { KIE_IMAGE_MODELS } from '@/lib/models/kie-image';
@@ -30,39 +30,73 @@ function isTemporaryProviderImageUrl(url: string): boolean {
   }
 }
 
+const TASK_HINT_VALUES = ['social_post', 'photorealistic', 'illustration', 'edit'] as const;
+type TaskHint = typeof TASK_HINT_VALUES[number];
+
+const TASK_HINT_DESCRIPTIONS: Record<TaskHint, string> = {
+  social_post:    'Social media posts, marketing banners, designed graphics — anything needing visible text, brand colors, or composed layout',
+  photorealistic: 'Realistic photos, portraits, product shots, lifestyle scenes',
+  illustration:   'Artistic illustrations, anime, concept art, stylized visuals',
+  edit:           'Edit or transform an existing image (image-to-image)',
+};
+
 export function createImageAgentTools(ctx: Pick<AgentToolContext, 'userId' | 'threadId' | 'referenceImageUrls' | 'source'>) {
   const { userId, threadId, referenceImageUrls, source } = ctx;
+
+  const taskHintGuide = TASK_HINT_VALUES
+    .map(t => `  • "${t}" — ${TASK_HINT_DESCRIPTIONS[t]}`)
+    .join('\n');
 
   return {
     generate_image: tool({
       description:
-        'Generate or edit an image using KIE AI models (Nano Banana 2, GPT Image 1.5, Qwen Z-Image, Grok Imagine, etc.). ' +
-        'For best results include: subject, composition, action, location, and style in the prompt. ' +
-        'Starts the generation asynchronously. The chat UI will show a waiting state, then display the final image inline when it is ready. ' +
-        'Use this when the user asks to create, draw, generate, or edit an image. ' +
-        'IMPORTANT: If the result contains errorType "reference_image_inaccessible", do NOT retry without the image. ' +
-        'Instead stop and ask the user: do they want to re-upload the image, or proceed with text-only generation?',
+        'Generate or edit an image. Use taskHint to let the platform pick the admin-configured model for the job — no need to know model names.\n' +
+        'TASK HINT GUIDE (prefer taskHint over modelId unless the user explicitly names a model):\n' +
+        taskHintGuide + '\n' +
+        'For best prompts include: subject, style, composition, colors, AND any text that should appear on the image. ' +
+        'Generation starts async — the UI shows a waiting state then displays the image inline when ready. ' +
+        'IMPORTANT: If the result contains errorType "reference_image_inaccessible", stop and ask the user to re-upload the image or confirm text-only generation.',
       inputSchema: z.object({
-        prompt: z.string().min(1).describe('Detailed image description. Include subject, style, composition, location.'),
-        modelId: z.enum(imageAgentModelIds).optional().describe('Model to use. Leave unset to use the platform default.'),
+        prompt: z.string().min(1).describe('Detailed image description. Include subject, style, composition, location, and any text to render.'),
+        taskHint: z.enum(TASK_HINT_VALUES).optional().describe(
+          'Task type — platform picks the admin-configured model. ' +
+          TASK_HINT_VALUES.map(t => `"${t}": ${TASK_HINT_DESCRIPTIONS[t]}`).join('; ')
+        ),
+        modelId: z.enum(imageAgentModelIds).optional().describe('Explicit model override — only use when the user specifically requests a model.'),
         aspectRatio: z.string().optional().describe('Aspect ratio e.g. "16:9", "1:1", "9:16"'),
         quality: z.enum(['medium', 'high']).optional().describe('Quality for GPT Image models'),
         enablePro: z.boolean().optional().describe('Enable pro/quality mode for Grok Imagine models'),
-        imageUrls: z.array(z.string()).optional().describe('Optional reference or edit images. Use these when the user uploaded or selected images for the next generation.'),
+        imageUrls: z.array(z.string()).optional().describe('Reference images for style guidance or editing. Include: (1) user-uploaded images when editing, (2) active brand style-reference assets when branded output should match the canonical brand visual identity.'),
       }),
       async execute(params) {
-        // Resolve model: use LLM choice if given, else use admin-configured default
+        // Resolve model — priority: explicit modelId > taskHint default > global default > hard fallback
         let modelId = params.modelId;
         let { enablePro } = params;
 
         if (!modelId) {
-          const [defaultModel] = await db
-            .select({ id: imageModelConfig.id, defaultEnablePro: imageModelConfig.defaultEnablePro })
-            .from(imageModelConfig)
-            .where(eq(imageModelConfig.isDefault, true))
-            .limit(1);
-          modelId = (defaultModel?.id as typeof imageAgentModelIds[number] | undefined) ?? 'grok-imagine/text-to-image';
-          if (enablePro === undefined && defaultModel) enablePro = defaultModel.defaultEnablePro;
+          // 1. Task-specific default (admin-configured)
+          if (params.taskHint) {
+            const [taskModel] = await db
+              .select({ id: imageModelConfig.id, defaultEnablePro: imageModelConfig.defaultEnablePro })
+              .from(imageModelConfig)
+              .where(arrayContains(imageModelConfig.taskDefaults, [params.taskHint]))
+              .limit(1);
+            if (taskModel) {
+              modelId = taskModel.id as typeof imageAgentModelIds[number];
+              if (enablePro === undefined) enablePro = taskModel.defaultEnablePro;
+            }
+          }
+
+          // 2. Global default
+          if (!modelId) {
+            const [defaultModel] = await db
+              .select({ id: imageModelConfig.id, defaultEnablePro: imageModelConfig.defaultEnablePro })
+              .from(imageModelConfig)
+              .where(eq(imageModelConfig.isDefault, true))
+              .limit(1);
+            modelId = (defaultModel?.id as typeof imageAgentModelIds[number] | undefined) ?? 'gpt-image/1.5-text-to-image';
+            if (enablePro === undefined && defaultModel) enablePro = defaultModel.defaultEnablePro;
+          }
         }
 
         // Apply admin enablePro default for the resolved model when LLM didn't set it

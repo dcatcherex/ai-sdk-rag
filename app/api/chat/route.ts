@@ -9,7 +9,7 @@ import { headers } from 'next/headers';
 import { and, count, eq, exists, isNull, or } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth-server';
 import { db } from '@/lib/db';
-import { agent, agentShare, brand, brandShare, chatThread, user as userTable, userPreferences } from '@/db/schema';
+import { agent, agentShare, chatThread, user as userTable, userPreferences } from '@/db/schema';
 import { availableModels, chatModel, maxSteps, isStrongModel } from '@/lib/ai';
 import { getSystemPrompt, resolveSystemPromptTemplate } from '@/lib/prompt';
 import { enhancePrompt } from '@/lib/prompt-enhance';
@@ -23,7 +23,7 @@ import { buildMCPToolSet } from '@/lib/tools/mcp';
 import { getCreditCost, getUserBalance } from '@/lib/credits';
 import { parseGuestCookie, getGuestSessionById, deductGuestCredits } from '@/lib/guest-access';
 import { requestSchema } from '@/features/chat/server/schema';
-import { buildImageBrandSuffix } from '@/features/brands/service';
+import { buildBrandImageContext, buildImageBrandSuffix } from '@/features/brands/service';
 import { assembleSystemPrompt } from '@/features/chat/server/prompt-assembly';
 import type { Brand } from '@/features/brands/types';
 import {
@@ -39,6 +39,7 @@ import { getWorkspaceContext } from '@/features/platform-agent/service';
 import { buildPlatformAgentSystemPrompt } from '@/features/platform-agent/prompts';
 import { getPlatformAgentTools } from '@/features/platform-agent/agent';
 import type { Agent } from '@/features/agents/types';
+import { resolveEffectiveBrand } from '@/features/agents/server/brand-resolution';
 import type { Skill } from '@/features/skills/types';
 import { getLastUserPrompt } from '@/features/chat/server/thread-utils';
 import { toolDisabledModels, isImageOnlyModel, getModelByIntent } from '@/features/chat/server/routing';
@@ -244,36 +245,27 @@ export async function POST(req: Request) {
         };
 
     // ── Stage 3: memory + brand (authenticated users only) ───────────────────
-    const effectiveBrandId = (!isGuest && (activeAgent?.brandId ?? brandId)) || null;
-    const [memoryContext, brandRows] = await Promise.all([
+    const [memoryContext, brandResolution] = await Promise.all([
       (!isGuest && userPrefs.memoryEnabled && userPrefs.memoryInjectEnabled)
         ? getUserMemoryContext(effectiveUserId)
         : Promise.resolve(''),
-      (!isGuest && effectiveBrandId)
-        ? db
-            .select()
-            .from(brand)
-            .where(
-              and(
-                eq(brand.id, effectiveBrandId),
-                or(
-                  eq(brand.userId, effectiveUserId),
-                  exists(
-                    db.select({ id: brandShare.id })
-                      .from(brandShare)
-                      .where(and(
-                        eq(brandShare.brandId, effectiveBrandId),
-                        eq(brandShare.sharedWithUserId, effectiveUserId),
-                      )),
-                  ),
-                ),
-              ),
-            )
-            .limit(1)
-        : Promise.resolve([]),
+      !isGuest
+        ? resolveEffectiveBrand({
+            userId: effectiveUserId,
+            activeBrandId: brandId,
+            agent: activeAgent,
+          })
+        : Promise.resolve(null),
     ]);
 
-    const activeBrand = (brandRows[0] ?? null) as Brand | null;
+    if (brandResolution?.shouldBlock) {
+      return Response.json(
+        { error: brandResolution.blockMessage ?? 'This agent requires a valid brand before it can run.' },
+        { status: 409 },
+      );
+    }
+
+    const activeBrand = (brandResolution?.effectiveBrand ?? null) as Brand | null;
     const [threadWorkingMemoryBlock, sharedMemoryBlock] = await Promise.all([
       isGuest ? Promise.resolve('') : buildThreadWorkingMemoryPromptBlock(threadId),
       isGuest ? Promise.resolve('') : buildBrandMemoryPromptBlock(effectiveUserId, activeBrand?.id ?? null, lastUserPrompt ?? ''),
@@ -428,11 +420,6 @@ export async function POST(req: Request) {
       ? '\nIMPORTANT: When the user asks to be quizzed, wants practice questions, asks you to grade an answer, wants a study plan, asks you to diagnose weak areas or misconceptions, or asks for flashcards or memorization cards, you MUST call the exam prep tools directly. Do NOT pretend to grade or generate a quiz freehand when the exam prep tools are available. If selected documents are attached to the chat, the exam prep tools already ground themselves in those documents automatically, so use the relevant exam prep tool directly unless you need extra document exploration beyond the tool result. Use generate_practice_quiz for quizzes and mock questions, grade_practice_answer for scoring or feedback on an answer, create_study_plan for revision schedules and topic prioritization, analyze_learning_gaps for weakness diagnosis, misconceptions, and what to study next, and generate_flashcards for revision cards and recall practice. If an exam prep tool call fails, explain the real issue briefly and ask only for the missing information.'
       : '';
 
-    const brandProfileToolEnabled = activeToolIds === null || activeToolIds.includes('brand_profile');
-    const brandProfileToolInstructions = supportsTools && brandProfileToolEnabled
-      ? '\nIMPORTANT: You have access to brand profile tools. ALWAYS call get_brand_profile at the start of any content or marketing task. When a required field (products, tone) is missing, ask for it, then IMMEDIATELY call save_brand_profile with the user\'s answer before continuing. Never skip saving — call save_brand_profile as a tool call, not just acknowledge the answer in text. Ask one field at a time. After all required fields are saved, proceed with the content task.'
-      : '';
-
     const certRelevant = /certif|template|recipient|generate cert|preview cert|ใบรับรอง|ใบประกาศ|ใบวุฒิ/i.test(lastUserPrompt ?? '');
     const certificateBrandHint = activeBrand
       ? (() => {
@@ -566,11 +553,15 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
       memoryContext,
       sharedMemoryBlock,
       skillRuntime,
-      brandProfileBlock: brandProfileToolInstructions,
       examPrepBlock: examPrepToolInstructions,
       certBlock: certificateToolInstructions,
       quizContextBlock: supportsTools ? quizContextBlock : '',
-    }) + latestImageToolBlock + userAttachedImagesBlock;
+    })
+      + (brandResolution?.promptInstruction
+        ? `\n\n<brand_resolution>\n${brandResolution.promptInstruction}\n</brand_resolution>`
+        : '')
+      + latestImageToolBlock
+      + userAttachedImagesBlock;
 
     // When platform agent is active, expose platform management tools exclusively.
     // Platform tools must not bleed into regular agent or user tool sets.
@@ -582,12 +573,14 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
             : createAgentTools(activeToolIds, effectiveUserId, effectiveDocIds, {
                 threadId,
                 referenceImageUrls: effectiveReferenceImageParts.map((part) => part.url),
+                brandId: activeBrand?.id,
               }))
         : (isGuest
             ? {}
             : buildToolSet({
                 enabledToolIds: activeToolIds,
                 userId: effectiveUserId,
+                brandId: activeBrand?.id,
                 documentIds: isGrounded ? effectiveDocIds : undefined,
                 rerankEnabled: userPrefs.rerankEnabled ?? false,
                 source: 'agent',
@@ -628,13 +621,21 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
         return Response.json({ error: 'Image generation requires a text prompt.' }, { status: 400 });
       }
 
+      const canonicalBrandImageContext = activeBrand
+        ? await buildBrandImageContext(activeBrand.id)
+        : { referenceImageUrls: [] };
+
       const imagePrompt = activeBrand
         ? baseImagePrompt + buildImageBrandSuffix(activeBrand)
         : baseImagePrompt;
 
       const hasImages = effectiveReferenceImageParts.length > 0;
-      const imageUrls = hasImages ? effectiveReferenceImageParts.map((p) => p.url) : undefined;
-      const { kieModelId, enablePro } = mapToKieImageModel(resolvedModel, hasImages);
+      const imageUrls = hasImages
+        ? effectiveReferenceImageParts.map((p) => p.url)
+        : canonicalBrandImageContext.referenceImageUrls.length > 0
+          ? canonicalBrandImageContext.referenceImageUrls
+          : undefined;
+      const { kieModelId, enablePro } = mapToKieImageModel(resolvedModel, Boolean(imageUrls?.length));
 
       const { taskId, generationId } = await triggerImageGeneration(
         {

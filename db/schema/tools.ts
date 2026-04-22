@@ -4,8 +4,6 @@ import { date, index, integer, jsonb, numeric, pgTable, text, timestamp } from "
 import { user } from "./auth";
 import { chatThread } from "./chat";
 
-// ── Tool Run / Artifact (unified tool execution persistence) ──────────────────
-
 export const toolRun = pgTable("tool_run", {
   id: text("id").primaryKey(),
   toolSlug: text("tool_slug").notNull(),
@@ -57,15 +55,13 @@ export const workspaceAiRun = pgTable("workspace_ai_run", {
   index("workspace_ai_run_entityId_idx").on(table.entityId),
 ]);
 
-// ── Activity Record (generic domain log — farm, class, patient, etc.) ─────────
-
 export const activityRecord = pgTable("activity_record", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
-  contextType: text("context_type").notNull(), // 'farm' | 'class' | 'patient' | ...
-  category: text("category"),                  // 'fertilizer' | 'pesticide' | 'lesson' | ...
-  entity: text("entity"),                      // crop name, student name, patient id
-  date: date("date").notNull(),                // activity date (user-specified, not createdAt)
+  contextType: text("context_type").notNull(),
+  category: text("category"),
+  entity: text("entity"),
+  date: date("date").notNull(),
   activity: text("activity").notNull(),
   quantity: text("quantity"),
   cost: numeric("cost", { precision: 10, scale: 2 }),
@@ -97,11 +93,10 @@ export const toolArtifactRelations = relations(toolArtifact, ({ one }) => ({
   toolRun: one(toolRun, { fields: [toolArtifact.toolRunId], references: [toolRun.id] }),
 }));
 
-// ── Brand Photo Bank ──────────────────────────────────────────────────────────
-
 export const brandPhoto = pgTable("brand_photo", {
   id: text("id").primaryKey(),
   userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+  brandId: text("brand_id"),
   lineUserId: text("line_user_id"),
   channelId: text("channel_id"),
   url: text("url").notNull(),
@@ -113,20 +108,17 @@ export const brandPhoto = pgTable("brand_photo", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("brand_photo_userId_idx").on(table.userId),
+  index("brand_photo_brandId_idx").on(table.brandId),
   index("brand_photo_lineUserId_channelId_idx").on(table.lineUserId, table.channelId),
 ]);
 
-// ── Brand Profile (persistent brand guidelines per user or LINE user) ─────────
-
-export const brandProfile = pgTable("brand_profile", {
+export const lineBrandDraft = pgTable("line_brand_draft", {
   id: text("id").primaryKey(),
-  userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
-  lineUserId: text("line_user_id"),
-  channelId: text("channel_id"),
+  lineUserId: text("line_user_id").notNull(),
+  channelId: text("channel_id").notNull(),
   field: text("field").notNull(),
   value: text("value").notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
-  index("brand_profile_userId_idx").on(table.userId),
-  index("brand_profile_lineUserId_channelId_idx").on(table.lineUserId, table.channelId),
+  index("line_brand_draft_lineUserId_channelId_idx").on(table.lineUserId, table.channelId),
 ]);

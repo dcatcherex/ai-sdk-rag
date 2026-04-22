@@ -23,6 +23,13 @@ type PreviewResult = {
   attachedSkillCount: number;
   attachedSkillNames: string[];
   activeTools: ToolEntry[];
+  brandResolution?: {
+    mode: string;
+    reason: string;
+    effectiveBrandName: string | null;
+    canOverride: boolean;
+    blocked: boolean;
+  };
   blocks: Block[];
 };
 
@@ -30,6 +37,12 @@ type AgentPromptPreviewSectionProps = {
   agentId: string | undefined;
   skillIds: string[];
   enabledTools: string[];
+  activeBrandId: string | null;
+  brandId: string | null;
+  brandMode: string;
+  brandAccessPolicy: string;
+  requiresBrandForRun: boolean;
+  fallbackBehavior: string;
 };
 
 function CollapsibleBlock({ block }: { block: Block }) {
@@ -64,7 +77,17 @@ function CollapsibleBlock({ block }: { block: Block }) {
 
 const DEBOUNCE_MS = 800;
 
-export function AgentPromptPreviewSection({ agentId, skillIds, enabledTools }: AgentPromptPreviewSectionProps) {
+export function AgentPromptPreviewSection({
+  agentId,
+  skillIds,
+  enabledTools,
+  activeBrandId,
+  brandId,
+  brandMode,
+  brandAccessPolicy,
+  requiresBrandForRun,
+  fallbackBehavior,
+}: AgentPromptPreviewSectionProps) {
   const [testMessage, setTestMessage] = useState('');
   const [result, setResult] = useState<PreviewResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -76,7 +99,17 @@ export function AgentPromptPreviewSection({ agentId, skillIds, enabledTools }: A
 
   const fetchPreview = useCallback(async (msg: string, isBackground: boolean) => {
     if (!agentId) return;
-    const key = JSON.stringify({ msg, skillIds, enabledTools });
+    const key = JSON.stringify({
+      msg,
+      skillIds,
+      enabledTools,
+      activeBrandId,
+      brandId,
+      brandMode,
+      brandAccessPolicy,
+      requiresBrandForRun,
+      fallbackBehavior,
+    });
     if (key === lastFetchKeyRef.current) return;
     lastFetchKeyRef.current = key;
 
@@ -91,6 +124,12 @@ export function AgentPromptPreviewSection({ agentId, skillIds, enabledTools }: A
           testMessage: msg.trim() || undefined,
           skillIds,
           enabledTools,
+          activeBrandId,
+          brandId,
+          brandMode,
+          brandAccessPolicy,
+          requiresBrandForRun,
+          fallbackBehavior,
         }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -102,7 +141,17 @@ export function AgentPromptPreviewSection({ agentId, skillIds, enabledTools }: A
       if (isBackground) setRefreshing(false);
       else setLoading(false);
     }
-  }, [agentId, skillIds, enabledTools]);
+  }, [
+    agentId,
+    skillIds,
+    enabledTools,
+    activeBrandId,
+    brandId,
+    brandMode,
+    brandAccessPolicy,
+    requiresBrandForRun,
+    fallbackBehavior,
+  ]);
 
   // Auto-run on first mount
   useEffect(() => {
@@ -120,7 +169,16 @@ export function AgentPromptPreviewSection({ agentId, skillIds, enabledTools }: A
     }, DEBOUNCE_MS);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [skillIds.join(','), enabledTools.join(',')]);
+  }, [
+    skillIds.join(','),
+    enabledTools.join(','),
+    activeBrandId,
+    brandId,
+    brandMode,
+    brandAccessPolicy,
+    requiresBrandForRun,
+    fallbackBehavior,
+  ]);
 
   const handlePreview = () => { void fetchPreview(testMessage, false); };
 
@@ -145,6 +203,11 @@ export function AgentPromptPreviewSection({ agentId, skillIds, enabledTools }: A
           ) : (
             <span className="font-medium">{enabledTools.length} tool{enabledTools.length !== 1 ? 's' : ''}</span>
           )}
+        </div>
+        <div className="flex items-center gap-2 px-3 py-2">
+          <SparklesIcon className="size-3.5 text-muted-foreground shrink-0" />
+          <span className="text-muted-foreground">Brand mode:</span>
+          <span className="font-medium">{brandMode}</span>
         </div>
       </div>
 
@@ -209,6 +272,23 @@ export function AgentPromptPreviewSection({ agentId, skillIds, enabledTools }: A
                     {result.activatedSkillNames.includes(name) && ' ✓'}
                   </Badge>
                 ))}
+              </div>
+            )}
+            {result.brandResolution && (
+              <div className="flex flex-wrap gap-1">
+                <Badge variant="secondary" className="text-xs">
+                  mode: {result.brandResolution.mode}
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  {result.brandResolution.effectiveBrandName
+                    ? `brand: ${result.brandResolution.effectiveBrandName}`
+                    : `reason: ${result.brandResolution.reason}`}
+                </Badge>
+                {result.brandResolution.blocked && (
+                  <Badge variant="destructive" className="text-xs">
+                    blocked
+                  </Badge>
+                )}
               </div>
             )}
             {result.activeTools.length > 0 && (

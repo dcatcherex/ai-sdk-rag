@@ -9,6 +9,12 @@ import type { SharedUser } from '@/features/agents/types';
 import { getResolvedSkillIdsByAgentIds } from '@/features/skills/service';
 import { agentStructuredBehaviorSchema } from '@/lib/agent-structured-behavior';
 import {
+  brandAccessPolicySchema,
+  brandModeSchema,
+  fallbackBehaviorSchema,
+  normalizeAgentBrandConfig,
+} from '@/features/agents/server/brand-config';
+import {
   ensureConfiguredStarterAgentForUser,
   getConfiguredGuestStarterAgent,
 } from '@/features/agents/server/starter';
@@ -30,6 +36,10 @@ const createSchema = z.object({
   enabledTools: z.array(z.string()).optional(),
   documentIds: z.array(z.string()).optional(),
   brandId: z.string().optional().nullable(),
+  brandMode: brandModeSchema.optional(),
+  brandAccessPolicy: brandAccessPolicySchema.optional(),
+  requiresBrandForRun: z.boolean().optional(),
+  fallbackBehavior: fallbackBehaviorSchema.optional(),
   imageUrl: z.string().url().optional().nullable(),
   isPublic: z.boolean().optional(),
   isDefault: z.boolean().optional(),
@@ -98,6 +108,10 @@ export async function GET() {
       documentIds: agent.documentIds,
       skillIds: agent.skillIds,
       brandId: agent.brandId,
+      brandMode: agent.brandMode,
+      brandAccessPolicy: agent.brandAccessPolicy,
+      requiresBrandForRun: agent.requiresBrandForRun,
+      fallbackBehavior: agent.fallbackBehavior,
       imageUrl: agent.imageUrl,
       isPublic: agent.isPublic,
       starterPrompts: agent.starterPrompts,
@@ -138,6 +152,10 @@ export async function GET() {
       documentIds: agent.documentIds,
       skillIds: agent.skillIds,
       brandId: agent.brandId,
+      brandMode: agent.brandMode,
+      brandAccessPolicy: agent.brandAccessPolicy,
+      requiresBrandForRun: agent.requiresBrandForRun,
+      fallbackBehavior: agent.fallbackBehavior,
       imageUrl: agent.imageUrl,
       isPublic: agent.isPublic,
       starterPrompts: agent.starterPrompts,
@@ -220,6 +238,13 @@ export async function POST(req: Request) {
   if (!authResult.ok) return authResult.response;
   const body = createSchema.parse(await req.json());
   const now = new Date();
+  const brandConfig = normalizeAgentBrandConfig({
+    brandId: body.brandId,
+    brandMode: body.brandMode,
+    brandAccessPolicy: body.brandAccessPolicy,
+    requiresBrandForRun: body.requiresBrandForRun,
+    fallbackBehavior: body.fallbackBehavior,
+  });
 
   const newAgent = {
     id: crypto.randomUUID(),
@@ -232,7 +257,11 @@ export async function POST(req: Request) {
     enabledTools: body.enabledTools ?? [],
     documentIds: body.documentIds ?? [],
     skillIds: [],
-    brandId: body.brandId ?? null,
+    brandId: brandConfig.brandId,
+    brandMode: brandConfig.brandMode,
+    brandAccessPolicy: brandConfig.brandAccessPolicy,
+    requiresBrandForRun: brandConfig.requiresBrandForRun,
+    fallbackBehavior: brandConfig.fallbackBehavior,
     imageUrl: body.imageUrl ?? null,
     isPublic: body.isPublic ?? false,
     isDefault: body.isDefault ?? false,

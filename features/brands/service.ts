@@ -3,7 +3,15 @@ import { nanoid } from 'nanoid';
 
 import { db } from '@/lib/db';
 import { brand, brandAsset, brandIcp, brandShare, user as userTable } from '@/db/schema';
-import type { Brand, BrandAsset, BrandIcp, BrandIcpInput, BrandImportJson, BrandSharedUser } from './types';
+import type {
+  Brand,
+  BrandAsset,
+  BrandAssetKind,
+  BrandIcp,
+  BrandIcpInput,
+  BrandImportJson,
+  BrandSharedUser,
+} from './types';
 
 // ── Brand CRUD ────────────────────────────────────────────────────────────────
 
@@ -50,14 +58,32 @@ export async function getBrands(userId: string): Promise<Brand[]> {
       overview: brand.overview,
       websiteUrl: brand.websiteUrl,
       industry: brand.industry,
+      productsServices: brand.productsServices,
       targetAudience: brand.targetAudience,
       toneOfVoice: brand.toneOfVoice,
       brandValues: brand.brandValues,
+      voiceExamples: brand.voiceExamples,
+      forbiddenPhrases: brand.forbiddenPhrases,
       visualAesthetics: brand.visualAesthetics,
       fonts: brand.fonts,
       colors: brand.colors,
+      colorNotes: brand.colorNotes,
+      styleReferenceMode: brand.styleReferenceMode,
+      styleDescription: brand.styleDescription,
       writingDos: brand.writingDos,
       writingDonts: brand.writingDonts,
+      usp: brand.usp,
+      priceRange: brand.priceRange,
+      keywords: brand.keywords,
+      platforms: brand.platforms,
+      promotionStyle: brand.promotionStyle,
+      competitors: brand.competitors,
+      customerPainPoints: brand.customerPainPoints,
+      positioningStatement: brand.positioningStatement,
+      messagingPillars: brand.messagingPillars,
+      proofPoints: brand.proofPoints,
+      exampleHeadlines: brand.exampleHeadlines,
+      exampleRejections: brand.exampleRejections,
       isDefault: brand.isDefault,
       createdAt: brand.createdAt,
       updatedAt: brand.updatedAt,
@@ -110,14 +136,27 @@ export async function createBrand(userId: string, data: BrandInput): Promise<Bra
       overview: data.overview ?? null,
       websiteUrl: data.websiteUrl ?? null,
       industry: data.industry ?? null,
+      productsServices: data.productsServices ?? null,
       targetAudience: data.targetAudience ?? null,
       toneOfVoice: data.toneOfVoice ?? [],
       brandValues: data.brandValues ?? [],
+      voiceExamples: data.voiceExamples ?? [],
+      forbiddenPhrases: data.forbiddenPhrases ?? [],
       visualAesthetics: data.visualAesthetics ?? [],
       fonts: data.fonts ?? [],
       colors: data.colors ?? [],
+      colorNotes: data.colorNotes ?? null,
+      styleReferenceMode: data.styleReferenceMode ?? 'direct',
+      styleDescription: data.styleDescription ?? null,
       writingDos: data.writingDos ?? null,
       writingDonts: data.writingDonts ?? null,
+      usp: data.usp ?? null,
+      priceRange: data.priceRange ?? null,
+      keywords: data.keywords ?? [],
+      platforms: data.platforms ?? [],
+      promotionStyle: data.promotionStyle ?? null,
+      competitors: data.competitors ?? [],
+      customerPainPoints: data.customerPainPoints ?? [],
       positioningStatement: data.positioningStatement ?? null,
       messagingPillars: data.messagingPillars ?? [],
       proofPoints: data.proofPoints ?? [],
@@ -162,6 +201,16 @@ export async function getBrandAssets(brandId: string): Promise<BrandAsset[]> {
     .from(brandAsset)
     .where(eq(brandAsset.brandId, brandId))
     .orderBy(brandAsset.sortOrder, brandAsset.createdAt) as Promise<BrandAsset[]>;
+}
+
+export async function getBrandAssetsByKind(
+  brandId: string,
+  kinds: BrandAssetKind | BrandAssetKind[],
+): Promise<BrandAsset[]> {
+  const requestedKinds = Array.isArray(kinds) ? kinds : [kinds];
+  const assets = await getBrandAssets(brandId);
+
+  return assets.filter((asset) => requestedKinds.includes(asset.kind));
 }
 
 export async function createBrandAsset(
@@ -246,11 +295,24 @@ export async function importBrandFromJson(
     overview: json.overview ?? null,
     websiteUrl: json.websiteUrl ?? null,
     industry: json.industry ?? null,
+    productsServices: json.productsServices ?? null,
     targetAudience: json.targetAudience ?? null,
     toneOfVoice: json.toneOfVoice ?? [],
     brandValues: json.brandValues ?? [],
+    voiceExamples: json.voiceExamples ?? [],
+    forbiddenPhrases: json.forbiddenPhrases ?? [],
     visualAesthetics: json.visualAesthetics ?? [],
     fonts: json.fonts ?? [],
+    colorNotes: json.colorNotes ?? null,
+    styleReferenceMode: json.styleReferenceMode ?? 'direct',
+    styleDescription: json.styleDescription ?? null,
+    usp: json.usp ?? null,
+    priceRange: json.priceRange ?? null,
+    keywords: json.keywords ?? [],
+    platforms: json.platforms ?? [],
+    promotionStyle: json.promotionStyle ?? null,
+    competitors: json.competitors ?? [],
+    customerPainPoints: json.customerPainPoints ?? [],
   });
 }
 
@@ -296,16 +358,29 @@ export function buildBrandBlock(b: Brand): string {
     `Name: ${b.name}`,
     b.overview ? `Overview: ${b.overview}` : '',
     b.industry ? `Industry: ${b.industry}` : '',
+    b.productsServices ? `Products & Services: ${b.productsServices}` : '',
     b.targetAudience ? `Target Audience: ${b.targetAudience}` : '',
+    b.usp ? `USP: ${b.usp}` : '',
+    b.priceRange ? `Price Range: ${b.priceRange}` : '',
     b.positioningStatement ? `Positioning: ${b.positioningStatement}` : '',
+    b.keywords.length ? `Keywords: ${b.keywords.join(', ')}` : '',
+    b.platforms.length ? `Platforms: ${b.platforms.join(', ')}` : '',
+    b.promotionStyle ? `Promotion Style: ${b.promotionStyle}` : '',
+    b.competitors.length ? `Competitors: ${b.competitors.join(' | ')}` : '',
+    b.customerPainPoints.length ? `Customer Pain Points: ${b.customerPainPoints.join(' | ')}` : '',
     b.messagingPillars.length ? `Messaging Pillars: ${b.messagingPillars.join(' | ')}` : '',
     b.proofPoints.length ? `Proof Points: ${b.proofPoints.join(' | ')}` : '',
     b.toneOfVoice.length ? `Tone of Voice: ${b.toneOfVoice.join(', ')}` : '',
     b.brandValues.length ? `Brand Values: ${b.brandValues.join(', ')}` : '',
+    b.voiceExamples.length ? `Voice Examples: ${b.voiceExamples.join(' | ')}` : '',
+    b.forbiddenPhrases.length ? `Forbidden Phrases: ${b.forbiddenPhrases.join(' | ')}` : '',
     b.visualAesthetics.length ? `Visual Style: ${b.visualAesthetics.join(', ')}` : '',
+    b.styleReferenceMode ? `Style Reference Mode: ${b.styleReferenceMode}` : '',
+    b.styleDescription ? `Style Description: ${b.styleDescription}` : '',
     b.colors.length
       ? `Brand Colors: ${b.colors.filter((c) => c.hex).map((c) => `${c.label} ${c.hex}`).join(', ')}`
       : '',
+    b.colorNotes ? `Color Notes: ${b.colorNotes}` : '',
     b.writingDos ? `Writing guidelines (do): ${b.writingDos}` : '',
     b.writingDonts ? `Writing guidelines (don't): ${b.writingDonts}` : '',
     b.exampleHeadlines.length ? `On-brand headline examples: ${b.exampleHeadlines.join(' | ')}` : '',
@@ -357,11 +432,29 @@ export function buildImageBrandSuffix(b: Brand): string {
   if (b.visualAesthetics.length) {
     parts.push(`Visual style: ${b.visualAesthetics.join(', ')}`);
   }
+  if (b.styleDescription) {
+    parts.push(`Style reference notes: ${b.styleDescription}`);
+  }
   const colors = b.colors.filter((c) => c.hex).slice(0, 3);
   if (colors.length) {
     parts.push(`Brand colors: ${colors.map((c) => `${c.hex} (${c.label})`).join(', ')}`);
+  } else if (b.colorNotes) {
+    parts.push(`Color guidance: ${b.colorNotes}`);
   }
   return parts.length ? `. ${parts.join('. ')}` : '';
+}
+
+export async function buildBrandImageContext(brandId: string): Promise<{
+  referenceImageUrls: string[];
+}> {
+  const styleReferenceAssets = await getBrandAssetsByKind(brandId, 'style_reference');
+
+  return {
+    referenceImageUrls: styleReferenceAssets
+      .map((asset) => asset.url)
+      .filter((url) => typeof url === 'string' && url.startsWith('http'))
+      .slice(0, 3),
+  };
 }
 
 // BRAND_ASSET_KINDS is in types.ts (client-safe)

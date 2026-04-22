@@ -1,4 +1,4 @@
-export type BrandAssetKind = 'logo' | 'product' | 'creative' | 'document' | 'font' | 'other';
+export type BrandAssetKind = 'logo' | 'style_reference' | 'document' | 'font' | 'other';
 
 export type BrandColor = {
   hex: string;
@@ -19,16 +19,27 @@ export type Brand = {
   overview: string | null;
   websiteUrl: string | null;
   industry: string | null;
+  productsServices: string | null;
   targetAudience: string | null;
   toneOfVoice: string[];
   brandValues: string[];
+  voiceExamples: string[];
+  forbiddenPhrases: string[];
   visualAesthetics: string[];
   fonts: string[];
-  /** Flexible color palette — typically 3–5 entries with semantic labels */
   colors: BrandColor[];
+  colorNotes: string | null;
+  styleReferenceMode: string;
+  styleDescription: string | null;
   writingDos: string | null;
   writingDonts: string | null;
-  // ── Strategy layer ──────────────────────────────────────────────────────
+  usp: string | null;
+  priceRange: string | null;
+  keywords: string[];
+  platforms: string[];
+  promotionStyle: string | null;
+  competitors: string[];
+  customerPainPoints: string[];
   positioningStatement: string | null;
   messagingPillars: string[];
   proofPoints: string[];
@@ -37,9 +48,7 @@ export type Brand = {
   isDefault: boolean;
   createdAt: Date;
   updatedAt: Date;
-  /** Populated by GET /api/brands — true when current user owns this brand */
   isOwner?: boolean;
-  /** Populated for owned brands — list of users this brand is shared with */
   sharedWith?: BrandSharedUser[];
 };
 
@@ -80,28 +89,38 @@ export type BrandWithAssets = Brand & { assets: BrandAsset[] };
 
 export const BRAND_ASSET_KINDS: BrandAssetKind[] = [
   'logo',
-  'product',
-  'creative',
+  'style_reference',
   'document',
   'font',
   'other',
 ];
 
-/** Standard 5-slot palette labels — suggested when creating a new brand */
 export const SUGGESTED_COLOR_LABELS = ['Primary', 'Secondary', 'Accent', 'Background', 'Text'] as const;
 
-/** Subset accepted from a pasted JSON import (EdLab-compatible shape) */
 export type BrandImportJson = {
   name?: string;
   overview?: string;
   websiteUrl?: string;
   industry?: string;
+  productsServices?: string | null;
   targetAudience?: string;
   toneOfVoice?: string[];
   brandValues?: string[];
+  voiceExamples?: string[];
+  forbiddenPhrases?: string[];
   visualAesthetics?: string[];
   fonts?: string[];
   colors?: BrandColor[];
+  colorNotes?: string | null;
+  styleReferenceMode?: string;
+  styleDescription?: string | null;
+  usp?: string | null;
+  priceRange?: string | null;
+  keywords?: string[];
+  platforms?: string[];
+  promotionStyle?: string | null;
+  competitors?: string[];
+  customerPainPoints?: string[];
   campaigns?: {
     creatives?: {
       title?: string;
