@@ -48,7 +48,7 @@ export interface KieImageOptions {
   /** 'generate' = text-only, 'edit' = requires images, 'both' = optional images */
   mode: 'generate' | 'edit' | 'both';
   /** Aspect ratio values sent to API. ['auto'] if not configurable */
-  aspectRatios: string[];
+  aspectRatios?: string[];
   /** GPT Image: quality control (medium/high) */
   hasQuality?: boolean;
   /** Grok Imagine: enable pro/quality mode */
