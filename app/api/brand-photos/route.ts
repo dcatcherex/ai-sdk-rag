@@ -1,7 +1,12 @@
 import { getCurrentUser } from '@/lib/auth-server';
 import { uploadImage, UploadError } from '@/lib/storage/uploadImage';
 import { deletePublicObject } from '@/lib/r2';
-import { listBrandPhotos, saveBrandPhoto, deleteBrandPhoto } from '@/features/brand-photos/service';
+import {
+  deleteBrandPhoto,
+  listBrandPhotos,
+  saveBrandPhoto,
+  updateBrandPhotoTags,
+} from '@/features/brand-photos/service';
 
 export async function GET(req: Request) {
   const user = await getCurrentUser();
@@ -10,7 +15,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const brandId = searchParams.get('brandId') ?? undefined;
 
-  const photos = await listBrandPhotos(brandId ? { brandId } : { userId: user.id });
+  const photos = await listBrandPhotos(brandId ? { userId: user.id, brandId } : { userId: user.id });
   return Response.json({ photos });
 }
 
@@ -69,4 +74,29 @@ export async function DELETE(req: Request) {
 
   await deletePublicObject(r2Key);
   return Response.json({ deleted: true });
+}
+
+export async function PATCH(req: Request) {
+  const user = await getCurrentUser();
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { id, brandId, tags } = await req.json() as {
+    id?: string;
+    brandId?: string;
+    tags?: unknown;
+  };
+
+  if (!id) return Response.json({ error: 'Missing id' }, { status: 400 });
+  if (!Array.isArray(tags) || tags.some((tag) => typeof tag !== 'string')) {
+    return Response.json({ error: 'Invalid tags' }, { status: 400 });
+  }
+
+  const cleanTags = [...new Set(
+    tags.map((tag) => tag.trim()).filter(Boolean),
+  )];
+  const ctx = brandId ? { userId: user.id, brandId } : { userId: user.id };
+  const photo = await updateBrandPhotoTags(id, ctx, cleanTags);
+  if (!photo) return Response.json({ error: 'Not found' }, { status: 404 });
+
+  return Response.json({ photo });
 }

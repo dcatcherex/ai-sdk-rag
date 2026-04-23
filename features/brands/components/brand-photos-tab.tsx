@@ -2,11 +2,18 @@
 
 import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Images, Loader2, Tag, Trash2, Upload, UploadCloudIcon } from 'lucide-react';
+import { Images, Loader2, Pencil, Tag, Trash2, Upload, UploadCloudIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 type Photo = {
   id: string;
@@ -16,10 +23,38 @@ type Photo = {
   usageCount: number;
 };
 
+const EDLAB_ESSENTIAL_TAGS = [
+  'group',
+  'or',
+  'cpr',
+  'lab',
+  'er',
+  'hands-on',
+  'microscope',
+  'round-latest',
+];
+
+function parseTags(value: string) {
+  return [...new Set(value.split(',').map((tag) => tag.trim()).filter(Boolean))];
+}
+
+function formatTags(tags: string[]) {
+  return tags.join(', ');
+}
+
+function toggleTagValue(value: string, tag: string) {
+  const tags = parseTags(value);
+  return tags.includes(tag)
+    ? formatTags(tags.filter((current) => current !== tag))
+    : formatTags([...tags, tag]);
+}
+
 export function BrandPhotosTab({ brandId }: { brandId: string }) {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [tagInput, setTagInput] = useState('');
+  const [editingPhoto, setEditingPhoto] = useState<Photo | null>(null);
+  const [editTagInput, setEditTagInput] = useState('');
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
@@ -35,7 +70,7 @@ export function BrandPhotosTab({ brandId }: { brandId: string }) {
 
   const uploadMutation = useMutation({
     mutationFn: async (files: FileList) => {
-      const tags = tagInput.split(',').map((t) => t.trim()).filter(Boolean);
+      const tags = parseTags(tagInput);
       await Promise.all(
         Array.from(files).map((file) => {
           const fd = new FormData();
@@ -54,6 +89,27 @@ export function BrandPhotosTab({ brandId }: { brandId: string }) {
       if (fileRef.current) fileRef.current.value = '';
     },
   });
+
+  const updateTagsMutation = useMutation({
+    mutationFn: async ({ id, tags }: { id: string; tags: string[] }) => {
+      const res = await fetch('/api/brand-photos', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, brandId, tags }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['brand-photos', brandId] });
+      setEditingPhoto(null);
+      setEditTagInput('');
+    },
+  });
+
+  const openTagEditor = (photo: Photo) => {
+    setEditingPhoto(photo);
+    setEditTagInput(formatTags(photo.tags));
+  };
 
   const onDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
@@ -121,6 +177,27 @@ export function BrandPhotosTab({ brandId }: { brandId: string }) {
             onChange={(e) => setTagInput(e.target.value)}
             className="h-8 text-sm"
           />
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] font-medium text-muted-foreground">EdLab preset</span>
+          {EDLAB_ESSENTIAL_TAGS.map((tag) => {
+            const active = parseTags(tagInput).includes(tag);
+            return (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => setTagInput((value) => toggleTagValue(value, tag))}
+                className={cn(
+                  'rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors',
+                  active
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground',
+                )}
+              >
+                {tag}
+              </button>
+            );
+          })}
         </div>
         <div className="flex items-center gap-3">
           <input
@@ -195,6 +272,13 @@ export function BrandPhotosTab({ brandId }: { brandId: string }) {
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
           {visible.map((photo) => (
             <div key={photo.id} className="group relative overflow-hidden rounded-lg border bg-muted/20">
+              {photo.tags.length === 0 && (
+                <span
+                  aria-label="No tags"
+                  title="No tags"
+                  className="absolute left-2 top-2 z-10 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-zinc-900"
+                />
+              )}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={photo.url}
@@ -202,13 +286,25 @@ export function BrandPhotosTab({ brandId }: { brandId: string }) {
                 className="aspect-square w-full object-cover"
               />
               <div className="absolute inset-0 flex flex-col justify-between p-1.5 opacity-0 transition-opacity group-hover:opacity-100 bg-black/40">
-                <button
-                  onClick={() => deleteMutation.mutate(photo.id)}
-                  disabled={deleteMutation.isPending}
-                  className="self-end rounded bg-destructive/90 p-1 text-white hover:bg-destructive"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
+                <div className="flex justify-end gap-1">
+                  <button
+                    type="button"
+                    title="Edit tags"
+                    onClick={() => openTagEditor(photo)}
+                    className="rounded bg-white/90 p-1 text-zinc-900 hover:bg-white"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    title="Delete photo"
+                    onClick={() => deleteMutation.mutate(photo.id)}
+                    disabled={deleteMutation.isPending}
+                    className="rounded bg-destructive/90 p-1 text-white hover:bg-destructive"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
                 <div className="flex flex-col gap-0.5">
                   {photo.tags.length > 0 && (
                     <div className="flex flex-wrap gap-0.5">
@@ -226,6 +322,86 @@ export function BrandPhotosTab({ brandId }: { brandId: string }) {
           ))}
         </div>
       )}
+
+      <Dialog open={Boolean(editingPhoto)} onOpenChange={(open) => {
+        if (!open) setEditingPhoto(null);
+      }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit photo tags</DialogTitle>
+          </DialogHeader>
+          {editingPhoto && (
+            <div className="grid gap-4 sm:grid-cols-[140px_1fr]">
+              <div className="overflow-hidden rounded-lg border bg-muted/20">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={editingPhoto.url}
+                  alt={editingPhoto.filename ?? 'Brand photo'}
+                  className="aspect-square w-full object-cover"
+                />
+              </div>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="brand-photo-tags">Tags</Label>
+                  <Input
+                    id="brand-photo-tags"
+                    value={editTagInput}
+                    onChange={(e) => setEditTagInput(e.target.value)}
+                    placeholder="group, or, round-latest"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {EDLAB_ESSENTIAL_TAGS.map((tag) => {
+                    const active = parseTags(editTagInput).includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => setEditTagInput((value) => toggleTagValue(value, tag))}
+                        className={cn(
+                          'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                          active
+                            ? 'border-primary bg-primary text-primary-foreground'
+                            : 'border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground',
+                        )}
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
+                {updateTagsMutation.isError && (
+                  <p className="text-xs text-destructive">{(updateTagsMutation.error as Error).message}</p>
+                )}
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditingPhoto(null)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={updateTagsMutation.isPending}
+                    onClick={() => updateTagsMutation.mutate({
+                      id: editingPhoto.id,
+                      tags: parseTags(editTagInput),
+                    })}
+                  >
+                    {updateTagsMutation.isPending && (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    )}
+                    Save tags
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

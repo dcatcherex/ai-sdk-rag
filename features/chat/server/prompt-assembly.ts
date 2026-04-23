@@ -1,4 +1,4 @@
-import { buildBrandBlock } from '@/features/brands/service';
+import { buildBrandBlock } from '@/features/brands/prompt';
 import type { Brand } from '@/features/brands/types';
 
 export type SystemPromptInput = {

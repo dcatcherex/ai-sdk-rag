@@ -11,7 +11,6 @@ import { getCurrentUser } from '@/lib/auth-server';
 import { db } from '@/lib/db';
 import { agent, agentShare, chatThread, user as userTable, userPreferences } from '@/db/schema';
 import { availableModels, chatModel, maxSteps, isStrongModel } from '@/lib/ai';
-import { getSystemPrompt, resolveSystemPromptTemplate } from '@/lib/prompt';
 import { enhancePrompt } from '@/lib/prompt-enhance';
 import { summarizeConversation, SUMMARY_THRESHOLD } from '@/lib/conversation-summary';
 import { getUserModelScores } from '@/lib/model-scores';
@@ -24,23 +23,23 @@ import { getCreditCost, getUserBalance } from '@/lib/credits';
 import { parseGuestCookie, getGuestSessionById, deductGuestCredits } from '@/lib/guest-access';
 import { requestSchema } from '@/features/chat/server/schema';
 import { buildBrandImageContext, buildImageBrandSuffix } from '@/features/brands/service';
-import { assembleSystemPrompt } from '@/features/chat/server/prompt-assembly';
-import type { Brand } from '@/features/brands/types';
 import {
   buildBrandMemoryPromptBlock,
   buildThreadWorkingMemoryPromptBlock,
   refreshThreadWorkingMemoryFromMessages,
 } from '@/features/memory/service';
 import {
-  getSkillsForAgent,
-  resolveSkillRuntimeContext,
-} from '@/features/skills/service';
+  buildAgentRunSystemPrompt,
+  mergeAgentDocumentIds,
+  mergeAgentToolIds,
+  resolveAgentBaseSystemPrompt,
+  resolveAgentBrandRuntime,
+  resolveAgentSkillRuntime,
+} from '@/features/agents/server/runtime';
 import { getWorkspaceContext } from '@/features/platform-agent/service';
 import { buildPlatformAgentSystemPrompt } from '@/features/platform-agent/prompts';
 import { getPlatformAgentTools } from '@/features/platform-agent/agent';
 import type { Agent } from '@/features/agents/types';
-import { resolveEffectiveBrand } from '@/features/agents/server/brand-resolution';
-import type { Skill } from '@/features/skills/types';
 import { getLastUserPrompt } from '@/features/chat/server/thread-utils';
 import { toolDisabledModels, isImageOnlyModel, getModelByIntent } from '@/features/chat/server/routing';
 import { triggerImageGeneration } from '@/features/image/service';
@@ -231,34 +230,21 @@ export async function POST(req: Request) {
     const isPlatformAgentActive = isVajaPlatformRequest;
     const lastUserPrompt = getLastUserPrompt(messages);
 
-    // Load skills attached to the active agent
-    const agentSkillRows: Skill[] =
-      activeAgent
-        ? await getSkillsForAgent(activeAgent.id)
-        : [];
-    const skillRuntime = agentSkillRows.length > 0 && lastUserPrompt
-      ? await resolveSkillRuntimeContext(agentSkillRows, lastUserPrompt)
-      : {
-          catalogBlock: '',
-          activatedSkills: [],
-          activeSkillsBlock: '',
-          skillResourcesBlock: '',
-          skillToolIds: [],
-        };
+    const skillRuntime = await resolveAgentSkillRuntime(activeAgent, lastUserPrompt);
 
     // ── Stage 3: memory + brand (authenticated users only) ───────────────────
-    const [memoryContext, brandResolution] = await Promise.all([
+    const [memoryContext, brandRuntime] = await Promise.all([
       (!isGuest && userPrefs.memoryEnabled && userPrefs.memoryInjectEnabled)
         ? getUserMemoryContext(effectiveUserId)
         : Promise.resolve(''),
-      !isGuest
-        ? resolveEffectiveBrand({
-            userId: effectiveUserId,
-            activeBrandId: brandId,
-            agent: activeAgent,
-          })
-        : Promise.resolve(null),
+      resolveAgentBrandRuntime({
+        userId: effectiveUserId,
+        activeBrandId: brandId,
+        agent: activeAgent,
+        enabled: !isGuest,
+      }),
     ]);
+    const { brandResolution, activeBrand } = brandRuntime;
 
     if (brandResolution?.shouldBlock) {
       return Response.json(
@@ -267,19 +253,16 @@ export async function POST(req: Request) {
       );
     }
 
-    const activeBrand = (brandResolution?.effectiveBrand ?? null) as Brand | null;
     const [threadWorkingMemoryBlock, sharedMemoryBlock] = await Promise.all([
       isGuest ? Promise.resolve('') : buildThreadWorkingMemoryPromptBlock(threadId),
       isGuest ? Promise.resolve('') : buildBrandMemoryPromptBlock(effectiveUserId, activeBrand?.id ?? null, lastUserPrompt ?? ''),
     ]);
 
     // Merge agent pre-associated docs + user-selected docs (union, deduplicated)
-    const agentDocIds = activeAgent?.documentIds ?? [];
-    const userDocIds = selectedDocumentIds ?? [];
-    const effectiveDocIds =
-      agentDocIds.length > 0 || userDocIds.length > 0
-        ? [...new Set([...agentDocIds, ...userDocIds])]
-        : undefined;
+    const effectiveDocIds = mergeAgentDocumentIds({
+      agentDocumentIds: activeAgent?.documentIds,
+      selectedDocumentIds,
+    });
 
     const isGrounded = !!effectiveDocIds?.length;
 
@@ -290,9 +273,7 @@ export async function POST(req: Request) {
       ? activeAgent.enabledTools
       : (userPrefs.enabledToolIds ?? null);
     // Merge in tool IDs unlocked by triggered skills (deduplicated)
-    const activeToolIds = skillRuntime.skillToolIds.length > 0
-      ? [...new Set([...(baseToolIds ?? []), ...skillRuntime.skillToolIds])]
-      : baseToolIds;
+    const activeToolIds = mergeAgentToolIds({ baseToolIds, skillRuntime });
 
     const examPrepToolEnabled = activeToolIds === null || activeToolIds.includes('exam_prep');
     const certificateToolEnabled = activeToolIds === null || activeToolIds.includes('certificate');
@@ -303,8 +284,7 @@ export async function POST(req: Request) {
       const workspaceCtx = await getWorkspaceContext(effectiveUserId);
       baseSystemPrompt = buildPlatformAgentSystemPrompt(workspaceCtx);
     } else {
-      const rawSystemPrompt = activeAgent ? activeAgent.systemPrompt : getSystemPrompt();
-      baseSystemPrompt = resolveSystemPromptTemplate(rawSystemPrompt);
+      baseSystemPrompt = resolveAgentBaseSystemPrompt({ agent: activeAgent });
     }
 
 
@@ -552,7 +532,7 @@ ${userAttachedImageUrls.map((url, index) => `${index + 1}. ${url}`).join('\n')}
 IMPORTANT: These are the exact URL(s) the user attached. If they want to generate, edit, or transform an image based on these attachments, you MUST include these URL(s) in the \`imageUrls\` parameter when calling \`generate_image\`. Do not omit \`imageUrls\` when the user has attached images.`
         : '';
 
-    const effectiveSystemPrompt = assembleSystemPrompt({
+    const effectiveSystemPrompt = buildAgentRunSystemPrompt({
       base: baseSystemPrompt,
       conversationSummaryBlock,
       threadWorkingMemoryBlock,
@@ -564,13 +544,13 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
       examPrepBlock: examPrepToolInstructions,
       certBlock: certificateToolInstructions,
       quizContextBlock: supportsTools ? quizContextBlock : '',
-    })
-      + (brandResolution?.promptInstruction
-        ? `\n\n<brand_resolution>\n${brandResolution.promptInstruction}\n</brand_resolution>`
-        : '')
-      + latestImageToolBlock
-      + freshImageRegenerationBlock
-      + userAttachedImagesBlock;
+      brandPromptInstruction: brandResolution?.promptInstruction,
+      extraBlocks: [
+        latestImageToolBlock,
+        freshImageRegenerationBlock,
+        userAttachedImagesBlock,
+      ],
+    });
 
     // When platform agent is active, expose platform management tools exclusively.
     // Platform tools must not bleed into regular agent or user tool sets.

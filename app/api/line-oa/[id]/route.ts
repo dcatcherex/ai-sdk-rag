@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
-import { agent, lineOaChannel } from '@/db/schema';
+import { agent, lineOaChannel, lineUserAgentSession } from '@/db/schema';
 
 const updateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -37,6 +37,16 @@ export async function PATCH(
     }
   }
 
+  const [existingChannel] = await db
+    .select({ agentId: lineOaChannel.agentId })
+    .from(lineOaChannel)
+    .where(and(eq(lineOaChannel.id, id), eq(lineOaChannel.userId, authResult.user.id)))
+    .limit(1);
+
+  if (!existingChannel) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   const updated = await db
     .update(lineOaChannel)
     .set({
@@ -55,6 +65,13 @@ export async function PATCH(
 
   if (updated.length === 0) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
+  if ('agentId' in body) {
+    await db
+      .update(lineUserAgentSession)
+      .set({ activeAgentId: null, updatedAt: new Date() })
+      .where(eq(lineUserAgentSession.channelId, id));
   }
 
   return NextResponse.json({ channel: updated[0] });

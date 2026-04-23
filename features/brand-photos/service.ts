@@ -7,6 +7,9 @@ import type { BrandPhotoContext } from './types';
 import { buildBrandImageContext } from '@/features/brands/service';
 
 function buildWhere(ctx: BrandPhotoContext) {
+  if (ctx.brandId && ctx.userId) {
+    return and(eq(brandPhoto.brandId, ctx.brandId), eq(brandPhoto.userId, ctx.userId));
+  }
   if (ctx.brandId) return eq(brandPhoto.brandId, ctx.brandId);
   if (ctx.userId) return eq(brandPhoto.userId, ctx.userId);
   if (ctx.lineUserId && ctx.channelId) {
@@ -121,6 +124,20 @@ export async function saveBrandPhoto(
   };
   await db.insert(brandPhoto).values(row);
   return row;
+}
+
+export async function updateBrandPhotoTags(
+  id: string,
+  ctx: BrandPhotoContext,
+  tags: string[],
+) {
+  const rows = await db
+    .update(brandPhoto)
+    .set({ tags })
+    .where(and(eq(brandPhoto.id, id), buildWhere(ctx)))
+    .returning();
+
+  return rows[0] ?? null;
 }
 
 export async function deleteBrandPhoto(id: string, ctx: BrandPhotoContext) {

@@ -16,8 +16,13 @@ import { getCreditCost, getUserBalance, deductCredits } from '@/lib/credits';
 import { availableModels, chatModel, maxSteps } from '@/lib/ai';
 import { toolDisabledModels } from '@/features/chat/server/routing';
 import { createAgentTools } from '@/lib/agent-tools';
-import { buildBrandBlock } from '@/features/brands/service';
-import { resolveEffectiveBrand } from '@/features/agents/server/brand-resolution';
+import {
+  buildAgentRunSystemPrompt,
+  mergeAgentToolIds,
+  resolveAgentBaseSystemPrompt,
+  resolveAgentBrandRuntime,
+  resolveAgentSkillRuntime,
+} from '@/features/agents/server/runtime';
 import { verifySessionToken } from '@/lib/guest-session';
 import { publicAgentShareEvent } from '@/db/schema';
 import { nanoid } from 'nanoid';
@@ -25,6 +30,26 @@ import { nanoid } from 'nanoid';
 export const maxDuration = 30;
 
 type Params = { params: Promise<{ token: string }> };
+
+function getLastUserPromptFromUnknownMessages(messages: unknown[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (!message || typeof message !== 'object') continue;
+    const role = (message as { role?: unknown }).role;
+    if (role !== 'user') continue;
+    const parts = (message as { parts?: unknown }).parts;
+    if (!Array.isArray(parts)) continue;
+    const textPart = parts.find((part) =>
+      part
+      && typeof part === 'object'
+      && (part as { type?: unknown }).type === 'text'
+      && typeof (part as { text?: unknown }).text === 'string'
+      && (part as { text: string }).text.trim().length > 0
+    ) as { text: string } | undefined;
+    if (textPart) return textPart.text.trim();
+  }
+  return null;
+}
 
 export async function POST(req: Request, { params }: Params) {
   try {
@@ -129,13 +154,20 @@ export async function POST(req: Request, { params }: Params) {
       return Response.json({ error: 'Agent not available.' }, { status: 400 });
     }
     const ownerId = agentRow.userId;
-    const brandResolution = await resolveEffectiveBrand({
-      userId: ownerId,
-      activeBrandId: null,
-      agent: agentRow,
-    });
 
-    if (brandResolution.shouldBlock) {
+    const lastUserPrompt = getLastUserPromptFromUnknownMessages(messages);
+    const [skillRuntime, brandRuntime] = await Promise.all([
+      resolveAgentSkillRuntime(agentRow, lastUserPrompt),
+      resolveAgentBrandRuntime({
+        userId: ownerId,
+        activeBrandId: null,
+        agent: agentRow,
+        enabled: true,
+      }),
+    ]);
+    const { brandResolution, activeBrand } = brandRuntime;
+
+    if (brandResolution?.shouldBlock) {
       return Response.json(
         { error: brandResolution.blockMessage ?? 'This shared agent requires a valid brand before it can run.' },
         { status: 409 },
@@ -162,27 +194,29 @@ export async function POST(req: Request, { params }: Params) {
     }
 
     const supportsTools = !toolDisabledModels.has(resolvedModel);
-    const agentTools = supportsTools && agentRow.enabledTools.length > 0
+    const activeToolIds = mergeAgentToolIds({
+      baseToolIds: agentRow.enabledTools,
+      skillRuntime,
+    });
+    const agentTools = supportsTools
       ? createAgentTools(
-          agentRow.enabledTools,
+          activeToolIds,
           ownerId,
           agentRow.documentIds.length > 0 ? agentRow.documentIds : undefined,
+          {
+            threadId: threadId ?? undefined,
+            brandId: activeBrand?.id,
+          },
         )
       : undefined;
 
-    const brandBlock = brandResolution.effectiveBrand
-      ? `\n\n${buildBrandBlock(brandResolution.effectiveBrand)}`
-      : '';
-    const brandResolutionBlock = brandResolution.promptInstruction
-      ? `\n\n<brand_resolution>\n${brandResolution.promptInstruction}\n</brand_resolution>`
-      : '';
-
-    const systemPrompt = agentRow.systemPrompt +
-      brandBlock +
-      brandResolutionBlock +
-      (agentRow.documentIds.length > 0
-        ? '\nIMPORTANT: Use the searchKnowledge tool to find relevant information before answering.'
-        : '');
+    const systemPrompt = buildAgentRunSystemPrompt({
+      base: resolveAgentBaseSystemPrompt({ agent: agentRow }),
+      isGrounded: agentRow.documentIds.length > 0,
+      activeBrand,
+      skillRuntime,
+      brandPromptInstruction: brandResolution?.promptInstruction,
+    });
 
     const result = streamText({
       model: resolvedModel,

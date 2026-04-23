@@ -11,7 +11,6 @@ import {
   extractAndStoreLineUserMemory,
   resolveMemoryPreferences,
 } from '@/lib/memory';
-import { assembleSystemPrompt } from '@/features/chat/server/prompt-assembly';
 import type { AgentRow, LineMessage, LinkedUser, MessagePart, Sender } from '../types';
 import { MAX_CONTEXT_MESSAGES } from '../types';
 import { getOrCreateConversation } from '../db';
@@ -27,12 +26,18 @@ import { FRIENDLY_STICKERS, pickRandom, shouldAddFriendlySticker } from '@/featu
 import { recordMessageEvent } from '@/features/line-oa/analytics';
 import { chatModel } from '@/lib/ai';
 import { modelSupportsCapability } from '@/features/chat/server/routing';
-import { resolveEffectiveBrand } from '@/features/agents/server/brand-resolution';
 import { SIGNUP_BONUS_CREDITS } from '@/lib/credits';
 import { GoogleGenAI } from '@google/genai';
 import { getKieApiKey } from '@/lib/api/routeGuards';
 import { KieService } from '@/lib/providers/kieService';
 import { buildLineToolSet, LINE_IMAGE_MODEL } from '../tools';
+import type { SkillRuntimeContext } from '@/features/skills/server/activation';
+import {
+  buildAgentRunSystemPrompt,
+  EMPTY_SKILL_RUNTIME,
+  mergeAgentToolIds,
+  resolveAgentBrandRuntime,
+} from '@/features/agents/server/runtime';
 
 /**
  * Falls back to chatModel (Gemini) for vision if agent uses an unsupported model.
@@ -331,7 +336,7 @@ export async function handleMessageEvent(
   systemPrompt: string,
   modelId: string,
   linkedUser?: LinkedUser,
-  skillToolIds?: string[],
+  skillRuntime: SkillRuntimeContext = EMPTY_SKILL_RUNTIME,
   groupId?: string,
 ): Promise<void> {
   if (!event.replyToken) return;
@@ -496,29 +501,27 @@ export async function handleMessageEvent(
     lineBase += `\n\nThe user you are talking to is named ${linkedUser.displayName}. Address them by name naturally when appropriate.`;
   }
 
-  const brandResolution = linkedUser?.userId
-    ? await resolveEffectiveBrand({
-        userId: linkedUser.userId,
-        activeBrandId: null,
-        agent: agentRow,
-      })
-    : null;
+  const { brandResolution, activeBrand } = await resolveAgentBrandRuntime({
+    userId: channel.userId,
+    activeBrandId: null,
+    agent: agentRow,
+    enabled: true,
+  });
 
-  const lineSystemPrompt = assembleSystemPrompt({
+  const lineSystemPrompt = buildAgentRunSystemPrompt({
     base: lineBase,
     conversationSummaryBlock: '',
     threadWorkingMemoryBlock: '',
     isGrounded: false,
-    activeBrand: brandResolution?.effectiveBrand ?? null,
+    activeBrand,
     memoryContext,
     sharedMemoryBlock: '',
-    skillRuntime: { catalogBlock: '', activeSkillsBlock: '', skillResourcesBlock: '' },
+    skillRuntime,
     examPrepBlock: '',
     certBlock: '',
     quizContextBlock: '',
-  }) + (brandResolution?.promptInstruction
-    ? `\n\n<brand_resolution>\n${brandResolution.promptInstruction}\n</brand_resolution>`
-    : '');
+    brandPromptInstruction: brandResolution?.promptInstruction,
+  });
 
   const now = new Date();
   const nextPosition = historyRows.length;
@@ -869,14 +872,19 @@ export async function handleMessageEvent(
   }
 
   // ⑥c Standard text → text response
-  const enabledToolIds = [...new Set([...(agentRow?.enabledTools ?? []), ...(skillToolIds ?? [])])];
+  const enabledToolIds = mergeAgentToolIds({
+    baseToolIds: agentRow?.enabledTools ?? [],
+    skillRuntime,
+  }) ?? [];
 
   const mergedTools = buildLineToolSet({
     enabledToolIds,
-    userId: linkedUser?.userId,
+    userId: channel.userId,
+    brandId: brandResolution?.effectiveBrandId ?? undefined,
     lineUserId,
     channelId: channel.id,
     threadId,
+    lineClient,
   });
 
   const generateResult = await generateText({

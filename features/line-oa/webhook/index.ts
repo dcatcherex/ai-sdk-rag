@@ -4,7 +4,6 @@ import { messagingApi, validateSignature } from '@line/bot-sdk';
 import { db } from '@/lib/db';
 import { agent, brandAsset, lineAccountLink, lineOaChannel, lineRichMenu, lineUserAgentSession, lineUserMenu } from '@/db/schema';
 import { chatModel } from '@/lib/ai';
-import { getSystemPrompt } from '@/lib/prompt';
 import type { AgentRow, LinkedUser, Sender } from './types';
 import { handleFollowEvent } from './events/follow';
 import { handleMessageEvent } from './events/message';
@@ -13,9 +12,9 @@ import { handleBeaconEvent } from './events/beacon';
 import { handleManagementBotEvent } from './management-bot';
 import { maybeSyncUserProfile } from '@/features/line-oa/link/profile-sync';
 import {
-  getSkillsForAgent,
-  resolveSkillRuntimeContext,
-} from '@/features/skills/service';
+  resolveAgentBaseSystemPrompt,
+  resolveAgentSkillRuntime,
+} from '@/features/agents/server/runtime';
 
 export const maxDuration = 30;
 
@@ -90,7 +89,7 @@ async function processEvents(
       )[0]?.url ?? undefined
     : undefined;
 
-  const systemPrompt = agentRow?.systemPrompt ?? getSystemPrompt();
+  const systemPrompt = resolveAgentBaseSystemPrompt({ agent: agentRow });
   const modelId = agentRow?.modelId ?? chatModel;
 
   // ② Sender shown on every message bubble (LINE limits sender.name to 20 chars)
@@ -186,7 +185,7 @@ async function processEvents(
           const [userAgent] = await db.select().from(agent).where(eq(agent.id, activeAgentId)).limit(1);
           if (userAgent) {
             effectiveAgentRow = userAgent as AgentRow;
-            effectiveSystemPrompt = userAgent.systemPrompt ?? getSystemPrompt();
+            effectiveSystemPrompt = resolveAgentBaseSystemPrompt({ agent: userAgent });
             effectiveModelId = userAgent.modelId ?? chatModel;
             effectiveSender = userAgent.name
               ? { name: userAgent.name.slice(0, 20) }
@@ -208,20 +207,10 @@ async function processEvents(
           void maybeSyncUserProfile(lineUserId, channel.id, channel.channelAccessToken);
         }
 
-        // Inject skills into the system prompt (mirrors app/api/chat/route.ts skill injection)
-        let skillToolIds: string[] = [];
-        if (effectiveAgentRow?.id) {
-          const userText = event.message?.text ?? '';
-          const agentSkillRows = await getSkillsForAgent(effectiveAgentRow.id);
-
-          if (agentSkillRows.length > 0) {
-            const skillRuntime = await resolveSkillRuntimeContext(agentSkillRows, userText);
-            effectiveSystemPrompt += skillRuntime.catalogBlock;
-            effectiveSystemPrompt += skillRuntime.activeSkillsBlock;
-            effectiveSystemPrompt += skillRuntime.skillResourcesBlock;
-            skillToolIds = skillRuntime.skillToolIds;
-          }
-        }
+        const skillRuntime = await resolveAgentSkillRuntime(
+          effectiveAgentRow,
+          event.message?.text ?? '',
+        );
 
         await handleMessageEvent(
           event,
@@ -232,7 +221,7 @@ async function processEvents(
           effectiveSystemPrompt,
           effectiveModelId,
           linkedUser,
-          skillToolIds,
+          skillRuntime,
           groupId,
         );
       }
