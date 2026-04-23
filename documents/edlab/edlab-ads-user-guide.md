@@ -54,6 +54,11 @@ This is the most important setup step. The AI uses tags to pick the right photo 
 | `microscope` | Student using microscope specifically |
 | `round-latest` | **Update this tag** on your most recent round's photos — replace old `round-latest` tags before each new round |
 
+Important:
+- If photos are uploaded with no tags, the AI can only treat them as generic fallback photos
+- Untagged photos make the skill much more likely to pick random activity shots
+- For normal EdLab posts, the AI should usually use 1 activity photo, not 3
+
 **Photo quality checklist before uploading:**
 - [ ] Faces clearly visible (students look engaged, not distracted)
 - [ ] Hospital/medical environment obvious in the frame
@@ -148,6 +153,16 @@ The AI will:
 - Show Option A: OR as hero, CPR as inset
 - Show Option B: CPR as hero, OR as inset
 - You pick which arrangement looks better
+
+### Photo count behavior
+
+- `get_brand_photos` returns activity photos in `photos`
+- When a brand is active, it can also append the logo as the last item in `imageUrls`
+- The photo tool now defaults to returning 1 activity photo unless the caller sets `limit`
+- For EdLab ads, the correct behavior is usually:
+  - single-photo ad: `limit: 1`
+  - two-photo ad: `limit: 2`
+  - three activity photos: not recommended for this skill
 
 ---
 

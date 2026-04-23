@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { brandPhoto } from '@/db/schema/tools';
 import type { GetBrandPhotosInput, GetBrandPhotosOutput, BrandPhotoItem } from './schema';
 import type { BrandPhotoContext } from './types';
+import { buildBrandImageContext } from '@/features/brands/service';
 
 function buildWhere(ctx: BrandPhotoContext) {
   if (ctx.brandId) return eq(brandPhoto.brandId, ctx.brandId);
@@ -62,7 +63,7 @@ export async function runGetBrandPhotos(
     ? rows.filter((r) => input.tags!.some((t) => r.tags.includes(t)))
     : rows;
 
-  const limit = input.limit ?? 3;
+  const limit = input.limit ?? 1;
   const picked = weightedPick(filtered, limit);
 
   // Increment usageCount for all picked photos
@@ -75,6 +76,12 @@ export async function runGetBrandPhotos(
 
   // Collect all distinct tags
   const allTags = [...new Set(rows.flatMap((r) => r.tags))].sort();
+  const logoUrl =
+    input.includeLogo && ctx.brandId
+      ? (await buildBrandImageContext(ctx.brandId)).logoUrl
+      : null;
+  const photoUrls = picked.map((p) => p.url);
+  const imageUrls = logoUrl ? [...photoUrls, logoUrl] : photoUrls;
 
   return {
     photos: picked.map((p): BrandPhotoItem => ({
@@ -86,6 +93,8 @@ export async function runGetBrandPhotos(
     })),
     totalAvailable: filtered.length,
     tags: allTags,
+    logoUrl,
+    imageUrls,
   };
 }
 

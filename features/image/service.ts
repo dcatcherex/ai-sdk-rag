@@ -7,6 +7,7 @@ import { buildKieCallbackUrl } from '@/lib/kie-callback';
 import { createKieImageTask } from '@/lib/providers/media/kie-image-adapter';
 import { createMediaRun } from '@/lib/generation/create-media-run';
 import { KIE_IMAGE_MODELS } from '@/lib/models/kie-image';
+import { safeFetch } from '@/lib/security/ssrfProtection';
 import type { GenerateImageInput, TriggerImageResult } from './schema';
 import { resolveAdminImageModel } from './model-selection';
 
@@ -23,6 +24,50 @@ function isTemporaryProviderImageUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+function isSvgReferenceUrl(url: string, contentType?: string | null): boolean {
+  if (contentType?.toLowerCase().includes('image/svg+xml')) return true;
+  try {
+    const parsed = new URL(url);
+    return parsed.pathname.toLowerCase().endsWith('.svg');
+  } catch {
+    return url.toLowerCase().includes('.svg');
+  }
+}
+
+async function mirrorReferenceUrlToR2(
+  sourceUrl: string,
+  bucketName: string,
+): Promise<{ publicUrl: string; mimeType: string }> {
+  const response = await safeFetch(sourceUrl);
+  if (!response.ok) throw new Error(`Failed to fetch from URL: ${response.status}`);
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const contentType = response.headers.get('content-type') || 'application/octet-stream';
+  const mimeType = contentType.split(';')[0]!.trim();
+
+  const { getStorageService } = await import('@/lib/storage/index');
+  const storage = getStorageService();
+
+  if (isSvgReferenceUrl(sourceUrl, mimeType)) {
+    const sharp = (await import('sharp')).default;
+    const rasterized = await sharp(buffer, { density: 288 }).png().toBuffer();
+    const filename = `image-inputs/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
+    const { publicUrl } = await storage.uploadBuffer(bucketName, rasterized, {
+      filename,
+      contentType: 'image/png',
+    });
+    return { publicUrl, mimeType: 'image/png' };
+  }
+
+  const ext = mimeType.split('/')[1]?.split(';')[0] || 'bin';
+  const filename = `image-inputs/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { publicUrl } = await storage.uploadBuffer(bucketName, buffer, {
+    filename,
+    contentType,
+  });
+  return { publicUrl, mimeType };
 }
 
 /**
@@ -300,9 +345,9 @@ export async function triggerImageGeneration(
         }
 
         try {
-          const mirrored = await storage.uploadFromUrl(
-            STORAGE_BUCKETS.CUSTOM_REFERENCES.name,
+          const mirrored = await mirrorReferenceUrlToR2(
             imgData,
+            STORAGE_BUCKETS.CUSTOM_REFERENCES.name,
           );
           resolvedImageUrls.push(mirrored.publicUrl);
           mirroredExternalCount += 1;

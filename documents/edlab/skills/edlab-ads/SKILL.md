@@ -36,11 +36,23 @@ When the user has not attached a photo, call `get_brand_photos` before presentin
 | 10 — Lab | `lab` | `microscope` |
 
 **Calling convention** (follows the system-level photo fallback chain):
-1. Call `get_brand_photos(tags: [primary_tag])` for your chosen sets
-2. If empty → retry `get_brand_photos()` with no tags
-3. If still empty → proceed without photo reference (text-to-image)
+1. Normal single-photo post: call `get_brand_photos(tags: [primary_tag], limit: 1)`
+2. If empty → retry `get_brand_photos(limit: 1)` with no tags
+3. Only when the concept truly needs 2 real photos: call `get_brand_photos(tags: [primary_tag, secondary_tag], limit: 2)` or make two separate `limit: 1` calls
+4. If still empty → proceed without photo reference (text-to-image)
 
-When 2 content sets are selected, fetch photos for both tags in a single call if possible, then match each photo to its set. Show which photo would be used in each option.
+Important:
+- `get_brand_photos` returns activity photos in `photos`
+- When a brand is active, `get_brand_photos` may also append the official logo as the last item in `imageUrls`
+- Treat `photos` as activity-photo choices, and treat `imageUrls` as the full reference list for generation
+- The tool default is now `limit: 1`, but you should still set `limit` explicitly for EdLab posts
+- For most EdLab ads, use exactly 1 activity photo
+- Use 2 activity photos only when the user explicitly wants a two-photo composition or the concept clearly benefits from hero + inset
+- Never pass 3 activity photos into the EdLab ad layout flow
+
+When 2 content sets are selected, fetch photos for both tags in a single call only if you also set `limit: 2`, then match each photo to its set. Show which photo would be used in each option.
+
+If the returned photos have empty `tags`, treat them as generic fallback photos and prefer a single-photo layout unless the user explicitly wants two-photo storytelling.
 
 ### Logo — passed automatically as the last reference image
 
