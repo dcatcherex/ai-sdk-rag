@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Images, Loader2, Pencil, Tag, Trash2, Upload, UploadCloudIcon } from 'lucide-react';
+import { Check, Images, Loader2, Pencil, Tag, Trash2, Upload, UploadCloudIcon, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,8 @@ type Photo = {
   tags: string[];
   usageCount: number;
 };
+
+type SelectionEvent = Pick<React.MouseEvent | React.KeyboardEvent, 'ctrlKey' | 'metaKey' | 'shiftKey'>;
 
 const EDLAB_ESSENTIAL_TAGS = [
   'group',
@@ -53,8 +55,11 @@ export function BrandPhotosTab({ brandId }: { brandId: string }) {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [tagInput, setTagInput] = useState('');
+  const [bulkTagInput, setBulkTagInput] = useState('');
   const [editingPhoto, setEditingPhoto] = useState<Photo | null>(null);
   const [editTagInput, setEditTagInput] = useState('');
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(() => new Set());
+  const [lastSelectedPhotoId, setLastSelectedPhotoId] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
@@ -67,6 +72,8 @@ export function BrandPhotosTab({ brandId }: { brandId: string }) {
   const photos = data?.photos ?? [];
   const allTags = [...new Set(photos.flatMap((p) => p.tags))].sort();
   const visible = activeFilter ? photos.filter((p) => p.tags.includes(activeFilter)) : photos;
+  const selectedPhotos = photos.filter((photo) => selectedPhotoIds.has(photo.id));
+  const untaggedPhotos = photos.filter((photo) => photo.tags.length === 0);
 
   const uploadMutation = useMutation({
     mutationFn: async (files: FileList) => {
@@ -106,9 +113,62 @@ export function BrandPhotosTab({ brandId }: { brandId: string }) {
     },
   });
 
+  const applyBulkTagsMutation = useMutation({
+    mutationFn: async (tagsToAdd: string[]) => {
+      await Promise.all(
+        selectedPhotos.map((photo) => {
+          const tags = [...new Set([...photo.tags, ...tagsToAdd])];
+          return fetch('/api/brand-photos', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: photo.id, brandId, tags }),
+          }).then((res) => {
+            if (!res.ok) return res.text().then((message) => { throw new Error(message); });
+          });
+        }),
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['brand-photos', brandId] });
+      setBulkTagInput('');
+      setSelectedPhotoIds(new Set());
+      setLastSelectedPhotoId(null);
+    },
+  });
+
   const openTagEditor = (photo: Photo) => {
     setEditingPhoto(photo);
     setEditTagInput(formatTags(photo.tags));
+  };
+
+  const handlePhotoSelect = (photo: Photo, event: SelectionEvent) => {
+    setSelectedPhotoIds((current) => {
+      const next = new Set(current);
+
+      if (event.shiftKey && lastSelectedPhotoId) {
+        const start = visible.findIndex((item) => item.id === lastSelectedPhotoId);
+        const end = visible.findIndex((item) => item.id === photo.id);
+        if (start !== -1 && end !== -1) {
+          const [from, to] = start < end ? [start, end] : [end, start];
+          visible.slice(from, to + 1).forEach((item) => next.add(item.id));
+        } else {
+          next.add(photo.id);
+        }
+        return next;
+      }
+
+      if (event.ctrlKey || event.metaKey) {
+        if (next.has(photo.id)) {
+          next.delete(photo.id);
+        } else {
+          next.add(photo.id);
+        }
+        return next;
+      }
+
+      return new Set([photo.id]);
+    });
+    setLastSelectedPhotoId(photo.id);
   };
 
   const onDragEnter = (e: React.DragEvent) => {
@@ -138,7 +198,14 @@ export function BrandPhotosTab({ brandId }: { brandId: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, brandId }),
       }).then((r) => { if (!r.ok) throw new Error('Delete failed'); }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['brand-photos', brandId] }),
+    onSuccess: (_, id) => {
+      qc.invalidateQueries({ queryKey: ['brand-photos', brandId] });
+      setSelectedPhotoIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+    },
   });
 
   return (
@@ -232,7 +299,7 @@ export function BrandPhotosTab({ brandId }: { brandId: string }) {
 
 
       {/* Tag filter */}
-      {allTags.length > 0 && (
+      {(allTags.length > 0 || untaggedPhotos.length > 0) && (
         <div className="flex flex-wrap gap-1.5">
           <button
             onClick={() => setActiveFilter(null)}
@@ -253,6 +320,92 @@ export function BrandPhotosTab({ brandId }: { brandId: string }) {
               {tag} ({photos.filter((p) => p.tags.includes(tag)).length})
             </button>
           ))}
+          {untaggedPhotos.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedPhotoIds(new Set(untaggedPhotos.map((photo) => photo.id)));
+                setLastSelectedPhotoId(untaggedPhotos[untaggedPhotos.length - 1]?.id ?? null);
+              }}
+              className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-100 dark:border-red-950 dark:bg-red-950/30 dark:text-red-300"
+            >
+              Select untagged ({untaggedPhotos.length})
+            </button>
+          )}
+        </div>
+      )}
+
+      {selectedPhotoIds.size > 0 && (
+        <div className="rounded-lg border bg-background/95 p-3 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] text-primary-foreground">
+                {selectedPhotoIds.size}
+              </span>
+              selected
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Tag className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <Input
+                  value={bulkTagInput}
+                  onChange={(event) => setBulkTagInput(event.target.value)}
+                  placeholder="Add tags to selected photos"
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {EDLAB_ESSENTIAL_TAGS.map((tag) => {
+                  const active = parseTags(bulkTagInput).includes(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setBulkTagInput((value) => toggleTagValue(value, tag))}
+                      className={cn(
+                        'rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors',
+                        active
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border bg-muted/40 text-muted-foreground hover:border-primary/40 hover:text-foreground',
+                      )}
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setSelectedPhotoIds(new Set());
+                  setLastSelectedPhotoId(null);
+                }}
+              >
+                <X className="mr-1.5 h-3.5 w-3.5" />
+                Clear
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={applyBulkTagsMutation.isPending || parseTags(bulkTagInput).length === 0}
+                onClick={() => applyBulkTagsMutation.mutate(parseTags(bulkTagInput))}
+              >
+                {applyBulkTagsMutation.isPending ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Check className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Add tags
+              </Button>
+            </div>
+          </div>
+          {applyBulkTagsMutation.isError && (
+            <p className="mt-2 text-xs text-destructive">{(applyBulkTagsMutation.error as Error).message}</p>
+          )}
         </div>
       )}
 
@@ -271,13 +424,36 @@ export function BrandPhotosTab({ brandId }: { brandId: string }) {
       ) : (
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
           {visible.map((photo) => (
-            <div key={photo.id} className="group relative overflow-hidden rounded-lg border bg-muted/20">
+            <div
+              key={photo.id}
+              role="button"
+              tabIndex={0}
+              aria-pressed={selectedPhotoIds.has(photo.id)}
+              onClick={(event) => handlePhotoSelect(photo, event)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  handlePhotoSelect(photo, event);
+                }
+              }}
+              className={cn(
+                'group relative overflow-hidden rounded-lg border bg-muted/20 outline-none transition-all',
+                selectedPhotoIds.has(photo.id)
+                  ? 'border-primary ring-2 ring-primary ring-offset-2 ring-offset-background'
+                  : 'hover:border-muted-foreground/40',
+              )}
+            >
               {photo.tags.length === 0 && (
                 <span
                   aria-label="No tags"
                   title="No tags"
                   className="absolute left-2 top-2 z-10 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-zinc-900"
                 />
+              )}
+              {selectedPhotoIds.has(photo.id) && (
+                <span className="absolute right-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-white dark:ring-zinc-900">
+                  <Check className="h-3 w-3" />
+                </span>
               )}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -290,7 +466,10 @@ export function BrandPhotosTab({ brandId }: { brandId: string }) {
                   <button
                     type="button"
                     title="Edit tags"
-                    onClick={() => openTagEditor(photo)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openTagEditor(photo);
+                    }}
                     className="rounded bg-white/90 p-1 text-zinc-900 hover:bg-white"
                   >
                     <Pencil className="h-3 w-3" />
@@ -298,7 +477,10 @@ export function BrandPhotosTab({ brandId }: { brandId: string }) {
                   <button
                     type="button"
                     title="Delete photo"
-                    onClick={() => deleteMutation.mutate(photo.id)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      deleteMutation.mutate(photo.id);
+                    }}
                     disabled={deleteMutation.isPending}
                     className="rounded bg-destructive/90 p-1 text-white hover:bg-destructive"
                   >
