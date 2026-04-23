@@ -6,7 +6,9 @@ import { getKieApiKey } from '@/lib/api/routeGuards';
 import { buildKieCallbackUrl } from '@/lib/kie-callback';
 import { createKieImageTask } from '@/lib/providers/media/kie-image-adapter';
 import { createMediaRun } from '@/lib/generation/create-media-run';
+import { KIE_IMAGE_MODELS } from '@/lib/models/kie-image';
 import type { GenerateImageInput, TriggerImageResult } from './schema';
+import { resolveAdminImageModel } from './model-selection';
 
 function isTemporaryProviderImageUrl(url: string): boolean {
   try {
@@ -139,6 +141,12 @@ function buildKieInput(params: GenerateImageInput): Record<string, unknown> {
     case 'gpt-image/1.5-image-to-image':
       return { prompt, aspect_ratio: aspectRatio ?? '1:1', quality, input_urls: imageUrls };
 
+    case 'gpt-image-2-text-to-image':
+      return { prompt, ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}) };
+
+    case 'gpt-image-2-image-to-image':
+      return { prompt, input_urls: imageUrls, ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}) };
+
     case 'seedream/5-lite-text-to-image':
       return { prompt, ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}) };
 
@@ -215,15 +223,44 @@ export async function triggerImageGeneration(
   // reference images are present. Prevents silent fallback to text-only generation.
   const TEXT_TO_IMAGE_UPGRADES: Record<string, string> = {
     'grok-imagine/text-to-image':    'grok-imagine/image-to-image',
+    'gpt-image-2-text-to-image':     'gpt-image-2-image-to-image',
     'gpt-image/1.5-text-to-image':   'gpt-image/1.5-image-to-image',
     'seedream/5-lite-text-to-image':  'seedream/5-lite-image-to-image',
     'qwen2/text-to-image':            'qwen2/image-edit',
     'qwen/text-to-image':             'qwen/image-edit',
     'google/nano-banana':             'google/nano-banana-edit',
   };
-  const resolvedModelId = hasReferenceImages && params.modelId in TEXT_TO_IMAGE_UPGRADES
+  let resolvedModelId = hasReferenceImages && params.modelId in TEXT_TO_IMAGE_UPGRADES
     ? TEXT_TO_IMAGE_UPGRADES[params.modelId]!
     : params.modelId;
+
+  // If the selected edit model cannot accept all provided reference images,
+  // fall back to the admin-configured edit model first. This keeps the
+  // canonical generation service aligned with admin task defaults instead of
+  // hardcoding one provider path.
+  const referenceCount = params.imageUrls?.length ?? 0;
+  if (referenceCount > 0) {
+    const selectedModel = KIE_IMAGE_MODELS.find((model) => model.id === resolvedModelId);
+    const maxReferenceImages = selectedModel?.maxReferenceImages ?? 0;
+    if (maxReferenceImages > 0 && referenceCount > maxReferenceImages) {
+      const primarySelection = await resolveAdminImageModel({
+        taskHint: params.taskHint === 'social_post' ? 'social_post' : 'edit',
+        fallbackModelId: 'gpt-image/1.5-image-to-image',
+      });
+      const primaryModel = KIE_IMAGE_MODELS.find((model) => model.id === primarySelection.modelId);
+      const primaryMaxRefs = primaryModel?.maxReferenceImages ?? 0;
+
+      if (primaryMaxRefs > 0 && referenceCount > primaryMaxRefs && params.taskHint === 'social_post') {
+        const editSelection = await resolveAdminImageModel({
+          taskHint: 'edit',
+          fallbackModelId: 'gpt-image/1.5-image-to-image',
+        });
+        resolvedModelId = editSelection.modelId;
+      } else {
+        resolvedModelId = primarySelection.modelId;
+      }
+    }
+  }
 
   const effectiveParams = resolvedModelId !== params.modelId
     ? { ...params, modelId: resolvedModelId }

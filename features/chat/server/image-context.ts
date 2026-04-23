@@ -1,4 +1,5 @@
 import type { ChatMessage } from '@/features/chat/types';
+import { inferChatImageTaskHint, resolveAdminImageModel } from '@/features/image/model-selection';
 
 export type ImageAttachmentPart = {
   type: 'file';
@@ -15,22 +16,36 @@ export type ImageAttachmentPart = {
   editPrompt?: string;
 };
 
-export function mapToKieImageModel(
+export async function mapToKieImageModel(
   resolvedModel: string,
-  hasImages: boolean,
-): { kieModelId: string; enablePro?: boolean } {
+  options: {
+    hasImages: boolean;
+    prompt?: string | null;
+    hasActiveBrand: boolean;
+  },
+): Promise<{ kieModelId: string; enablePro?: boolean; taskHint?: string }> {
   switch (resolvedModel) {
     case 'openai/gpt-image-1.5':
-      return { kieModelId: hasImages ? 'gpt-image/1.5-image-to-image' : 'gpt-image/1.5-text-to-image' };
+      return { kieModelId: options.hasImages ? 'gpt-image/1.5-image-to-image' : 'gpt-image/1.5-text-to-image' };
     case 'xai/grok-imagine-image':
-      return { kieModelId: hasImages ? 'grok-imagine/image-to-image' : 'grok-imagine/text-to-image' };
+      return { kieModelId: options.hasImages ? 'grok-imagine/image-to-image' : 'grok-imagine/text-to-image' };
     case 'xai/grok-imagine-image-pro':
       return {
-        kieModelId: hasImages ? 'grok-imagine/image-to-image' : 'grok-imagine/text-to-image',
+        kieModelId: options.hasImages ? 'grok-imagine/image-to-image' : 'grok-imagine/text-to-image',
         enablePro: true,
       };
     default:
-      return { kieModelId: 'grok-imagine/text-to-image' };
+      const taskHint = inferChatImageTaskHint({
+        prompt: options.prompt,
+        hasImages: options.hasImages,
+        hasActiveBrand: options.hasActiveBrand,
+      });
+      const selection = await resolveAdminImageModel({ taskHint });
+      return {
+        kieModelId: selection.modelId,
+        ...(selection.enablePro !== undefined ? { enablePro: selection.enablePro } : {}),
+        ...(taskHint ? { taskHint } : {}),
+      };
   }
 }
 

@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const generateImageInputSchema = z.object({
   prompt: z.string().min(1).max(20000).describe('Text description of the image to generate'),
   modelId: z.string().default('nano-banana-2'),
+  brandId: z.string().optional().describe('Active brand to source a canonical logo from for branded image generation'),
   aspectRatio: z.string().optional().describe('Aspect ratio, e.g. "16:9", "1:1"'),
   quality: z.enum(['medium', 'high']).optional().describe('Generation quality (GPT Image models)'),
   enablePro: z.boolean().optional().describe('Enable pro/quality mode (Grok Imagine models)'),

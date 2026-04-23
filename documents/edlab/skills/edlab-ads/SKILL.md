@@ -46,9 +46,23 @@ When 2 content sets are selected, fetch photos for both tags in a single call if
 
 The platform appends the brand logo URL to `imageUrls` automatically when a brand is active. You do not need to call any tool to fetch it.
 
-In the image generation prompt, always include:
+Important reference order rules:
+- If there is 1 activity photo, the model receives 2 images total: `Image A = activity photo`, `Image B = logo`
+- If there are 2 activity photos, the model receives 3 images total: `Image A = hero activity photo`, `Image B = secondary activity photo`, `Image C = logo`
+- Never describe the logo as `Image B` when two activity photos are present
+- Always describe the logo as the last reference image
+
+In the image generation prompt, include one of these exact patterns:
+
+If there is only 1 activity photo:
 ```
 Image B is the official EdLab Experience logo (last reference image). Place it neatly in the top-right corner, preserving its recognizable shape, colors, and proportions. Do not distort it.
+```
+
+If there are 2 activity photos:
+```
+Image B is a secondary real activity photo. Use it as a smaller inset image or supporting photo card, not equal in size to the hero image.
+Image C is the official EdLab Experience logo (last reference image). Place it neatly in the top-right corner, preserving its recognizable shape, colors, and proportions. Do not distort it.
 ```
 
 The logo renders cleanly as a top-right brand mark — it does not distort the composition when instructed this way.
@@ -106,11 +120,19 @@ The user may:
 
 Accept partial edits naturally — if they only say "A", treat everything else as confirmed.
 
-**Step 3 — Generate both outputs**
+**Step 3 — Generate the image and return the caption**
 
 Once confirmed, produce:
-1. The **image generation prompt** (filled template, no brackets remaining)
-2. The **Thai Facebook/Instagram caption**
+1. Build the full image generation prompt internally from the chosen set
+2. Call `generate_image` with that final prompt instead of printing the prompt into chat
+3. Return the Thai Facebook/Instagram caption in chat
+4. Return only a short user-facing status message about the image generation, not the raw prompt
+
+Important:
+- Do **not** display the full image prompt in the assistant message unless the user explicitly asks to see it
+- Do **not** print raw reference image URLs in chat
+- Prefer actually calling `generate_image` over handing the user a prompt to copy
+- If the tool call fails, briefly explain the failure and then offer the fallback prompt only if needed
 
 ---
 
@@ -269,6 +291,8 @@ Pick 2 from these. Mix angles. Each set is complete and ready to use — no blan
 
 ## Image Generation Prompt Template
 
+Use this template to assemble the final prompt **internally** before calling `generate_image`. Do not paste this filled prompt into the normal user-facing reply unless the user explicitly asks for the prompt text.
+
 Fill this template after the user confirms a set. All `[BRACKETS]` must be replaced — zero brackets in the final output.
 
 ```
@@ -276,8 +300,9 @@ Create a [VISUAL_STYLE] social media advertisement for EdLab Experience promotin
 
 Reference handling:
 Image A is the real activity photo. Use it as the hero image. Clean, crop, and enhance it for a premium ad while preserving the authenticity of the activity and participants.
-Image B is the official EdLab Experience logo. Place it neatly in the top-right corner, preserving its recognizable shape and colors.
-[ONLY IF second photo provided: Image C is a secondary real activity photo. Use it as a smaller inset image or supporting photo card, not equal in size to the hero image.]
+[ONLY IF no second photo is provided: Image B is the official EdLab Experience logo (last reference image). Place it neatly in the top-right corner, preserving its recognizable shape, colors, and proportions. Do not distort it.]
+[ONLY IF second photo is provided: Image B is a secondary real activity photo. Use it as a smaller inset image or supporting photo card, not equal in size to the hero image.]
+[ONLY IF second photo is provided: Image C is the official EdLab Experience logo (last reference image). Place it neatly in the top-right corner, preserving its recognizable shape, colors, and proportions. Do not distort it.]
 
 Visual direction:
 Use a real-photo-based premium ad style, not a synthetic-looking poster. The result should feel authentic, polished, trustworthy, and aspirational. Preserve the reality of the medical learning environment while improving the image for advertising use.
@@ -317,6 +342,7 @@ Footer contact: "LINE OA: @edlab | 081-985-7217 | www.edlabexperience.com"
 Design notes:
 Use subtle healthcare-themed visual accents only if helpful (soft geometric overlays, clean dividers, small certificate badge).
 Do not overcrowd the design.
+Treat the logo only as a brand mark reference to place cleanly in the corner. Do not redesign it, reinterpret it, or generate a new logo.
 Do not distort the logo.
 Do not replace the real activity with fake imagery.
 Keep the final ad premium, modern, and conversion-focused.
@@ -348,14 +374,35 @@ See `references/caption-examples.md` for tone reference.
 
 ---
 
-## Output Format (after user confirms)
+## Tool Call Rules (after user confirms)
 
----
-### 🖼 Image Generation Prompt
-*(complete, zero brackets)*
+After the user confirms A/B or confirms edits:
+
+1. Assemble the complete image prompt from the chosen set
+2. Call `generate_image`
+3. Use `taskHint: "social_post"` when generating a new branded ad
+4. Use `taskHint: "edit"` when real activity photos are being passed in `imageUrls`
+5. Use `aspectRatio: "4:5"` by default unless the user requested another format
+6. Include the chosen real activity photo(s) in `imageUrls` when available
+7. If a brand is active and the platform supports it, rely on the platform to append the logo as the last reference image
+8. Do not echo the raw prompt, JSON payload, or image URLs back to the user
+
+## Output Format (after user confirms)
 
 ---
 ### 📝 Facebook/Instagram Caption
 *(Thai, ready to post)*
+
+---
+
+### Image Status
+Write one short line such as:
+`กำลังสร้างภาพโฆษณาให้แล้ว เดี๋ยวภาพจะขึ้นในแชตนี้ค่ะ`
+
+If the user explicitly asks for the prompt text, then you may additionally provide:
+
+---
+### 🖼 Image Generation Prompt
+*(complete, zero brackets)*
 
 ---

@@ -6,14 +6,12 @@
 
 import { tool } from 'ai';
 import { z } from 'zod';
-import { arrayContains, eq } from 'drizzle-orm';
-import { db } from '@/lib/db';
-import { imageModelConfig } from '@/db/schema/admin';
 import { KIE_IMAGE_MODELS } from '@/lib/models/kie-image';
 import type { AgentToolContext } from '@/features/tools/registry/types';
 import { getPlatformSettings } from '@/lib/platform-settings';
 import { getStockImages, recordStockUsage } from './stock-service';
 import { triggerImageGeneration } from './service';
+import { IMAGE_TASK_HINT_VALUES, resolveAdminImageModel } from './model-selection';
 
 const imageAgentModelIds = KIE_IMAGE_MODELS.map((model) => model.id) as [string, ...string[]];
 
@@ -32,7 +30,7 @@ function isTemporaryProviderImageUrl(url: string): boolean {
   }
 }
 
-const TASK_HINT_VALUES = ['social_post', 'photorealistic', 'illustration', 'edit'] as const;
+const TASK_HINT_VALUES = IMAGE_TASK_HINT_VALUES;
 type TaskHint = typeof TASK_HINT_VALUES[number];
 
 const TASK_HINT_DESCRIPTIONS: Record<TaskHint, string> = {
@@ -71,45 +69,12 @@ export function createImageAgentTools(ctx: Pick<AgentToolContext, 'userId' | 'th
         imageUrls: z.array(z.string()).optional().describe('Reference images for style guidance or editing. Include: (1) user-uploaded images when editing, (2) active brand style-reference assets when branded output should match the canonical brand visual identity.'),
       }),
       async execute(params) {
-        // Resolve model — priority: explicit modelId > taskHint default > global default > hard fallback
-        let modelId = params.modelId;
-        let { enablePro } = params;
-
-        if (!modelId) {
-          // 1. Task-specific default (admin-configured)
-          if (params.taskHint) {
-            const [taskModel] = await db
-              .select({ id: imageModelConfig.id, defaultEnablePro: imageModelConfig.defaultEnablePro })
-              .from(imageModelConfig)
-              .where(arrayContains(imageModelConfig.taskDefaults, [params.taskHint]))
-              .limit(1);
-            if (taskModel) {
-              modelId = taskModel.id as typeof imageAgentModelIds[number];
-              if (enablePro === undefined) enablePro = taskModel.defaultEnablePro;
-            }
-          }
-
-          // 2. Global default
-          if (!modelId) {
-            const [defaultModel] = await db
-              .select({ id: imageModelConfig.id, defaultEnablePro: imageModelConfig.defaultEnablePro })
-              .from(imageModelConfig)
-              .where(eq(imageModelConfig.isDefault, true))
-              .limit(1);
-            modelId = (defaultModel?.id as typeof imageAgentModelIds[number] | undefined) ?? 'gpt-image/1.5-text-to-image';
-            if (enablePro === undefined && defaultModel) enablePro = defaultModel.defaultEnablePro;
-          }
-        }
-
-        // Apply admin enablePro default for the resolved model when LLM didn't set it
-        if (enablePro === undefined) {
-          const [adminConfig] = await db
-            .select({ defaultEnablePro: imageModelConfig.defaultEnablePro })
-            .from(imageModelConfig)
-            .where(eq(imageModelConfig.id, modelId))
-            .limit(1);
-          if (adminConfig) enablePro = adminConfig.defaultEnablePro;
-        }
+        const adminSelection = await resolveAdminImageModel({
+          explicitModelId: params.modelId,
+          taskHint: params.taskHint,
+        });
+        const modelId = adminSelection.modelId as typeof imageAgentModelIds[number];
+        const enablePro = params.enablePro ?? adminSelection.enablePro;
 
         const sanitizedImageUrls = params.imageUrls?.length
           ? params.imageUrls.map((url, index) =>

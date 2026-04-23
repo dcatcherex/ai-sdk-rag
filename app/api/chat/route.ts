@@ -641,7 +641,11 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
         baseImageUrls.length > 0 || logoUrl
           ? [...baseImageUrls, ...(logoUrl ? [logoUrl] : [])]
           : undefined;
-      const { kieModelId, enablePro } = mapToKieImageModel(resolvedModel, Boolean(imageUrls?.length));
+      const { kieModelId, enablePro, taskHint } = await mapToKieImageModel(resolvedModel, {
+        hasImages: Boolean(imageUrls?.length),
+        prompt: imagePrompt,
+        hasActiveBrand: Boolean(activeBrand),
+      });
 
       const { taskId, generationId } = await triggerImageGeneration(
         {
@@ -649,6 +653,7 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
           modelId: kieModelId,
           promptTitle: imagePrompt.substring(0, 50),
           ...(imageUrls ? { imageUrls } : {}),
+          ...(taskHint ? { taskHint } : {}),
           ...(enablePro !== undefined ? { enablePro } : {}),
         },
         effectiveUserId,

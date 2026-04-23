@@ -6,6 +6,7 @@ import { internalError } from '@/lib/api/errorResponse';
 import { generateImageInputSchema } from '@/features/image/schema';
 import { triggerImageGeneration } from '@/features/image/service';
 import { IMAGE_MODEL_CONFIGS, resolveImageCredits } from '@/features/image/types';
+import { buildBrandImageContext, getBrand } from '@/features/brands/service';
 
 /**
  * Image Generation Route (KIE)
@@ -31,6 +32,22 @@ export async function POST(req: NextRequest) {
   }
 
   const params = parsed.data;
+  let effectiveImageUrls = params.imageUrls;
+
+  if (params.brandId) {
+    const accessibleBrand = await getBrand(userId, params.brandId);
+    if (!accessibleBrand) {
+      return NextResponse.json(
+        { error: 'Brand not found or not accessible.' },
+        { status: 403 },
+      );
+    }
+
+    const { logoUrl } = await buildBrandImageContext(accessibleBrand.id);
+    if (logoUrl && !effectiveImageUrls?.includes(logoUrl)) {
+      effectiveImageUrls = [...(effectiveImageUrls ?? []), logoUrl];
+    }
+  }
 
   // Resolve the correct credit cost based on the user's selected resolution/quality
   const modelConfig = IMAGE_MODEL_CONFIGS.find(m => m.id === params.modelId);
@@ -43,7 +60,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const { taskId, generationId } = await triggerImageGeneration(
-      { ...params, promptTitle: body.promptTitle },
+      { ...params, imageUrls: effectiveImageUrls, promptTitle: body.promptTitle },
       userId,
     );
     return NextResponse.json({ async: true, taskId, generationId, status: 'processing', type: 'image' });

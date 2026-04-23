@@ -75,6 +75,12 @@ function buildKieInput(params: ImageAdapterInput): Record<string, unknown> {
     case 'gpt-image/1.5-image-to-image':
       return { prompt, aspect_ratio: aspectRatio ?? '1:1', quality, input_urls: imageUrls };
 
+    case 'gpt-image-2-text-to-image':
+      return { prompt, ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}) };
+
+    case 'gpt-image-2-image-to-image':
+      return { prompt, input_urls: imageUrls, ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}) };
+
     case 'seedream/5-lite-text-to-image':
       return { prompt, ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}) };
 

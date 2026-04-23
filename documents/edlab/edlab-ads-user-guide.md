@@ -97,8 +97,8 @@ Once set up, this is the full flow for creating a post.
 3. AI picks 2 content sets and calls get_brand_photos automatically
 4. You see: ตัวเลือก A + B — each with headline, highlights, badge, CTA, and photo preview
 5. Reply: "A" (or "B" or with edits)
-6. AI generates: image prompt + Thai caption (ready to paste)
-7. Copy image prompt → run in image generation tool
+6. AI starts image generation automatically and returns the Thai caption
+7. Wait for the generated image to appear in chat
 8. Copy caption → paste into Facebook/Instagram
 ```
 
@@ -153,7 +153,7 @@ The AI will:
 
 ## For best image generation results
 
-After confirming a content set, the AI produces a complete image generation prompt. Tips for getting the best output:
+After confirming a content set, the AI should call image generation automatically. Tips for getting the best output:
 
 **Before running the image prompt:**
 - Attach the activity photo you want as Image A (drag into chat or the image tool)
@@ -165,10 +165,12 @@ After confirming a content set, the AI produces a complete image generation prom
 - Format: `1080×1350` for Feed, `1080×1920` for Stories, `1080×1080` for square
 
 **If the logo placement is off:**
-Add to the prompt: *"Place the last reference image as the brand logo in the top-right corner. Size it to roughly 10–12% of image width. Do not distort or stretch it."*
+Ask the AI to regenerate with this instruction:
+*"Place the last reference image as the brand logo in the top-right corner. Size it to roughly 10–12% of image width. Do not distort or stretch it."*
 
 **If the text is hard to read:**
-Add to the prompt: *"Use high contrast text with a semi-transparent overlay behind the text area. Thai characters must be clearly legible at mobile screen size."*
+Ask the AI to regenerate with this instruction:
+*"Use high contrast text with a semi-transparent overlay behind the text area. Thai characters must be clearly legible at mobile screen size."*
 
 ---
 

@@ -11,6 +11,7 @@ export type Mode = 'generate' | 'edit';
 
 export function useImageGenerator() {
   const searchParams = useSearchParams();
+  const brandId = searchParams.get('brandId') ?? undefined;
   const { state, startPoll, checkNow, reset } = useGenerationPoll();
 
   // Fetch admin-configured enabled models (falls back to full list on error)
@@ -108,6 +109,7 @@ export function useImageGenerator() {
     const body: Record<string, unknown> = {
       prompt,
       modelId,
+      ...(brandId ? { brandId } : {}),
       aspectRatio,
       imageCount,
       imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
