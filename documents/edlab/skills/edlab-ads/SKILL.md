@@ -132,6 +132,11 @@ The user may:
 
 Accept partial edits naturally — if they only say "A", treat everything else as confirmed.
 
+Follow-up rule after the first generated ad:
+- If the user asks for a fresh variation such as "ขออีกภาพ", "ขอแบบใหม่", "เปลี่ยนธีม", "เปลี่ยนแนว", or "ลองอีกแบบ", treat it as a **new generation pass**
+- In that case, re-pick activity photo(s) via `get_brand_photos` for the new concept instead of reusing the previously generated ad image as the main reference
+- Only reuse the previous generated image when the user explicitly wants to edit the same image, such as "แก้ภาพนี้", "ใช้ภาพเดิม", "เปลี่ยนภาพนี้", or "แก้จากรูปเดิม"
+
 **Step 3 — Generate the image and return the caption**
 
 Once confirmed, produce:

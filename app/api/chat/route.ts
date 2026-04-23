@@ -64,6 +64,7 @@ import type { ChatMessage, ChatMessageMetadata, RoutingMetadata } from '@/featur
 import {
   getImageAttachmentParts,
   getLatestAssistantImageParts,
+  isFreshImageRegenerationRequest,
   isImplicitImageEditRequest,
   mapToKieImageModel,
 } from '@/features/chat/server/image-context';
@@ -507,10 +508,12 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
     const latestAssistantImageParts = getLatestAssistantImageParts(messagesToSend);
     const latestUserMessage = [...messagesToSend].reverse().find((message) => message.role === 'user');
     const latestUserImageParts = getImageAttachmentParts(latestUserMessage);
+    const wantsFreshImageRegeneration = isFreshImageRegenerationRequest(lastUserPrompt);
     const shouldAutoReuseLastImage =
       latestAssistantImageParts.length > 0 &&
       latestUserImageParts.length === 0 &&
-      isImplicitImageEditRequest(lastUserPrompt);
+      isImplicitImageEditRequest(lastUserPrompt) &&
+      !wantsFreshImageRegeneration;
     const effectiveReferenceImageParts = latestUserImageParts.length > 0
       ? latestUserImageParts
       : shouldAutoReuseLastImage
@@ -530,6 +533,10 @@ ${latestAssistantImageParts.map((part, index) => `${index + 1}. ${part.url}`).jo
 </latest_generated_images>
 
 IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or continue from the most recently generated image without attaching a new image, treat the image above as the reference image automatically. When calling the \`generate_image\` tool for that kind of follow-up, include these URL(s) in \`imageUrls\` instead of generating from scratch.`
+        : '';
+    const freshImageRegenerationBlock =
+      supportsTools
+        ? `\n\nIMPORTANT: If the user asks for another version, a new theme, a new style, a different layout, a fresh variation, or says things like "ขอแบบใหม่", "ขออีกภาพ", or "เปลี่ยนธีม", do NOT automatically reuse the most recently generated image as an edit reference unless they explicitly say to keep/edit the same image. Treat those requests as fresh generation requests instead.`
         : '';
 
     const userAttachedImageUrls = latestUserImageParts
@@ -562,6 +569,7 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
         ? `\n\n<brand_resolution>\n${brandResolution.promptInstruction}\n</brand_resolution>`
         : '')
       + latestImageToolBlock
+      + freshImageRegenerationBlock
       + userAttachedImagesBlock;
 
     // When platform agent is active, expose platform management tools exclusively.
