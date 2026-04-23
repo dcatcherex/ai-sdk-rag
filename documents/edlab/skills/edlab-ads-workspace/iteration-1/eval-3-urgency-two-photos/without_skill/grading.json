@@ -1,0 +1,29 @@
+{
+  "assertions": [
+    {
+      "text": "presents_two_options",
+      "passed": false,
+      "evidence": "Missing option labels"
+    },
+    {
+      "text": "urgency_option_present",
+      "passed": true,
+      "evidence": "Urgency angle detected in options"
+    },
+    {
+      "text": "mentions_two_photo_layout",
+      "passed": false,
+      "evidence": "No photo layout mention"
+    },
+    {
+      "text": "no_premature_generation",
+      "passed": true,
+      "evidence": "Correctly waited for user"
+    },
+    {
+      "text": "brand_aware",
+      "passed": false,
+      "evidence": "No brand content"
+    }
+  ]
+}

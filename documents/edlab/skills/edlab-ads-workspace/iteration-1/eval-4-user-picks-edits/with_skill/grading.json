@@ -1,0 +1,44 @@
+{
+  "assertions": [
+    {
+      "text": "custom_headline_applied",
+      "passed": true,
+      "evidence": "Found custom headline in output"
+    },
+    {
+      "text": "date_injected",
+      "passed": true,
+      "evidence": "Date 20 กันยายน present"
+    },
+    {
+      "text": "location_injected",
+      "passed": true,
+      "evidence": "Location นวมินทร์ 9 present"
+    },
+    {
+      "text": "contact_block_present",
+      "passed": true,
+      "evidence": "Found @460zcthc contact"
+    },
+    {
+      "text": "hashtags_present",
+      "passed": true,
+      "evidence": "Found EdLab hashtags"
+    },
+    {
+      "text": "brand_colors_in_prompt",
+      "passed": true,
+      "evidence": "Brand hex color present"
+    },
+    {
+      "text": "logo_placement_specified",
+      "passed": true,
+      "evidence": "Logo top-right placement specified"
+    },
+    {
+      "text": "no_unresolved_brackets",
+      "passed": true,
+      "evidence": "No unfilled placeholders"
+    }
+  ]
+}

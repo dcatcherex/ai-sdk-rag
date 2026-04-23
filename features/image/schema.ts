@@ -11,6 +11,8 @@ export const generateImageInputSchema = z.object({
   outputFormat: z.enum(['jpg', 'png', 'jpeg']).optional(),
   seed: z.number().optional().describe('Seed for reproducibility (Qwen models)'),
   imageUrls: z.array(z.string()).optional().describe('Source image URLs or base64 for editing models'),
+  taskHint: z.string().optional().describe('Task type hint for stock pool matching'),
+  promptTitle: z.string().optional(),
 });
 
 export type GenerateImageInput = z.infer<typeof generateImageInputSchema>;

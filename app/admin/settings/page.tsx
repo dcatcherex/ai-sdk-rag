@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { SaveIcon, UsersIcon, GiftIcon, MailCheckIcon, BotIcon } from 'lucide-react';
+import { ImageIcon, SaveIcon, UsersIcon, GiftIcon, MailCheckIcon, BotIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,6 +24,7 @@ type Settings = {
   requireEmailVerification: boolean;
   guestStarterAgentId: string | null;
   newUserStarterTemplateId: string | null;
+  instantStockEnabled: boolean;
 };
 
 type AdminAgentOption = {
@@ -299,6 +300,36 @@ export default function AdminSettingsPage() {
             <Switch
               checked={current.requireEmailVerification}
               onCheckedChange={(v) => set('requireEmailVerification', v)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Image Generation */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ImageIcon className="size-4" />
+            Image Generation
+          </CardTitle>
+          <CardDescription>
+            Controls how images are delivered to users during generation.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="text-sm font-medium">Instant stock preview</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                When on, 2 similar images from the stock library are shown immediately while the personalized
+                image generates in the background (2–3 min). The personalized result appears after.
+                When off, users see only the progress bar until their image is ready.
+                The stock pool is automatically populated from completed generations.
+              </p>
+            </div>
+            <Switch
+              checked={current.instantStockEnabled}
+              onCheckedChange={(v) => set('instantStockEnabled', v)}
             />
           </div>
         </CardContent>

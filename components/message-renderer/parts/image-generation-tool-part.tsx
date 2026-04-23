@@ -1,8 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ChevronDown, Download, Loader2, ExternalLink, XCircle } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { CheckCircle2, ChevronDown, Download, Loader2, ExternalLink, Sparkles, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -15,6 +15,29 @@ import { cn } from '@/lib/utils';
 import type { ImageGenerationToolOutput } from '@/components/message-renderer/types';
 import type { ChatReferenceImage } from '@/features/chat/types';
 import { useGenerationProgress } from '@/features/chat/context/generation-progress-context';
+
+type Stage = { label: string; upTo: number; fromPct: number; toPct: number };
+
+const STAGES: Stage[] = [
+  { label: 'Analyzing prompt',     upTo: 20_000,  fromPct: 0,  toPct: 20 },
+  { label: 'Generating image',     upTo: 60_000,  fromPct: 20, toPct: 55 },
+  { label: 'Refining details',     upTo: 100_000, fromPct: 55, toPct: 80 },
+  { label: 'Finishing up…',   upTo: Infinity, fromPct: 80, toPct: 92 },
+];
+
+function calcProgress(elapsedMs: number): { pct: number; label: string } {
+  let elapsed = 0;
+  for (const stage of STAGES) {
+    const duration = stage.upTo === Infinity ? 80_000 : stage.upTo - elapsed;
+    if (elapsedMs <= elapsed + duration || stage.upTo === Infinity) {
+      const t = Math.min((elapsedMs - elapsed) / duration, 1);
+      const pct = stage.fromPct + t * (stage.toPct - stage.fromPct);
+      return { pct, label: stage.label };
+    }
+    elapsed = stage.upTo;
+  }
+  return { pct: 92, label: 'Finishing up…' };
+}
 
 type ImageGenerationToolPartProps = {
   partKey: string;
@@ -51,6 +74,7 @@ export function ImageGenerationToolPart({
   );
   const [elapsedMs, setElapsedMs] = useState(0);
   const [loadedUrls, setLoadedUrls] = useState<Record<string, boolean>>({});
+  const notifiedRef = useRef(false);
   const resolvedThumbnailUrls = output.thumbnailUrls?.length
     ? output.thumbnailUrls
     : output.thumbnailUrl
@@ -108,6 +132,26 @@ export function ImageGenerationToolPart({
     return () => window.clearInterval(intervalId);
   }, [resolvedImageUrls, startedAtMs, state.status]);
 
+  // Request notification permission as soon as we start polling
+  useEffect(() => {
+    if (state.status === 'polling' && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      void Notification.requestPermission();
+    }
+  }, [state.status]);
+
+  // Fire browser notification when image arrives (only if tab is not visible)
+  useEffect(() => {
+    if (resolvedImageUrls.length === 0 || notifiedRef.current) return;
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    if (document.visibilityState === 'visible') return;
+    notifiedRef.current = true;
+    const count = resolvedImageUrls.length;
+    new Notification('Image ready', {
+      body: count === 1 ? 'Your generated image is ready.' : `${count} generated images are ready.`,
+      icon: '/favicon.ico',
+    });
+  }, [resolvedImageUrls]);
+
   const isWaiting = resolvedImageUrls.length === 0 && (state.status === 'idle' || state.status === 'polling');
   const errorText = state.status === 'failed' || state.status === 'timeout'
     ? (state.error ?? 'Image generation failed.')
@@ -133,22 +177,121 @@ export function ImageGenerationToolPart({
     });
   };
 
+  const stockImageUrls = output.stockImageUrls ?? [];
+  const stockThumbnailUrls = output.stockThumbnailUrls ?? [];
+  const hasStock = stockImageUrls.length > 0;
+
   return (
-    <div key={partKey} className="not-prose mb-4 w-full">
-      {isWaiting && (
-        <div className="rounded-2xl border bg-muted/20 p-4">
-          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <Loader2 className="size-4 animate-spin text-primary" />
-            Creating image
+    <div key={partKey} className="not-prose mb-4 w-full space-y-3">
+      {/* Stock images — shown immediately when available */}
+      {hasStock && (
+        <div className="space-y-3 rounded-2xl border bg-muted/20 p-3">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <Sparkles className="size-3.5" />
+            From library
           </div>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Please wait a moment. Elapsed time: {formatElapsed(elapsedMs)}
-          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {stockImageUrls.map((imageUrl, index) => (
+              <div key={`stock-${imageUrl}-${index}`} className="group relative overflow-hidden rounded-xl border bg-background">
+                {stockThumbnailUrls[index] ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={stockThumbnailUrls[index]}
+                    alt=""
+                    aria-hidden="true"
+                    className={cn(
+                      "absolute inset-0 h-full w-full object-cover transition-opacity duration-300",
+                      loadedUrls[imageUrl] ? "opacity-0" : "opacity-100",
+                    )}
+                  />
+                ) : null}
+                <Image
+                  src={imageUrl}
+                  alt={`Stock image ${index + 1}`}
+                  width={1024}
+                  height={1024}
+                  unoptimized
+                  className={cn(
+                    "h-auto max-h-[400px] w-full object-contain transition-opacity duration-300",
+                    loadedUrls[imageUrl] ? "opacity-100" : "opacity-0",
+                  )}
+                  onLoad={() => setLoadedUrls((c) => ({ ...c, [imageUrl]: true }))}
+                />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="absolute right-3 bottom-3 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                  <Button asChild size="icon" variant="secondary" className="pointer-events-auto rounded-full shadow-sm">
+                    <a href={imageUrl} target="_blank" rel="noopener noreferrer" aria-label="Open stock image">
+                      <ExternalLink className="size-4" />
+                    </a>
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="pointer-events-auto rounded-full shadow-sm"
+                    onClick={() => triggerBrowserDownload(imageUrl, `stock-image-${index + 1}`)}
+                    aria-label="Download stock image"
+                  >
+                    <Download className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
+      {/* Personalizing progress pill — shown while custom image is in-flight when stock is visible */}
+      {hasStock && isWaiting && (() => {
+        const { pct, label } = calcProgress(elapsedMs);
+        return (
+          <div className="rounded-2xl border bg-muted/20 px-4 py-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+                <Loader2 className="size-3.5 animate-spin text-primary" />
+                Personalizing… {label.toLowerCase()}
+              </div>
+              <span className="text-xs tabular-nums text-muted-foreground">{formatElapsed(elapsedMs)}</span>
+            </div>
+            <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-1000 ease-out"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Full progress bar — shown only when no stock images (real-time only mode) */}
+      {!hasStock && isWaiting && (() => {
+        const { pct, label } = calcProgress(elapsedMs);
+        return (
+          <div className="rounded-2xl border bg-muted/20 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <Loader2 className="size-4 animate-spin text-primary" />
+                {label}
+              </div>
+              <span className="text-xs tabular-nums text-muted-foreground">{formatElapsed(elapsedMs)}</span>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-1000 ease-out"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      })()}
+
       {resolvedImageUrls.length > 0 && (
         <div className="space-y-3 rounded-2xl border bg-muted/20 p-3">
+          {hasStock && (
+            <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
+              <Sparkles className="size-3.5" />
+              Personalized
+            </div>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             {resolvedImageUrls.map((imageUrl, index) => (
               <div key={`${imageUrl}-${index}`} className="group relative overflow-hidden rounded-xl border bg-background">

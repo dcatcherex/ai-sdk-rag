@@ -1,0 +1,29 @@
+{
+  "assertions": [
+    {
+      "text": "presents_two_options",
+      "passed": true,
+      "evidence": "Found both option labels"
+    },
+    {
+      "text": "urgency_option_present",
+      "passed": true,
+      "evidence": "Urgency angle detected in options"
+    },
+    {
+      "text": "mentions_two_photo_layout",
+      "passed": true,
+      "evidence": "Mentioned photo layout / Variant B"
+    },
+    {
+      "text": "no_premature_generation",
+      "passed": true,
+      "evidence": "Correctly waited for user"
+    },
+    {
+      "text": "brand_aware",
+      "passed": true,
+      "evidence": "Contains EdLab brand"
+    }
+  ]
+}

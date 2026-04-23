@@ -12,6 +12,7 @@ export type PlatformSettings = {
   newUserStarterTemplateId: string | null;
   // null = all models available platform-wide
   adminEnabledModelIds: string[] | null;
+  instantStockEnabled: boolean;
 };
 
 const DEFAULTS: PlatformSettings = {
@@ -23,6 +24,7 @@ const DEFAULTS: PlatformSettings = {
   guestStarterAgentId: null,
   newUserStarterTemplateId: null,
   adminEnabledModelIds: null,
+  instantStockEnabled: false,
 };
 
 // Simple in-process cache — refreshes after 60 s
@@ -50,6 +52,7 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
         guestStarterAgentId: rows[0].guestStarterAgentId,
         newUserStarterTemplateId: rows[0].newUserStarterTemplateId,
         adminEnabledModelIds: rows[0].adminEnabledModelIds ?? null,
+        instantStockEnabled: rows[0].instantStockEnabled,
       }
     : { ...DEFAULTS };
 

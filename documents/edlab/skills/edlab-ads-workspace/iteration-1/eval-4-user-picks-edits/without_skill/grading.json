@@ -1,0 +1,44 @@
+{
+  "assertions": [
+    {
+      "text": "custom_headline_applied",
+      "passed": true,
+      "evidence": "Found custom headline in output"
+    },
+    {
+      "text": "date_injected",
+      "passed": true,
+      "evidence": "Date 20 กันยายน present"
+    },
+    {
+      "text": "location_injected",
+      "passed": true,
+      "evidence": "Location นวมินทร์ 9 present"
+    },
+    {
+      "text": "contact_block_present",
+      "passed": false,
+      "evidence": "Contact block missing"
+    },
+    {
+      "text": "hashtags_present",
+      "passed": false,
+      "evidence": "Hashtags missing"
+    },
+    {
+      "text": "brand_colors_in_prompt",
+      "passed": false,
+      "evidence": "Brand color missing"
+    },
+    {
+      "text": "logo_placement_specified",
+      "passed": false,
+      "evidence": "Logo placement not specified"
+    },
+    {
+      "text": "no_unresolved_brackets",
+      "passed": true,
+      "evidence": "No unfilled placeholders"
+    }
+  ]
+}

@@ -7,6 +7,7 @@ import {
   BotIcon,
   BrainCircuitIcon,
   CoinsIcon,
+  GalleryHorizontalIcon,
   ImageIcon,
   LayoutDashboardIcon,
   MenuIcon,
@@ -35,6 +36,7 @@ const navItems = [
   { href: '/admin/chat-runs', label: 'AI Runs', icon: SearchIcon },
   { href: '/admin/models', label: 'Models', icon: BrainCircuitIcon },
   { href: '/admin/image-models', label: 'Image Models', icon: ImageIcon },
+  { href: '/admin/stock-images', label: 'Stock Images', icon: GalleryHorizontalIcon },
   { href: '/admin/tests', label: 'Tests', icon: TestTubeDiagonalIcon },
   { href: '/admin/settings', label: 'Settings', icon: SettingsIcon },
 ];

@@ -11,6 +11,8 @@ import { db } from '@/lib/db';
 import { imageModelConfig } from '@/db/schema/admin';
 import { KIE_IMAGE_MODELS } from '@/lib/models/kie-image';
 import type { AgentToolContext } from '@/features/tools/registry/types';
+import { getPlatformSettings } from '@/lib/platform-settings';
+import { getStockImages, recordStockUsage } from './stock-service';
 import { triggerImageGeneration } from './service';
 
 const imageAgentModelIds = KIE_IMAGE_MODELS.map((model) => model.id) as [string, ...string[]];
@@ -119,17 +121,38 @@ export function createImageAgentTools(ctx: Pick<AgentToolContext, 'userId' | 'th
 
         try {
           const { taskId, generationId } = await triggerImageGeneration(
-            { ...params, modelId, enablePro, imageUrls: sanitizedImageUrls, promptTitle: params.prompt.substring(0, 50) },
+            {
+              ...params, modelId, enablePro, imageUrls: sanitizedImageUrls,
+              promptTitle: params.prompt.substring(0, 50),
+              taskHint: params.taskHint,
+            },
             userId,
             { threadId, source: source ?? 'agent', referenceImageUrls },
           );
+
+          // Instant stock preview — serve 2 stock images immediately while personalizing in background
+          const platformSettings = await getPlatformSettings();
+          let stockImageUrls: string[] | undefined;
+          let stockThumbnailUrls: string[] | undefined;
+          if (platformSettings.instantStockEnabled) {
+            const stockItems = await getStockImages(params.taskHint, params.aspectRatio, 2);
+            if (stockItems.length > 0) {
+              stockImageUrls = stockItems.map(s => s.imageUrl);
+              stockThumbnailUrls = stockItems.map(s => s.thumbnailUrl ?? s.imageUrl);
+              recordStockUsage(stockImageUrls);
+            }
+          }
+
           return {
             started: true,
             status: 'processing' as const,
             taskId,
             generationId,
             startedAt: new Date().toISOString(),
-            message: 'Image generation started. The image will appear in this chat when it is ready.',
+            ...(stockImageUrls?.length ? { stockImageUrls, stockThumbnailUrls } : {}),
+            message: stockImageUrls?.length
+              ? 'Image generation started. Showing similar images from our library while your personalized image is being created.'
+              : 'Image generation started. The image will appear in this chat when it is ready.',
           };
         } catch (err) {
           const message = err instanceof Error ? err.message : 'Unknown error';

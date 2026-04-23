@@ -137,6 +137,9 @@ export type ImageGenerationToolOutput = {
   thumbnailUrls?: string[];
   startedAt?: string;
   message?: string;
+  /** Stock images served immediately while personalized image generates in background */
+  stockImageUrls?: string[];
+  stockThumbnailUrls?: string[];
 };
 
 /** Rendering kind derived from the tool name. */

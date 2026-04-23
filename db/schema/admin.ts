@@ -43,6 +43,7 @@ export const platformSettings = pgTable("platform_settings", {
   newUserStarterTemplateId: text("new_user_starter_template_id").references(() => agent.id, { onDelete: "set null" }),
   // null = all models available; set to restrict platform-wide model access
   adminEnabledModelIds: text("admin_enabled_model_ids").array(),
+  instantStockEnabled: boolean("instant_stock_enabled").notNull().default(false),
   updatedAt: timestamp("updated_at")
     .defaultNow()
     .$onUpdate(() => new Date())

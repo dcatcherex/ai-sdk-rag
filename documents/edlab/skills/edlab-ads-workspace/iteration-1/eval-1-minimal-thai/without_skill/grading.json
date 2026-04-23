@@ -1,0 +1,29 @@
+{
+  "assertions": [
+    {
+      "text": "presents_two_options",
+      "passed": false,
+      "evidence": "Missing option labels"
+    },
+    {
+      "text": "different_angles",
+      "passed": false,
+      "evidence": "Options appear to have distinct angle labels"
+    },
+    {
+      "text": "no_premature_generation",
+      "passed": true,
+      "evidence": "Did not generate full image prompt"
+    },
+    {
+      "text": "ends_with_question",
+      "passed": false,
+      "evidence": "No choice question found"
+    },
+    {
+      "text": "brand_aware",
+      "passed": false,
+      "evidence": "No brand content found"
+    }
+  ]
+}

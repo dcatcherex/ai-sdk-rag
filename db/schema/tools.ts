@@ -112,6 +112,18 @@ export const brandPhoto = pgTable("brand_photo", {
   index("brand_photo_lineUserId_channelId_idx").on(table.lineUserId, table.channelId),
 ]);
 
+export const stockImage = pgTable("stock_image", {
+  id: text("id").primaryKey(),
+  styleTag: text("style_tag"),
+  aspectRatio: text("aspect_ratio"),
+  imageUrl: text("image_url").notNull().unique(),
+  thumbnailUrl: text("thumbnail_url"),
+  usedCount: integer("used_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("stock_image_styleTag_aspectRatio_idx").on(table.styleTag, table.aspectRatio),
+]);
+
 export const lineBrandDraft = pgTable("line_brand_draft", {
   id: text("id").primaryKey(),
   lineUserId: text("line_user_id").notNull(),

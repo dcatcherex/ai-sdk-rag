@@ -18,6 +18,7 @@ const patchSchema = z.object({
   requireEmailVerification: z.boolean().optional(),
   guestStarterAgentId: z.string().min(1).nullable().optional(),
   newUserStarterTemplateId: z.string().min(1).nullable().optional(),
+  instantStockEnabled: z.boolean().optional(),
 });
 
 export async function PATCH(req: Request) {

@@ -338,6 +338,7 @@ export async function triggerImageGeneration(
         uploadedBase64Count,
       },
       promptTitle: params.promptTitle ?? params.prompt.substring(0, 50),
+      taskHint: params.taskHint,
     },
   });
 

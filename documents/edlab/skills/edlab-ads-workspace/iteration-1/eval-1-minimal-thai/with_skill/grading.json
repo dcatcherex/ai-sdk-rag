@@ -1,0 +1,29 @@
+{
+  "assertions": [
+    {
+      "text": "presents_two_options",
+      "passed": true,
+      "evidence": "Found both option labels"
+    },
+    {
+      "text": "different_angles",
+      "passed": true,
+      "evidence": "Found 2+ distinct angles: ['Aspiration', 'Urgency', 'Portfolio']"
+    },
+    {
+      "text": "no_premature_generation",
+      "passed": true,
+      "evidence": "Did not generate full image prompt"
+    },
+    {
+      "text": "ends_with_question",
+      "passed": true,
+      "evidence": "Found choice question"
+    },
+    {
+      "text": "brand_aware",
+      "passed": true,
+      "evidence": "Contains EdLab/Medical Shadowing brand"
+    }
+  ]
+}

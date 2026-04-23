@@ -623,17 +623,23 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
 
       const canonicalBrandImageContext = activeBrand
         ? await buildBrandImageContext(activeBrand.id)
-        : { referenceImageUrls: [] };
+        : { referenceImageUrls: [], logoUrl: null };
 
       const imagePrompt = activeBrand
         ? baseImagePrompt + buildImageBrandSuffix(activeBrand)
         : baseImagePrompt;
 
       const hasImages = effectiveReferenceImageParts.length > 0;
-      const imageUrls = hasImages
+      const baseImageUrls = hasImages
         ? effectiveReferenceImageParts.map((p) => p.url)
         : canonicalBrandImageContext.referenceImageUrls.length > 0
           ? canonicalBrandImageContext.referenceImageUrls
+          : [];
+      // Logo appended last — model receives it as a brand mark reference, not a composition element
+      const logoUrl = canonicalBrandImageContext.logoUrl;
+      const imageUrls =
+        baseImageUrls.length > 0 || logoUrl
+          ? [...baseImageUrls, ...(logoUrl ? [logoUrl] : [])]
           : undefined;
       const { kieModelId, enablePro } = mapToKieImageModel(resolvedModel, Boolean(imageUrls?.length));
 

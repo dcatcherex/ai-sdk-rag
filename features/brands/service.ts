@@ -446,14 +446,24 @@ export function buildImageBrandSuffix(b: Brand): string {
 
 export async function buildBrandImageContext(brandId: string): Promise<{
   referenceImageUrls: string[];
+  logoUrl: string | null;
 }> {
-  const styleReferenceAssets = await getBrandAssetsByKind(brandId, 'style_reference');
+  const [styleReferenceAssets, logoAssets] = await Promise.all([
+    getBrandAssetsByKind(brandId, 'style_reference'),
+    getBrandAssetsByKind(brandId, 'logo'),
+  ]);
+
+  const logoUrl =
+    logoAssets
+      .map((a) => a.url)
+      .find((url) => typeof url === 'string' && url.startsWith('http')) ?? null;
 
   return {
     referenceImageUrls: styleReferenceAssets
       .map((asset) => asset.url)
       .filter((url) => typeof url === 'string' && url.startsWith('http'))
       .slice(0, 3),
+    logoUrl,
   };
 }
 
