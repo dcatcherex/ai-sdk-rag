@@ -44,6 +44,7 @@ import type { Skill } from '@/features/skills/types';
 import { getLastUserPrompt } from '@/features/chat/server/thread-utils';
 import { toolDisabledModels, isImageOnlyModel, getModelByIntent } from '@/features/chat/server/routing';
 import { triggerImageGeneration } from '@/features/image/service';
+import { buildReferencePreviewItems } from '@/features/image/reference-previews';
 import {
   ensureConfiguredStarterAgentForUser,
   getConfiguredGuestStarterAgent,
@@ -668,6 +669,9 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
         taskId,
         generationId,
         startedAt: new Date().toISOString(),
+        ...(imageUrls?.length
+          ? { referenceImages: buildReferencePreviewItems(imageUrls, { lastIsLogo: Boolean(logoUrl) }) }
+          : {}),
         message: 'Image generation started. The image will appear in this chat when it is ready.',
       };
 

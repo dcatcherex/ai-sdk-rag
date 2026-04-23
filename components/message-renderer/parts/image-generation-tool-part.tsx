@@ -180,9 +180,37 @@ export function ImageGenerationToolPart({
   const stockImageUrls = output.stockImageUrls ?? [];
   const stockThumbnailUrls = output.stockThumbnailUrls ?? [];
   const hasStock = stockImageUrls.length > 0;
+  const referenceImages = output.referenceImages ?? [];
+  const hasReferenceImages = referenceImages.length > 0;
 
   return (
     <div key={partKey} className="not-prose mb-4 w-full space-y-3">
+      {hasReferenceImages && (
+        <div className="space-y-3 rounded-2xl border bg-muted/20 p-3">
+          <div className="text-xs font-medium text-muted-foreground">
+            Using these reference images
+          </div>
+          <div className={cn("grid gap-3", referenceImages.length > 1 ? "sm:grid-cols-2" : "sm:grid-cols-1")}>
+            {referenceImages.map((reference, index) => (
+              <div
+                key={`reference-${reference.url}-${index}`}
+                className="overflow-hidden rounded-xl border bg-background"
+              >
+                <div className="border-b px-3 py-2 text-xs font-medium text-foreground">
+                  {reference.label ?? `Reference image ${index + 1}`}
+                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={reference.url}
+                  alt={reference.label ?? `Reference image ${index + 1}`}
+                  className="h-48 w-full object-contain bg-white"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Stock images — shown immediately when available */}
       {hasStock && (
         <div className="space-y-3 rounded-2xl border bg-muted/20 p-3">

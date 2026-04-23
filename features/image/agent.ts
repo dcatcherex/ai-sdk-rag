@@ -12,6 +12,7 @@ import { getPlatformSettings } from '@/lib/platform-settings';
 import { getStockImages, recordStockUsage } from './stock-service';
 import { triggerImageGeneration } from './service';
 import { IMAGE_TASK_HINT_VALUES, resolveAdminImageModel } from './model-selection';
+import { buildReferencePreviewItems } from './reference-previews';
 
 const imageAgentModelIds = KIE_IMAGE_MODELS.map((model) => model.id) as [string, ...string[]];
 
@@ -83,6 +84,7 @@ export function createImageAgentTools(ctx: Pick<AgentToolContext, 'userId' | 'th
                 : url
             )
           : params.imageUrls;
+        const referenceImages = buildReferencePreviewItems(sanitizedImageUrls);
 
         try {
           const { taskId, generationId } = await triggerImageGeneration(
@@ -114,6 +116,7 @@ export function createImageAgentTools(ctx: Pick<AgentToolContext, 'userId' | 'th
             taskId,
             generationId,
             startedAt: new Date().toISOString(),
+            ...(referenceImages.length ? { referenceImages } : {}),
             ...(stockImageUrls?.length ? { stockImageUrls, stockThumbnailUrls } : {}),
             message: stockImageUrls?.length
               ? 'Image generation started. Showing similar images from our library while your personalized image is being created.'

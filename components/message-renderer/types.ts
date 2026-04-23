@@ -137,6 +137,10 @@ export type ImageGenerationToolOutput = {
   thumbnailUrls?: string[];
   startedAt?: string;
   message?: string;
+  referenceImages?: Array<{
+    url: string;
+    label?: string;
+  }>;
   /** Stock images served immediately while personalized image generates in background */
   stockImageUrls?: string[];
   stockThumbnailUrls?: string[];
