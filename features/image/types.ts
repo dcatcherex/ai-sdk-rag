@@ -73,7 +73,7 @@ export const IMAGE_MODEL_CONFIGS: ImageModelConfig[] = KIE_IMAGE_MODELS
       badge: opts.badge,
       provider: opts.iconProvider,
       mode: opts.mode,
-      aspectRatios: opts.aspectRatios,
+      aspectRatios: opts.aspectRatios ?? ['auto'],
       hasQuality: opts.hasQuality,
       hasEnablePro: opts.hasEnablePro,
       hasResolution: opts.hasResolution,
