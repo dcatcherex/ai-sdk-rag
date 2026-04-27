@@ -6,7 +6,7 @@ import { agent, brandAsset, lineAccountLink, lineOaChannel, lineRichMenu, lineUs
 import { chatModel } from '@/lib/ai';
 import type { AgentRow, LinkedUser, Sender } from './types';
 import { handleFollowEvent } from './events/follow';
-import { handleMessageEvent } from './events/message';
+import { handleMessageEvent, wantsImageGeneration } from './events/message';
 import { handlePostbackEvent } from './events/postback';
 import { handleBeaconEvent } from './events/beacon';
 import { handleManagementBotEvent } from './management-bot';
@@ -165,7 +165,9 @@ async function processEvents(
         // If the sender is the channel owner (linked Vaja account === channel.userId),
         // route to the platform management bot instead of the domain agent handler.
         const isChannelOwner = linkedUser && linkedUser.userId === channel.userId;
-        if (isChannelOwner && !isGroupChat) {
+        const ownerText = event.message?.type === 'text' ? event.message.text?.trim() ?? '' : '';
+        const shouldUseDomainAgent = ownerText.length > 0 && wantsImageGeneration(ownerText);
+        if (isChannelOwner && !isGroupChat && !shouldUseDomainAgent) {
           await handleManagementBotEvent(
             event,
             { id: channel.id, userId: channel.userId, name: channel.name, channelAccessToken: channel.channelAccessToken },

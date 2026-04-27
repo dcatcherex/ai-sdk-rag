@@ -49,7 +49,7 @@ export type LineToolSetOptions = {
   lineClient?: messagingApi.MessagingApiClient;
 };
 
-async function pollAndPushGeneratedLineImage(params: {
+export async function pollAndPushGeneratedLineImage(params: {
   lineClient: messagingApi.MessagingApiClient;
   to: string;
   userId: string;

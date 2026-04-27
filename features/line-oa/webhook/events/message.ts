@@ -30,14 +30,22 @@ import { SIGNUP_BONUS_CREDITS } from '@/lib/credits';
 import { GoogleGenAI } from '@google/genai';
 import { getKieApiKey } from '@/lib/api/routeGuards';
 import { KieService } from '@/lib/providers/kieService';
-import { buildLineToolSet, LINE_IMAGE_MODEL } from '../tools';
+import { buildLineToolSet, LINE_IMAGE_MODEL, pollAndPushGeneratedLineImage } from '../tools';
 import type { SkillRuntimeContext } from '@/features/skills/server/activation';
+import { LINE_AGENT_RUN_POLICY } from '@/features/agents/server/channel-policies';
 import {
   buildAgentRunSystemPrompt,
   EMPTY_SKILL_RUNTIME,
-  mergeAgentToolIds,
   resolveAgentBrandRuntime,
 } from '@/features/agents/server/runtime';
+import {
+  prepareAgentRun,
+  runAgentText,
+  startCanonicalAgentImageGeneration,
+} from '@/features/agents/server/run-service';
+import { wantsImageGeneration } from '@/features/agents/server/media-intent';
+
+export { wantsImageGeneration };
 
 /**
  * Falls back to chatModel (Gemini) for vision if agent uses an unsupported model.
@@ -131,6 +139,7 @@ function wantsVideoGeneration(text: string): boolean {
   );
 }
 
+/** Returns true when the user's text asks LINE to create a visual asset. */
 /**
  * Generate a quick thumbnail image for a video (used as LINE previewImageUrl).
  * Uses the same image model as inline image generation.
@@ -177,6 +186,29 @@ async function detectPaymentSlip(base64: string): Promise<number | null> {
   } catch {
     return null;
   }
+}
+
+async function deriveImageObservation(base64: string, modelId: string): Promise<string> {
+  const { text } = await generateText({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    model: resolveVisionModel(modelId) as any,
+    system: [
+      'You are preparing a concise observation for an agricultural assistant.',
+      'Describe only what is visually observable in the image.',
+      'Mention likely crop if visible, affected plant part, colors, spots, wilting, mold, insects, and spread pattern.',
+      'Do not diagnose and do not recommend treatment.',
+      'If uncertain, say what is unclear.',
+      'Return plain text only in 2-4 short sentences.',
+    ].join(' '),
+    messages: [
+      {
+        role: 'user',
+        content: [{ type: 'image', image: base64, mediaType: 'image/jpeg' }],
+      },
+    ],
+  });
+
+  return stripMarkdown(text ?? '').trim();
 }
 
 /**
@@ -340,12 +372,14 @@ export async function handleMessageEvent(
   groupId?: string,
 ): Promise<void> {
   if (!event.replyToken) return;
+  const replyToken = event.replyToken;
 
   const msgType = event.message?.type;
   if (msgType !== 'text' && msgType !== 'image' && msgType !== 'audio' && msgType !== 'video') return;
 
   const lineUserId = event.source?.userId;
   if (!lineUserId) return;
+  const activeLineUserId = lineUserId;
 
   // ① Account link command — text only
   if (msgType === 'text') {
@@ -526,6 +560,140 @@ export async function handleMessageEvent(
   const now = new Date();
   const nextPosition = historyRows.length;
 
+  const lineExtraBlocks = groupId
+    ? [
+        `\n\n<line_group_context>\nYou are in a LINE group chat shared by multiple users. Keep replies concise and relevant to the whole group.${linkedUser?.displayName ? ` The member who sent this message is ${linkedUser.displayName}.` : ''}\n</line_group_context>`,
+      ]
+    : linkedUser?.displayName
+      ? [
+          `\n\n<line_user_context>\nThe user you are talking to is named ${linkedUser.displayName}. Address them by name naturally when appropriate.\n</line_user_context>`,
+        ]
+      : [];
+
+  async function runCanonicalLineReply(input: {
+    runtimeUserText: string;
+    storedUserText?: string;
+    memoryUserText?: string;
+    displayReplyText?: (replyText: string) => string;
+  }) {
+    const prepared = await prepareAgentRun({
+      identity: {
+        channel: 'line',
+        userId: linkedUser?.userId ?? null,
+        billingUserId: channel.userId,
+        lineUserId,
+        isOwner: linkedUser?.userId === channel.userId,
+      },
+      threadId,
+      agentId: agentRow?.id ?? null,
+      model: modelId,
+      messages: [...historyMessages, { role: 'user', content: input.runtimeUserText }],
+      policy: LINE_AGENT_RUN_POLICY,
+      channelContext: {
+        memoryContext,
+        extraBlocks: lineExtraBlocks,
+      },
+    });
+
+    const mergedTools = buildLineToolSet({
+      enabledToolIds: prepared.activeToolIds ?? [],
+      userId: channel.userId,
+      brandId: prepared.activeBrand?.id ?? undefined,
+      lineUserId: activeLineUserId,
+      channelId: channel.id,
+      threadId,
+      lineClient,
+    });
+
+    const generateResult = await runAgentText({
+      ...prepared,
+      ...(prepared.supportsTools ? { tools: mergedTools } : {}),
+    });
+
+    const rawReplyText = generateResult.text;
+    if (!rawReplyText) return null;
+
+    const replyText = stripMarkdown(rawReplyText);
+    const displayText = input.displayReplyText ? input.displayReplyText(replyText) : replyText;
+    const storedUserText = input.storedUserText ?? input.runtimeUserText;
+    const memoryUserText = input.memoryUserText ?? input.runtimeUserText;
+
+    const contextStr = [
+      ...historyMessages.slice(-4).map((message) => `${message.role}: ${message.content.slice(0, 200)}`),
+      `user: ${storedUserText.slice(0, 200)}`,
+      `assistant: ${replyText.slice(0, 200)}`,
+    ].join('\n');
+
+    const [suggestions] = await Promise.all([
+      generateFollowUpSuggestions(contextStr),
+      db.insert(chatMessage).values([
+        {
+          id: crypto.randomUUID(),
+          threadId,
+          role: 'user',
+          parts: [{ type: 'text', text: storedUserText }],
+          position: nextPosition,
+          createdAt: now,
+        },
+        {
+          id: crypto.randomUUID(),
+          threadId,
+          role: 'assistant',
+          parts: [{ type: 'text', text: replyText }],
+          position: nextPosition + 1,
+          createdAt: now,
+        },
+      ]),
+      db.update(chatThread).set({ updatedAt: now }).where(eq(chatThread.id, threadId)),
+    ]);
+
+    if (shouldExtractMemory) {
+      const messagesForMemory = [
+        ...historyMessages,
+        { role: 'user' as const, content: memoryUserText },
+        { role: 'assistant' as const, content: replyText },
+      ];
+      if (linkedUser) {
+        void extractAndStoreMemory(linkedUser.userId, messagesForMemory, threadId, memoryContext);
+      } else if (lineUserId) {
+        void extractAndStoreLineUserMemory(lineUserId, messagesForMemory, threadId, memoryContext);
+      }
+    }
+
+    const quickReplyItems = suggestions
+      .filter((suggestion) => suggestion.trim().length > 0)
+      .slice(0, 3)
+      .map((suggestion) => buildQuickReplyItem(suggestion));
+    const quickReply = quickReplyItems.length > 0 ? { items: quickReplyItems } : undefined;
+
+    const textMessages = buildReplyMessages(displayText, sender, quickReply);
+    const imageMessages: LineMessage[] = generateResult.imageUrls
+      .slice(0, Math.max(0, 4 - textMessages.length))
+      .map((url) => ({ type: 'image', originalContentUrl: url, previewImageUrl: url } as LineMessage));
+
+    const stickerMessages: LineMessage[] = [];
+    if (generateResult.imageUrls.length === 0 && shouldAddFriendlySticker(replyText)) {
+      const sticker = pickRandom(FRIENDLY_STICKERS);
+      stickerMessages.push({
+        type: 'sticker',
+        packageId: sticker.packageId,
+        stickerId: sticker.stickerId,
+      } as LineMessage);
+    }
+
+    await lineClient.replyMessage({
+      replyToken,
+      messages: [...textMessages, ...imageMessages, ...stickerMessages],
+    });
+
+    recordMessageEvent(channel.id, activeLineUserId, {
+      toolCallCount: generateResult.toolCallCount,
+      imagesSent: imageMessages.length,
+    }).catch((err) => console.warn('[LINE] recordMessageEvent failed:', err));
+
+    return { replyText };
+  }
+
   // ③ Incoming image from user → slip verification OR vision model → text reply
   if (msgType === 'image') {
     const blobClient = new messagingApi.MessagingApiBlobClient({
@@ -623,68 +791,23 @@ export async function handleMessageEvent(
       }
     }
 
-    const { text: rawAnalysis } = await generateText({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      model: resolveVisionModel(modelId) as any,
-      system: lineSystemPrompt,
-      messages: [
-        ...historyMessages,
-        {
-          role: 'user' as const,
-          content: [{ type: 'image' as const, image: base64, mediaType: 'image/jpeg' }],
-        },
-      ],
+    const observation = await deriveImageObservation(base64, modelId);
+    const runtimeUserText = [
+      '[Farmer sent photo]',
+      observation ? `Observation: ${observation}` : 'Observation: Image received but the visual details were unclear.',
+      'Please help using the normal Farm Advisor workflow. Diagnose cautiously and ask only one short follow-up question if needed.',
+    ].join('\n');
+
+    const storedUserText = [
+      '[Image]',
+      observation ? `Observation: ${observation}` : 'Observation: Unable to derive a clear observation.',
+    ].join('\n');
+
+    await runCanonicalLineReply({
+      runtimeUserText,
+      storedUserText,
+      memoryUserText: runtimeUserText,
     });
-
-    if (!rawAnalysis) return;
-    const analysisText = stripMarkdown(rawAnalysis);
-
-    const contextStr = `user: [sent an image]\nassistant: ${analysisText.slice(0, 200)}`;
-    const [suggestions] = await Promise.all([
-      generateFollowUpSuggestions(contextStr),
-      db.insert(chatMessage).values([
-        {
-          id: crypto.randomUUID(),
-          threadId,
-          role: 'user',
-          parts: [{ type: 'text', text: '[Image]' }],
-          position: nextPosition,
-          createdAt: now,
-        },
-        {
-          id: crypto.randomUUID(),
-          threadId,
-          role: 'assistant',
-          parts: [{ type: 'text', text: analysisText }],
-          position: nextPosition + 1,
-          createdAt: now,
-        },
-      ]),
-      db.update(chatThread).set({ updatedAt: now }).where(eq(chatThread.id, threadId)),
-    ]);
-
-    if (shouldExtractMemory) {
-      const messagesForMemory = [
-        ...historyMessages,
-        { role: 'user' as const, content: '[Image]' },
-        { role: 'assistant' as const, content: analysisText },
-      ];
-      if (linkedUser) {
-        void extractAndStoreMemory(linkedUser.userId, messagesForMemory, threadId, memoryContext);
-      } else if (lineUserId) {
-        void extractAndStoreLineUserMemory(lineUserId, messagesForMemory, threadId, memoryContext);
-      }
-    }
-
-    const quickReplyItems = suggestions
-      .filter((s) => s.trim().length > 0)
-      .slice(0, 3)
-      .map((s) => buildQuickReplyItem(s));
-    const quickReply = quickReplyItems.length > 0 ? { items: quickReplyItems } : undefined;
-
-    const replyMessages = buildReplyMessages(analysisText, sender, quickReply);
-    await lineClient.replyMessage({ replyToken: event.replyToken, messages: replyMessages });
-    recordMessageEvent(channel.id, lineUserId).catch(() => {});
     return;
   }
 
@@ -699,65 +822,16 @@ export async function handleMessageEvent(
       return;
     }
 
-    const { text: rawAudioReply } = await generateText({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      model: modelId as any,
-      system: lineSystemPrompt,
-      messages: [...historyMessages, { role: 'user', content: transcript }],
+    const result = await runCanonicalLineReply({
+      runtimeUserText: transcript,
+      storedUserText: `[Voice] ${transcript}`,
+      memoryUserText: transcript,
+      displayReplyText: (replyText) => `🎙 "${transcript}"\n\n${replyText}`,
     });
 
-    if (!rawAudioReply) return;
-    const audioReplyText = stripMarkdown(rawAudioReply);
-
-    // Show the transcript so the user can confirm the AI heard them correctly
-    const displayText = `🎙 "${transcript}"\n\n${audioReplyText}`;
-
-    const audioContextStr = `user: [voice] ${transcript}\nassistant: ${audioReplyText.slice(0, 200)}`;
-    const [audioSuggestions] = await Promise.all([
-      generateFollowUpSuggestions(audioContextStr),
-      db.insert(chatMessage).values([
-        {
-          id: crypto.randomUUID(),
-          threadId,
-          role: 'user',
-          parts: [{ type: 'text', text: `[Voice] ${transcript}` }],
-          position: nextPosition,
-          createdAt: now,
-        },
-        {
-          id: crypto.randomUUID(),
-          threadId,
-          role: 'assistant',
-          parts: [{ type: 'text', text: audioReplyText }],
-          position: nextPosition + 1,
-          createdAt: now,
-        },
-      ]),
-      db.update(chatThread).set({ updatedAt: now }).where(eq(chatThread.id, threadId)),
-    ]);
-
-    if (shouldExtractMemory) {
-      const msgs = [...historyMessages, { role: 'user' as const, content: transcript }, { role: 'assistant' as const, content: audioReplyText }];
-      if (linkedUser) {
-        void extractAndStoreMemory(linkedUser.userId, msgs, threadId, memoryContext);
-      } else if (lineUserId) {
-        void extractAndStoreLineUserMemory(lineUserId, msgs, threadId, memoryContext);
-      }
+    if (result?.replyText) {
+      void sendVoiceReply(lineClient, lineUserId, result.replyText);
     }
-
-    const audioQuickReplyItems = audioSuggestions
-      .filter((s) => s.trim().length > 0)
-      .slice(0, 3)
-      .map((s) => buildQuickReplyItem(s));
-    const audioQuickReply = audioQuickReplyItems.length > 0 ? { items: audioQuickReplyItems } : undefined;
-
-    const audioReplyMessages = buildReplyMessages(displayText, sender, audioQuickReply);
-    await lineClient.replyMessage({ replyToken: event.replyToken, messages: audioReplyMessages });
-
-    // Fire-and-forget: send a voice reply via Gemini TTS → R2 → pushMessage
-    void sendVoiceReply(lineClient, lineUserId, audioReplyText);
-
-    recordMessageEvent(channel.id, lineUserId).catch(() => {});
     return;
   }
 
@@ -872,112 +946,74 @@ export async function handleMessageEvent(
   }
 
   // ⑥c Standard text → text response
-  const enabledToolIds = mergeAgentToolIds({
-    baseToolIds: agentRow?.enabledTools ?? [],
-    skillRuntime,
-  }) ?? [];
-
-  const mergedTools = buildLineToolSet({
-    enabledToolIds,
-    userId: channel.userId,
-    brandId: brandResolution?.effectiveBrandId ?? undefined,
-    lineUserId,
-    channelId: channel.id,
-    threadId,
-    lineClient,
-  });
-
-  const generateResult = await generateText({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    model: modelId as any,
-    system: lineSystemPrompt,
-    messages: [...historyMessages, { role: 'user', content: userText }],
-    tools: mergedTools,
-    stopWhen: stepCountIs(5),
-  });
-
-  const rawReplyText = generateResult.text;
-  if (!rawReplyText) return;
-  const replyText = stripMarkdown(rawReplyText);
-
-  // Collect any image URLs produced by tool calls (e.g. generate_image tool)
-  const toolImageUrls: string[] = (generateResult.toolResults ?? [])
-    .flatMap((tr) => {
-      const r = (tr as { result?: Record<string, unknown> }).result;
-      return r?.imageUrl && typeof r.imageUrl === 'string' ? [r.imageUrl] : [];
-    });
-
-  const contextStr = [
-    ...historyMessages.slice(-4).map((m) => `${m.role}: ${m.content.slice(0, 200)}`),
-    `user: ${userText}`,
-    `assistant: ${replyText.slice(0, 200)}`,
-  ].join('\n');
-
-  const [suggestions] = await Promise.all([
-    generateFollowUpSuggestions(contextStr),
-    db.insert(chatMessage).values([
-      {
-        id: crypto.randomUUID(),
+  // Direct image generation request. This mirrors web chat's image route instead of
+  // relying on the text model to decide whether to call the image tool.
+  if (wantsImageGeneration(userText)) {
+    try {
+      const imageRun = await startCanonicalAgentImageGeneration({
+        prompt: userText,
+        userId: channel.userId,
         threadId,
-        role: 'user',
-        parts: [{ type: 'text', text: userText }],
-        position: nextPosition,
-        createdAt: now,
-      },
-      {
-        id: crypto.randomUUID(),
-        threadId,
-        role: 'assistant',
-        parts: [{ type: 'text', text: replyText }],
-        position: nextPosition + 1,
-        createdAt: now,
-      },
-    ]),
-    db.update(chatThread).set({ updatedAt: now }).where(eq(chatThread.id, threadId)),
-  ]);
+        activeBrand,
+        source: 'line',
+      });
 
-  if (shouldExtractMemory) {
-    const messagesForMemory = [
-      ...historyMessages,
-      { role: 'user' as const, content: userText },
-      { role: 'assistant' as const, content: replyText },
-    ];
-    if (linkedUser) {
-      void extractAndStoreMemory(linkedUser.userId, messagesForMemory, threadId, memoryContext);
-    } else if (lineUserId) {
-      void extractAndStoreLineUserMemory(lineUserId, messagesForMemory, threadId, memoryContext);
+      const replyText = 'Image generation started. I will send the image here when it is ready.';
+      await Promise.all([
+        db.insert(chatMessage).values([
+          {
+            id: crypto.randomUUID(),
+            threadId,
+            role: 'user',
+            parts: [{ type: 'text', text: userText }],
+            position: nextPosition,
+            createdAt: now,
+          },
+          {
+            id: crypto.randomUUID(),
+            threadId,
+            role: 'assistant',
+            parts: [{ type: 'text', text: replyText }],
+            position: nextPosition + 1,
+            createdAt: now,
+          },
+        ]),
+        db.update(chatThread).set({ updatedAt: now }).where(eq(chatThread.id, threadId)),
+      ]);
+
+      await lineClient.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{ type: 'text', text: replyText }],
+      });
+
+      void pollAndPushGeneratedLineImage({
+        lineClient,
+        to: groupId ?? lineUserId,
+        userId: channel.userId,
+        taskId: imageRun.taskId,
+        generationId: imageRun.generationId,
+      }).catch((err) => console.error('[LINE] direct image delivery failed:', err));
+
+      recordMessageEvent(channel.id, lineUserId, {
+        toolCallCount: 1,
+        imagesSent: 0,
+      }).catch((err) => console.warn('[LINE] recordMessageEvent failed:', err));
+      return;
+    } catch (err) {
+      console.error('[LINE] direct image generation failed:', err);
+      await lineClient.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{
+          type: 'text',
+          text: `Image generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        }],
+      });
+      recordMessageEvent(channel.id, lineUserId).catch(() => {});
+      return;
     }
   }
 
-  const quickReplyItems = suggestions
-    .filter((s) => s.trim().length > 0)
-    .slice(0, 3)
-    .map((s) => buildQuickReplyItem(s));
-  const quickReply = quickReplyItems.length > 0 ? { items: quickReplyItems } : undefined;
-
-  // Build text reply messages (Flex or plain)
-  const textMessages = buildReplyMessages(replyText, sender, quickReply);
-
-  // Append generated images from tool calls (max 4 total messages per LINE reply)
-  const imageMessages: LineMessage[] = toolImageUrls
-    .slice(0, Math.max(0, 4 - textMessages.length))
-    .map((url) => ({ type: 'image', originalContentUrl: url, previewImageUrl: url } as LineMessage));
-
-  // Occasionally append a friendly sticker for short conclusive replies (20% chance)
-  const stickerMessages: LineMessage[] = [];
-  if (toolImageUrls.length === 0 && shouldAddFriendlySticker(replyText)) {
-    const s = pickRandom(FRIENDLY_STICKERS);
-    stickerMessages.push({ type: 'sticker', packageId: s.packageId, stickerId: s.stickerId } as LineMessage);
-  }
-
-  await lineClient.replyMessage({
-    replyToken: event.replyToken,
-    messages: [...textMessages, ...imageMessages, ...stickerMessages],
+  await runCanonicalLineReply({
+    runtimeUserText: userText,
   });
-
-  // Fire-and-forget: record daily stats for this channel
-  recordMessageEvent(channel.id, lineUserId, {
-    toolCallCount: generateResult.toolResults?.length ?? 0,
-    imagesSent: imageMessages.length,
-  }).catch((err) => console.warn('[LINE] recordMessageEvent failed:', err));
 }

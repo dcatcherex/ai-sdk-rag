@@ -12,44 +12,27 @@ import {
 import { eq, and, sql, asc } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { agent, publicAgentShare, chatThread, chatMessage } from '@/db/schema';
-import { getCreditCost, getUserBalance, deductCredits } from '@/lib/credits';
-import { availableModels, chatModel, maxSteps } from '@/lib/ai';
-import { toolDisabledModels } from '@/features/chat/server/routing';
-import { createAgentTools } from '@/lib/agent-tools';
-import {
-  buildAgentRunSystemPrompt,
-  mergeAgentToolIds,
-  resolveAgentBaseSystemPrompt,
-  resolveAgentBrandRuntime,
-  resolveAgentSkillRuntime,
-} from '@/features/agents/server/runtime';
+import { getUserBalance, deductCredits } from '@/lib/credits';
 import { verifySessionToken } from '@/lib/guest-session';
 import { publicAgentShareEvent } from '@/db/schema';
 import { nanoid } from 'nanoid';
+import { SHARED_LINK_AGENT_RUN_POLICY } from '@/features/agents/server/channel-policies';
+import {
+  prepareAgentRun,
+  prepareCanonicalAgentImageGeneration,
+  startAgentImageRun,
+} from '@/features/agents/server/run-service';
+import { buildAgentRunModelMessages } from '@/features/agents/server/run-helpers';
+import type { AgentRunInputMessage } from '@/features/agents/server/run-types';
 
 export const maxDuration = 30;
 
 type Params = { params: Promise<{ token: string }> };
-
-function getLastUserPromptFromUnknownMessages(messages: unknown[]): string | null {
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    const message = messages[i];
-    if (!message || typeof message !== 'object') continue;
-    const role = (message as { role?: unknown }).role;
-    if (role !== 'user') continue;
-    const parts = (message as { parts?: unknown }).parts;
-    if (!Array.isArray(parts)) continue;
-    const textPart = parts.find((part) =>
-      part
-      && typeof part === 'object'
-      && (part as { type?: unknown }).type === 'text'
-      && typeof (part as { text?: unknown }).text === 'string'
-      && (part as { text: string }).text.trim().length > 0
-    ) as { text: string } | undefined;
-    if (textPart) return textPart.text.trim();
-  }
-  return null;
-}
+type SharedUiMessage = {
+  id: string;
+  role: AgentRunInputMessage['role'];
+  parts: Array<Record<string, unknown>>;
+};
 
 export async function POST(req: Request, { params }: Params) {
   try {
@@ -97,16 +80,24 @@ export async function POST(req: Request, { params }: Params) {
     }
 
     const body = await req.json() as { messages: unknown[] };
-    const messages = body.messages;
+    if (!Array.isArray(body.messages) || body.messages.length === 0) {
+      return Response.json({ error: 'messages required' }, { status: 400 });
+    }
+    const messages = body.messages as AgentRunInputMessage[];
     if (!Array.isArray(messages) || messages.length === 0) {
       return Response.json({ error: 'messages required' }, { status: 400 });
     }
+    const uiMessages: SharedUiMessage[] = messages.map((message, index) => ({
+      id: `incoming-${index}`,
+      role: message.role,
+      parts:
+        (message.parts as Array<Record<string, unknown>> | undefined) ??
+        [{ type: 'text', text: message.content }],
+    }));
 
     // ── Per-session message limit ─────────────────────────────────────────────
     if (share.guestMessageLimit !== null) {
-      const userMsgCount = messages.filter(
-        (m): m is { role: string } => typeof m === 'object' && m !== null && (m as { role?: string }).role === 'user'
-      ).length;
+      const userMsgCount = messages.filter((message) => message.role === 'user').length;
       if (userMsgCount > share.guestMessageLimit) {
         return Response.json(
           { error: `You've reached the ${share.guestMessageLimit}-message limit for this session.` },
@@ -146,35 +137,41 @@ export async function POST(req: Request, { params }: Params) {
       }
     }
 
-    const resolvedModel = agentRow.modelId && availableModels.some((m) => m.id === agentRow.modelId)
-      ? agentRow.modelId
-      : chatModel;
-
     if (!agentRow.userId) {
       return Response.json({ error: 'Agent not available.' }, { status: 400 });
     }
     const ownerId = agentRow.userId;
 
-    const lastUserPrompt = getLastUserPromptFromUnknownMessages(messages);
-    const [skillRuntime, brandRuntime] = await Promise.all([
-      resolveAgentSkillRuntime(agentRow, lastUserPrompt),
-      resolveAgentBrandRuntime({
-        userId: ownerId,
-        activeBrandId: null,
-        agent: agentRow,
-        enabled: true,
-      }),
-    ]);
-    const { brandResolution, activeBrand } = brandRuntime;
-
-    if (brandResolution?.shouldBlock) {
+    let prepared;
+    try {
+      prepared = await prepareAgentRun({
+        identity: {
+          channel: 'shared_link',
+          userId: null,
+          billingUserId: ownerId,
+          guestId,
+        },
+        threadId: threadId ?? nanoid(),
+        agentId: agentRow.id,
+        messages,
+        policy: SHARED_LINK_AGENT_RUN_POLICY,
+      });
+    } catch (error) {
       return Response.json(
-        { error: brandResolution.blockMessage ?? 'This shared agent requires a valid brand before it can run.' },
+        { error: error instanceof Error ? error.message : 'Unable to prepare shared agent run.' },
         { status: 409 },
       );
     }
 
-    const creditCost = getCreditCost(resolvedModel);
+    const imagePreflight =
+      prepared.lastUserPrompt && SHARED_LINK_AGENT_RUN_POLICY.allowDirectImageGeneration
+        ? await prepareCanonicalAgentImageGeneration({
+            prompt: prepared.lastUserPrompt,
+            activeBrand: prepared.activeBrand,
+            source: 'shared_link',
+          })
+        : null;
+    const creditCost = imagePreflight?.creditCost ?? prepared.creditCost;
 
     // ── Credit limit check (link budget) ──────────────────────────────────────
     if (share.creditLimit !== null && share.creditsUsed + creditCost > share.creditLimit) {
@@ -193,44 +190,111 @@ export async function POST(req: Request, { params }: Params) {
       );
     }
 
-    const supportsTools = !toolDisabledModels.has(resolvedModel);
-    const activeToolIds = mergeAgentToolIds({
-      baseToolIds: agentRow.enabledTools,
-      skillRuntime,
-    });
-    const agentTools = supportsTools
-      ? createAgentTools(
-          activeToolIds,
-          ownerId,
-          agentRow.documentIds.length > 0 ? agentRow.documentIds : undefined,
-          {
-            threadId: threadId ?? undefined,
-            brandId: activeBrand?.id,
-          },
-        )
-      : undefined;
+    const sessionId = req.headers.get('x-session-id') ?? undefined;
+    const isFirstMessage = messages.filter((m) => m.role === 'user').length === 1;
+    if (isFirstMessage) {
+      const firstUserMsg = messages.find((m) => m.role === 'user');
+      const firstText =
+        firstUserMsg?.parts?.find((part) =>
+          Boolean(
+            part &&
+            typeof part === 'object' &&
+            'type' in part &&
+            'text' in part &&
+            (part as { type?: unknown }).type === 'text' &&
+            typeof (part as { text?: unknown }).text === 'string',
+          ),
+        ) as { text?: string } | undefined;
+      void db.insert(publicAgentShareEvent).values({
+        id: nanoid(),
+        shareToken: token,
+        eventType: 'chat',
+        sessionId: sessionId ?? null,
+        firstMessage: firstText?.text ? firstText.text.slice(0, 200) : null,
+      });
+    }
 
-    const systemPrompt = buildAgentRunSystemPrompt({
-      base: resolveAgentBaseSystemPrompt({ agent: agentRow }),
-      isGrounded: agentRow.documentIds.length > 0,
-      activeBrand,
-      skillRuntime,
-      brandPromptInstruction: brandResolution?.promptInstruction,
-    });
+    if (imagePreflight) {
+      const imageRun = await startAgentImageRun(prepared);
+      const toolCallId = nanoid();
+
+      return createUIMessageStreamResponse({
+        stream: createUIMessageStream({
+          originalMessages: uiMessages as never,
+          onFinish: async ({ messages: updatedMessages }) => {
+            if (!threadId) return;
+            try {
+              type UIMsg = { id?: string; role: string; parts: unknown[] };
+              await db.delete(chatMessage).where(eq(chatMessage.threadId, threadId));
+              await db.insert(chatMessage).values(
+                (updatedMessages as UIMsg[]).map((msg, i) => ({
+                  id: msg.id || nanoid(),
+                  threadId,
+                  role: msg.role,
+                  parts: msg.parts,
+                  position: i,
+                })),
+              );
+              await db.update(chatThread).set({
+                preview: imageRun.prompt.slice(0, 120),
+                updatedAt: new Date(),
+              }).where(eq(chatThread.id, threadId));
+              await deductCredits({
+                userId: ownerId,
+                amount: creditCost,
+                description: `Guest chat on shared agent "${agentRow.name}" (token: ${token})`,
+              });
+              await db
+                .update(publicAgentShare)
+                .set({
+                  conversationCount: sql`${publicAgentShare.conversationCount} + 1`,
+                  creditsUsed: sql`${publicAgentShare.creditsUsed} + ${creditCost}`,
+                })
+                .where(eq(publicAgentShare.shareToken, token));
+            } catch (e) {
+              console.error('[guest-chat] finalize image run error', e);
+            }
+          },
+          execute: ({ writer }) => {
+            writer.write({ type: 'start' });
+            writer.write({ type: 'start-step' });
+            writer.write({
+              type: 'tool-input-available',
+              toolCallId,
+              toolName: 'generate_image',
+              input: { prompt: imageRun.prompt, modelId: imageRun.modelId },
+            });
+            writer.write({
+              type: 'tool-output-available',
+              toolCallId,
+              output: {
+                started: true,
+                status: 'processing' as const,
+                taskId: imageRun.taskId,
+                generationId: imageRun.generationId,
+                message: 'Image generation started. The image will appear in this chat when it is ready.',
+              },
+            });
+            writer.write({ type: 'finish-step' });
+            writer.write({ type: 'finish', finishReason: 'stop' });
+          },
+        }),
+      });
+    }
 
     const result = streamText({
-      model: resolvedModel,
-      system: systemPrompt,
-      messages: await convertToModelMessages(messages as Parameters<typeof convertToModelMessages>[0]),
-      stopWhen: stepCountIs(maxSteps),
-      ...(agentTools ? { tools: agentTools } : {}),
+      model: prepared.modelId,
+      system: prepared.systemPrompt,
+      messages: await convertToModelMessages(
+        buildAgentRunModelMessages(prepared.request.messages) as Parameters<typeof convertToModelMessages>[0],
+      ),
+      stopWhen: stepCountIs(prepared.request.policy.maxSteps),
+      ...(prepared.supportsTools && prepared.tools ? { tools: prepared.tools } : {}),
       onFinish: async ({ text }) => {
         if (!threadId) return;
         try {
-          type UIPart = { type: string; text?: string };
-          type UIMsg = { id?: string; role: string; parts: UIPart[] };
           const allMessages = [
-            ...(messages as UIMsg[]),
+            ...uiMessages,
             { id: nanoid(), role: 'assistant', parts: [{ type: 'text', text }] },
           ];
           await db.delete(chatMessage).where(eq(chatMessage.threadId, threadId));
@@ -252,22 +316,6 @@ export async function POST(req: Request, { params }: Params) {
     });
 
     // ── Record analytics event (fire and forget) ─────────────────────────────
-    const sessionId = req.headers.get('x-session-id') ?? undefined;
-    const isFirstMessage = (messages as Array<{ role?: string }>)
-      .filter((m) => m.role === 'user').length === 1;
-    if (isFirstMessage) {
-      const firstUserMsg = (messages as Array<{ role?: string; parts?: Array<{ type: string; text?: string }> }>)
-        .find((m) => m.role === 'user');
-      const firstText = firstUserMsg?.parts?.find((p) => p.type === 'text')?.text ?? null;
-      void db.insert(publicAgentShareEvent).values({
-        id: nanoid(),
-        shareToken: token,
-        eventType: 'chat',
-        sessionId: sessionId ?? null,
-        firstMessage: firstText ? firstText.slice(0, 200) : null,
-      });
-    }
-
     void (async () => {
       try {
         await result.consumeStream();

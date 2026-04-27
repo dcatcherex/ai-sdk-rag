@@ -54,6 +54,16 @@ const STATIC_WORKSPACE_ITEMS: WorkspaceCatalogItem[] = [
     source: "page",
   },
   {
+    id: "brands",
+    href: "/brands",
+    label: "Brands",
+    defaultPinned: true,
+    order: 35,
+    iconName: "Building2",
+    matchRules: [{ kind: "prefix", value: "/brands" }],
+    source: "page",
+  },
+  {
     id: "line-oa",
     href: "/line-oa",
     label: "LINE OA",

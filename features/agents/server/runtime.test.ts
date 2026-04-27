@@ -7,6 +7,7 @@ import {
   mergeAgentDocumentIds,
   mergeAgentToolIds,
 } from './runtime';
+import { wantsImageGeneration } from './media-intent';
 
 test('mergeAgentToolIds preserves null as all tools', () => {
   const merged = mergeAgentToolIds({
@@ -52,4 +53,14 @@ test('buildAgentRunSystemPrompt keeps shared prompt block ordering', () => {
   assert.match(prompt, /<memory>Remember this<\/memory>[\s\S]*<active_skills>/);
   assert.match(prompt, /<brand_resolution>\nSelect a brand first\.\n<\/brand_resolution>/);
   assert.match(prompt, /<line_channel>LINE<\/line_channel>$/);
+});
+
+test('wantsImageGeneration detects English image prompts', () => {
+  assert.equal(wantsImageGeneration('Create a Facebook post image for our coffee shop promotion'), true);
+  assert.equal(wantsImageGeneration('Write me a tagline for a coffee shop'), false);
+});
+
+test('wantsImageGeneration detects Thai image prompts', () => {
+  assert.equal(wantsImageGeneration('ช่วยสร้างภาพโฆษณากาแฟสำหรับโพสต์ Facebook'), true);
+  assert.equal(wantsImageGeneration('ช่วยคิดแคปชันโปรโมตกาแฟหน่อย'), false);
 });

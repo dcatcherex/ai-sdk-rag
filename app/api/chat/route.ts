@@ -10,39 +10,33 @@ import { and, count, eq, exists, isNull, or } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth-server';
 import { db } from '@/lib/db';
 import { agent, agentShare, chatThread, user as userTable, userPreferences } from '@/db/schema';
-import { availableModels, chatModel, maxSteps, isStrongModel } from '@/lib/ai';
+import { isStrongModel } from '@/lib/ai';
 import { enhancePrompt } from '@/lib/prompt-enhance';
 import { summarizeConversation, SUMMARY_THRESHOLD } from '@/lib/conversation-summary';
 import { getUserModelScores } from '@/lib/model-scores';
 import { getUserMemoryContext, extractAndStoreMemory } from '@/lib/memory';
 import { generateFollowUpSuggestions } from '@/lib/follow-up-suggestions';
-import { buildToolSet } from '@/lib/tools';
-import { createAgentTools } from '@/lib/agent-tools';
-import { buildMCPToolSet } from '@/lib/tools/mcp';
-import { getCreditCost, getUserBalance } from '@/lib/credits';
+import { getUserBalance } from '@/lib/credits';
 import { parseGuestCookie, getGuestSessionById, deductGuestCredits } from '@/lib/guest-access';
 import { requestSchema } from '@/features/chat/server/schema';
-import { buildBrandImageContext, buildImageBrandSuffix } from '@/features/brands/service';
+import { WEB_AGENT_RUN_POLICY } from '@/features/agents/server/channel-policies';
 import {
   buildBrandMemoryPromptBlock,
   buildThreadWorkingMemoryPromptBlock,
   refreshThreadWorkingMemoryFromMessages,
 } from '@/features/memory/service';
 import {
-  buildAgentRunSystemPrompt,
-  mergeAgentDocumentIds,
   mergeAgentToolIds,
-  resolveAgentBaseSystemPrompt,
   resolveAgentBrandRuntime,
   resolveAgentSkillRuntime,
 } from '@/features/agents/server/runtime';
 import { getWorkspaceContext } from '@/features/platform-agent/service';
 import { buildPlatformAgentSystemPrompt } from '@/features/platform-agent/prompts';
 import { getPlatformAgentTools } from '@/features/platform-agent/agent';
+import { prepareAgentRun, startCanonicalAgentImageGeneration } from '@/features/agents/server/run-service';
 import type { Agent } from '@/features/agents/types';
 import { getLastUserPrompt } from '@/features/chat/server/thread-utils';
-import { toolDisabledModels, isImageOnlyModel, getModelByIntent } from '@/features/chat/server/routing';
-import { triggerImageGeneration } from '@/features/image/service';
+import { isImageOnlyModel } from '@/features/chat/server/routing';
 import { buildReferencePreviewItems } from '@/features/image/reference-previews';
 import {
   ensureConfiguredStarterAgentForUser,
@@ -65,7 +59,6 @@ import {
   getLatestAssistantImageParts,
   isFreshImageRegenerationRequest,
   isImplicitImageEditRequest,
-  mapToKieImageModel,
 } from '@/features/chat/server/image-context';
 import { hydrateIncomingChatMessages } from '@/features/chat/server/message-hydration';
 import { isImageFilePart, uploadImagePart } from '@/features/chat/server/image-upload';
@@ -139,6 +132,15 @@ export async function POST(req: Request) {
     }
 
     // ── Stage 2: all independent DB queries in parallel ──────────────────────
+    const baseAgentRunMessages = eagerUploadedMessages.map((message) => {
+      const textPart = message.parts.find((part) => part.type === 'text');
+      return {
+        role: message.role,
+        content: textPart?.type === 'text' ? textPart.text : '',
+        parts: message.parts,
+      };
+    });
+
     const [userRow, threadRows, prefsRows, balance, activeAgentRows] = await Promise.all([
       isGuest
         ? Promise.resolve([{ approved: true }])
@@ -258,14 +260,6 @@ export async function POST(req: Request) {
       isGuest ? Promise.resolve('') : buildBrandMemoryPromptBlock(effectiveUserId, activeBrand?.id ?? null, lastUserPrompt ?? ''),
     ]);
 
-    // Merge agent pre-associated docs + user-selected docs (union, deduplicated)
-    const effectiveDocIds = mergeAgentDocumentIds({
-      agentDocumentIds: activeAgent?.documentIds,
-      selectedDocumentIds,
-    });
-
-    const isGrounded = !!effectiveDocIds?.length;
-
     // Determine which tool group IDs are active for this request:
     //   1. Agent has its own explicit list (overrides everything)
     //   2. Otherwise use the user's saved preferences (null = all tools)
@@ -284,60 +278,49 @@ export async function POST(req: Request) {
       const workspaceCtx = await getWorkspaceContext(effectiveUserId);
       baseSystemPrompt = buildPlatformAgentSystemPrompt(workspaceCtx);
     } else {
-      baseSystemPrompt = resolveAgentBaseSystemPrompt({ agent: activeAgent });
+      baseSystemPrompt = activeAgent?.systemPrompt ?? '';
     }
 
 
     // ── Model routing ────────────────────────────────────────────────────────
-    const enabledIds =
-      enabledModelIds?.length
-        ? enabledModelIds.filter((id) => availableModels.some((m) => m.id === id))
-        : availableModels.map((m) => m.id);
-
-    const agentSuggestedModel = activeAgent?.modelId ?? null;
-    const agentAutoModel =
-      (!model || model === 'auto') && agentSuggestedModel && availableModels.some((entry) => entry.id === agentSuggestedModel)
-        ? agentSuggestedModel
-        : null;
-    const guestFallbackModel = !model || model === 'auto' ? chatModel : null;
-    const manualModel = model && model !== 'auto' ? model : null;
-    const manualResolved = manualModel && enabledIds.includes(manualModel) ? manualModel : null;
-
-    const userScores = (manualResolved || isGuest)
+    const manualModelSelected = Boolean(model && model !== 'auto');
+    const userScores = (manualModelSelected || isGuest)
       ? new Map<string, number>()
       : await getUserModelScores(effectiveUserId);
 
-    // Rough token estimate: message history + injected skill content + system prompt overhead.
-    // Used by the router to exclude models whose context window is too small.
-    const estimatedContextTokens =
-      messages.reduce((sum, m) => sum + Math.ceil(JSON.stringify(m.parts ?? []).length / 4), 0) +
-      Math.ceil(
-        (skillRuntime.activeSkillsBlock.length +
-          skillRuntime.skillResourcesBlock.length +
-          skillRuntime.catalogBlock.length) / 4
-      ) +
-      3000; // system prompt + memory + tool definitions overhead
+    const preparedSeed = await prepareAgentRun({
+      identity: {
+        channel: 'web',
+        userId: isGuest ? null : effectiveUserId,
+        billingUserId: effectiveUserId,
+        guestId: guestSessionId,
+      },
+      threadId,
+      agentId: activeAgent?.id ?? null,
+      activeBrandId: brandId,
+      selectedDocumentIds,
+      messages: baseAgentRunMessages,
+      model: model ?? null,
+      enabledModelIds,
+      useWebSearch,
+      policy: { ...WEB_AGENT_RUN_POLICY, allowTools: false },
+      channelContext: {
+        memoryContext,
+        sharedMemoryBlock,
+        threadWorkingMemoryBlock,
+        baseToolIds,
+        agentOverride: activeAgent as Agent | null,
+        baseSystemPromptOverride: isPlatformAgentActive ? baseSystemPrompt : undefined,
+        userScores,
+        skillRuntimeOverride: skillRuntime,
+      },
+    });
 
-    const routingDecision = manualResolved
-      ? { modelId: manualResolved, reason: 'Manual selection' }
-      : agentAutoModel
-        ? { modelId: agentAutoModel, reason: 'Agent default model' }
-        : getModelByIntent({
-            prompt: lastUserPrompt,
-            enabledModelIds: enabledIds.length > 0 ? enabledIds : [guestFallbackModel ?? availableModels[0]!.id],
-            useWebSearch,
-            userScores,
-            hasAgent: !!activeAgent,
-            hasActiveSkills: skillRuntime.activatedSkills.length > 0,
-            messageCount: messages.length,
-            estimatedContextTokens,
-          });
-
-    const resolvedModel = routingDecision.modelId;
+    const resolvedModel = preparedSeed.modelId;
     const routingMetadata: RoutingMetadata = {
-      mode: manualResolved ? 'manual' : 'auto',
+      mode: manualModelSelected ? 'manual' : 'auto',
       modelId: resolvedModel,
-      reason: routingDecision.reason,
+      reason: preparedSeed.routingReason,
     };
     chatRunRouteKind = isImageOnlyModel(resolvedModel) ? 'image' : 'text';
     chatRunResolvedModelId = resolvedModel;
@@ -350,19 +333,19 @@ export async function POST(req: Request) {
         threadId,
         agentId: activeAgent?.id ?? null,
         brandId: activeBrand?.id ?? null,
-        requestedModelId: model ?? agentSuggestedModel ?? null,
+        requestedModelId: model ?? activeAgent?.modelId ?? null,
         useWebSearch,
         inputJson: buildChatRunInputSummary({
           messages,
-          requestedModelId: model ?? agentSuggestedModel ?? null,
+          requestedModelId: model ?? activeAgent?.modelId ?? null,
           useWebSearch,
-          selectedDocumentIds: effectiveDocIds,
+          selectedDocumentIds: preparedSeed.effectiveDocumentIds,
           enabledModelIds,
           agentId: activeAgent?.id ?? null,
           brandId: activeBrand?.id ?? null,
           quizContext,
-          activeToolIds,
-          activeSkillIds: skillRuntime.activatedSkills.map((entry) => entry.skill.id),
+          activeToolIds: preparedSeed.activeToolIds,
+          activeSkillIds: preparedSeed.skillRuntime.activatedSkills.map((entry) => entry.skill.id),
           lastUserPrompt,
         }),
       });
@@ -376,8 +359,8 @@ export async function POST(req: Request) {
     }
 
     // ── Credit check ─────────────────────────────────────────────────────────
-    const creditCost = getCreditCost(resolvedModel);
-    if (balance < creditCost) {
+    const seedCreditCost = preparedSeed.creditCost;
+    if (balance < seedCreditCost) {
       if (currentChatRunId) {
         await completeChatRunError(currentChatRunId, {
           errorMessage: `Insufficient credits for ${resolvedModel}`,
@@ -387,13 +370,13 @@ export async function POST(req: Request) {
       }
       return Response.json(
         {
-          error: `Insufficient credits. This model costs ${creditCost} credits, but you have ${balance}. Please contact admin for more credits.`,
+          error: `Insufficient credits. This model costs ${seedCreditCost} credits, but you have ${balance}. Please contact admin for more credits.`,
         },
         { status: 402 }
       );
     }
 
-    const supportsTools = !toolDisabledModels.has(resolvedModel);
+    const supportsTools = preparedSeed.supportsTools;
 
     // Inject tool guidance only when the message is relevant to that tool domain.
     // This avoids spending ~200 tokens of system prompt on every unrelated message.
@@ -532,64 +515,55 @@ ${userAttachedImageUrls.map((url, index) => `${index + 1}. ${url}`).join('\n')}
 IMPORTANT: These are the exact URL(s) the user attached. If they want to generate, edit, or transform an image based on these attachments, you MUST include these URL(s) in the \`imageUrls\` parameter when calling \`generate_image\`. Do not omit \`imageUrls\` when the user has attached images.`
         : '';
 
-    const effectiveSystemPrompt = buildAgentRunSystemPrompt({
-      base: baseSystemPrompt,
-      conversationSummaryBlock,
-      threadWorkingMemoryBlock,
-      isGrounded,
-      activeBrand,
-      memoryContext,
-      sharedMemoryBlock,
-      skillRuntime,
-      examPrepBlock: examPrepToolInstructions,
-      certBlock: certificateToolInstructions,
-      quizContextBlock: supportsTools ? quizContextBlock : '',
-      brandPromptInstruction: brandResolution?.promptInstruction,
-      extraBlocks: [
-        latestImageToolBlock,
-        freshImageRegenerationBlock,
-        userAttachedImagesBlock,
-      ],
+    const toolsOverride = isPlatformAgentActive
+      ? getPlatformAgentTools({ userId: effectiveUserId })
+      : isGuest
+        ? {}
+        : undefined;
+    const preparedRun = await prepareAgentRun({
+      identity: {
+        channel: 'web',
+        userId: isGuest ? null : effectiveUserId,
+        billingUserId: effectiveUserId,
+        guestId: guestSessionId,
+      },
+      threadId,
+      agentId: activeAgent?.id ?? null,
+      activeBrandId: brandId,
+      selectedDocumentIds,
+      messages: baseAgentRunMessages,
+      model: model ?? null,
+      enabledModelIds,
+      useWebSearch,
+      policy: WEB_AGENT_RUN_POLICY,
+      channelContext: {
+        memoryContext,
+        sharedMemoryBlock,
+        threadWorkingMemoryBlock,
+        conversationSummaryBlock,
+        examPrepBlock: examPrepToolInstructions,
+        certBlock: certificateToolInstructions,
+        quizContextBlock: supportsTools ? quizContextBlock : '',
+        extraBlocks: [
+          latestImageToolBlock,
+          freshImageRegenerationBlock,
+          userAttachedImagesBlock,
+        ],
+        rerankEnabled: userPrefs.rerankEnabled ?? false,
+        referenceImageUrls: effectiveReferenceImageParts.map((part) => part.url),
+        mcpCredentials: (userPrefs as { mcpCredentials?: Record<string, string> }).mcpCredentials ?? {},
+        baseToolIds,
+        agentOverride: activeAgent as Agent | null,
+        baseSystemPromptOverride: isPlatformAgentActive ? baseSystemPrompt : undefined,
+        userScores,
+        toolsOverride,
+        skillRuntimeOverride: skillRuntime,
+      },
     });
 
-    // When platform agent is active, expose platform management tools exclusively.
-    // Platform tools must not bleed into regular agent or user tool sets.
-    const baseTools = isPlatformAgentActive
-      ? getPlatformAgentTools({ userId: effectiveUserId })
-      : activeAgent
-        ? (isGuest
-            ? {}
-            : createAgentTools(activeToolIds, effectiveUserId, effectiveDocIds, {
-                threadId,
-                referenceImageUrls: effectiveReferenceImageParts.map((part) => part.url),
-                brandId: activeBrand?.id,
-              }))
-        : (isGuest
-            ? {}
-            : buildToolSet({
-                enabledToolIds: activeToolIds,
-                userId: effectiveUserId,
-                brandId: activeBrand?.id,
-                documentIds: isGrounded ? effectiveDocIds : undefined,
-                rerankEnabled: userPrefs.rerankEnabled ?? false,
-                source: 'agent',
-                threadId,
-                referenceImageUrls: effectiveReferenceImageParts.map((part) => part.url),
-              }));
-
-    // Merge MCP tools from agent config (empty object when no MCP servers configured)
-    const mcpTools = !isGuest && activeAgent?.mcpServers?.length
-      ? await buildMCPToolSet(
-          activeAgent.mcpServers,
-          (userPrefs as { mcpCredentials?: Record<string, string> }).mcpCredentials ?? {},
-        ).catch((err: unknown) => {
-          console.error('[MCP] Tool build failed:', err);
-          return {};
-        })
-      : {};
-
-    const groundedTools = { ...baseTools, ...mcpTools };
-    const activeTools = supportsTools ? groundedTools : undefined;
+    const creditCost = preparedRun.creditCost;
+    const effectiveSystemPrompt = preparedRun.systemPrompt;
+    const activeTools = preparedRun.tools;
 
     const messageMetadata = (): ChatMessageMetadata => ({
       routing: routingMetadata,
@@ -610,55 +584,29 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
         return Response.json({ error: 'Image generation requires a text prompt.' }, { status: 400 });
       }
 
-      const canonicalBrandImageContext = activeBrand
-        ? await buildBrandImageContext(activeBrand.id)
-        : { referenceImageUrls: [], logoUrl: null };
-
-      const imagePrompt = activeBrand
-        ? baseImagePrompt + buildImageBrandSuffix(activeBrand)
-        : baseImagePrompt;
-
-      const hasImages = effectiveReferenceImageParts.length > 0;
-      const baseImageUrls = hasImages
-        ? effectiveReferenceImageParts.map((p) => p.url)
-        : canonicalBrandImageContext.referenceImageUrls.length > 0
-          ? canonicalBrandImageContext.referenceImageUrls
-          : [];
-      // Logo appended last — model receives it as a brand mark reference, not a composition element
-      const logoUrl = canonicalBrandImageContext.logoUrl;
-      const imageUrls =
-        baseImageUrls.length > 0 || logoUrl
-          ? [...baseImageUrls, ...(logoUrl ? [logoUrl] : [])]
-          : undefined;
-      const { kieModelId, enablePro, taskHint } = await mapToKieImageModel(resolvedModel, {
-        hasImages: Boolean(imageUrls?.length),
-        prompt: imagePrompt,
-        hasActiveBrand: Boolean(activeBrand),
+      const imageRun = await startCanonicalAgentImageGeneration({
+        prompt: baseImagePrompt,
+        userId: effectiveUserId,
+        threadId,
+        activeBrand,
+        referenceImageUrls: effectiveReferenceImageParts.map((part) => part.url),
+        source: 'chat',
       });
 
-      const { taskId, generationId } = await triggerImageGeneration(
-        {
-          prompt: imagePrompt,
-          modelId: kieModelId,
-          promptTitle: imagePrompt.substring(0, 50),
-          ...(imageUrls ? { imageUrls } : {}),
-          ...(taskHint ? { taskHint } : {}),
-          ...(enablePro !== undefined ? { enablePro } : {}),
-        },
-        effectiveUserId,
-        { threadId, source: 'chat', referenceImageUrls: imageUrls },
-      );
+      
+      // Logo appended last — model receives it as a brand mark reference, not a composition element
+      
 
       const toolCallId = crypto.randomUUID();
-      const toolInput = { prompt: imagePrompt, modelId: kieModelId };
+      const toolInput = { prompt: imageRun.prompt, modelId: imageRun.modelId };
       const toolOutput = {
         started: true,
         status: 'processing' as const,
-        taskId,
-        generationId,
+        taskId: imageRun.taskId,
+        generationId: imageRun.generationId,
         startedAt: new Date().toISOString(),
-        ...(imageUrls?.length
-          ? { referenceImages: buildReferencePreviewItems(imageUrls, { lastIsLogo: Boolean(logoUrl) }) }
+        ...(effectiveReferenceImageParts.length > 0
+          ? { referenceImages: buildReferencePreviewItems(effectiveReferenceImageParts.map((part) => part.url)) }
           : {}),
         message: 'Image generation started. The image will appear in this chat when it is ready.',
       };
@@ -739,8 +687,8 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
       model: resolvedModel,
       system: effectiveSystemPrompt,
       messages: await convertToModelMessages(messagesForLLM),
-      stopWhen: stepCountIs(maxSteps),
-      ...(supportsTools ? { tools: activeTools } : {}),
+      stopWhen: stepCountIs(preparedRun.request.policy.maxSteps),
+      ...(preparedRun.supportsTools ? { tools: activeTools } : {}),
       experimental_context: { autonomyLevel, userId: effectiveUserId || null },
     });
 

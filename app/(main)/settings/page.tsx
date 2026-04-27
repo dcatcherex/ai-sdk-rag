@@ -3,19 +3,15 @@
 import { useState } from 'react';
 import {
   BrainCircuitIcon,
-  Building2Icon,
-  DownloadIcon,
   KeyRoundIcon,
   LayersIcon,
   PanelLeftIcon,
   MessageCircleQuestionIcon,
   PaletteIcon,
-  PlusIcon,
   SparklesIcon,
   WrenchIcon,
   ZapIcon,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/page-header';
 import { SettingsShell, type SettingsShellItem } from '@/components/settings-shell';
 import { ModelsTable } from '@/features/models/components/models-table';
@@ -24,7 +20,6 @@ import { MemorySection } from '@/features/settings/components/memory-section';
 import { ToolsSection } from '@/features/settings/components/tools-section';
 import { ToggleSection } from '@/features/settings/components/toggle-section';
 import { VoiceSection } from '@/features/settings/components/voice-section';
-import { BrandsSection } from '@/features/brands/components/brands-section';
 import { AppearanceSection } from '@/features/settings/components/appearance-section';
 import { McpCredentialsSection } from '@/features/settings/components/mcp-credentials-section';
 import { WorkspaceSection } from '@/features/settings/components/workspace-section';
@@ -32,7 +27,7 @@ import { ChatRunsCard } from '@/features/chat/components/chat-runs-card';
 import { ALL_TOOL_IDS, type ToolId } from '@/lib/tool-registry';
 import { useWorkspacePreferences } from '@/features/workspace/hooks/use-workspace-preferences';
 
-type TabId = 'general' | 'workspace' | 'memory' | 'tools' | 'models' | 'brands' | 'appearance' | 'mcp';
+type TabId = 'general' | 'workspace' | 'memory' | 'tools' | 'models' | 'appearance' | 'mcp';
 
 const TABS: SettingsShellItem<TabId>[] = [
   {
@@ -66,12 +61,6 @@ const TABS: SettingsShellItem<TabId>[] = [
     description: 'Enable or disable models available in your chat',
   },
   {
-    id: 'brands',
-    label: 'Brands',
-    icon: Building2Icon,
-    description: 'Brand identity, tone of voice, and creative assets',
-  },
-  {
     id: 'appearance',
     label: 'Appearance',
     icon: PaletteIcon,
@@ -87,8 +76,6 @@ const TABS: SettingsShellItem<TabId>[] = [
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>('general');
-  const [isCreatingBrand, setIsCreatingBrand] = useState(false);
-  const [showBrandImport, setShowBrandImport] = useState(false);
   const { prefs, updatePref } = useSettingsPreferences();
   const {
     pinnedItemIds: pinnedWorkspaceItemIds,
@@ -111,7 +98,7 @@ export default function SettingsPage() {
     <div className="flex h-full flex-col overflow-hidden">
       <PageHeader
         title="Settings"
-        description="Customize your AI workspace, behavior, memory, tools, models, and brands"
+        description="Customize your AI workspace, behavior, memory, tools, and models"
       />
 
       <SettingsShell
@@ -121,18 +108,6 @@ export default function SettingsPage() {
         sectionTitle={activeTabMeta.label}
         sectionDescription={activeTabMeta.description}
         contentClassName="space-y-8"
-        sectionAction={activeTab === 'brands' ? (
-          <>
-            <Button variant="outline" size="sm" onClick={() => setShowBrandImport((v) => !v)}>
-              <DownloadIcon className="mr-1.5 size-3.5" />
-              Import JSON
-            </Button>
-            <Button size="sm" onClick={() => setIsCreatingBrand(true)}>
-              <PlusIcon className="mr-1.5 size-3.5" />
-              New Brand
-            </Button>
-          </>
-        ) : undefined}
       >
           {activeTab === 'general' && (
             <>
@@ -192,15 +167,6 @@ export default function SettingsPage() {
 
           {activeTab === 'models' && (
             <ModelsTable />
-          )}
-
-          {activeTab === 'brands' && (
-            <BrandsSection
-              isCreating={isCreatingBrand}
-              onCreatingChange={setIsCreatingBrand}
-              showImport={showBrandImport}
-              onShowImportChange={setShowBrandImport}
-            />
           )}
 
           {activeTab === 'appearance' && (

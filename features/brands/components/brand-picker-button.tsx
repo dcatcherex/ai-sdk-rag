@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Building2Icon, CheckIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -172,9 +173,16 @@ export function BrandPickerButton({ isCollapsed = false }: Props) {
 
         {brands.length === 0 && (
           <p className="px-2 py-1.5 text-xs text-muted-foreground italic">
-            No brands yet — create one in Settings.
+            No brands yet. Create one from Brands.
           </p>
         )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/brands" className="flex items-center gap-2.5">
+            <Building2Icon className="size-4" />
+            Manage brands
+          </Link>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -71,12 +71,12 @@ Thai farmers communicate in informal, regional Thai. Some farmers have lower lit
 
 ### e) Present your solution
 
-**Solution: RuJai — AI Farm Advisor on LINE OA, powered by Vaja AI**
+**Solution: Vaja — AI Farm Advisor on LINE OA, powered by Vaja AI**
 
 Vaja AI is an AI cowork platform with a **Contextual Skills Engine** — a system that loads specialized domain knowledge into an AI automatically, based on what the user is communicating. We have packaged this engine with an **Agricultural Skill Pack** (4 specialized skills) and delivered it through LINE OA — the messaging platform Thai farmers already use daily.
 
 **How the farmer experiences it:**
-A farmer can interact with RuJai in whatever way is natural for them — type a question in informal Thai, **send a photo** of a sick plant for visual diagnosis, or **send a voice note** if typing is inconvenient. The system detects what topic they're raising and automatically loads the right domain knowledge into the AI. The farmer receives a structured, Thai-language response — formatted as a visual card in LINE, with follow-up suggestion chips they can tap — as if they had a farming expert in their pocket, available 24/7.
+A farmer can interact with Vaja: Kaset in whatever way is natural for them — type a question in informal Thai, **send a photo** of a sick plant for visual diagnosis, or **send a voice note** if typing is inconvenient. The system detects what topic they're raising and automatically loads the right domain knowledge into the AI. The farmer receives a structured, Thai-language response — formatted as a visual card in LINE, with follow-up suggestion chips they can tap — as if they had a farming expert in their pocket, available 24/7.
 
 When a regional outbreak or weather risk emerges, extension officers can proactively **broadcast alerts** to all farmers on the channel at once.
 
@@ -89,9 +89,9 @@ When a regional outbreak or weather risk emerges, extension officers can proacti
 | `crop-market-advisor` | Market price context + sell/hold guidance for major Thai crops | Keywords: ราคา, ขาย, ตลาด, กิโล, บาท, etc. |
 | `farm-record-keeper` | Activity logging via text or voice; cost/income summaries on request | Keywords: บันทึก, ใส่ปุ๋ย, รด, ปลูก, เก็บ, ขาย, etc. — or voice note |
 
-**What differentiates RuJai from other solutions:**
+**What differentiates Vaja: Kaset from other solutions:**
 
-| Differentiator | Other AI tools | RuJai (Vaja AI) |
+| Differentiator | Other AI tools | Vaja: Kaset (Vaja AI) |
 |---|---|---|
 | No new app required | ❌ Need to install | ✅ Works in LINE OA farmers already use |
 | Photo-based disease diagnosis | ❌ Text only | ✅ Send a photo → visual AI diagnosis |
@@ -253,7 +253,7 @@ For Round 1, the solution design has been informed by:
 
 **Farmers:** Access the solution entirely through **LINE** — the messaging app most Thai farmers already use daily.
 
-1. Follow the "RuJai เกษตร" LINE Official Account (QR code distributed by cooperative or extension officer)
+1. Follow the "Vaja: Kaset เกษตร" LINE Official Account (QR code distributed by cooperative or extension officer)
 2. A rich menu at the bottom of chat shows shortcut buttons:
    - "ถามโรคพืช/แมลง" → pre-activates pest-disease skill
    - "เช็คอากาศ" → pre-activates weather-risk skill
@@ -302,7 +302,7 @@ For Round 1, the solution design has been informed by:
 - Rich menu shortcuts mean even first-time users know what the bot can do
 
 **Accessibility spectrum:**
-| Farmer profile | How they use RuJai |
+| Farmer profile | How they use Vaja: Kaset |
 |---|---|
 | Comfortable with typing | Types question in informal Thai |
 | Prefers speaking | Sends voice note — AI transcribes + responds with voice |
@@ -443,7 +443,7 @@ To build a skill-first AI platform that transforms domain expertise into accessi
 ━━━ สมชาย sends photo ━━━
 📷 [photo of tomato leaf with brown spots and yellow halo]
 
-━━━ RuJai responds (Flex bubble card) ━━━
+━━━ Vaja: Kaset responds (Flex bubble card) ━━━
 🌿 ผลการวิเคราะห์ใบพืช
 ────────────────────────────
 โรค:   ใบไหม้ (Early Blight)
@@ -480,7 +480,7 @@ To build a skill-first AI platform that transforms domain expertise into accessi
    "วันนี้ฉีดแมนโคเซบในแปลงมะเขือเทศ 2 ไร่
     ใช้ยาไป 200 กรัม ราคา 80 บาท"
 
-━━━ RuJai responds ━━━
+━━━ Vaja: Kaset responds ━━━
 ✅ บันทึกแล้วครับ
 
 📋 กิจกรรมฟาร์ม — 8 เมษายน 2569
@@ -503,7 +503,7 @@ To build a skill-first AI platform that transforms domain expertise into accessi
 ━━━ สมชาย types ━━━
 "สัปดาห์หน้าจะเก็บเกี่ยวได้ไหม ดูท่าว่าฝนจะมา"
 
-━━━ RuJai (weather-farm-risk skill activates) ━━━
+━━━ Vaja: Kaset (weather-farm-risk skill activates) ━━━
 🌤️ รายงานความเสี่ยงสภาพอากาศ — เชียงใหม่
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 วันที่ 9–10 เม.ย:  ☀️ ดี — เก็บเกี่ยวได้
