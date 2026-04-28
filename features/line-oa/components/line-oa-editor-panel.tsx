@@ -9,6 +9,7 @@ import {
   LinkIcon,
   MessageCircleIcon,
   RadioIcon,
+  RectangleEllipsisIcon,
   Settings2Icon,
 } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
@@ -28,11 +29,12 @@ import { useAgents } from '@/features/agents/hooks/use-agents';
 import { RichMenuPanel } from './rich-menu-panel';
 import { BroadcastPanel } from './broadcast-panel';
 import { AccountLinkPanel } from './account-link-panel';
+import { FlexMessagePanel } from '@/features/line-oa/flex/components/flex-message-panel';
 import type { CreateLineOaChannelInput, LineOaChannel } from '../types';
 
 // ── Section definitions ───────────────────────────────────────────────────────
 
-type LineOaSectionId = 'settings' | 'rich-menus' | 'broadcasts' | 'linked-accounts';
+type LineOaSectionId = 'settings' | 'rich-menus' | 'broadcasts' | 'flex-messages' | 'linked-accounts';
 
 const SECTIONS_CREATE: SettingsShellItem<LineOaSectionId>[] = [
   { id: 'settings', icon: Settings2Icon, label: 'Settings', description: 'Configure channel credentials and linked agent.' },
@@ -42,6 +44,7 @@ const SECTIONS_EDIT: SettingsShellItem<LineOaSectionId>[] = [
   { id: 'settings', icon: Settings2Icon, label: 'Settings', description: 'Configure channel credentials and linked agent.' },
   { id: 'rich-menus', icon: LayoutGridIcon, label: 'Rich Menus', description: 'Design the persistent button menu shown to LINE users.' },
   { id: 'broadcasts', icon: RadioIcon, label: 'Broadcasts', description: 'Send messages to all or filtered subscribers.' },
+  { id: 'flex-messages', icon: RectangleEllipsisIcon, label: 'Flex Messages', description: 'Create and manage rich card messages for LINE.' },
   { id: 'linked-accounts', icon: LinkIcon, label: 'Linked Accounts', description: 'Manage LINE user account connections.' },
 ];
 
@@ -342,6 +345,9 @@ export const LineOaEditorPanel = ({
         )}
         {activeSection === 'broadcasts' && isEdit && (
           <BroadcastPanel channelId={channel!.id} />
+        )}
+        {activeSection === 'flex-messages' && isEdit && (
+          <FlexMessagePanel channelId={channel!.id} />
         )}
         {activeSection === 'linked-accounts' && isEdit && (
           <AccountLinkPanel channelId={channel!.id} />

@@ -25,12 +25,16 @@ export type BroadcastRecord = {
 export type CreateBroadcastInput = {
   name: string;
   messageText: string;
+  messageType?: 'text' | 'flex';
+  messagePayload?: Record<string, unknown>;
 };
 
 export type UpdateBroadcastInput = {
   id: string;
   name?: string;
   messageText?: string;
+  messageType?: 'text' | 'flex';
+  messagePayload?: Record<string, unknown>;
 };
 
 const queryKey = (channelId: string) => ['line-broadcasts', channelId];

@@ -11,6 +11,7 @@ import {
   ImageIcon,
   LayoutDashboardIcon,
   MenuIcon,
+  MessageCircleIcon,
   SearchIcon,
   MessageSquareIcon,
   SettingsIcon,
@@ -37,6 +38,7 @@ const navItems = [
   { href: '/admin/models', label: 'Models', icon: BrainCircuitIcon },
   { href: '/admin/image-models', label: 'Image Models', icon: ImageIcon },
   { href: '/admin/stock-images', label: 'Stock Images', icon: GalleryHorizontalIcon },
+  { href: '/admin/flex-templates', label: 'Flex Templates', icon: MessageCircleIcon },
   { href: '/admin/tests', label: 'Tests', icon: TestTubeDiagonalIcon },
   { href: '/admin/settings', label: 'Settings', icon: SettingsIcon },
 ];

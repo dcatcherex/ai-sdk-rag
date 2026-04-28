@@ -5,7 +5,9 @@ import { listBroadcasts, createBroadcast } from '@/features/line-oa/broadcast/se
 
 const createSchema = z.object({
   name: z.string().min(1).max(100),
-  messageText: z.string().min(1).max(5000),
+  messageText: z.string().max(5000).optional(),
+  messageType: z.enum(['text', 'flex']).optional(),
+  messagePayload: z.record(z.string(), z.unknown()).optional(),
 });
 
 export async function GET(

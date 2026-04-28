@@ -5,7 +5,9 @@ import { updateBroadcast, deleteBroadcast } from '@/features/line-oa/broadcast/s
 
 const updateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  messageText: z.string().min(1).max(5000).optional(),
+  messageText: z.string().max(5000).optional(),
+  messageType: z.enum(['text', 'flex']).optional(),
+  messagePayload: z.record(z.string(), z.unknown()).optional(),
 });
 
 export async function PATCH(

@@ -239,6 +239,13 @@
       "when": 1776851920912,
       "tag": "0040_clear_iron_man",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1777356143815,
+      "tag": "0041_overjoyed_pyro",
+      "breakpoints": true
     }
   ]
 }

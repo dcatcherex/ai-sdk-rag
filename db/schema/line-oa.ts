@@ -367,3 +367,65 @@ export const lineBeaconDevice = pgTable("line_beacon_device", {
 export const lineBeaconDeviceRelations = relations(lineBeaconDevice, ({ one }) => ({
   channel: one(lineOaChannel, { fields: [lineBeaconDevice.channelId], references: [lineOaChannel.id] }),
 }));
+
+// ── Flex Message Templates ─────────────────────────────────────────────────────
+
+export type FlexCatalogStatus = 'draft' | 'published' | 'archived';
+export type FlexCategory = 'agriculture' | 'ecommerce' | 'general' | 'alert' | 'other';
+
+/**
+ * Platform-managed Flex Message templates (admin-created, user-discoverable).
+ * Users pick a published template as a starting point for their flex messages.
+ */
+export const lineFlexTemplate = pgTable('line_flex_template', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  category: text('category').notNull().$type<FlexCategory>().default('general'),
+  tags: text('tags').array().default([]),
+  /** FlexContainer JSON — bubble or carousel */
+  flexPayload: jsonb('flex_payload').notNull().$type<Record<string, unknown>>(),
+  /** Short text for LINE notifications (< 400 chars) */
+  altText: text('alt_text').notNull(),
+  previewImageUrl: text('preview_image_url'),
+  catalogStatus: text('catalog_status').notNull().default('draft').$type<FlexCatalogStatus>(),
+  /** Admin userId who created this; null = system-seeded */
+  createdBy: text('created_by'),
+  publishedAt: timestamp('published_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  index('line_flex_template_status_idx').on(table.catalogStatus),
+  index('line_flex_template_category_idx').on(table.category),
+]);
+
+/**
+ * User's personal saved flex messages (per user, optionally channel-scoped).
+ * Created from scratch or forked from a platform template.
+ */
+export const lineFlexDraft = pgTable('line_flex_draft', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  /** Optional — scopes draft to a specific channel for organization */
+  channelId: text('channel_id').references(() => lineOaChannel.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  altText: text('alt_text').notNull(),
+  flexPayload: jsonb('flex_payload').notNull().$type<Record<string, unknown>>(),
+  /** Source template (if forked from a platform template) */
+  templateId: text('template_id').references(() => lineFlexTemplate.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  index('line_flex_draft_user_idx').on(table.userId),
+  index('line_flex_draft_channel_idx').on(table.channelId),
+]);
+
+export const lineFlexTemplateRelations = relations(lineFlexTemplate, ({ many }) => ({
+  drafts: many(lineFlexDraft),
+}));
+
+export const lineFlexDraftRelations = relations(lineFlexDraft, ({ one }) => ({
+  user: one(user, { fields: [lineFlexDraft.userId], references: [user.id] }),
+  channel: one(lineOaChannel, { fields: [lineFlexDraft.channelId], references: [lineOaChannel.id] }),
+  template: one(lineFlexTemplate, { fields: [lineFlexDraft.templateId], references: [lineFlexTemplate.id] }),
+}));

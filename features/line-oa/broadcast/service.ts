@@ -75,7 +75,7 @@ export async function listBroadcasts(
 export async function createBroadcast(
   channelId: string,
   userId: string,
-  input: { name: string; messageText: string },
+  input: { name: string; messageText?: string; messageType?: 'text' | 'flex'; messagePayload?: Record<string, unknown> },
 ): Promise<BroadcastRow> {
   // Verify channel ownership
   const channelRows = await db
@@ -94,8 +94,9 @@ export async function createBroadcast(
     channelId,
     name: input.name,
     targetType: 'all',
-    messageType: 'text',
-    messageText: input.messageText,
+    messageType: input.messageType ?? 'text',
+    messageText: input.messageText ?? null,
+    messagePayload: input.messagePayload ?? null,
     status: 'draft',
     createdAt: now,
     updatedAt: now,
@@ -111,12 +112,12 @@ export async function createBroadcast(
 }
 
 /**
- * Update a broadcast (name or message text). Resets to draft status.
+ * Update a broadcast (name, message text, or flex payload). Resets to draft status.
  */
 export async function updateBroadcast(
   broadcastId: string,
   userId: string,
-  input: { name?: string; messageText?: string },
+  input: { name?: string; messageText?: string; messagePayload?: Record<string, unknown>; messageType?: 'text' | 'flex' },
 ): Promise<void> {
   const { broadcast, channelUserId } = await loadBroadcastWithChannel(broadcastId, userId);
   if (channelUserId !== userId) throw new Error('Unauthorized');
@@ -126,6 +127,8 @@ export async function updateBroadcast(
     .set({
       ...(input.name !== undefined && { name: input.name }),
       ...(input.messageText !== undefined && { messageText: input.messageText }),
+      ...(input.messagePayload !== undefined && { messagePayload: input.messagePayload }),
+      ...(input.messageType !== undefined && { messageType: input.messageType }),
       status: 'draft',
       errorMessage: null,
       updatedAt: new Date(),
@@ -153,8 +156,10 @@ export async function sendBroadcast(
 ): Promise<{ recipientCount: number | null }> {
   const { broadcast, accessToken } = await loadBroadcastWithChannel(broadcastId, userId);
 
-  if (!broadcast.messageText) {
-    throw new Error('Broadcast has no message text');
+  if (broadcast.messageType === 'flex') {
+    if (!broadcast.messagePayload) throw new Error('Flex broadcast has no message payload');
+  } else {
+    if (!broadcast.messageText) throw new Error('Broadcast has no message text');
   }
 
   // Mark as sending
@@ -172,9 +177,18 @@ export async function sendBroadcast(
 
   const lineClient = new messagingApi.MessagingApiClient({ channelAccessToken: accessToken });
 
+  const messageBody =
+    broadcast.messageType === 'flex'
+      ? {
+          type: 'flex' as const,
+          altText: String((broadcast.messagePayload as Record<string, unknown>).altText ?? broadcast.name),
+          contents: (broadcast.messagePayload as Record<string, unknown>).contents ?? broadcast.messagePayload,
+        }
+      : { type: 'text' as const, text: broadcast.messageText! };
+
   try {
     const broadcastRequest = {
-      messages: [{ type: 'text' as const, text: broadcast.messageText! }],
+      messages: [messageBody],
       customAggregationUnits: [aggregationUnit],
     };
     const result = await withRetry(() =>

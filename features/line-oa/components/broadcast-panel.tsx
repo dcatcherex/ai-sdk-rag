@@ -10,6 +10,7 @@ import {
   AlertCircleIcon,
   CheckCircle2Icon,
   LoaderIcon,
+  LayoutTemplateIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +32,8 @@ import {
   useSendBroadcast,
 } from '../hooks/use-broadcasts';
 import type { BroadcastRecord, CreateBroadcastInput } from '../hooks/use-broadcasts';
+import { useFlexDrafts } from '@/features/line-oa/flex/hooks/use-flex-drafts';
+import type { FlexDraftRecord } from '@/features/line-oa/flex/types';
 
 const STATUS_BADGE: Record<
   BroadcastRecord['status'],
@@ -46,31 +49,55 @@ const STATUS_BADGE: Record<
 function BroadcastEditor({
   open,
   broadcast,
+  channelId,
   onClose,
   onSubmit,
   isPending,
 }: {
   open: boolean;
   broadcast: BroadcastRecord | null;
+  channelId: string;
   onClose: () => void;
   onSubmit: (data: CreateBroadcastInput) => void;
   isPending: boolean;
 }) {
   const [name, setName] = useState(broadcast?.name ?? '');
+  const [messageType, setMessageType] = useState<'text' | 'flex'>(broadcast?.messageType ?? 'text');
   const [messageText, setMessageText] = useState(broadcast?.messageText ?? '');
+  const [selectedDraft, setSelectedDraft] = useState<FlexDraftRecord | null>(null);
+  const [draftPickerOpen, setDraftPickerOpen] = useState(false);
 
-  // Sync when broadcast changes (open/close)
+  const { data: flexDrafts = [] } = useFlexDrafts(channelId);
+
   const [prevBroadcast, setPrevBroadcast] = useState(broadcast);
   if (broadcast !== prevBroadcast) {
     setPrevBroadcast(broadcast);
     setName(broadcast?.name ?? '');
+    setMessageType(broadcast?.messageType ?? 'text');
     setMessageText(broadcast?.messageText ?? '');
+    setSelectedDraft(null);
   }
+
+  const canSubmit =
+    name.trim().length > 0 &&
+    (messageType === 'text' ? messageText.trim().length > 0 : Boolean(selectedDraft ?? broadcast?.messagePayload));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !messageText.trim()) return;
-    onSubmit({ name: name.trim(), messageText: messageText.trim() });
+    if (!canSubmit) return;
+    if (messageType === 'flex') {
+      const draft = selectedDraft;
+      onSubmit({
+        name: name.trim(),
+        messageText: draft?.altText ?? broadcast?.messageText ?? '',
+        messageType: 'flex',
+        messagePayload: draft
+          ? { altText: draft.altText, contents: draft.flexPayload }
+          : broadcast?.messagePayload ?? {},
+      });
+    } else {
+      onSubmit({ name: name.trim(), messageText: messageText.trim() });
+    }
   };
 
   return (
@@ -90,26 +117,108 @@ function BroadcastEditor({
               autoFocus
             />
           </div>
+
+          {/* Message type toggle */}
           <div className="space-y-1.5">
-            <Label>Message</Label>
-            <Textarea
-              value={messageText}
-              onChange={(e) => setMessageText(e.target.value)}
-              placeholder="Type the message to send to all followers…"
-              rows={5}
-              maxLength={5000}
-              className="resize-none"
-            />
-            <p className="text-[11px] text-muted-foreground text-right">
-              {messageText.length} / 5000
-            </p>
+            <Label>Message type</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={messageType === 'text' ? 'default' : 'outline'}
+                onClick={() => setMessageType('text')}
+                className="flex-1"
+              >
+                Text
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={messageType === 'flex' ? 'default' : 'outline'}
+                onClick={() => setMessageType('flex')}
+                className="flex-1 gap-1.5"
+              >
+                <LayoutTemplateIcon className="size-3.5" />
+                Flex Message
+              </Button>
+            </div>
           </div>
+
+          {messageType === 'text' ? (
+            <div className="space-y-1.5">
+              <Label>Message</Label>
+              <Textarea
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+                placeholder="Type the message to send to all followers…"
+                rows={5}
+                maxLength={5000}
+                className="resize-none"
+              />
+              <p className="text-[11px] text-muted-foreground text-right">
+                {messageText.length} / 5000
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label>Flex Message</Label>
+              {selectedDraft ? (
+                <div className="flex items-center justify-between rounded-lg border px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">{selectedDraft.name}</p>
+                    <p className="text-xs text-muted-foreground">{selectedDraft.altText}</p>
+                  </div>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedDraft(null)}>
+                    Change
+                  </Button>
+                </div>
+              ) : broadcast?.messagePayload ? (
+                <div className="rounded-lg border px-3 py-2 text-sm text-muted-foreground">
+                  Using existing flex message — pick a new one to replace.
+                </div>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 w-full"
+                onClick={() => setDraftPickerOpen(true)}
+                disabled={flexDrafts.length === 0}
+              >
+                <LayoutTemplateIcon className="size-3.5" />
+                {flexDrafts.length === 0 ? 'No saved flex messages — create one in Flex Messages tab' : 'Pick from saved flex messages'}
+              </Button>
+
+              {/* Draft picker dialog */}
+              <Dialog open={draftPickerOpen} onOpenChange={setDraftPickerOpen}>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>Pick a flex message</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-2 py-1 max-h-60 overflow-y-auto">
+                    {flexDrafts.map((draft) => (
+                      <button
+                        key={draft.id}
+                        type="button"
+                        onClick={() => { setSelectedDraft(draft); setDraftPickerOpen(false); }}
+                        className={[
+                          'w-full rounded-lg border px-3 py-2 text-left transition-colors hover:bg-muted/50',
+                          selectedDraft?.id === draft.id ? 'border-primary bg-primary/5' : '',
+                        ].join(' ')}
+                      >
+                        <p className="text-sm font-medium">{draft.name}</p>
+                        <p className="text-xs text-muted-foreground">{draft.altText}</p>
+                      </button>
+                    ))}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button
-              type="submit"
-              disabled={!name.trim() || !messageText.trim() || isPending}
-            >
+            <Button type="submit" disabled={!canSubmit || isPending}>
               {isPending ? 'Saving…' : broadcast ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
@@ -270,6 +379,7 @@ export function BroadcastPanel({ channelId }: { channelId: string }) {
       <BroadcastEditor
         open={editorOpen}
         broadcast={editTarget}
+        channelId={channelId}
         onClose={() => { setEditorOpen(false); setEditTarget(null); }}
         onSubmit={handleSubmit}
         isPending={createBroadcast.isPending || updateBroadcast.isPending}
