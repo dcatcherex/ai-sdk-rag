@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Agent, CreateAgentInput, UpdateAgentInput } from '../types';
 import type { AgentSkillAttachment } from '@/features/skills/types';
+import type { AgentUserToolAttachment } from '@/features/user-tools/types';
 
 const AGENTS_QUERY_KEY = ['agents'] as const;
 const agentSkillAttachmentsKey = (agentId: string) => ['agent-skill-attachments', agentId] as const;
+const agentUserToolAttachmentsKey = (agentId: string) => ['agent-user-tool-attachments', agentId] as const;
 
 export type AgentsResponse = {
   agents: Agent[];
@@ -13,6 +15,7 @@ export type AgentsResponse = {
   essentials: Agent[];
 };
 type AgentSkillAttachmentsResponse = { attachments: AgentSkillAttachment[] };
+type AgentUserToolAttachmentsResponse = { attachments: AgentUserToolAttachment[] };
 
 function upsertAgentInCollection<T extends Agent>(
   collection: T[],
@@ -86,6 +89,20 @@ async function saveAgentSkillAttachments(agentId: string, skillAttachments: Crea
   }
 }
 
+async function saveAgentUserToolAttachments(agentId: string, userToolAttachments: CreateAgentInput['userToolAttachments']) {
+  if (!userToolAttachments) return;
+
+  const res = await fetch(`/api/agents/${agentId}/user-tools`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ attachments: userToolAttachments }),
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to save agent custom tool attachments');
+  }
+}
+
 export const useAgents = () =>
   useQuery<AgentsResponse>({
     queryKey: AGENTS_QUERY_KEY,
@@ -117,11 +134,31 @@ export const useAgentSkillAttachmentsWithPrefix = (
     refetchOnWindowFocus: false,
   });
 
+export const useAgentUserToolAttachments = (agentId: string | null) =>
+  useAgentUserToolAttachmentsWithPrefix(agentId, '/api/agents');
+
+export const useAgentUserToolAttachmentsWithPrefix = (
+  agentId: string | null,
+  routePrefix: string,
+) =>
+  useQuery<AgentUserToolAttachment[]>({
+    queryKey: agentId ? [...agentUserToolAttachmentsKey(agentId), routePrefix] : ['agent-user-tool-attachments', 'new', routePrefix],
+    queryFn: async () => {
+      const res = await fetch(`${routePrefix}/${agentId}/user-tools`);
+      if (!res.ok) throw new Error('Failed to load agent custom tool attachments');
+      const data = await res.json() as AgentUserToolAttachmentsResponse;
+      return data.attachments;
+    },
+    enabled: Boolean(agentId),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
 export const useCreateAgent = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: CreateAgentInput) => {
-      const { skillAttachments, ...agentInput } = input;
+      const { skillAttachments, userToolAttachments, ...agentInput } = input;
       const res = await fetch('/api/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,6 +167,7 @@ export const useCreateAgent = () => {
       if (!res.ok) throw new Error('Failed to create agent');
       const data = (await res.json()) as { agent: Agent };
       await saveAgentSkillAttachments(data.agent.id, skillAttachments);
+      await saveAgentUserToolAttachments(data.agent.id, userToolAttachments);
       return data.agent;
     },
     onSuccess: (createdAgent) => {
@@ -143,7 +181,7 @@ export const useUpdateAgent = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...input }: UpdateAgentInput & { id: string }) => {
-      const { skillAttachments, ...agentInput } = input;
+      const { skillAttachments, userToolAttachments, ...agentInput } = input;
       const res = await fetch(`/api/agents/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -152,6 +190,7 @@ export const useUpdateAgent = () => {
       if (!res.ok) throw new Error('Failed to update agent');
       const data = (await res.json()) as { agent: Agent };
       await saveAgentSkillAttachments(id, skillAttachments);
+      await saveAgentUserToolAttachments(id, userToolAttachments);
       return data.agent;
     },
     onSuccess: (updatedAgent) => {

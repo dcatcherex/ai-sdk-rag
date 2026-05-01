@@ -11,7 +11,7 @@ This is intentionally biased toward **phase 1 implementation**:
 
 - owner-created tools
 - declarative definitions
-- webhook and workflow execution types
+- webhook execution types
 - agent attachment support
 - manual test UI
 - persistent run history
@@ -24,6 +24,74 @@ Read this after:
 - `IMPLEMENTATION.md`
 - `implementation_future.md`
 - `docs/mcp-and-permission-policies-implementation.md`
+
+---
+
+## Progress Update
+
+Last updated: 2026-04-28
+
+Implemented:
+
+- `db/schema/user-tools.ts`
+- `db/schema.ts` export update
+- `features/user-tools/types.ts`
+- `features/user-tools/schema.ts`
+- `features/user-tools/service.ts`
+- `features/user-tools/server/queries.ts`
+- `features/user-tools/server/mutations.ts`
+- `features/user-tools/server/permissions.ts`
+- `features/user-tools/server/runtime.ts`
+- `features/user-tools/server/history.ts`
+- `features/user-tools/server/executors/webhook.ts`
+- `features/user-tools/server/executors/workflow.ts`
+- `app/api/user-tools/route.ts`
+- `app/api/user-tools/[toolId]/route.ts`
+- `app/api/user-tools/[toolId]/versions/route.ts`
+- `app/api/user-tools/[toolId]/test/route.ts`
+- `app/api/user-tools/[toolId]/run/route.ts`
+- `app/api/user-tools/[toolId]/runs/route.ts`
+- `app/api/user-tools/[toolId]/publish/route.ts`
+- `app/api/user-tools/[toolId]/share/route.ts`
+- `app/api/agents/[id]/user-tools/route.ts`
+- `app/(main)/user-tools/page.tsx`
+- `features/user-tools/components/*` initial builder/test/history UI
+- `features/user-tools/hooks/*`
+- agent runtime merge in `features/agents/server/run-service.ts`
+- initial agent editor custom-tool attachment UI
+- initial per-user custom-tool sharing UI
+- tool metadata update and version-save flow from the `/user-tools` page
+- draft-reset fix on the `/user-tools` page so "New draft" preserves an unsaved editor state and no longer falls back to the first saved tool
+- editor-scroll fix on the `/user-tools` page so draft reset and tool selection return the builder panel to the top
+- layout fix on the `/user-tools` page so the builder uses normal page flow instead of nested scroll containers that could hide the editor
+- responsive workbench fix on the `/user-tools` page so the library sits beside a stacked editor/test area instead of forcing library, editor, and runner into three cramped columns
+- manual confirmation enforcement for write or confirmation-required custom tools
+- webhook hardening for HTTPS-only URLs, local/private destination blocking, redirect rejection, response-size limits, timeout caps, and restricted custom headers
+- server-side validation for agent custom-tool attachments so only accessible, agent-enabled, non-archived tools can be attached
+- regression tests for attachment deduping and attachment validation
+- declarative workflow execution for multi-step custom tools that create campaign briefs, calendar entries, and social post drafts through service-layer integrations
+- builder support for both `webhook` and `workflow` execution types
+- workflow artifact persistence through `toolArtifact` plus artifact links in the unified tool result envelope
+- `scripts/reconcile-drizzle-ledger.ts` to backfill already-live migrations and apply the missing `0035_numerous_lockheed` data migration in drifted environments
+- owner-managed share route and UI for per-user `runner` / `editor` access to custom tools
+- brand-backed workspace share table, routes, queries, hooks, and UI for sharing one tool with all members of a selected workspace
+- workspace-share-aware access resolution in tool discovery, tool detail, agent attachment validation, and agent runtime execution
+
+Not implemented yet:
+
+- skill unlock support for custom tools
+- richer `toolRun` attribution columns such as `toolKind`, `toolId`, `toolVersionId`, and `agentId`
+- connected-account or secret-ref auth resolution inside custom webhook execution
+- LINE-specific custom-tool runtime integration
+- template publishing and broader catalog/publish semantics
+
+Notes:
+
+- The current UI uses JSON textareas for input schema, output schema, webhook request templates, and workflow step definitions instead of the future field-builder UX described below.
+- The current runtime now supports both `webhook` and `workflow` custom tools, with workflow limited to the currently implemented declarative Vaja step types.
+- The current builder can create tools, edit metadata, save a new draft version, publish a version, test runs, and inspect run history.
+- `pnpm exec tsc --noEmit` and `pnpm test` pass with the current implementation slice.
+- Phases 1 through 3 are now code-complete for the current scope: owner-created webhook tools, workspace tools via direct user shares plus brand-backed workspace shares, and workflow tools that compose existing Vaja services.
 
 ---
 
@@ -583,6 +651,13 @@ Optional delta:
 
 - extend `db/schema/tools.ts` for richer `toolRun` attribution
 
+Status:
+
+- code completed
+- migration generated
+- migration applied on 2026-04-28 after reconciling missing Drizzle ledger entries with `pnpm db:reconcile-migrations`
+- `toolRun` extension not started yet
+
 ### Step 2 - Add shared types and Zod schemas
 
 Create:
@@ -663,7 +738,11 @@ Create:
 - `app/api/user-tools/[toolId]/run/route.ts`
 - `app/api/user-tools/[toolId]/runs/route.ts`
 - `app/api/user-tools/[toolId]/publish/route.ts`
-- `app/api/agents/[agentId]/user-tools/route.ts`
+- `app/api/agents/[id]/user-tools/route.ts`
+
+Status:
+
+- completed
 
 ### Step 8 - Add hooks
 
@@ -674,6 +753,10 @@ Create:
 - `features/user-tools/hooks/use-user-tool-test.ts`
 
 These should follow the same React Query mutation/query pattern used elsewhere in the repo.
+
+Status:
+
+- completed
 
 ### Step 9 - Add builder UI
 
@@ -692,6 +775,13 @@ Sidebar item:
 
 - extend `features/chat/components/sidebar/sidebar-nav.tsx`
 
+Status:
+
+- completed using the workspace registry system in `features/workspace/catalog.ts`
+- current builder is a thin JSON-based UI, not the full visual field builder yet
+- create, edit, save-version, publish, test, and run flows are implemented
+- the builder now shows an explicit draft-editor state and no longer auto-reselects the first saved tool after "New draft"
+
 ### Step 10 - Integrate with agents
 
 Create:
@@ -702,6 +792,12 @@ Update:
 
 - agent load/save API payloads and queries
 - agent editor UI to show built-in tools and custom tools separately
+
+Status:
+
+- runtime integration completed
+- agent editor attachment UI implemented in a first pass
+- still needs UX refinement and end-to-end testing
 
 ### Step 11 - Integrate with chat runtime
 
@@ -715,6 +811,11 @@ Manual chat integration order:
 1. built-in tools
 2. custom tools attached to agent
 3. merge into final `activeTools`
+
+Status:
+
+- completed in `features/agents/server/run-service.ts`
+- `app/api/chat/route.ts` consumes this through the existing `prepareAgentRun(...)` path
 
 ### Step 12 - Extend workspace AI assistant support
 

@@ -14,6 +14,7 @@ import { buildBrandImageContext, buildImageBrandSuffix } from '@/features/brands
 import type { Brand } from '@/features/brands/types';
 import type { Agent } from '@/features/agents/types';
 import type { SkillRuntimeContext } from '@/features/skills/server/activation';
+import { buildUserCreatedToolSet } from '@/features/user-tools/service';
 import {
   buildAgentRunSystemPrompt,
   EMPTY_SKILL_RUNTIME,
@@ -384,7 +385,7 @@ export async function prepareAgentRun(request: AgentRunRequest): Promise<Prepare
 
   let tools: ToolSet | undefined;
   if (supportsTools) {
-    tools = channelContext.toolsOverride
+    const builtInTools = channelContext.toolsOverride
       ?? (
         resolvedAgent
           ? createAgentTools(
@@ -408,6 +409,15 @@ export async function prepareAgentRun(request: AgentRunRequest): Promise<Prepare
               referenceImageUrls: channelContext.referenceImageUrls,
             })
       );
+    const customTools = channelContext.toolsOverride || !resolvedAgent
+      ? {}
+      : await buildUserCreatedToolSet({
+          userId: request.identity.billingUserId,
+          agentId: resolvedAgent.id,
+          source: request.identity.channel === 'line' ? 'line' : 'agent',
+          threadId: request.threadId,
+        });
+    tools = { ...builtInTools, ...customTools };
 
     if (!channelContext.toolsOverride && request.policy.allowMcp && resolvedAgent?.mcpServers?.length) {
       const mcpTools = await buildMCPToolSet(

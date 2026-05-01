@@ -41,7 +41,7 @@ export const AiModeSelector = ({
 
   const allKnown = [...agents, ...essentials];
   const selectedAgent = allKnown.find((a) => a.id === selectedAgentId) ?? null;
-  const label = selectedAgent?.name ?? 'General Assistant';
+  const label = selectedAgent?.name ?? 'Vaja AI';
 
   const select = (id: string) => { onSelectAgent(id); setOpen(false); };
 

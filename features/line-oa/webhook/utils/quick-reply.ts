@@ -6,11 +6,13 @@ import { QUICK_REPLY_LABEL_MAX } from '../types';
  * Label is truncated to LINE's 20-char limit.
  * The full text is sent as the user's message when tapped.
  */
-export function buildQuickReplyItem(text: string): QuickReplyItem {
+export function buildQuickReplyItem(text: string, labelText?: string): QuickReplyItem {
+  const displayText = labelText ?? text;
   const label =
-    text.length > QUICK_REPLY_LABEL_MAX
-      ? text.slice(0, QUICK_REPLY_LABEL_MAX - 1) + '…'
-      : text;
+    displayText.length > QUICK_REPLY_LABEL_MAX
+      ? `${displayText.slice(0, QUICK_REPLY_LABEL_MAX - 1)}...`
+      : displayText;
+
   return {
     type: 'action',
     action: { type: 'message', label, text },

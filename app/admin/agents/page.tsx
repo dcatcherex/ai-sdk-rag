@@ -181,6 +181,7 @@ function AdminAgentEditor({
             onDirtyChange={setHasUnsavedChanges}
             onSectionChange={setActiveSection}
             onSubmit={(input) => onSubmit({ ...input, ...catalogForm })}
+            showStructuredStarterTasksEditor
             skillAttachmentsRoutePrefix="/api/admin/agents"
             submitLabel={isEdit ? 'Save template' : 'Create template'}
             visibleSections={[...ADMIN_VISIBLE_SECTIONS]}
@@ -243,7 +244,7 @@ export default function AdminAgentsPage() {
         modelId: payload.input.modelId ?? null,
         enabledTools: payload.input.enabledTools ?? [],
         skillAttachments: payload.input.skillAttachments ?? [],
-        starterPrompts: payload.input.starterPrompts ?? [],
+        starterTasks: payload.input.starterTasks ?? [],
         brandId: payload.input.brandId ?? null,
         brandMode: payload.input.brandMode ?? 'optional',
         brandAccessPolicy: payload.input.brandAccessPolicy ?? 'any_accessible',

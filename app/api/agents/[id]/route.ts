@@ -23,6 +23,15 @@ const mcpServerSchema = z.object({
   credentialKey: z.string().optional(),
 });
 
+const starterTaskSchema = z.object({
+  id: z.string().min(1).max(120),
+  title: z.string().min(1).max(120),
+  description: z.string().min(1).max(240),
+  prompt: z.string().min(1).max(2000),
+  icon: z.enum(['calendar', 'chart', 'edit', 'mail', 'message', 'refresh', 'search', 'sparkles']),
+  priority: z.enum(['primary', 'secondary']),
+});
+
 const updateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().optional().nullable(),
@@ -39,7 +48,11 @@ const updateSchema = z.object({
   imageUrl: z.string().url().optional().nullable(),
   isPublic: z.boolean().optional(),
   isDefault: z.boolean().optional(),
-  starterPrompts: z.array(z.string().max(100)).max(4).optional(),
+  starterTasks: z.array(starterTaskSchema)
+    .max(10)
+    .refine((tasks) => tasks.filter((task) => task.priority === 'primary').length <= 4, 'No more than 4 primary starter tasks')
+    .refine((tasks) => tasks.filter((task) => task.priority === 'secondary').length <= 6, 'No more than 6 secondary starter tasks')
+    .optional(),
   sharedUserIds: z.array(z.string()).optional(),
   mcpServers: z.array(mcpServerSchema).optional(),
 });

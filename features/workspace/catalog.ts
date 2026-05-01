@@ -54,6 +54,16 @@ const STATIC_WORKSPACE_ITEMS: WorkspaceCatalogItem[] = [
     source: "page",
   },
   {
+    id: "user-tools",
+    href: "/user-tools",
+    label: "User Tools",
+    defaultPinned: false,
+    order: 32,
+    iconName: "Wrench",
+    matchRules: [{ kind: "prefix", value: "/user-tools" }],
+    source: "page",
+  },
+  {
     id: "brands",
     href: "/brands",
     label: "Brands",

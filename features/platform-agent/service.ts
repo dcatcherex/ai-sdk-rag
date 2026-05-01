@@ -9,6 +9,7 @@ import { db } from '@/lib/db';
 import { agent, chatMessage, chatThread, creditTransaction } from '@/db/schema';
 import { agentSkill, agentSkillAttachment } from '@/db/schema/skills';
 import { getUserBalance } from '@/lib/credits';
+import { buildStarterTasksFromPrompts, getStarterTaskPrompts } from '@/features/agents/starter-tasks';
 import type {
   PlatformToolResult,
   WorkspaceContext,
@@ -55,7 +56,7 @@ export async function createAgentForUser(
     publishedAt: null,
     archivedAt: null,
     changelog: null,
-    starterPrompts: input.starterPrompts ?? [],
+    starterTasks: input.starterTasks ?? [],
     mcpServers: [],
     createdAt: now,
     updatedAt: now,
@@ -112,7 +113,7 @@ export async function getAgentForUser(
       description: agent.description,
       modelId: agent.modelId,
       enabledTools: agent.enabledTools,
-      starterPrompts: agent.starterPrompts,
+      starterTasks: agent.starterTasks,
       updatedAt: agent.updatedAt,
     })
     .from(agent)
@@ -761,7 +762,7 @@ export async function runOnboardingPlan(
     name: template.agentName,
     systemPrompt: template.systemPrompt,
     description: template.description,
-    starterPrompts: template.starterPrompts,
+    starterTasks: buildStarterTasksFromPrompts(template.starterPrompts),
   });
 
   const agentId = result.data?.agentId as string;
@@ -785,6 +786,6 @@ export async function runOnboardingPlan(
     agentId,
     agentName: template.agentName,
     skillsInstalled,
-    suggestedStarters: template.starterPrompts,
+    suggestedStarters: getStarterTaskPrompts(buildStarterTasksFromPrompts(template.starterPrompts)),
   };
 }

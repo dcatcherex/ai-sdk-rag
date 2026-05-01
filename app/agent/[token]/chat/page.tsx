@@ -23,8 +23,9 @@ import {
   usePromptInputAttachments,
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input';
+import type { AgentStarterTask } from '@/features/chat/components/empty-state/types';
 
-type AgentMeta = { name: string; description: string | null; starterPrompts: string[] };
+type AgentMeta = { name: string; description: string | null; starterTasks: AgentStarterTask[] };
 type ShareMeta = { welcomeMessage: string | null };
 
 const SESSION_KEY = (token: string) => `guest-session-${token}`;
@@ -228,19 +229,19 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
             ) : (
               <p className="text-xs text-muted-foreground mt-2">Type a message to start…</p>
             )}
-            {agentMeta?.starterPrompts && agentMeta.starterPrompts.length > 0 && (
+            {agentMeta?.starterTasks && agentMeta.starterTasks.length > 0 && (
               <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-sm">
-                {agentMeta.starterPrompts.map((prompt, i) => (
+                {agentMeta.starterTasks.map((task) => (
                   <button
-                    key={i}
+                    key={task.id}
                     type="button"
                     onClick={() => {
                       if (isLoading) return;
-                      sendMessage({ parts: [{ type: 'text', text: prompt }] });
+                      sendMessage({ parts: [{ type: 'text', text: task.prompt }] });
                     }}
                     className="rounded-xl border border-input bg-white/80 dark:bg-card/80 px-3 py-2 text-xs text-left hover:bg-muted/60 transition shadow-sm"
                   >
-                    {prompt}
+                    {task.title}
                   </button>
                 ))}
               </div>

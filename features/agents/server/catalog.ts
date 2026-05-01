@@ -27,7 +27,7 @@ type AdminAgentTemplateInput = {
   modelId?: string | null;
   enabledTools?: string[];
   skillAttachments?: AgentSkillAttachmentInput[];
-  starterPrompts?: string[];
+  starterTasks?: Agent['starterTasks'];
   brandId?: string | null;
   brandMode?: BrandMode;
   brandAccessPolicy?: BrandAccessPolicy;
@@ -124,7 +124,7 @@ export async function createAdminAgentTemplate(input: AdminAgentTemplateInput): 
       fallbackBehavior: brandConfig.fallbackBehavior,
       imageUrl: input.imageUrl ?? null,
       isPublic: false,
-      starterPrompts: input.starterPrompts ?? [],
+      starterTasks: input.starterTasks ?? [],
       isTemplate: true,
       templateId: null,
       isDefault: false,
@@ -199,7 +199,7 @@ export async function updateAdminAgentTemplate(
       ...(input.modelId !== undefined && { modelId: input.modelId ?? null }),
       ...(input.enabledTools !== undefined && { enabledTools: input.enabledTools }),
       ...(normalizedBrandConfig && normalizedBrandConfig),
-      ...(input.starterPrompts !== undefined && { starterPrompts: input.starterPrompts }),
+      ...(input.starterTasks !== undefined && { starterTasks: input.starterTasks }),
       ...(input.imageUrl !== undefined && { imageUrl: input.imageUrl ?? null }),
       ...(input.cloneBehavior !== undefined && { cloneBehavior: input.cloneBehavior }),
       ...(input.updatePolicy !== undefined && { updatePolicy: input.updatePolicy }),
@@ -300,7 +300,7 @@ export async function usePublishedAgentTemplate(userId: string, templateId: stri
     fallbackBehavior: template.fallbackBehavior,
     imageUrl: template.imageUrl,
     isPublic: false,
-    starterPrompts: template.starterPrompts,
+    starterTasks: template.starterTasks,
     isTemplate: false,
     templateId: template.id,
     isDefault: false,

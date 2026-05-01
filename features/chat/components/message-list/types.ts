@@ -1,4 +1,5 @@
 import type { ChatMessage, ChatReferenceImage, MessageReaction, QuizFollowUpContext } from '@/features/chat/types';
+import type { AgentStarterTask } from '@/features/chat/components/empty-state/types';
 import type { MediaAsset } from '@/features/gallery/types';
 
 export type ReactionMap = Record<string, MessageReaction | null>;
@@ -33,8 +34,9 @@ export type ChatMessageListProps = {
   // agent starter prompts shown on empty state
   agentName?: string;
   agentDescription?: string | null;
-  starterPrompts?: string[];
+  starterTasks?: AgentStarterTask[];
   generalStarterPrompts?: string[];
+  onEmptyStateTaskSelect: (task: AgentStarterTask) => void;
   onCopyMessage: (messageId: string, text: string) => void;
   onRegenerateMessage: (messageId: string) => void;
   onToggleReaction: (messageId: string, reaction: MessageReaction) => void;

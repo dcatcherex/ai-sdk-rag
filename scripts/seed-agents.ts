@@ -16,6 +16,7 @@ dotenv.config({ path: '.env.local' });
 
 import { and, eq, isNull } from 'drizzle-orm';
 import * as schema from '../db/schema';
+import { buildStarterTasksFromPrompts } from '../features/agents/starter-tasks';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1175,7 +1176,7 @@ async function upsertAgents(
         systemPrompt: data.systemPrompt,
         modelId: data.modelId,
         enabledTools: data.enabledTools,
-        starterPrompts: data.starterPrompts,
+        starterTasks: buildStarterTasksFromPrompts(data.starterPrompts),
         isDefault: data.isDefault ?? false,
         structuredBehavior: data.structuredBehavior as never,
         ...(publish && { catalogStatus: 'published', publishedAt: new Date() }),
@@ -1197,7 +1198,7 @@ async function upsertAgents(
         brandId: null,
         imageUrl: null,
         isPublic: false,
-        starterPrompts: data.starterPrompts,
+        starterTasks: buildStarterTasksFromPrompts(data.starterPrompts),
         isDefault: data.isDefault ?? false,
         isTemplate: true,
         templateId: null,

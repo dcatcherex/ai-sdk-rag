@@ -84,7 +84,7 @@ export async function POST(req: Request) {
         requiresBrandForRun: agent.requiresBrandForRun,
         fallbackBehavior: agent.fallbackBehavior,
         isPublic: agent.isPublic,
-        starterPrompts: agent.starterPrompts,
+        starterTasks: agent.starterTasks,
         isTemplate: agent.isTemplate,
         templateId: agent.templateId,
         isDefault: agent.isDefault,

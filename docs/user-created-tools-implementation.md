@@ -24,6 +24,46 @@ Technical follow-up:
 
 ---
 
+## Implementation Status
+
+Last updated: 2026-04-28
+
+Current progress:
+
+- Done: `db/schema/user-tools.ts` added with `userTool`, `userToolVersion`, `userToolShare`, `agentUserToolAttachment`, and `userToolConnection`
+- Done: `features/user-tools/` backend feature boundary added with schema validation, queries, mutations, permissions, runtime, history, and webhook execution
+- Done: API routes added for list/create/detail/version/test/run/history and agent attachments
+- Done: agent runtime now merges attached user-created tools into the AI SDK toolset
+- Done: control-room page added at `/user-tools` with tool list, JSON-based builder, test runner, and run history
+- Done: the `/user-tools` page now supports editing existing tool metadata and saving new draft versions
+- Done: the `/user-tools` draft flow now keeps a true unsaved draft state instead of snapping back to the first saved tool
+- Done: the `/user-tools` editor now scrolls back to the top on new-draft reset and tool selection so the builder form stays visible
+- Done: the `/user-tools` workspace now uses normal page flow instead of nested scroll panels so the builder cannot render as an empty middle column
+- Done: the `/user-tools` UI now uses a two-column workbench with the runner stacked below the editor, preventing the builder from being squeezed by the sidebar layout
+- Done: `toolRun` reused for custom-tool execution history
+- Done: draft tools can now be published through a dedicated publish endpoint and UI action
+- Done: manual test/run flows require explicit confirmation for write or confirmation-required tools
+- Done: agent runtime tools use `needsApproval` for write or confirmation-required tools
+- Done: webhook execution is hardened with HTTPS-only URLs, private/local destination blocking, redirect rejection, response-size limits, timeout caps, and restricted custom headers
+- Done: agent editor now has a custom-tool attachment section for Phase 1 agent assignment
+- Done: agent custom-tool attachment saves now validate that each selected tool is accessible to the current user, supports agent execution, and is not archived
+- Done: targeted regression coverage was added for attachment normalization and server-side attachment validation
+- Done: Drizzle migration file generated
+- Done: database migration applied after reconciling pre-existing Drizzle ledger drift with `pnpm db:reconcile-migrations`
+- Done: targeted tool sharing is now available for specific registered users with `runner` and `editor` roles
+- Done: workspace-level sharing is now supported through brand-backed workspace shares, letting owners share a tool with all members of a selected workspace
+- Done: workspace-shared tools now resolve access consistently in list/detail views, agent attachment validation, and agent runtime execution
+- Done: workflow execution now supports declarative multi-step compositions that create native Vaja records through service-layer integrations
+- Done: the `/user-tools` builder now supports both `webhook` and `workflow` execution types
+- Done: workflow runs now persist richer artifacts for created campaign briefs, calendar entries, and social post drafts while returning artifact links in the unified tool result envelope
+- Pending: richer visual builder for field editing
+- Pending: skill-based unlocks for custom tools
+- Pending: templates and broader publish/catalog flows
+
+Phases 1 through 3 are now code-complete and migrated for the current scope: owner-created webhook tools, workspace sharing and agent assignment, and workflow tools that compose existing Vaja services into saved campaign, calendar, and social-draft records. Skill-based unlocks, template flows, and broader publishing remain later-phase work.
+
+---
+
 ## Table of Contents
 
 1. [Why This Matters](#1-why-this-matters)
@@ -732,6 +772,12 @@ Ship:
 - audit logging
 - personal-only visibility
 
+Status on 2026-04-28:
+
+- code-complete for the owner-created webhook tool slice
+- migration applied successfully after reconciling missing Drizzle ledger entries with `pnpm db:reconcile-migrations`
+- workflow tools and workspace/template sharing are deferred beyond Phase 1
+
 Do not ship yet:
 
 - public sharing
@@ -754,6 +800,13 @@ Ship:
 - multi-step composition
 - save drafts to other Vaja systems
 - richer result artifacts
+
+Status on 2026-04-28:
+
+- completed for the initial declarative workflow slice
+- workflow steps now support creating campaign briefs, content calendar entries, and social post drafts through service-layer calls
+- builder support for `workflow` execution is available on `/user-tools`
+- workflow run outputs now include persisted artifacts and artifact links in the standard tool result shape
 
 ### Phase 4 - Integrations and Templates
 
@@ -789,6 +842,12 @@ Recommended order:
 8. Add workspace sharing
 9. Add workflow composition tools
 10. Add admin-reviewed publishing
+
+Progress on 2026-04-28:
+
+- completed for Phase 1: 1, 2, 3, 4, 5, 6
+- deferred beyond Phase 1: 7, 8, 9, 10
+- UX follow-up completed: the builder now makes "new draft" state visible and does not auto-reselect the first tool after reset
 
 ---
 

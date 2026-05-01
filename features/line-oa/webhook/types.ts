@@ -1,4 +1,5 @@
 import type { messagingApi } from '@line/bot-sdk';
+import type { AgentStarterTask } from '@/features/chat/components/empty-state/types';
 
 // Type aliases that match what MessagingApiClient.replyMessage() expects
 export type LineMessage    = messagingApi.Message;
@@ -20,7 +21,7 @@ export type AgentRow = {
   systemPrompt: string | null;
   modelId: string | null;
   brandId: string | null;
-  starterPrompts: string[];
+  starterTasks: AgentStarterTask[];
   enabledTools: string[];
   skillIds: string[] | null;
 } | null;

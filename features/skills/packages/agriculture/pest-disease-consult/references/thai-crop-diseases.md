@@ -2,6 +2,7 @@
 
 > Source: Thai Department of Agriculture (กรมวิชาการเกษตร) and DOAE extension guidelines.
 > Chemical group names are used — not brand names. Always advise farmers to verify with local DOAE officers.
+> Safety gate: check `pesticide-status-thailand.md` before recommending any active ingredient. Do not recommend chlorpyrifos or paraquat in Thailand.
 
 ---
 
@@ -20,7 +21,7 @@
 | แมลง | อาการ | ช่วงระบาด | วิธีจัดการ |
 |---|---|---|---|
 | เพลี้ยกระโดดสีน้ำตาล (BPH) | ต้นข้าวเหลืองเป็นหย่อม "Hopperburn" | ระยะแตกกอ-ออกรวง | สาร buprofezin, pymetrozine — ห้ามใช้ pyrethroid |
-| หนอนกอ (Stem Borer) | ใบหน้าตาย (Dead Heart), รวงเป็ง (White Ear) | ทุกระยะ | สาร chlorpyrifos, fipronil |
+| หนอนกอ (Stem Borer) | ใบหน้าตาย (Dead Heart), รวงเป็ง (White Ear) | ทุกระยะ | สำรวจแปลง ตัดทำลายต้นเสียหาย ใช้กับดัก/ชีววิธี และใช้เฉพาะสารที่ขึ้นทะเบียนกับข้าวและหนอนกอ; ห้ามแนะนำ chlorpyrifos |
 | แมลงสิง (Rice Bug) | เมล็ดลีบ มีรอยกัด | ระยะน้ำนม-แก่ | จับด้วยแสงไฟตอนค่ำ หรือ malathion |
 
 ---
@@ -84,7 +85,7 @@
 | แมลง | อาการ | วิธีจัดการ |
 |---|---|---|
 | เพลี้ยแป้ง (Mealybug) | แป้งขาวที่ผล ก้าน ใบ สะสมราดำ | buprofezin + น้ำมันปิโตรเลียม |
-| หนอนเจาะผล (Fruit Borer) | รูที่ผล ผลร่วง | ห่อผล chlorpyrifos ช่วงดอก |
+| หนอนเจาะผล (Fruit Borer) | รูที่ผล ผลร่วง | ห่อผล เก็บผลเสียทำลาย ใช้กับดัก/สำรวจช่วงติดผล และใช้เฉพาะสารที่ขึ้นทะเบียนกับทุเรียนและหนอนเจาะผล; ห้ามแนะนำ chlorpyrifos |
 
 ---
 

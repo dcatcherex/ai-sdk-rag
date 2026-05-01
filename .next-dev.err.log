@@ -1,0 +1,940 @@
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./features/chat/components/empty-state/agent-chat-empty-state.tsx:4:1
+Module not found: Can't resolve './task-starter-data'
+[0m [90m 2 |[39m [36mimport[39m { [33mAgentTaskCard[39m } [36mfrom[39m [32m'./agent-task-card'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mAgentTaskRow[39m } [36mfrom[39m [32m'./agent-task-row'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAgentStarterTasks } [36mfrom[39m [32m'./task-starter-data'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m type { [33mAgentStarterTask[39m } [36mfrom[39m [32m'./types'[39m[33m;[39m
+ [90m 6 |[39m
+ [90m 7 |[39m type [33mAgentChatEmptyStateProps[39m [33m=[39m {[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component Browser]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./features/chat/components/empty-state/agent-chat-empty-state.tsx [Client Component SSR]
+    ./features/chat/components/message-list/chat-message-list.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ Error: Failed query: select "id", "user_id", "name", "description", "system_prompt", "structured_behavior", "model_id", "enabled_tools", "document_ids", "skill_ids", "brand_id", "brand_mode", "brand_access_policy", "requires_brand_for_run", "fallback_behavior", "image_url", "is_public", "starter_prompts", "starter_tasks", "is_template", "template_id", "is_default", "catalog_scope", "catalog_status", "managed_by_admin", "clone_behavior", "update_policy", "locked_fields", "version", "source_template_version", "published_at", "archived_at", "changelog", "mcp_servers", "created_at", "updated_at" from "agent" where ("agent"."user_id" = $1 and "agent"."is_template" = $2) order by "agent"."updated_at" desc
+params: user_3CTh2D4kneHaNlmvHw730vXcxcC,false
+    at async GET (app\api\agents\route.ts:83:21)
+  81 |
+  82 |   // 1. Own agents (excluding templates)
+> 83 |   const ownAgents = await db
+     |                     ^
+  84 |     .select()
+  85 |     .from(agent)
+  86 |     .where(and(eq(agent.userId, authResult.user.id), eq(agent.isTemplate, false))) {
+  query: 'select "id", "user_id", "name", "description", "system_prompt", "structured_behavior", "model_id", "enabled_tools", "document_ids", "skill_ids", "brand_id", "brand_mode", "brand_access_policy", "requires_brand_for_run", "fallback_behavior", "image_url", "is_public", "starter_prompts", "starter_tasks", "is_template", "template_id", "is_default", "catalog_scope", "catalog_status", "managed_by_admin", "clone_behavior", "update_policy", "locked_fields", "version", "source_template_version", "published_at", "archived_at", "changelog", "mcp_servers", "created_at", "updated_at" from "agent" where ("agent"."user_id" = $1 and "agent"."is_template" = $2) order by "agent"."updated_at" desc',
+  params: [Array],
+  [cause]: Error [NeonDbError]: column "starter_tasks" does not exist
+      at async GET (app\api\agents\route.ts:83:21)
+    81 |
+    82 |   // 1. Own agents (excluding templates)
+  > 83 |   const ownAgents = await db
+       |                     ^
+    84 |     .select()
+    85 |     .from(agent)
+    86 |     .where(and(eq(agent.userId, authResult.user.id), eq(agent.isTemplate, false))) {
+    severity: 'ERROR',
+    code: '42703',
+    detail: undefined,
+    hint: undefined,
+    position: '287',
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'parse_relation.c',
+    line: '3716',
+    routine: 'errorMissingColumn',
+    sourceError: undefined
+  }
+}
+(node:7568) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:53076) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)

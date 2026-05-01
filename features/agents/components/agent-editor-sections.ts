@@ -10,7 +10,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-export type AgentEditorSectionId = 'general' | 'behavior' | 'skills' | 'knowledge' | 'tools' | 'mcp' | 'sharing' | 'preview';
+export type AgentEditorSectionId = 'general' | 'behavior' | 'skills' | 'knowledge' | 'tools' | 'custom-tools' | 'mcp' | 'sharing' | 'preview';
 
 export type AgentEditorSection = {
   id: AgentEditorSectionId;
@@ -49,6 +49,12 @@ export const AGENT_EDITOR_SECTIONS: AgentEditorSection[] = [
     icon: BlocksIcon,
     label: 'Tools',
     description: 'Choose which capabilities this agent is allowed to use.',
+  },
+  {
+    id: 'custom-tools',
+    icon: BlocksIcon,
+    label: 'Custom Tools',
+    description: 'Attach user-created tools that this agent can call in chat.',
   },
   {
     id: 'mcp',

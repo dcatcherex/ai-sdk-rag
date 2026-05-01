@@ -27,6 +27,15 @@ const mcpServerSchema = z.object({
   credentialKey: z.string().optional(),
 });
 
+const starterTaskSchema = z.object({
+  id: z.string().min(1).max(120),
+  title: z.string().min(1).max(120),
+  description: z.string().min(1).max(240),
+  prompt: z.string().min(1).max(2000),
+  icon: z.enum(['calendar', 'chart', 'edit', 'mail', 'message', 'refresh', 'search', 'sparkles']),
+  priority: z.enum(['primary', 'secondary']),
+});
+
 const createSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().optional(),
@@ -43,7 +52,11 @@ const createSchema = z.object({
   imageUrl: z.string().url().optional().nullable(),
   isPublic: z.boolean().optional(),
   isDefault: z.boolean().optional(),
-  starterPrompts: z.array(z.string().max(100)).max(4).optional(),
+  starterTasks: z.array(starterTaskSchema)
+    .max(10)
+    .refine((tasks) => tasks.filter((task) => task.priority === 'primary').length <= 4, 'No more than 4 primary starter tasks')
+    .refine((tasks) => tasks.filter((task) => task.priority === 'secondary').length <= 6, 'No more than 6 secondary starter tasks')
+    .optional(),
   sharedUserIds: z.array(z.string()).optional(),
   mcpServers: z.array(mcpServerSchema).optional(),
 });
@@ -92,7 +105,10 @@ export async function GET() {
     (acc[s.agentId] ??= []).push({ id: s.userId, name: s.name, email: s.email, image: s.image });
     return acc;
   }, {});
-  const ownAgentsOut = ownAgents.map((a) => ({ ...a, sharedWith: shareMap[a.id] ?? [] }));
+  const ownAgentsOut = ownAgents.map((a) => ({
+    ...a,
+    sharedWith: shareMap[a.id] ?? [],
+  }));
 
   // 3. Public agents from other users
   const publicAgents = await db
@@ -114,7 +130,7 @@ export async function GET() {
       fallbackBehavior: agent.fallbackBehavior,
       imageUrl: agent.imageUrl,
       isPublic: agent.isPublic,
-      starterPrompts: agent.starterPrompts,
+      starterTasks: agent.starterTasks,
       isTemplate: agent.isTemplate,
       templateId: agent.templateId,
       isDefault: agent.isDefault,
@@ -158,7 +174,7 @@ export async function GET() {
       fallbackBehavior: agent.fallbackBehavior,
       imageUrl: agent.imageUrl,
       isPublic: agent.isPublic,
-      starterPrompts: agent.starterPrompts,
+      starterTasks: agent.starterTasks,
       isTemplate: agent.isTemplate,
       templateId: agent.templateId,
       isDefault: agent.isDefault,
@@ -278,7 +294,7 @@ export async function POST(req: Request) {
     publishedAt: null,
     archivedAt: null,
     changelog: null,
-    starterPrompts: body.starterPrompts ?? [],
+    starterTasks: body.starterTasks ?? [],
     mcpServers: body.mcpServers ?? [],
     createdAt: now,
     updatedAt: now,

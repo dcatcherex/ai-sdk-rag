@@ -57,12 +57,16 @@ Rules:
     }
 
     case "agent-starters": {
-      const existingStarters = Array.isArray(
-        input.context.extra?.starterPrompts,
-      )
-        ? (input.context.extra.starterPrompts as unknown[]).filter(
-            (value): value is string => typeof value === "string",
-          )
+      const existingStarters = Array.isArray(input.context.extra?.starterTasks)
+        ? (input.context.extra.starterTasks as Array<{ title?: unknown; prompt?: unknown }>)
+            .map((task) =>
+              typeof task.prompt === 'string' && task.prompt.trim()
+                ? task.prompt.trim()
+                : typeof task.title === 'string'
+                  ? task.title.trim()
+                  : '',
+            )
+            .filter(Boolean)
         : [];
 
       return {

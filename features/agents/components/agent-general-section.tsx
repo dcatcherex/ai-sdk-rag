@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, type KeyboardEvent, type RefObject } from 'react';
-import { PlusIcon, WandSparklesIcon, XIcon } from 'lucide-react';
+import { useState } from 'react';
+import { WandSparklesIcon } from 'lucide-react';
 import { AiAssistButton } from '@/features/workspace-ai/components/ai-assist-button';
 import { AiImageAssistDialog } from '@/features/workspace-ai/components/ai-image-assist-dialog';
 import { availableModels } from '@/lib/ai';
-import { Button } from '@/components/ui/button';
 import { ImageUploadZone } from '@/components/ui/image-upload-zone';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import type { AgentStarterTask } from '@/features/chat/components/empty-state/types';
+import { AgentStarterTasksSection } from './agent-starter-tasks-section';
 
 type CoverImageOptions = {
   instruction?: string;
@@ -35,13 +36,10 @@ type AgentGeneralSectionProps = {
   onImageUrlChange: (url: string) => void;
   onModelChange: (value: string) => void;
   onNameChange: (value: string) => void;
-  onStarterAdd: () => void;
-  onStarterInputChange: (value: string) => void;
-  onStarterInputKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
-  onStarterRemove: (index: number) => void;
-  starterInput: string;
-  starterInputRef: RefObject<HTMLInputElement | null>;
-  starterPrompts: string[];
+  onStarterTaskAdd: () => void;
+  onStarterTaskChange: <K extends keyof AgentStarterTask>(id: string, field: K, value: AgentStarterTask[K]) => void;
+  onStarterTaskRemove: (id: string) => void;
+  starterTasks?: AgentStarterTask[];
   isGeneratingCoverImage?: boolean;
   isGeneratingDescription?: boolean;
   isGeneratingStarters?: boolean;
@@ -71,13 +69,10 @@ export function AgentGeneralSection({
   onImageUrlChange,
   onModelChange,
   onNameChange,
-  onStarterAdd,
-  onStarterInputChange,
-  onStarterInputKeyDown,
-  onStarterRemove,
-  starterInput,
-  starterInputRef,
-  starterPrompts,
+  onStarterTaskAdd,
+  onStarterTaskChange,
+  onStarterTaskRemove,
+  starterTasks = [],
 }: AgentGeneralSectionProps) {
   const [coverDialogOpen, setCoverDialogOpen] = useState(false);
   const [coverInstruction, setCoverInstruction] = useState('');
@@ -170,11 +165,11 @@ export function AgentGeneralSection({
         </p>
       </div>
 
-      {/* Conversation starters */}
+      {/* Starter tasks */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-2">
           <Label>
-            Conversation starters <span className="font-normal text-muted-foreground">(optional)</span>
+            Starter tasks <span className="font-normal text-muted-foreground">(optional)</span>
           </Label>
           <AiAssistButton
             onClick={onGenerateStarters}
@@ -184,51 +179,16 @@ export function AgentGeneralSection({
           />
         </div>
         <p className="text-xs text-muted-foreground">
-          Suggested prompts shown to users before their first message. Up to 4.
+          Curated actions shown before the first message. Add up to 4 primary and 6 secondary tasks.
         </p>
-        {starterPrompts.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {starterPrompts.map((starterPrompt, index) => (
-              <span
-                key={`${starterPrompt}-${index}`}
-                className="inline-flex items-center gap-1 rounded-full border border-input bg-muted/40 px-2.5 py-1 text-xs"
-              >
-                {starterPrompt}
-                <button
-                  type="button"
-                  className="ml-0.5 text-muted-foreground transition hover:text-foreground"
-                  onClick={() => onStarterRemove(index)}
-                >
-                  <XIcon className="size-3" />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        {starterPrompts.length < 4 && (
-          <div className="flex gap-2">
-            <Input
-              ref={starterInputRef}
-              value={starterInput}
-              onChange={(event) => onStarterInputChange(event.target.value)}
-              onKeyDown={onStarterInputKeyDown}
-              placeholder="e.g. What can you help me with?"
-              maxLength={100}
-              className="text-sm"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="shrink-0"
-              disabled={!starterInput.trim()}
-              onClick={onStarterAdd}
-            >
-              <PlusIcon className="size-4" />
-            </Button>
-          </div>
-        )}
       </div>
+
+      <AgentStarterTasksSection
+        starterTasks={starterTasks}
+        onAddTask={onStarterTaskAdd}
+        onRemoveTask={onStarterTaskRemove}
+        onTaskChange={onStarterTaskChange}
+      />
 
       <AiImageAssistDialog
         open={coverDialogOpen}

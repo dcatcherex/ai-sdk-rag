@@ -29,6 +29,15 @@ const attachmentSchema = z.object({
   notes: z.string().nullable().optional(),
 });
 
+const starterTaskSchema = z.object({
+  id: z.string().min(1).max(120),
+  title: z.string().min(1).max(120),
+  description: z.string().min(1).max(240),
+  prompt: z.string().min(1).max(2000),
+  icon: z.enum(['calendar', 'chart', 'edit', 'mail', 'message', 'refresh', 'search', 'sparkles']),
+  priority: z.enum(['primary', 'secondary']),
+});
+
 const createSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(1000).nullable().optional(),
@@ -36,7 +45,11 @@ const createSchema = z.object({
   modelId: z.string().nullable().optional(),
   enabledTools: z.array(z.string()).optional(),
   skillAttachments: z.array(attachmentSchema).optional(),
-  starterPrompts: z.array(z.string().max(100)).max(4).optional(),
+  starterTasks: z.array(starterTaskSchema)
+    .max(10)
+    .refine((tasks) => tasks.filter((task) => task.priority === 'primary').length <= 4, 'No more than 4 primary starter tasks')
+    .refine((tasks) => tasks.filter((task) => task.priority === 'secondary').length <= 6, 'No more than 6 secondary starter tasks')
+    .optional(),
   brandId: z.string().nullable().optional(),
   brandMode: brandModeSchema.optional(),
   brandAccessPolicy: brandAccessPolicySchema.optional(),

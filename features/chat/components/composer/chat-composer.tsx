@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import type { ChatStatus } from 'ai';
 import { toast } from 'sonner';
 import { BookOpenIcon, CheckIcon, Columns2Icon, GlobeIcon, ImageIcon, LibraryIcon } from 'lucide-react';
@@ -138,6 +138,8 @@ export type ChatComposerProps = {
   onToggleCompareMode: () => void;
   onToggleCompareModel: (modelId: string) => void;
   onClearComparePreset: () => void;
+  preparedPrompt?: string | null;
+  onPreparedPromptApplied?: () => void;
 };
 
 // ── Prompt picker menu item (must live inside PromptInputProvider) ────────────
@@ -220,6 +222,29 @@ const VoiceInlineDisplay = ({ voiceState, micLevel }: { voiceState: VoiceState; 
   );
 };
 
+const PreparedPromptBridge = ({
+  preparedPrompt,
+  onApplied,
+  textareaRef,
+}: {
+  preparedPrompt?: string | null;
+  onApplied?: () => void;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
+}) => {
+  const controller = usePromptInputController();
+
+  useEffect(() => {
+    if (!preparedPrompt) return;
+    controller.textInput.setInput(preparedPrompt);
+    textareaRef.current?.focus();
+    const nextCursor = preparedPrompt.length;
+    textareaRef.current?.setSelectionRange(nextCursor, nextCursor);
+    onApplied?.();
+  }, [controller, onApplied, preparedPrompt, textareaRef]);
+
+  return null;
+};
+
 // ── ChatComposer ──────────────────────────────────────────────────────────────
 
 export function ChatComposer({
@@ -253,10 +278,13 @@ export function ChatComposer({
   onToggleCompareMode,
   onToggleCompareModel,
   onClearComparePreset,
+  preparedPrompt,
+  onPreparedPromptApplied,
 }: ChatComposerProps) {
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounter = useRef(0);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const { voiceState, transcript, micLevel, speakAloud, disconnect, toggleSpeakAloud } =
     useLiveVoice({
@@ -300,7 +328,7 @@ export function ChatComposer({
 
   return (
     <div
-      className="relative border-t border-black/5 dark:border-border px-3 py-2 md:px-4 md:py-2.5"
+      className="relative  px-3 py-2 md:px-3 md:py-2.5 "
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -323,6 +351,11 @@ export function ChatComposer({
       )}
       <PromptInputProvider>
         <PromptInput globalDrop className="rounded-xl" onSubmit={(message) => onSubmit(message)}>
+          <PreparedPromptBridge
+            preparedPrompt={preparedPrompt}
+            onApplied={onPreparedPromptApplied}
+            textareaRef={textareaRef}
+          />
           <PromptInputHeader>
             <ComposerAttachments />
             <ComposerReferenceImages
@@ -335,6 +368,7 @@ export function ChatComposer({
               <VoiceInlineDisplay voiceState={voiceState} micLevel={micLevel} />
             ) : (
               <PromptInputTextarea
+                ref={textareaRef}
                 className="min-h-9 max-h-[40vh] overflow-y-auto leading-6 px-3 pt-2.5 pb-2"
                 placeholder={
                   compareMode
@@ -475,11 +509,7 @@ export function ChatComposer({
           </PromptInputFooter>
         </PromptInput>
       </PromptInputProvider>
-      {!compareMode && !voiceOpen ? (
-        <p className="mt-2 px-2 text-[11px] text-muted-foreground">
-          ลองเริ่มด้วยการให้ช่วยตอบ LINE ร่างคอนเทนต์ ตอบลูกค้า หรือจัด workflow ตามงานของคุณ
-        </p>
-      ) : null}
+      
       {error && (
         <p className="mt-2 text-xs text-destructive">
           {error.message || 'Something went wrong. Please try again.'}

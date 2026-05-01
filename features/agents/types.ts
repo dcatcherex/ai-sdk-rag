@@ -1,5 +1,7 @@
 import type { AgentStructuredBehavior } from '@/lib/agent-structured-behavior';
 import type { AgentSkillAttachment, AgentSkillAttachmentInput } from '@/features/skills/types';
+import type { AgentUserToolAttachment, AgentUserToolAttachmentInput } from '@/features/user-tools/types';
+import type { AgentStarterTask } from '@/features/chat/components/empty-state/types';
 
 export type CatalogScope = 'personal' | 'system';
 
@@ -35,7 +37,7 @@ export type Agent = {
   fallbackBehavior: FallbackBehavior;
   imageUrl: string | null;
   isPublic: boolean;
-  starterPrompts: string[];
+  starterTasks: AgentStarterTask[];
   isTemplate: boolean;
   templateId: string | null;
   isDefault: boolean;
@@ -62,6 +64,7 @@ export type CreateAgentInput = {
   structuredBehavior?: AgentStructuredBehavior | null;
   modelId?: string | null;
   enabledTools?: string[];
+  userToolAttachments?: AgentUserToolAttachmentInput[];
   documentIds?: string[];
   skillAttachments?: AgentSkillAttachmentInput[];
   brandId?: string | null;
@@ -72,7 +75,7 @@ export type CreateAgentInput = {
   imageUrl?: string | null;
   isPublic?: boolean;
   isDefault?: boolean;
-  starterPrompts?: string[];
+  starterTasks?: AgentStarterTask[];
   sharedUserIds?: string[];
   mcpServers?: McpServerConfig[];
 };
@@ -90,4 +93,5 @@ export type AgentWithSharing = Agent & {
   ownerName?: string;
   sharedWith?: SharedUser[];
   skillAttachments?: AgentSkillAttachment[];
+  userToolAttachments?: AgentUserToolAttachment[];
 };

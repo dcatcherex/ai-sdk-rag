@@ -10,10 +10,12 @@ import { persistGeneration } from '@/lib/clientPersist';
 import { getPollingService } from '@/lib/polling/GenerationPollingService';
 import { cn } from '@/lib/utils';
 import { useSkills } from '@/features/skills/hooks/use-skills';
+import { useUserTools } from '@/features/user-tools/hooks/use-user-tools';
 import type { Brand } from '@/features/brands/types';
 import type { AgentSkillAttachmentInput, Skill, SkillActivationMode, SkillTriggerType } from '@/features/skills/types';
+import type { AgentUserToolAttachmentInput } from '@/features/user-tools/types';
 import { useUserDocuments } from '../hooks/use-agent-documents';
-import { useAgentSkillAttachmentsWithPrefix } from '../hooks/use-agents';
+import { useAgentSkillAttachmentsWithPrefix, useAgentUserToolAttachmentsWithPrefix } from '../hooks/use-agents';
 import { useUserSearch } from '../hooks/use-user-search';
 import { AgentBehaviorSection } from './agent-behavior-section';
 import { AgentGeneralSection } from './agent-general-section';
@@ -21,10 +23,13 @@ import { AgentKnowledgeSection } from './agent-knowledge-section';
 import { AgentSettingsLayout } from './agent-settings-layout';
 import { AgentSharingSection } from './agent-sharing-section';
 import { AgentSkillsSection } from './agent-skills-section';
+import { AgentCustomToolsSection } from './agent-custom-tools-section';
 import { AgentToolsSection } from './agent-tools-section';
 import { AgentMcpSection } from './agent-mcp-section';
 import { AgentPromptPreviewSection } from './agent-prompt-preview-section';
 import { AGENT_EDITOR_SECTIONS, type AgentEditorSection, type AgentEditorSectionId } from './agent-editor-sections';
+import type { AgentStarterTask } from '@/features/chat/components/empty-state/types';
+import { buildStarterTasksFromPrompts } from '@/features/agents/starter-tasks';
 import type {
   Agent,
   AgentWithSharing,
@@ -50,6 +55,7 @@ type AgentFormProps = {
   isPending?: boolean;
   layout?: 'dialog' | 'panel';
   resetKey?: string | boolean;
+  showStructuredStarterTasksEditor?: boolean;
   skillAttachmentsRoutePrefix?: string;
   submitLabel: string;
   visibleSections?: AgentEditorSectionId[];
@@ -81,6 +87,33 @@ const normalizeSkillAttachmentsForForm = (agent?: Agent | AgentWithSharing | nul
   );
 };
 
+const sortUserToolAttachments = (attachments: AgentUserToolAttachmentInput[]) =>
+  [...attachments].sort(
+    (a, b) => (a.priority ?? Number.MAX_SAFE_INTEGER) - (b.priority ?? Number.MAX_SAFE_INTEGER) || a.userToolId.localeCompare(b.userToolId),
+  );
+
+const normalizeUserToolAttachmentsForForm = (agent?: Agent | AgentWithSharing | null): AgentUserToolAttachmentInput[] => {
+  const existingAttachments = (agent as AgentWithSharing | null)?.userToolAttachments ?? [];
+  return sortUserToolAttachments(
+    existingAttachments.map((attachment, index) => ({
+      userToolId: attachment.userToolId,
+      isEnabled: attachment.isEnabled,
+      priority: attachment.priority ?? index,
+      notes: attachment.notes,
+    })),
+  );
+};
+
+const normalizeStarterTasksForForm = (agent?: Agent | AgentWithSharing | null): AgentStarterTask[] =>
+  (agent?.starterTasks ?? []).map((task) => ({
+    id: task.id,
+    title: task.title,
+    description: task.description,
+    prompt: task.prompt,
+    icon: task.icon,
+    priority: task.priority,
+  }));
+
 export function AgentForm({
   activeSection,
   agent,
@@ -95,6 +128,7 @@ export function AgentForm({
   isPending,
   layout = 'dialog',
   resetKey,
+  showStructuredStarterTasksEditor = false,
   skillAttachmentsRoutePrefix = '/api/agents',
   submitLabel,
   visibleSections,
@@ -113,9 +147,7 @@ export function AgentForm({
   const [imageUrl, setImageUrl] = useState<string>('');
   const [docSearch, setDocSearch] = useState('');
   const [isPublic, setIsPublic] = useState(false);
-  const [starterPrompts, setStarterPrompts] = useState<string[]>([]);
-  const [starterInput, setStarterInput] = useState('');
-  const starterInputRef = useRef<HTMLInputElement>(null);
+  const [starterTasks, setStarterTasks] = useState<AgentStarterTask[]>([]);
   const [isGeneratingCoverImage, setIsGeneratingCoverImage] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   const [isGeneratingStarters, setIsGeneratingStarters] = useState(false);
@@ -127,17 +159,25 @@ export function AgentForm({
   const [shareSearch, setShareSearch] = useState('');
   const [brands, setBrands] = useState<Brand[]>([]);
   const [skillAttachments, setSkillAttachments] = useState<AgentSkillAttachmentInput[]>([]);
+  const [userToolAttachments, setUserToolAttachments] = useState<AgentUserToolAttachmentInput[]>([]);
   const [mcpServers, setMcpServers] = useState<McpServerConfig[]>([]);
 
   const { data: userDocuments = [], isLoading: docsLoading } = useUserDocuments();
   const { data: searchResults = [] } = useUserSearch(shareSearch);
   const skillsQuery = useSkills();
+  const userToolsQuery = useUserTools();
   const userSkills = availableSkills ?? skillsQuery.data?.skills ?? [];
+  const userTools = userToolsQuery.data?.tools ?? [];
   const { data: loadedSkillAttachments = [] } = useAgentSkillAttachmentsWithPrefix(
     agent?.id ?? null,
     skillAttachmentsRoutePrefix,
   );
+  const { data: loadedUserToolAttachments = [] } = useAgentUserToolAttachmentsWithPrefix(
+    agent?.id ?? null,
+    skillAttachmentsRoutePrefix,
+  );
   const loadedAttachmentAgentIdRef = useRef<string | null>(null);
+  const loadedUserToolAttachmentAgentIdRef = useRef<string | null>(null);
   const isInitializedRef = useRef(false);
   const hasUserEditedRef = useRef(false);
   const initialSnapshotRef = useRef<string | null>(null);
@@ -176,7 +216,8 @@ export function AgentForm({
       setIsPublic(agent.isPublic ?? false);
       setSharedWith((agent as AgentWithSharing).sharedWith ?? []);
       setSkillAttachments(normalizeSkillAttachmentsForForm(agent as AgentWithSharing));
-      setStarterPrompts(agent.starterPrompts ?? []);
+      setUserToolAttachments(normalizeUserToolAttachmentsForForm(agent as AgentWithSharing));
+      setStarterTasks(normalizeStarterTasksForForm(agent as AgentWithSharing));
       setMcpServers(agent.mcpServers ?? []);
     } else {
       setName('');
@@ -194,13 +235,14 @@ export function AgentForm({
       setIsPublic(false);
       setSharedWith([]);
       setSkillAttachments([]);
-      setStarterPrompts([]);
+      setUserToolAttachments([]);
+      setStarterTasks([]);
       setMcpServers([]);
     }
-    setStarterInput('');
     setDocSearch('');
     setShareSearch('');
     loadedAttachmentAgentIdRef.current = agent?.id ?? null;
+    loadedUserToolAttachmentAgentIdRef.current = agent?.id ?? null;
     isInitializedRef.current = true;
   }, [agent, resetKey]);
 
@@ -228,14 +270,37 @@ export function AgentForm({
     }
   }, [agent?.id, loadedSkillAttachments]);
 
+  useEffect(() => {
+    if (!agent?.id) return;
+    if (loadedUserToolAttachmentAgentIdRef.current === `${agent.id}:loaded`) return;
+    if (loadedUserToolAttachments.length === 0) return;
+
+    const normalizedAttachments = sortUserToolAttachments(
+      loadedUserToolAttachments.map((attachment, index) => ({
+        userToolId: attachment.userToolId,
+        isEnabled: attachment.isEnabled,
+        priority: attachment.priority ?? index,
+        notes: attachment.notes,
+      })),
+    );
+
+    setUserToolAttachments(normalizedAttachments);
+    loadedUserToolAttachmentAgentIdRef.current = `${agent.id}:loaded`;
+    if (!hasUserEditedRef.current) {
+      initialSnapshotRef.current = null;
+    }
+  }, [agent?.id, loadedUserToolAttachments]);
+
   const markUserEdited = () => { hasUserEditedRef.current = true; };
 
   // Dirty tracking
   const currentSnapshot = JSON.stringify({
     name, description, systemPrompt, modelId, enabledTools, documentIds,
-    brandId, brandMode, brandAccessPolicy, requiresBrandForRun, fallbackBehavior, imageUrl, isPublic, starterPrompts,
+    brandId, brandMode, brandAccessPolicy, requiresBrandForRun, fallbackBehavior, imageUrl, isPublic,
+    starterTasks,
     sharedUserIds: sharedWith.map((u) => u.id),
     skillAttachments: sortSkillAttachments(skillAttachments),
+    userToolAttachments: sortUserToolAttachments(userToolAttachments),
     mcpServers,
   });
 
@@ -274,13 +339,62 @@ export function AgentForm({
     : fallbackSection;
   const activeSectionMeta = combinedSections.find((s) => s.id === resolvedActiveSection);
 
-  const addStarterPrompt = () => {
-    const value = starterInput.trim();
-    if (!value || starterPrompts.length >= 4) return;
+  const addStarterTask = () => {
     markUserEdited();
-    setStarterPrompts((prev) => [...prev, value]);
-    setStarterInput('');
-    starterInputRef.current?.focus();
+    const primaryCount = starterTasks.filter((task) => task.priority === 'primary').length;
+    const nextPriority: AgentStarterTask['priority'] = primaryCount < 4 ? 'primary' : 'secondary';
+    setStarterTasks((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        title: '',
+        description: '',
+        prompt: '',
+        icon: 'sparkles',
+        priority: nextPriority,
+      },
+    ]);
+  };
+
+  const removeStarterTask = (id: string) => {
+    markUserEdited();
+    setStarterTasks((prev) => prev.filter((task) => task.id !== id));
+  };
+
+  const updateStarterTask = <K extends keyof AgentStarterTask>(
+    id: string,
+    field: K,
+    value: AgentStarterTask[K],
+  ) => {
+    markUserEdited();
+    setStarterTasks((prev) =>
+      prev.map((task) => (task.id === id ? { ...task, [field]: value } : task)),
+    );
+  };
+
+  const appendSuggestedStarterTasks = (prompts: string[]) => {
+    setStarterTasks((prev) => {
+      const next = [...prev];
+      let primaryCount = next.filter((task) => task.priority === 'primary').length;
+      let secondaryCount = next.filter((task) => task.priority === 'secondary').length;
+
+      for (const task of buildStarterTasksFromPrompts(prompts)) {
+        if (next.some((existing) => existing.prompt.trim() === task.prompt.trim())) {
+          continue;
+        }
+        if (primaryCount < 4) {
+          next.push({ ...task, priority: 'primary' });
+          primaryCount += 1;
+          continue;
+        }
+        if (secondaryCount < 6) {
+          next.push({ ...task, priority: 'secondary' });
+          secondaryCount += 1;
+        }
+      }
+
+      return next.slice(0, 10);
+    });
   };
 
   const handleGenerateDescription = async () => {
@@ -403,7 +517,7 @@ export function AgentForm({
           entityId: agent?.id,
           name,
           systemPrompt,
-          extra: { starterPrompts },
+          extra: { starterTasks },
         },
       });
 
@@ -446,6 +560,15 @@ export function AgentForm({
     setSkillAttachments((prev) => [...prev, { skillId, isEnabled: true, priority: prev.length }]);
   };
 
+  const toggleUserToolAttachment = (userToolId: string, currentlySelected: boolean) => {
+    markUserEdited();
+    if (currentlySelected) {
+      setUserToolAttachments((prev) => prev.filter((a) => a.userToolId !== userToolId));
+      return;
+    }
+    setUserToolAttachments((prev) => [...prev, { userToolId, isEnabled: true, priority: prev.length }]);
+  };
+
   const updateSkillAttachment = (
     skillId: string,
     field: 'activationModeOverride' | 'triggerTypeOverride' | 'triggerOverride' | 'priority',
@@ -474,6 +597,7 @@ export function AgentForm({
       structuredBehavior: null,
       modelId: modelId === 'auto' ? null : modelId,
       enabledTools,
+      userToolAttachments: sortUserToolAttachments(userToolAttachments),
       documentIds,
       skillAttachments: sortSkillAttachments(skillAttachments),
       brandId: brandId === 'none' ? null : brandId,
@@ -483,7 +607,14 @@ export function AgentForm({
       fallbackBehavior,
       imageUrl: imageUrl || null,
       isPublic,
-      starterPrompts,
+      starterTasks: starterTasks
+        .map((task) => ({
+          ...task,
+          title: task.title.trim(),
+          description: task.description.trim(),
+          prompt: task.prompt.trim(),
+        }))
+        .filter((task) => task.title && task.description && task.prompt),
       sharedUserIds: sharedWith.map((u) => u.id),
       mcpServers,
     });
@@ -505,18 +636,10 @@ export function AgentForm({
       onImageUrlChange={(url) => { markUserEdited(); setImageUrl(url); }}
       onModelChange={(value) => { markUserEdited(); setModelId(value); }}
       onNameChange={(value) => { markUserEdited(); setName(value); }}
-      onStarterAdd={addStarterPrompt}
-      onStarterInputChange={setStarterInput}
-      onStarterInputKeyDown={(event) => {
-        if (event.key === 'Enter') { event.preventDefault(); addStarterPrompt(); }
-      }}
-      onStarterRemove={(index) => {
-        markUserEdited();
-        setStarterPrompts((prev) => prev.filter((_, i) => i !== index));
-      }}
-      starterInput={starterInput}
-      starterInputRef={starterInputRef}
-      starterPrompts={starterPrompts}
+      onStarterTaskAdd={addStarterTask}
+      onStarterTaskChange={updateStarterTask}
+      onStarterTaskRemove={removeStarterTask}
+      starterTasks={starterTasks}
     />
   );
 
@@ -556,6 +679,14 @@ export function AgentForm({
   );
 
   const toolsSection = <AgentToolsSection enabledTools={enabledTools} onToggleTool={toggleTool} />;
+
+  const customToolsSection = (
+    <AgentCustomToolsSection
+      attachments={userToolAttachments}
+      userTools={userTools}
+      onToolToggle={toggleUserToolAttachment}
+    />
+  );
 
   const mcpSection = (
     <AgentMcpSection
@@ -611,6 +742,7 @@ export function AgentForm({
     skills: skillsSection,
     knowledge: knowledgeSection,
     tools: toolsSection,
+    'custom-tools': customToolsSection,
     mcp: mcpSection,
     sharing: sharingSection,
     preview: (
@@ -662,6 +794,7 @@ export function AgentForm({
             {visibleSectionSet.has('behavior') ? behaviorSection : null}
             {visibleSectionSet.has('skills') ? skillsSection : null}
             {visibleSectionSet.has('tools') ? toolsSection : null}
+            {visibleSectionSet.has('custom-tools') ? customToolsSection : null}
             {visibleSectionSet.has('mcp') ? mcpSection : null}
             {visibleSectionSet.has('knowledge') ? knowledgeSection : null}
             {visibleSectionSet.has('sharing') ? sharingSection : null}
@@ -689,24 +822,20 @@ export function AgentForm({
         open={starterSuggestionsOpen}
         onOpenChange={setStarterSuggestionsOpen}
         title="Conversation Starter Suggestions"
-        description="Pick one starter or apply the full set."
+        description="Convert these suggestions into structured starter tasks."
         suggestions={starterSuggestions}
         onSelect={(suggestion) => {
           markUserEdited();
-          setStarterPrompts((prev) => {
-            if (prev.includes(suggestion)) return prev;
-            return [...prev, suggestion].slice(0, 4);
-          });
+          appendSuggestedStarterTasks([suggestion]);
           setStarterSuggestionsOpen(false);
-          toast.success('Starter applied');
+          toast.success('Starter task applied');
         }}
         primaryActionLabel="Use all"
         onPrimaryAction={() => {
           markUserEdited();
-          setStarterPrompts(starterSuggestions.slice(0, 4));
-          setStarterInput('');
+          appendSuggestedStarterTasks(starterSuggestions);
           setStarterSuggestionsOpen(false);
-          toast.success('Conversation starters applied');
+          toast.success('Starter tasks applied');
         }}
       />
     </>

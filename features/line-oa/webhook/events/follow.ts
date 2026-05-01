@@ -3,6 +3,7 @@ import type { AgentRow, Sender } from '../types';
 import { buildWelcomeFlex } from '../flex';
 import { buildQuickReplyItem } from '../utils/quick-reply';
 import { WELCOME_STICKERS, pickRandom } from '@/features/line-oa/utils/stickers';
+import { getStarterTaskActions } from '@/features/agents/starter-tasks';
 
 type LineEvent = {
   replyToken: string;
@@ -20,14 +21,14 @@ export async function handleFollowEvent(
   agentRow: AgentRow,
   brandLogoUrl: string | undefined,
   sender: Sender | undefined,
-  starterPrompts?: string[],
 ): Promise<void> {
-  const starters = (starterPrompts && starterPrompts.length > 0)
-    ? starterPrompts.slice(0, 3)
-    : DEFAULT_STARTERS;
+  const starters = getStarterTaskActions(agentRow?.starterTasks, 3);
+  const fallbackStarters = DEFAULT_STARTERS.map((text) => ({ title: text, prompt: text }));
 
   const quickReply = {
-    items: starters.map((s) => buildQuickReplyItem(s)),
+    items: (starters.length > 0 ? starters : fallbackStarters).map((starter) =>
+      buildQuickReplyItem(starter.prompt, starter.title),
+    ),
   };
 
   const welcomeMessage = buildWelcomeFlex(

@@ -112,7 +112,6 @@ async function processEvents(
           agentRow,
           brandLogoUrl,
           sender,
-          agentRow?.starterPrompts ?? [],
         );
         continue;
       }

@@ -15,6 +15,7 @@ Date of audit: 2026-04-27.
 - Vaja platform: multi-model chat, agents, skills, RAG/knowledge base, memory, tools, credits, and LINE OA plumbing.
 - Contextual Skills Engine: skills can be attached to agents, activated by model/rules, injected into prompts, and enriched with resource files.
 - Farm Advisor seed: there is a seeded Farm Advisor agent and agricultural skills for pest/disease, weather risk, market guidance, and record keeping.
+- Agriculture knowledge pack: the pest/disease skill now includes a diagnosis checklist, Thai crop disease/pest reference, pesticide safety/status guardrails, escalation/emergency guidance, and source-register workflow. It is strong enough for a controlled demo and expert-reviewed pilot, but should not be presented as fully validated production agronomy yet.
 - LINE OA integration: text, image, audio, and video message handlers exist; conversations are persisted per LINE user/channel; rich menus, postbacks, broadcasts, narrowcasts, and account linking exist.
 - Voice note input: LINE audio can be transcribed with Gemini; an AI text response is sent; a TTS audio reply is pushed for audio-input flows.
 - Generic Flex response: LINE replies can be rendered as Flex bubbles when the answer has enough bullet points.
@@ -37,9 +38,33 @@ Date of audit: 2026-04-27.
 2. Route LINE image/audio through the same canonical agent run as text, after deriving an image observation or audio transcript, so skills and tools activate reliably.
 3. Add a dedicated agriculture response contract to the Farm Advisor prompt: diagnosis, confidence, severity, immediate action, prevention, when to contact an officer.
 4. Add a simple agriculture Flex template or ensure the prompt outputs bullet sections that trigger the existing Flex builder.
-5. Seed/upload a small, curated agriculture reference pack: tomato early blight, rice blast, cassava mealybug/mosaic, longan anthracnose, pesticide safety rules, and Thai emergency contacts.
+5. Expand the curated agriculture reference pack beyond the current seed set: add more crop-specific files, more official-source citations, and expert review notes for each major crop.
 6. Create 6 scripted test cases and record actual outputs: text diagnosis, photo diagnosis, voice farm log, weather risk, record summary, officer broadcast.
 7. Decide whether the live LINE channel should be billed to the channel owner for the demo, and avoid promising per-farmer credit caps until implemented.
+
+### Direct answer: are our agricultural skills expert enough?
+
+Answer:
+
+They are expert enough for a live technical demonstration and a controlled pilot, but not yet enough to claim production-grade agronomic authority.
+
+What is already strong:
+
+- The system does not rely only on the base model. It injects task-specific agricultural skills into the agent.
+- The pest/disease skill follows a diagnostic workflow: crop, affected part, symptoms, spread pattern, weather/moisture context, pest signs, confidence, severity, immediate action, prevention, and escalation.
+- The reference pack includes Thai crop disease and pest patterns, pesticide safety rules, prohibited-substance guardrails, emergency escalation, and source-tracking.
+- The skill is conservative by design: it avoids definitive diagnosis from one photo, does not recommend brand names, blocks known prohibited substances such as chlorpyrifos and paraquat, and tells farmers to use only registered products according to the label.
+- Advice can be updated by editing the skill pack, without changing core application code.
+
+What still needs validation:
+
+- The content has not yet been reviewed line-by-line by Thai agronomists or extension officers.
+- The current reference pack covers common cases, not all crops, regions, pests, diseases, pesticide labels, or resistance issues.
+- The app has not yet completed a real farmer pilot with measured accuracy, usefulness, and safety.
+
+Committee-safe wording:
+
+> Our agricultural skill pack is not just a generic chatbot prompt. It is a structured, source-tracked advisory layer designed for Thai farming contexts. It is ready for demo and controlled pilot testing, but before commercial deployment we will run expert review with extension officers/agronomists and validate outputs on real farmer cases.
 
 ---
 
@@ -157,26 +182,30 @@ Answer:
 We use a layered approach:
 
 1. Curated skill instructions: the pest/disease skill instructs the AI to follow a diagnostic workflow rather than guessing.
-2. Visual evidence: for photo inputs, a vision model can inspect the image and describe symptoms.
-3. Conservative response style: the AI is instructed to state uncertainty, ask follow-up questions, and avoid overconfident diagnosis.
-4. Human escalation: severe or ambiguous cases should be referred to extension officers.
-5. Pilot validation: real farmer cases will be reviewed by agricultural experts before commercial rollout.
+2. Structured references: the skill includes a Thai crop disease/pest reference, a diagnosis checklist, pesticide safety/status guardrails, escalation guidance, and a source register.
+3. Visual evidence: for photo inputs, a vision model can inspect the image and describe symptoms before the farm-advisor skill gives triage advice.
+4. Conservative response style: the AI is instructed to state uncertainty, ask at most one necessary follow-up question, and avoid overconfident diagnosis.
+5. Chemical safety guardrails: the skill blocks known prohibited substances, avoids brand names, avoids unsupported dosage instructions, and requires label/PPE/registered-product warnings.
+6. Human escalation: severe, fast-spreading, high-value, chemical-exposure, or ambiguous cases should be referred to extension officers.
+7. Pilot validation: real farmer cases will be reviewed by agricultural experts before commercial rollout.
 
-We will not claim 100 percent diagnostic accuracy. The safer claim is that Vaja improves access to preliminary advisory and triage, while keeping high-risk decisions under human oversight.
+We will not claim 100 percent diagnostic accuracy. The safer claim is that Vaja improves access to preliminary advisory and triage, while keeping high-risk crop and chemical decisions under human oversight.
 
 ### Q9. How is the agricultural knowledge base validated?
 
 Answer:
 
-The current agricultural skill pack is a prototype knowledge layer. It should be validated before being treated as production agronomic advice.
+The current agricultural skill pack is a structured prototype knowledge layer. It is better than a generic prompt because it contains explicit workflows, references, safety rules, and source-tracking. However, it should still be validated before being treated as production agronomic advice.
 
 Planned validation process:
 
-1. Compile the initial references from official and expert sources, such as Thai Department of Agriculture, Department of Agricultural Extension, Kasetsart University publications, and pesticide safety guidance.
-2. Ask 2-3 extension officers or agronomists to review the skill content before farmer testing.
-3. Run a small pilot with 30-50 farmers and review real outputs.
-4. Update the skill pack based on expert corrections and field feedback.
-5. Version the skill pack so changes are traceable.
+1. Compile and maintain references from official and expert sources, such as Thai Department of Agriculture, Department of Agricultural Extension, Thai Rice Department, Kasetsart University publications, and pesticide safety guidance.
+2. Mark chemical advice as unsafe unless the current Thai label or DOA registration source supports the crop and pest/disease use.
+3. Ask 2-3 extension officers or agronomists to review the skill content before farmer testing.
+4. Run a small pilot with 30-50 farmers and review real outputs.
+5. Score outputs for correctness, safety, clarity, and escalation behavior.
+6. Update the skill pack based on expert corrections and field feedback.
+7. Version the skill pack so changes are traceable.
 
 The architecture makes this practical because domain knowledge lives in skills, not hardcoded app logic.
 
@@ -191,7 +220,8 @@ Current and planned safety mechanisms include:
 - Conservative language: advice is framed as recommendation, not command.
 - Uncertainty handling: if the image or symptoms are unclear, the AI should say so and ask for more information.
 - Officer referral: severe, fast-spreading, or ambiguous cases should be escalated.
-- Chemical safety constraints: avoid brand-name promotion; prefer active ingredients, label compliance, PPE, and local expert confirmation.
+- Chemical safety constraints: avoid brand-name promotion; check pesticide-status guardrails; block known prohibited substances; require label compliance, PPE, registered-product use, and local expert confirmation.
+- No unsupported dosage: the skill should not provide mixing rates, dosage, or harvest intervals unless supported by a current official label/source.
 - Human review: extension officers can monitor conversations and send corrected guidance or broadcasts.
 - Pilot review loop: responses from the pilot will be scored for usefulness, safety, and correctness.
 

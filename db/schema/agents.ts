@@ -3,6 +3,7 @@ import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex }
 
 import type { AgentStructuredBehavior } from "@/lib/agent-structured-behavior";
 import type { McpServerConfig } from "@/features/agents/types";
+import type { AgentStarterTask } from "@/features/chat/components/empty-state/types";
 
 import { user } from "./auth";
 import { brand } from "./brands";
@@ -25,7 +26,7 @@ export const agent = pgTable("agent", {
   fallbackBehavior: text("fallback_behavior").notNull().default("ask_or_continue"),
   imageUrl: text("image_url"),
   isPublic: boolean("is_public").notNull().default(false),
-  starterPrompts: text("starter_prompts").array().notNull().default(sql`'{}'::text[]`),
+  starterTasks: jsonb("starter_tasks").$type<AgentStarterTask[]>().notNull().default(sql`'[]'::jsonb`),
   isTemplate: boolean("is_template").notNull().default(false),
   templateId: text("template_id"),
   isDefault: boolean("is_default").notNull().default(false),

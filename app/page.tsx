@@ -31,6 +31,7 @@ import { GuestBanner } from '@/features/auth/components/guest-banner';
 import { useUserPreferences } from '@/features/settings/hooks/use-user-preferences';
 import { GenerationProgressProvider } from '@/features/chat/context/generation-progress-context';
 import { GenerationProgressBar } from '@/features/chat/components/generation-progress-bar';
+import type { AgentStarterTask } from '@/features/chat/components/empty-state/types';
 
 const GENERAL_STARTER_PROMPTS = [
   'ช่วยเขียนข้อความตอบลูกค้า LINE ที่ถามเรื่องราคาและการจัดส่ง',
@@ -78,6 +79,7 @@ function ChatShell() {
 
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(() => consumePendingChatIntent()?.agentId ?? null);
+  const [preparedComposerPrompt, setPreparedComposerPrompt] = useState<string | null>(null);
   const [referenceImages, setReferenceImages] = useState<ChatReferenceImage[]>([]);
   const latestQuizContextRef = useRef<QuizFollowUpContext | null>(null);
   const selectedDocIdsRef = useRef(selectedDocIds);
@@ -356,6 +358,10 @@ function ChatShell() {
     [handleSubmitMessage]
   );
 
+  const handleEmptyStateTaskSelect = useCallback((task: AgentStarterTask) => {
+    setPreparedComposerPrompt(task.prompt);
+  }, []);
+
   const handleQuizStateChange = useCallback((context: QuizFollowUpContext) => {
     latestQuizContextRef.current = context;
   }, []);
@@ -454,8 +460,9 @@ function ChatShell() {
                   fontSize={fontSize}
                   agentName={selectedAgent?.name}
                   agentDescription={selectedAgent?.description}
-                  starterPrompts={selectedAgent?.starterPrompts}
+                  starterTasks={selectedAgent?.starterTasks}
                   generalStarterPrompts={GENERAL_STARTER_PROMPTS}
+                  onEmptyStateTaskSelect={handleEmptyStateTaskSelect}
                   onCopyMessage={copyToClipboard}
                   onRegenerateMessage={regenerateMessage}
                   onDeleteMessage={deleteMessage}
@@ -514,6 +521,8 @@ function ChatShell() {
                 onToggleCompareMode={handleToggleCompareMode}
                 onToggleCompareModel={toggleCompareModel}
                 onClearComparePreset={clearPreset}
+                preparedPrompt={preparedComposerPrompt}
+                onPreparedPromptApplied={() => setPreparedComposerPrompt(null)}
               />
 
               <ThreadWorkingMemorySheet

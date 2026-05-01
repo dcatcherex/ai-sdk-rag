@@ -33,7 +33,7 @@ export type CreateAgentInput = {
   description?: string;
   modelId?: string;
   skillIds?: string[];
-  starterPrompts?: string[];
+  starterTasks?: import('@/features/chat/components/empty-state/types').AgentStarterTask[];
 };
 
 export type InstallSkillInput = {

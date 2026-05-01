@@ -31,7 +31,7 @@ const AGENT_LOCK_FIELDS = [
   'requiresBrandForRun',
   'fallbackBehavior',
   'documentIds',
-  'starterPrompts',
+  'starterTasks',
 ] as const;
 
 export function AdminAgentCatalogSection({

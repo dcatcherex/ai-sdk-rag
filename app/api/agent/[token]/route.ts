@@ -31,7 +31,7 @@ export async function GET(_req: Request, { params }: Params) {
       modelId: agent.modelId,
       enabledTools: agent.enabledTools,
       documentIds: agent.documentIds,
-      starterPrompts: agent.starterPrompts,
+      starterTasks: agent.starterTasks,
     })
     .from(agent)
     .where(eq(agent.id, share.agentId))

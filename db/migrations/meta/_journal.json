@@ -246,6 +246,27 @@
       "when": 1777356143815,
       "tag": "0041_overjoyed_pyro",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1777363324078,
+      "tag": "0042_even_catseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1777382451943,
+      "tag": "0043_complete_prowler",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1777500000000,
+      "tag": "0044_structured_starter_tasks",
+      "breakpoints": true
     }
   ]
 }

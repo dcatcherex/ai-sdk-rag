@@ -1,24 +1,22 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BotIcon } from 'lucide-react';
 import {
   Conversation,
   ConversationContent,
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation';
-import { FollowUpChips } from './follow-up-chips';
-import type { ChatMessageMetadata } from '@/features/chat/types';
+import { AgentChatEmptyState } from '@/features/chat/components/empty-state/agent-chat-empty-state';
 import { SelectionContextMenu } from '@/features/chat/components/selection-context-menu';
+import type { ChatMessagePart, ChatMessageMetadata } from '@/features/chat/types';
+import { getTextContentFromParts } from '@/features/chat/utils/message-parts';
+import { useStickToBottomContext } from 'use-stick-to-bottom';
 import { CompareGroupCard } from './compare-group-card';
 import { DeleteConfirmDialog } from './delete-confirm-dialog';
 import { MessageItem, StreamingPlaceholder } from './message-item';
 import { ThreadScrollMemory } from './thread-scroll-memory';
 import { FONT_SIZE_CLASS } from './types';
 import type { ChatMessageListProps, MessageGroupItem, PendingDelete } from './types';
-import { getTextContentFromParts } from '@/features/chat/utils/message-parts';
-import type { ChatMessagePart } from '@/features/chat/types';
-import { useStickToBottomContext } from 'use-stick-to-bottom';
 
 export type { FontSize } from './types';
 
@@ -117,8 +115,9 @@ export const ChatMessageList = ({
   fontSize = 'sm',
   agentName,
   agentDescription,
-  starterPrompts,
+  starterTasks,
   generalStarterPrompts = [],
+  onEmptyStateTaskSelect,
   onCopyMessage,
   onRegenerateMessage,
   onToggleReaction,
@@ -129,7 +128,7 @@ export const ChatMessageList = ({
   onQuizStateChange,
   onActiveMessageChange,
 }: ChatMessageListProps) => {
-  const lastAssistantIdx = messages.reduce((acc, m, i) => (m.role === 'assistant' ? i : acc), -1);
+  const lastAssistantIdx = messages.reduce((acc, message, index) => (message.role === 'assistant' ? index : acc), -1);
   const scrollPositionsRef = useRef<Map<string, number>>(new Map());
   const pendingRestoreThreadKeyRef = useRef<string | null>(null);
 
@@ -139,28 +138,28 @@ export const ChatMessageList = ({
 
   const groupedItems = useMemo((): MessageGroupItem[] => {
     const result: MessageGroupItem[] = [];
-    let i = 0;
-    while (i < messages.length) {
-      const msg = messages[i];
-      const groupId = (msg.metadata as ChatMessageMetadata | undefined)?.compareGroupId;
-      if (msg.role === 'assistant' && groupId) {
-        const group = [msg];
-        let j = i + 1;
-        while (j < messages.length) {
-          const next = messages[j];
-          const nextGroupId = (next.metadata as ChatMessageMetadata | undefined)?.compareGroupId;
-          if (next.role === 'assistant' && nextGroupId === groupId) {
-            group.push(next);
-            j++;
+    let index = 0;
+    while (index < messages.length) {
+      const message = messages[index];
+      const groupId = (message.metadata as ChatMessageMetadata | undefined)?.compareGroupId;
+      if (message.role === 'assistant' && groupId) {
+        const group = [message];
+        let nextIndex = index + 1;
+        while (nextIndex < messages.length) {
+          const nextMessage = messages[nextIndex];
+          const nextGroupId = (nextMessage.metadata as ChatMessageMetadata | undefined)?.compareGroupId;
+          if (nextMessage.role === 'assistant' && nextGroupId === groupId) {
+            group.push(nextMessage);
+            nextIndex += 1;
           } else {
             break;
           }
         }
         result.push({ type: 'compareGroup', messages: group, groupId });
-        i = j;
+        index = nextIndex;
       } else {
-        result.push({ type: 'regular', message: msg, msgIndex: i });
-        i++;
+        result.push({ type: 'regular', message, msgIndex: index });
+        index += 1;
       }
     }
     return result;
@@ -207,35 +206,13 @@ export const ChatMessageList = ({
         scrollClassName="chat-scroll-area h-full"
       >
         {messages.length === 0 ? (
-          agentName && starterPrompts && starterPrompts.length > 0 ? (
-            <div className="flex flex-col items-center justify-center gap-4 py-16 text-center px-4">
-              <div className="rounded-full bg-primary/10 p-3">
-                <BotIcon className="size-7 text-primary" />
-              </div>
-              <div>
-                <p className="font-semibold text-base">{agentName}</p>
-                {agentDescription && (
-                  <p className="mt-1 text-sm text-muted-foreground max-w-sm">{agentDescription}</p>
-                )}
-              </div>
-              <FollowUpChips suggestions={starterPrompts} onSuggestionClick={onSuggestionClick} />
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center gap-4 px-4 py-16 text-center">
-              <div className="rounded-full bg-primary/10 p-3">
-                <BotIcon className="size-7 text-primary" />
-              </div>
-              <div className="space-y-1">
-                <p className="font-semibold text-base">Vaja AI พร้อมช่วยงานแล้ว</p>
-                <p className="mx-auto max-w-md text-sm text-muted-foreground">
-                  เริ่มจากงานจริงที่ต้องทำตอนนี้ ขอให้ช่วยร่างข้อความ หรือเพิ่มไฟล์และ skills เพื่อให้ Vaja เข้าใจบริบทงานของคุณมากขึ้น
-                </p>
-              </div>
-              {generalStarterPrompts.length > 0 ? (
-                <FollowUpChips suggestions={generalStarterPrompts} onSuggestionClick={onSuggestionClick} />
-              ) : null}
-            </div>
-          )
+          <AgentChatEmptyState
+            agentName={agentName}
+            agentDescription={agentDescription}
+            starterTasks={starterTasks}
+            generalStarterPrompts={generalStarterPrompts}
+            onSelectTask={onEmptyStateTaskSelect}
+          />
         ) : (
           <>
             {groupedItems.map((item) => {
@@ -263,7 +240,7 @@ export const ChatMessageList = ({
                   isSyncingFollowUpSuggestions={isSyncingFollowUpSuggestions}
                   copiedMessageId={copiedMessageId}
                   messageReactions={messageReactions}
-                  isActiveMessage={false}
+                  isActiveMessage={message.id === activeMessageId}
                   isDeleteHighlighted={hoveredDeleteIds.has(message.id)}
                   openInfoId={openInfoId}
                   onCopyMessage={onCopyMessage}
