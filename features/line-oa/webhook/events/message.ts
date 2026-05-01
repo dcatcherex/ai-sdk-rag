@@ -40,7 +40,7 @@ import {
 } from '@/features/agents/server/runtime';
 import { resolveRelevantDomainContext } from '@/features/domain-profiles/service';
 import { renderDomainContextPromptBlock } from '@/features/domain-profiles/server/prompt';
-import { buildAgricultureSetupPromptBlock } from '@/features/domain-profiles/server/agriculture';
+import { buildDomainSetupPromptBlock } from '@/features/domain-profiles/server/setup';
 import {
   prepareAgentRun,
   runAgentText,
@@ -556,7 +556,7 @@ export async function handleMessageEvent(
       : { lineUserId, channelId: channel.id },
   );
   const domainContextBlock = renderDomainContextPromptBlock(domainContext);
-  const domainSetupBlock = buildAgricultureSetupPromptBlock({
+  const domainSetupBlock = buildDomainSetupPromptBlock({
     userMessage: textMessage,
     context: domainContext,
     skillRuntime,

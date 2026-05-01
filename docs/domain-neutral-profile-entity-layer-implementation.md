@@ -42,6 +42,10 @@ Updated: 2026-05-01
 - Injected an optional farm setup prompt block into the shared agent runtime so web chat and LINE can offer progressive setup without forcing forms.
 - Expanded the agriculture `farm-record-keeper` skill with setup rules, plot and crop-cycle examples, and explicit GPS/boundary optionality.
 - Added tests covering the agriculture setup prompt behavior.
+- Phase 6 is implemented in code.
+- Generalized the setup-definition layer so agriculture, education, clinic, sales, and creator profiles can all use the same domain-neutral prompt path.
+- Added new profession skill packages for classroom, clinic, sales pipeline, and creator workspace setup, all using the generic `domain_profiles` tools.
+- Added tests covering non-agriculture setup selection and skill-hint activation.
 
 ## Current State
 
@@ -58,8 +62,8 @@ The app already has useful building blocks:
 Current gaps:
 
 - No field definition layer for skill-defined data capture.
-- No reusable optional setup flow yet for non-agriculture professions.
-- Agriculture pilot setup exists at the prompt/helper layer, but there is not yet a dedicated profile management UI.
+- Multi-domain setup now exists at the prompt/helper layer, but there is not yet a dedicated profile management UI.
+- Profession packs beyond the initial four non-agriculture examples are still skill-package work rather than platform-core work.
 
 ## Product Principle
 
@@ -591,8 +595,8 @@ Phase 5: Agriculture pilot.
 
 Phase 6: Broaden to other professions.
 
-- Add education, clinic, sales, and creator profile definitions as skill packages.
-- Avoid platform-core changes unless multiple domains need the same primitive.
+- [x] Add education, clinic, sales, and creator profile definitions as skill packages.
+- [x] Avoid platform-core changes unless multiple domains need the same primitive.
 
 ## Testing Checklist
 

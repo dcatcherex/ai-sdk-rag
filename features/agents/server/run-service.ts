@@ -14,7 +14,7 @@ import { buildBrandImageContext, buildImageBrandSuffix } from '@/features/brands
 import type { Brand } from '@/features/brands/types';
 import type { Agent } from '@/features/agents/types';
 import { renderDomainContextPromptBlock } from '@/features/domain-profiles/server/prompt';
-import { buildAgricultureSetupPromptBlock } from '@/features/domain-profiles/server/agriculture';
+import { buildDomainSetupPromptBlock } from '@/features/domain-profiles/server/setup';
 import type { DomainProfileOwnerContext, ResolvedDomainContext } from '@/features/domain-profiles/types';
 import type { SkillRuntimeContext } from '@/features/skills/server/activation';
 import { buildUserCreatedToolSet } from '@/features/user-tools/service';
@@ -367,7 +367,7 @@ export async function prepareAgentRun(request: AgentRunRequest): Promise<Prepare
   const resolvedDomainContextBlock = channelContext.domainContextBlock
     ?? renderDomainContextPromptBlock(resolvedDomainContext);
   const resolvedDomainSetupBlock = channelContext.domainSetupBlock
-    ?? buildAgricultureSetupPromptBlock({
+    ?? buildDomainSetupPromptBlock({
       userMessage: lastUserPrompt,
       context: resolvedDomainContext,
       skillRuntime,
