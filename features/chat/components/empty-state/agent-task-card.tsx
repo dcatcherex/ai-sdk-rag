@@ -45,7 +45,7 @@ export function AgentTaskCard({ task, onSelect }: AgentTaskCardProps) {
     <button
       type="button"
       onClick={() => onSelect(task)}
-      className="group flex min-h-28 w-full flex-col rounded-2xl bg-white/70 p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:bg-white/5 dark:hover:bg-white/8 md:min-h-36 md:p-5"
+      className="group flex min-h-28 w-full cursor-pointer flex-col rounded-2xl bg-white/70 p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:bg-white/5 dark:hover:bg-white/8 md:min-h-36 md:p-5"
     >
       <span className={cn('mb-3 inline-flex size-10 items-center justify-center rounded-xl md:mb-5 md:size-12 md:rounded-2xl', accentClass[task.icon])}>
         <Icon className="size-4 md:size-5" aria-hidden="true" />

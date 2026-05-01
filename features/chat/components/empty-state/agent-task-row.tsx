@@ -45,7 +45,7 @@ export function AgentTaskRow({ task, onSelect }: AgentTaskRowProps) {
     <button
       type="button"
       onClick={() => onSelect(task)}
-      className="group flex min-h-16 w-full items-center gap-3 rounded-xl bg-white/65 px-4 py-3 text-left shadow-sm transition-colors hover:bg-white/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:bg-white/5 dark:hover:bg-white/8"
+      className="group flex min-h-16 w-full cursor-pointer items-center gap-3 rounded-xl bg-white/65 px-4 py-3 text-left shadow-sm transition-colors hover:bg-white/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:bg-white/5 dark:hover:bg-white/8"
     >
       <span className={cn('inline-flex size-10 shrink-0 items-center justify-center rounded-xl', accentClass[task.icon])}>
         <Icon className="size-4" aria-hidden="true" />

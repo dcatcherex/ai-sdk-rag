@@ -3,7 +3,8 @@ import { requireUser } from "@/lib/auth-server";
 import { deleteSkill, getSkillById, updateSkill } from '@/features/skills/service';
 
 const updateSchema = z.object({
-  name: z.string().min(1).max(64).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(),
+  // Keep updates compatible with legacy/imported skill names.
+  name: z.string().min(1).max(64).optional(),
   category: z.string().max(64).nullable().optional(),
   description: z.string().max(1024).optional(),
   activationMode: z.enum(['rule', 'model']).optional(),
@@ -11,7 +12,10 @@ const updateSchema = z.object({
   trigger: z.string().max(100).nullable().optional(),
   promptFragment: z.string().min(1).optional(),
   enabledTools: z.array(z.string()).optional(),
-  imageUrl: z.string().url().optional().nullable(),
+  imageUrl: z.preprocess(
+    (value) => (value === '' ? null : value),
+    z.union([z.string().url(), z.string().startsWith('/'), z.null()]).optional(),
+  ),
   isPublic: z.boolean().optional(),
 });
 
@@ -32,7 +36,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const { id } = await params;
   const body = await req.json();
   const result = updateSchema.safeParse(body);
-  if (!result.success) return new Response('Bad Request', { status: 400 });
+  if (!result.success) {
+    return Response.json(
+      {
+        error: 'Bad Request',
+        details: result.error.flatten(),
+      },
+      { status: 400 },
+    );
+  }
 
   const skill = await updateSkill(authResult.user.id, id, result.data);
   if (!skill) return new Response('Not Found', { status: 404 });
