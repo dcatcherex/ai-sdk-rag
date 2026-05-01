@@ -12,6 +12,37 @@ Core rule:
 
 Do not add farm-only concepts to platform core. Add generic profile/entity primitives, then let agriculture skills define farm-specific labels, fields, onboarding questions, and tool behavior.
 
+## Progress
+
+Updated: 2026-05-01
+
+- Phase 1 is implemented in code.
+- Phase 1 SQL has been applied successfully.
+- Added `domainProfile`, `domainEntity`, and `domainEntityRelation` schema definitions in `db/schema/domain-profiles.ts`.
+- Exported the new schema from `db/schema.ts`.
+- Added the Phase 1 server layer in `features/domain-profiles/` with typed CRUD, ownership checks, relation linking, context resolution, and LINE-to-user migration support.
+- Added a SQL migration file at `db/migrations/0061_domain_profiles.sql`.
+- Drizzle's automatic generation path is currently complicated by a pre-existing unrelated `agent.starter_tasks` / `starter_prompts` rename prompt, so the migration was added directly for this phase.
+- Phase 2 is implemented in code.
+- Added `features/domain-profiles/manifest.ts`, `features/domain-profiles/schema.ts`, and `features/domain-profiles/agent.ts`.
+- Registered the domain profiles tool in the client and server tool registries.
+- Added tests covering registry wiring and mutation approval expectations.
+- Phase 3 is implemented in code.
+- Added `features/domain-profiles/server/prompt.ts` to render compact `<domain_context>` prompt blocks.
+- Injected domain context into the shared prompt assembly path used by web chat and LINE agent runs.
+- Added LINE channel resolution support so unlinked LINE users can still receive domain-context injection.
+- Added tests covering prompt ordering and compact domain-context rendering.
+- Phase 4 is implemented in code.
+- Extended record-keeper schemas and service to accept, persist, and return optional activity `metadata`.
+- Added metadata support for `profileId`, `entityIds`, `entityType`, and `source` while keeping the record layer domain-neutral.
+- Updated the agriculture `farm-record-keeper` skill to use domain profile context and attach structured metadata when available.
+- Added tests covering record-keeper metadata schema parsing.
+- Phase 5 is implemented in code.
+- Added an agriculture pilot helper with lightweight farm profile definitions, optional setup questions, and plot/crop-cycle examples in `features/domain-profiles/server/agriculture.ts`.
+- Injected an optional farm setup prompt block into the shared agent runtime so web chat and LINE can offer progressive setup without forcing forms.
+- Expanded the agriculture `farm-record-keeper` skill with setup rules, plot and crop-cycle examples, and explicit GPS/boundary optionality.
+- Added tests covering the agriculture setup prompt behavior.
+
 ## Current State
 
 The app already has useful building blocks:
@@ -26,12 +57,9 @@ The app already has useful building blocks:
 
 Current gaps:
 
-- No formal domain profile table.
-- No reusable entity registry.
-- No structured entity relationship model.
 - No field definition layer for skill-defined data capture.
-- No optional setup flow that can be reused across professions.
-- `activityRecord.metadata` exists, but the current record keeper service does not write metadata.
+- No reusable optional setup flow yet for non-agriculture professions.
+- Agriculture pilot setup exists at the prompt/helper layer, but there is not yet a dedicated profile management UI.
 
 ## Product Principle
 
@@ -529,36 +557,37 @@ Rules:
 
 Phase 1: Add schema and service.
 
-- Add `db/schema/domain-profiles.ts`.
-- Export it from `db/schema.ts`.
-- Generate migration with `pnpm drizzle-kit generate`.
-- Add queries/mutations/services.
+- [x] Add `db/schema/domain-profiles.ts`.
+- [x] Export it from `db/schema.ts`.
+- [x] Add queries/mutations/services.
+- [x] Add migration SQL for the new tables.
+- [ ] Run a clean non-interactive `pnpm drizzle-kit generate` flow after the unrelated `agent.starter_tasks` / `starter_prompts` schema ambiguity is resolved.
 
 Phase 2: Add agent tools.
 
-- Add `features/domain-profiles/manifest.ts`.
-- Add `features/domain-profiles/agent.ts`.
-- Register in server and client tool registries.
-- Add tests for ownership and mutation confirmation assumptions.
+- [x] Add `features/domain-profiles/manifest.ts`.
+- [x] Add `features/domain-profiles/agent.ts`.
+- [x] Register in server and client tool registries.
+- [x] Add tests for mutation confirmation assumptions and registry wiring.
 
 Phase 3: Add prompt context.
 
-- Add compact context renderer.
-- Inject into chat route and LINE route.
-- Keep memory, working memory, and domain profiles separate.
+- [x] Add compact context renderer.
+- [x] Inject into chat route and LINE route.
+- [x] Keep memory, working memory, and domain profiles separate.
 
 Phase 4: Connect record keeper.
 
-- Extend record keeper schema with optional `metadata`.
-- Persist metadata in `runLogActivity`.
-- Teach agriculture skill to attach profile/entity IDs when available.
+- [x] Extend record keeper schema with optional `metadata`.
+- [x] Persist metadata in `runLogActivity`.
+- [x] Teach agriculture skill to attach profile/entity IDs when available.
 
 Phase 5: Agriculture pilot.
 
-- Update `farm-record-keeper` skill instructions.
-- Add optional farm setup conversation.
-- Add plot and crop-cycle entity examples.
-- Keep GPS/boundaries optional.
+- [x] Update `farm-record-keeper` skill instructions.
+- [x] Add optional farm setup conversation.
+- [x] Add plot and crop-cycle entity examples.
+- [x] Keep GPS/boundaries optional.
 
 Phase 6: Broaden to other professions.
 

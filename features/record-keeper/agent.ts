@@ -1,12 +1,16 @@
 /**
  * Thin AI SDK adapter for record-keeper tools.
- * All logic lives in service.ts — this file only wires up tool() definitions.
+ * All logic lives in service.ts - this file only wires up tool() definitions.
  */
 
 import { tool } from 'ai';
 import type { AgentToolContext } from '@/features/tools/registry/types';
-import { logActivityInputSchema, getRecordsInputSchema, summarizeRecordsInputSchema } from './schema';
-import { runLogActivity, runGetRecords, runSummarizeRecords } from './service';
+import {
+  getRecordsInputSchema,
+  logActivityInputSchema,
+  summarizeRecordsInputSchema,
+} from './schema';
+import { runGetRecords, runLogActivity, runSummarizeRecords } from './service';
 
 export function createRecordKeeperAgentTools(ctx: Pick<AgentToolContext, 'userId'>) {
   const { userId } = ctx;
@@ -14,7 +18,7 @@ export function createRecordKeeperAgentTools(ctx: Pick<AgentToolContext, 'userId
   return {
     log_activity: tool({
       description:
-        'Save an activity or farm/class/work event to the record log. Use this after the user confirms an entry — e.g. "วันนี้ใส่ปุ๋ยยูเรีย 50 กก." or "fed 3 patients". Always confirm details with the user before calling this tool.',
+        'Save an activity or farm/class/work event to the record log. Use this after the user confirms an entry. Include metadata such as profileId, entityIds, entityType, or source when structured domain context is available. Always confirm details with the user before calling this tool.',
       needsApproval: true,
       inputSchema: logActivityInputSchema,
       async execute(input) {

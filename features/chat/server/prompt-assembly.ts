@@ -16,6 +16,10 @@ export type SystemPromptInput = {
   memoryContext: string;
   /** Approved shared scoped memory block for the active scope. Raw block or ''. */
   sharedMemoryBlock: string;
+  /** Compact structured domain context. Already '\n\n<domain_context>...' or ''. */
+  domainContextBlock: string;
+  /** Optional domain-specific setup guidance. Already '\n\n<domain_setup_opportunity>...' or ''. */
+  domainSetupBlock: string;
   /** Skill runtime blocks - each is already '\n\n<tag>...' or ''. */
   skillRuntime: {
     catalogBlock: string;
@@ -43,12 +47,14 @@ const GROUNDING_INSTRUCTION =
  *   4  Grounding instruction (when RAG docs are selected)
  *   5  User profile memory
  *   6  Approved shared scoped memory
- *   7  Brand context
- *   8  Skill catalog
- *   9  Active skills
- *  10  Skill resources
- *  11  Tool guidance (exam prep, certificate)
- *  12  Narrow feature blocks (quiz context)
+ *   7  Domain context
+ *   8  Domain setup guidance
+ *   9  Brand context
+ *  10  Skill catalog
+ *  11  Active skills
+ *  12  Skill resources
+ *  13  Tool guidance (exam prep, certificate)
+ *  14  Narrow feature blocks (quiz context)
  *
  * Every non-base block is either '' or already carries its own leading '\n\n' / '\n'
  * separator, so no extra spacing is applied here.
@@ -60,6 +66,8 @@ export function assembleSystemPrompt(input: SystemPromptInput): string {
     : '';
   const memoryBlock = input.memoryContext ? `\n\n${input.memoryContext}` : '';
   const sharedMemoryBlock = input.sharedMemoryBlock ? `\n\n${input.sharedMemoryBlock}` : '';
+  const domainContextBlock = input.domainContextBlock || '';
+  const domainSetupBlock = input.domainSetupBlock || '';
   const brandBlock = input.activeBrand
     ? `\n\n${buildBrandBlock(input.activeBrand)}`
     : '';
@@ -71,6 +79,8 @@ export function assembleSystemPrompt(input: SystemPromptInput): string {
     + groundingBlock
     + memoryBlock
     + sharedMemoryBlock
+    + domainContextBlock
+    + domainSetupBlock
     + brandBlock
     + input.skillRuntime.catalogBlock
     + input.skillRuntime.activeSkillsBlock

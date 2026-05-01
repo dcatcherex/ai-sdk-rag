@@ -9,12 +9,28 @@ import { db } from '@/lib/db';
 import { activityRecord } from '@/db/schema/tools';
 import type { LogActivityInput, GetRecordsInput, SummarizeRecordsInput, ActivityRecordRow } from './schema';
 
+function normalizeMetadata(
+  metadata: LogActivityInput['metadata'] | ActivityRecordRow['metadata'] | undefined,
+): Record<string, unknown> | null {
+  if (!metadata) {
+    return null;
+  }
+
+  const entries = Object.entries(metadata).filter(([, value]) => value !== undefined);
+  if (entries.length === 0) {
+    return null;
+  }
+
+  return Object.fromEntries(entries);
+}
+
 // ── Log Activity ──────────────────────────────────────────────────────────────
 
 export async function runLogActivity(
   input: LogActivityInput,
   userId: string,
-): Promise<{ id: string; date: string; activity: string }> {
+): Promise<{ id: string; date: string; activity: string; metadata: Record<string, unknown> | null }> {
+  const metadata = normalizeMetadata(input.metadata);
   const [row] = await db
     .insert(activityRecord)
     .values({
@@ -29,10 +45,21 @@ export async function runLogActivity(
       cost: input.cost != null ? String(input.cost) : null,
       income: input.income != null ? String(input.income) : null,
       notes: input.notes ?? null,
+      metadata,
     })
-    .returning({ id: activityRecord.id, date: activityRecord.date, activity: activityRecord.activity });
+    .returning({
+      id: activityRecord.id,
+      date: activityRecord.date,
+      activity: activityRecord.activity,
+      metadata: activityRecord.metadata,
+    });
 
-  return { id: row.id, date: row.date, activity: row.activity };
+  return {
+    id: row.id,
+    date: row.date,
+    activity: row.activity,
+    metadata: normalizeMetadata(row.metadata ?? undefined),
+  };
 }
 
 // ── Get Records ───────────────────────────────────────────────────────────────
@@ -69,6 +96,7 @@ export async function runGetRecords(
     cost: r.cost,
     income: r.income,
     notes: r.notes,
+    metadata: normalizeMetadata(r.metadata ?? undefined),
     createdAt: r.createdAt.toISOString(),
   }));
 

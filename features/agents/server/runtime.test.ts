@@ -40,6 +40,8 @@ test('buildAgentRunSystemPrompt keeps shared prompt block ordering', () => {
   const prompt = buildAgentRunSystemPrompt({
     base: 'Base prompt',
     memoryContext: '<memory>Remember this</memory>',
+    domainContextBlock: '\n\n<domain_context>\nProfile: Demo\n</domain_context>',
+    domainSetupBlock: '\n\n<domain_setup_opportunity>\nOptional setup\n</domain_setup_opportunity>',
     activeBrand: null,
     skillRuntime: {
       ...EMPTY_SKILL_RUNTIME,
@@ -50,7 +52,7 @@ test('buildAgentRunSystemPrompt keeps shared prompt block ordering', () => {
   });
 
   assert.match(prompt, /^Base prompt/);
-  assert.match(prompt, /<memory>Remember this<\/memory>[\s\S]*<active_skills>/);
+  assert.match(prompt, /<memory>Remember this<\/memory>[\s\S]*<domain_context>[\s\S]*<domain_setup_opportunity>[\s\S]*<active_skills>/);
   assert.match(prompt, /<brand_resolution>\nSelect a brand first\.\n<\/brand_resolution>/);
   assert.match(prompt, /<line_channel>LINE<\/line_channel>$/);
 });

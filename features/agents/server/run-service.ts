@@ -13,6 +13,9 @@ import { getCreditCost } from '@/lib/credits';
 import { buildBrandImageContext, buildImageBrandSuffix } from '@/features/brands/service';
 import type { Brand } from '@/features/brands/types';
 import type { Agent } from '@/features/agents/types';
+import { renderDomainContextPromptBlock } from '@/features/domain-profiles/server/prompt';
+import { buildAgricultureSetupPromptBlock } from '@/features/domain-profiles/server/agriculture';
+import type { DomainProfileOwnerContext, ResolvedDomainContext } from '@/features/domain-profiles/types';
 import type { SkillRuntimeContext } from '@/features/skills/server/activation';
 import { buildUserCreatedToolSet } from '@/features/user-tools/service';
 import {
@@ -61,6 +64,9 @@ type PreparedAgentRunChannelContext = {
   baseToolIds?: string[] | null;
   memoryContext?: string;
   sharedMemoryBlock?: string;
+  lineChannelId?: string;
+  domainContextBlock?: string;
+  domainSetupBlock?: string;
   threadWorkingMemoryBlock?: string;
   conversationSummaryBlock?: string;
   examPrepBlock?: string;
@@ -106,6 +112,51 @@ export type PreparedAgentRun = {
 
 function getChannelContext(request: AgentRunRequest): PreparedAgentRunChannelContext {
   return (request.channelContext ?? {}) as PreparedAgentRunChannelContext;
+}
+
+function getDomainProfileOwnerContext(
+  request: AgentRunRequest,
+  lineChannelId?: string,
+): DomainProfileOwnerContext | null {
+  if (request.identity.userId) {
+    return {
+      userId: request.identity.userId,
+    };
+  }
+
+  if (
+    request.identity.channel === 'line' &&
+    request.identity.lineUserId &&
+    lineChannelId
+  ) {
+    return {
+      lineUserId: request.identity.lineUserId,
+      channelId: lineChannelId,
+    };
+  }
+
+  return null;
+}
+
+async function resolveDomainPromptContext(input: {
+  request: AgentRunRequest;
+  lineChannelId?: string;
+  userMessage: string | null;
+}): Promise<ResolvedDomainContext | null> {
+  const owner = getDomainProfileOwnerContext(input.request, input.lineChannelId);
+  if (!owner) {
+    return null;
+  }
+
+  const { resolveRelevantDomainContext } = await import('@/features/domain-profiles/service');
+  return resolveRelevantDomainContext(
+    {
+      userMessage: input.userMessage ?? undefined,
+      profileLimit: 10,
+      entityLimit: 8,
+    },
+    owner,
+  );
 }
 
 function buildChannelResponseBlock(request: AgentRunRequest): string {
@@ -293,7 +344,7 @@ export async function prepareAgentRun(request: AgentRunRequest): Promise<Prepare
 
   const resolvedAgent = (agentRows[0] ?? null) as Agent | null;
   const lastUserPrompt = getLastUserPromptFromRunMessages(request.messages);
-  const [resolvedSkillRuntime, brandRuntime] = await Promise.all([
+  const [resolvedSkillRuntime, brandRuntime, resolvedDomainContext] = await Promise.all([
     channelContext.skillRuntimeOverride !== undefined
       ? Promise.resolve(channelContext.skillRuntimeOverride)
       : resolveAgentSkillRuntime(resolvedAgent, lastUserPrompt),
@@ -303,9 +354,24 @@ export async function prepareAgentRun(request: AgentRunRequest): Promise<Prepare
       agent: resolvedAgent,
       enabled: true,
     }),
+    channelContext.domainContextBlock !== undefined
+      ? Promise.resolve(null)
+      : resolveDomainPromptContext({
+          request,
+          lineChannelId: channelContext.lineChannelId,
+          userMessage: lastUserPrompt,
+        }),
   ]);
   const skillRuntime = resolvedSkillRuntime ?? EMPTY_SKILL_RUNTIME;
   const { brandResolution, activeBrand } = brandRuntime;
+  const resolvedDomainContextBlock = channelContext.domainContextBlock
+    ?? renderDomainContextPromptBlock(resolvedDomainContext);
+  const resolvedDomainSetupBlock = channelContext.domainSetupBlock
+    ?? buildAgricultureSetupPromptBlock({
+      userMessage: lastUserPrompt,
+      context: resolvedDomainContext,
+      skillRuntime,
+    });
 
   if (brandResolution?.shouldBlock) {
     throw new Error(brandResolution.blockMessage ?? 'This agent requires a valid brand before it can run.');
@@ -375,6 +441,8 @@ export async function prepareAgentRun(request: AgentRunRequest): Promise<Prepare
     activeBrand,
     memoryContext,
     sharedMemoryBlock: channelContext.sharedMemoryBlock ?? '',
+    domainContextBlock: resolvedDomainContextBlock,
+    domainSetupBlock: resolvedDomainSetupBlock,
     skillRuntime: skillRuntime ?? EMPTY_SKILL_RUNTIME,
     examPrepBlock: channelContext.examPrepBlock ?? '',
     certBlock: channelContext.certBlock ?? '',

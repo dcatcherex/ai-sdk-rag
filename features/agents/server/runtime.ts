@@ -97,6 +97,8 @@ export function buildAgentRunSystemPrompt(input: {
   activeBrand: Brand | null;
   memoryContext?: string;
   sharedMemoryBlock?: string;
+  domainContextBlock?: string;
+  domainSetupBlock?: string;
   skillRuntime: Pick<SkillRuntimeContext, 'catalogBlock' | 'activeSkillsBlock' | 'skillResourcesBlock'>;
   examPrepBlock?: string;
   certBlock?: string;
@@ -112,6 +114,8 @@ export function buildAgentRunSystemPrompt(input: {
     activeBrand: input.activeBrand,
     memoryContext: input.memoryContext ?? '',
     sharedMemoryBlock: input.sharedMemoryBlock ?? '',
+    domainContextBlock: input.domainContextBlock ?? '',
+    domainSetupBlock: input.domainSetupBlock ?? '',
     skillRuntime: input.skillRuntime,
     examPrepBlock: input.examPrepBlock ?? '',
     certBlock: input.certBlock ?? '',

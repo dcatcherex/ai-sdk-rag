@@ -27,6 +27,7 @@ import { googleSlidesManifest } from '@/features/google-slides/manifest';
 import { webDeployManifest } from '@/features/deploy/manifest';
 import { platformAgentManifest } from '@/features/platform-agent/manifest';
 import { brandPhotosManifest } from '@/features/brand-photos/manifest';
+import { domainProfilesManifest } from '@/features/domain-profiles/manifest';
 
 /** All registered tool manifests */
 export const TOOL_MANIFESTS: ToolManifest[] = [
@@ -52,6 +53,7 @@ export const TOOL_MANIFESTS: ToolManifest[] = [
   webDeployManifest,
   platformAgentManifest,
   brandPhotosManifest,
+  domainProfilesManifest,
 ];
 
 /** Map from tool id → manifest */

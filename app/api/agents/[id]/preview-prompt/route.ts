@@ -103,6 +103,8 @@ export async function POST(
     activeBrand: brandResolution.effectiveBrand,
     memoryContext: '',
     sharedMemoryBlock: '',
+    domainContextBlock: '',
+    domainSetupBlock: '',
     skillRuntime,
     examPrepBlock: '',
     certBlock: '',

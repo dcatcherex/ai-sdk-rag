@@ -38,6 +38,9 @@ import {
   EMPTY_SKILL_RUNTIME,
   resolveAgentBrandRuntime,
 } from '@/features/agents/server/runtime';
+import { resolveRelevantDomainContext } from '@/features/domain-profiles/service';
+import { renderDomainContextPromptBlock } from '@/features/domain-profiles/server/prompt';
+import { buildAgricultureSetupPromptBlock } from '@/features/domain-profiles/server/agriculture';
 import {
   prepareAgentRun,
   runAgentText,
@@ -376,6 +379,7 @@ export async function handleMessageEvent(
 
   const msgType = event.message?.type;
   if (msgType !== 'text' && msgType !== 'image' && msgType !== 'audio' && msgType !== 'video') return;
+  const textMessage = msgType === 'text' ? event.message?.text?.trim() ?? '' : '';
 
   const lineUserId = event.source?.userId;
   if (!lineUserId) return;
@@ -542,6 +546,22 @@ export async function handleMessageEvent(
     enabled: true,
   });
 
+  const domainContext = await resolveRelevantDomainContext(
+    {
+      profileLimit: 10,
+      entityLimit: 8,
+    },
+    linkedUser?.userId
+      ? { userId: linkedUser.userId }
+      : { lineUserId, channelId: channel.id },
+  );
+  const domainContextBlock = renderDomainContextPromptBlock(domainContext);
+  const domainSetupBlock = buildAgricultureSetupPromptBlock({
+    userMessage: textMessage,
+    context: domainContext,
+    skillRuntime,
+  });
+
   const lineSystemPrompt = buildAgentRunSystemPrompt({
     base: lineBase,
     conversationSummaryBlock: '',
@@ -550,6 +570,8 @@ export async function handleMessageEvent(
     activeBrand,
     memoryContext,
     sharedMemoryBlock: '',
+    domainContextBlock,
+    domainSetupBlock,
     skillRuntime,
     examPrepBlock: '',
     certBlock: '',
@@ -591,6 +613,7 @@ export async function handleMessageEvent(
       policy: LINE_AGENT_RUN_POLICY,
       channelContext: {
         memoryContext,
+        lineChannelId: channel.id,
         extraBlocks: lineExtraBlocks,
       },
     });
@@ -905,7 +928,7 @@ export async function handleMessageEvent(
   }
 
   // ⑥ Text message
-  const userText = event.message!.text!.trim();
+  const userText = textMessage;
 
   // ⑥b Video generation request
   if (wantsVideoGeneration(userText)) {

@@ -1,6 +1,13 @@
 import { z } from 'zod';
 
-// ── Input schemas (used by agent tools) ──────────────────────────────────────
+export const activityRecordMetadataSchema = z
+  .object({
+    profileId: z.string().optional().describe('Optional domain profile ID linked to this record'),
+    entityIds: z.array(z.string()).optional().describe('Optional related domain entity IDs'),
+    entityType: z.string().optional().describe('Optional primary entity type such as plot or crop_cycle'),
+    source: z.string().optional().describe('Optional source label such as chat, line, or manual'),
+  })
+  .catchall(z.unknown());
 
 export const logActivityInputSchema = z.object({
   contextType: z
@@ -13,15 +20,18 @@ export const logActivityInputSchema = z.object({
   entity: z
     .string()
     .optional()
-    .describe('The subject being logged — crop name, student name, patient ID, etc.'),
+    .describe('The subject being logged - crop name, student name, patient ID, etc.'),
   date: z
     .string()
     .describe('Activity date in YYYY-MM-DD format. Default to today if not specified.'),
   activity: z.string().describe('What was done, in plain language'),
-  quantity: z.string().optional().describe('Amount and unit, e.g. "50 กก.", "2 ไร่", "3 hours"'),
+  quantity: z.string().optional().describe('Amount and unit, e.g. "50 kg", "2 rai", "3 hours"'),
   cost: z.number().optional().describe('Money spent (in local currency)'),
   income: z.number().optional().describe('Money received from sale or service'),
   notes: z.string().optional().describe('Any additional observations or notes'),
+  metadata: activityRecordMetadataSchema
+    .optional()
+    .describe('Optional structured linkage to a domain profile or entities'),
 });
 
 export type LogActivityInput = z.infer<typeof logActivityInputSchema>;
@@ -49,8 +59,6 @@ export const summarizeRecordsInputSchema = z.object({
 
 export type SummarizeRecordsInput = z.infer<typeof summarizeRecordsInputSchema>;
 
-// ── Output types ──────────────────────────────────────────────────────────────
-
 export const activityRecordRowSchema = z.object({
   id: z.string(),
   contextType: z.string(),
@@ -62,6 +70,7 @@ export const activityRecordRowSchema = z.object({
   cost: z.string().nullable(),
   income: z.string().nullable(),
   notes: z.string().nullable(),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
   createdAt: z.string(),
 });
 
