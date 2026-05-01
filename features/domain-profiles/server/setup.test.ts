@@ -115,6 +115,7 @@ test("buildDomainSetupPromptBlock can select creator setup from activated skill 
           activationSource: "model",
           instructionContent: "creator workspace setup",
           instructionPath: "features/skills/packages/creator/content-workspace-context/SKILL.md",
+          responseContracts: [],
           skill: createPackageSkill(),
         },
       ],

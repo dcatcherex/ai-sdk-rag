@@ -7,6 +7,8 @@ import { db } from '@/lib/db';
 import { agent } from '@/db/schema';
 import { getUserMemoryContext } from '@/lib/memory';
 import { buildToolSet } from '@/lib/tools';
+import { buildResponsePlan } from '@/features/response-format';
+import { listResponseWorkflowCapabilities } from '@/features/privacy-governance/access-control';
 import { createAgentTools } from '@/lib/agent-tools';
 import { buildMCPToolSet } from '@/lib/tools/mcp';
 import { getCreditCost } from '@/lib/credits';
@@ -521,6 +523,11 @@ export async function runAgentText(prepared: PreparedAgentRun): Promise<AgentRun
   const lastUserPrompt = prepared.lastUserPrompt ?? '';
   const preferThai = isThaiText(lastUserPrompt);
   const directFarmSummaryRequest = inferFarmRecordSummaryRequest(lastUserPrompt);
+  const workflowCapabilities = await listResponseWorkflowCapabilities({
+    actorUserId: prepared.request.identity.userId,
+    brandId: prepared.activeBrand?.id ?? null,
+    isOwner: prepared.request.identity.isOwner,
+  });
 
   if (directFarmSummaryRequest) {
     const { runSummarizeRecords } = await import('@/features/record-keeper/service');
@@ -539,6 +546,21 @@ export async function runAgentText(prepared: PreparedAgentRun): Promise<AgentRun
         text: stableSummary,
         toolCallCount: 0,
         imageUrls: [],
+        responsePlan: buildResponsePlan({
+          text: stableSummary,
+          userText: lastUserPrompt,
+          locale: preferThai ? 'th-TH' : 'en-US',
+          workflowContext: {
+            actorCapabilities: workflowCapabilities,
+            scopeType: prepared.activeBrand?.id ? 'brand' : 'user',
+            scopeId: prepared.activeBrand?.id ?? prepared.request.identity.userId ?? prepared.request.identity.lineUserId ?? prepared.request.identity.billingUserId,
+            sourceThreadId: prepared.request.threadId,
+            channel: prepared.request.identity.channel === 'line' ? 'line' : 'web',
+          },
+          metadata: {
+            source: 'direct_record_summary',
+          },
+        }),
         modelId: prepared.modelId,
         creditCost: prepared.creditCost,
       };
@@ -711,6 +733,22 @@ Keep the answer in the same language as the user and preserve any required respo
     text: resolvedText,
     toolCallCount: result.toolResults?.length ?? 0,
     imageUrls: collectToolImageUrls(result.toolResults),
+    responsePlan: buildResponsePlan({
+      text: resolvedText,
+      userText: lastUserPrompt,
+      locale: preferThai ? 'th-TH' : 'en-US',
+      toolResults: result.toolResults,
+      workflowContext: {
+        actorCapabilities: workflowCapabilities,
+        scopeType: prepared.activeBrand?.id ? 'brand' : 'user',
+        scopeId: prepared.activeBrand?.id ?? prepared.request.identity.userId ?? prepared.request.identity.lineUserId ?? prepared.request.identity.billingUserId,
+        sourceThreadId: prepared.request.threadId,
+        channel: prepared.request.identity.channel === 'line' ? 'line' : 'web',
+      },
+      metadata: {
+        modelId: prepared.modelId,
+      },
+    }),
     modelId: prepared.modelId,
     creditCost: prepared.creditCost,
   };

@@ -22,6 +22,16 @@ Production gap:
 - The system can render Flex cards, but does not yet reliably select a domain-specific template for every structured use case.
 - Escalation and follow-up actions are not yet represented as first-class response intents across all professions.
 
+Implementation progress as of 2026-05-01:
+
+- Phase 1 is implemented: shared `ResponsePlan` types, fallback plan builder, and shared LINE renderer now exist in `features/response-format/`.
+- Phase 2 is implemented: skill response contracts can now be parsed from `SKILL.md` frontmatter or a `## Response Contracts` section, and activated package skills carry parsed contracts at runtime.
+- Phase 3 is implemented: record-keeper, weather, domain profile, content-planning, and collaboration approval tool outputs now expose canonical `kind` values, and the shared response-format selector maps those tool results into typed intents and workflows before channel rendering.
+- Phase 4 is implemented: a shared response template registry now exists, common confirmation/summary/approval/escalation templates are code-backed with LINE and web renderers, AgriSpark weather and record-entry cards are mapped through the registry, and channel renderers now consume `ResponsePlan.card` with text fallback.
+- Phase 5 is implemented: generic `human_review` workflows can now be suggested from safety/escalation signals, workflow visibility is scoped through shared response-workflow capabilities derived from owner/brand/workspace access, and LINE now preserves workflow quick replies instead of overwriting them with generic suggestions.
+- Phase 6 is implemented: response-format observability now flows into `chat_run.outputJson` and assistant message metadata, including response intent, formats, template key, quick reply count, escalation/workflow flags, and fallback markers, and existing chat-run reporting surfaces can now query those fields.
+- Remaining work: broader admin analytics visualization and long-term pilot tuning can continue incrementally, but the implementation phases in this document are complete.
+
 This document defines the production target.
 
 Read this together with:
@@ -605,17 +615,23 @@ Useful metrics:
 - Add LINE renderer that wraps current `stripMarkdown`, `buildReplyMessages`, and quick reply handling.
 - Keep existing behavior as fallback.
 
+Status: complete.
+
 ### Phase 2: Skill Contract Registry
 
 - Add contract parsing from skill metadata or standard markdown sections.
 - Register common intents.
 - Add tests for agriculture, education, clinic, sales, and creator examples.
 
+Status: complete.
+
 ### Phase 3: Tool Result Mapping
 
 - Add tool result `kind` conventions.
 - Map record keeper, weather, domain profile, approval, and content tools to intents.
 - Prefer tool result structure over prose parsing.
+
+Status: complete.
 
 ### Phase 4: Card Template Routing
 
@@ -624,17 +640,23 @@ Useful metrics:
 - Add common templates for confirmation, escalation, approval, and summary.
 - Add web rendering equivalents where needed.
 
+Status: complete.
+
 ### Phase 5: Workflow And Escalation
 
 - Add generic `human_review` response workflow.
 - Connect to privacy/access-control rules.
 - Add officer/admin review UI only after scope and audit are ready.
 
+Status: complete.
+
 ### Phase 6: Production Observability
 
 - Store response intent and format metadata in audit logs.
 - Add format metrics to admin analytics.
 - Use pilot data to decide where cards improve outcomes and where text is better.
+
+Status: complete.
 
 ## Testing Checklist
 

@@ -54,6 +54,7 @@ import {
   updateChatRunRouting,
 } from '@/features/chat/audit/audit';
 import type { ChatMessage, ChatMessageMetadata, RoutingMetadata } from '@/features/chat/types';
+import { buildResponseAuditSummary, buildResponsePlan } from '@/features/response-format';
 import {
   getImageAttachmentParts,
   getLatestAssistantImageParts,
@@ -638,6 +639,13 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
                 totalTokens: 0,
                 outputJson: buildChatRunOutputSummary({
                   routeKind: 'image',
+                  responseFormat: buildResponseAuditSummary(
+                    buildResponsePlan({
+                      text: toolOutput.message,
+                      userText: lastUserPrompt ?? '',
+                      locale: 'en-US',
+                    }),
+                  ),
                   generatedImage: { mediaType: 'image/kie-async' },
                   memoryExtracted: false,
                 }),
@@ -724,6 +732,35 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
             }
           }
 
+          const lastAssistantText = getLastAssistantText(messagesWithSuggestions);
+          const responsePlan = lastAssistantText
+            ? buildResponsePlan({
+                text: lastAssistantText,
+                userText: lastUserPrompt ?? '',
+                locale: inferLocaleFromText(lastAssistantText, lastUserPrompt ?? ''),
+                quickReplies: normalizeSuggestionQuickReplies(
+                  ((messagesWithSuggestions[lastAssistantIdx]?.metadata as ChatMessageMetadata | undefined)?.followUpSuggestions) ?? [],
+                ),
+              })
+            : null;
+          const responseAudit = responsePlan
+            ? buildResponseAuditSummary(responsePlan)
+            : null;
+
+          if (responseAudit && lastAssistantIdx !== -1) {
+            messagesWithSuggestions = messagesWithSuggestions.map((message, index) =>
+              index === lastAssistantIdx
+                ? {
+                    ...message,
+                    metadata: {
+                      ...(message.metadata ?? {}),
+                      responseFormat: responseAudit,
+                    },
+                  }
+                : message,
+            );
+          }
+
           await persistChatResult({
             updatedMessages: messagesWithSuggestions,
             threadId,
@@ -768,13 +805,14 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
                 completionTokens: usage?.completionTokens,
                 totalTokens: usage?.totalTokens,
                 outputJson: buildChatRunOutputSummary({
-                  routeKind: 'text',
-                  messages: messagesWithSuggestions,
-                  followUpSuggestionCount: getFollowUpSuggestionCount(messagesWithSuggestions),
-                  memoryExtracted: shouldExtractMemory,
-                }),
-              });
-            }
+                routeKind: 'text',
+                messages: messagesWithSuggestions,
+                followUpSuggestionCount: getFollowUpSuggestionCount(messagesWithSuggestions),
+                memoryExtracted: shouldExtractMemory,
+                responseFormat: responseAudit,
+              }),
+            });
+          }
           }
         } catch (error) {
           console.error('Failed to finalize chat run:', error);
@@ -799,4 +837,27 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
     }
     return Response.json({ error: message }, { status: 400 });
   }
+}
+
+function getLastAssistantText(messages: ChatMessage[]): string {
+  const lastAssistantMessage = [...messages].reverse().find((message) => message.role === 'assistant');
+  if (!lastAssistantMessage) return '';
+
+  const textPart = lastAssistantMessage.parts.find((part) => part.type === 'text');
+  return textPart?.type === 'text' ? textPart.text.trim() : '';
+}
+
+function normalizeSuggestionQuickReplies(suggestions: string[]) {
+  return suggestions
+    .filter((suggestion) => suggestion.trim().length > 0)
+    .slice(0, 4)
+    .map((suggestion) => ({
+      actionType: 'message' as const,
+      label: suggestion,
+      text: suggestion,
+    }));
+}
+
+function inferLocaleFromText(...candidates: string[]): string {
+  return candidates.some((candidate) => /[ก-๙]/.test(candidate)) ? 'th-TH' : 'en-US';
 }

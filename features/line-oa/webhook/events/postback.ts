@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import type { messagingApi } from '@line/bot-sdk';
+
 import { db } from '@/lib/db';
 import { agent, lineAccountLink, lineUserAgentSession } from '@/db/schema';
 import { resolveApprovalRequest } from '@/features/collaboration/service';
@@ -11,14 +12,6 @@ type PostbackEvent = {
   postback?: { data: string };
 };
 
-/**
- * Handle postback events.
- *
- * Supported data formats:
- *  - `switch_menu:<lineMenuId>`   — switch this user to a specific rich menu
- *  - `switch_agent:<agentId>`     — switch this user to a specific agent
- *  - `switch_agent:default`       — revert to channel default agent
- */
 export async function handlePostbackEvent(
   event: PostbackEvent,
   lineClient: messagingApi.MessagingApiClient,
@@ -37,37 +30,47 @@ export async function handlePostbackEvent(
     return;
   }
 
-  // ── Approval actions ────────────────────────────────────────────────────────
+  if (data.startsWith('workflow:human_review:request:')) {
+    if (event.replyToken) {
+      await lineClient.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{
+          type: 'text',
+          text: 'รับคำขอให้เจ้าหน้าที่ช่วยตรวจสอบแล้ว หากช่องนี้มีผู้ดูแลที่ได้รับอนุญาต เขาจะติดตามเคสนี้ต่อให้ครับ',
+        }],
+      });
+    }
+    return;
+  }
+
   const approvalAction =
     data.startsWith('approve_content:')
       ? ({ status: 'approved' as const, prefix: 'approve_content:' })
       : data.startsWith('reject_content:')
-      ? ({ status: 'rejected' as const, prefix: 'reject_content:' })
-      : data.startsWith('request_changes:')
-      ? ({ status: 'changes_requested' as const, prefix: 'request_changes:' })
-      : null;
+        ? ({ status: 'rejected' as const, prefix: 'reject_content:' })
+        : data.startsWith('request_changes:')
+          ? ({ status: 'changes_requested' as const, prefix: 'request_changes:' })
+          : null;
 
   if (approvalAction) {
     const requestId = data.slice(approvalAction.prefix.length);
-
-    // Look up the app user id via lineAccountLink so we can record who resolved it
     const [linkRow] = await db
       .select({ userId: lineAccountLink.userId })
       .from(lineAccountLink)
       .where(and(eq(lineAccountLink.channelId, channelId), eq(lineAccountLink.lineUserId, lineUserId)))
       .limit(1);
 
-    const resolverId = linkRow?.userId ?? lineUserId; // fallback to lineUserId (non-linked)
+    const resolverId = linkRow?.userId ?? lineUserId;
 
     let replyText: string;
     try {
       await resolveApprovalRequest(requestId, resolverId, { status: approvalAction.status });
       replyText =
         approvalAction.status === 'approved'
-          ? '✅ อนุมัติเนื้อหาเรียบร้อยแล้ว'
+          ? 'อนุมัติเนื้อหาเรียบร้อยแล้ว'
           : approvalAction.status === 'rejected'
-          ? '❌ ปฏิเสธเนื้อหาเรียบร้อยแล้ว'
-          : '↩️ ขอให้แก้ไข — แจ้งผู้เขียนแล้ว';
+            ? 'ปฏิเสธเนื้อหาเรียบร้อยแล้ว'
+            : 'ส่งกลับเพื่อแก้ไขและแจ้งผู้เขียนแล้ว';
     } catch (err) {
       console.error('[postback] resolveApprovalRequest failed:', err);
       replyText = `ไม่สามารถดำเนินการได้: ${(err as Error).message}`;
@@ -86,7 +89,6 @@ export async function handlePostbackEvent(
     const agentId = data.slice('switch_agent:'.length);
     const isDefault = agentId === 'default' || agentId === '';
 
-    // Upsert session row
     await db
       .insert(lineUserAgentSession)
       .values({
@@ -100,14 +102,13 @@ export async function handlePostbackEvent(
         set: { activeAgentId: isDefault ? null : agentId },
       });
 
-    // Send confirmation if we have a reply token
     if (event.replyToken) {
       let confirmText = 'กลับไปใช้ผู้ช่วยหลักเรียบร้อยแล้ว';
       if (!isDefault) {
         const [agentRow] = await db
           .select({ name: agent.name })
           .from(agent)
-          .where(and(eq(agent.id, agentId)))
+          .where(eq(agent.id, agentId))
           .limit(1);
         if (agentRow?.name) {
           confirmText = `เปลี่ยนเป็น ${agentRow.name} แล้ว มีอะไรให้ช่วยไหมครับ?`;

@@ -24,7 +24,7 @@ export function createContentMarketingAgentTools(
       inputSchema: generateCaptionsInputSchema,
       async execute({ topic, platforms, tone, brandContext }) {
         const result = await generateCaptions({ topic, platforms, tone, brandContext });
-        return { success: true, ...result };
+        return { success: true, kind: 'content_plan_generated', topic, ...result };
       },
     }),
 
@@ -41,7 +41,7 @@ export function createContentMarketingAgentTools(
           scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
           brandId,
         });
-        return { success: true, post };
+        return { success: true, kind: 'content_draft_saved', post, status: post.status };
       },
     }),
 

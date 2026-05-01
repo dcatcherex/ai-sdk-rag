@@ -43,6 +43,7 @@ export function createDomainProfilesAgentTools(
         const profile = await createDomainProfile(input, owner);
         return {
           success: true,
+          kind: 'profile_saved',
           profile,
           message: `Created profile "${profile.name}" in domain "${profile.domain}".`,
         };
@@ -65,6 +66,7 @@ export function createDomainProfilesAgentTools(
 
         return {
           success: true,
+          kind: 'profile_updated',
           profile,
           message: `Updated profile "${profile.name}".`,
         };
@@ -80,6 +82,7 @@ export function createDomainProfilesAgentTools(
         const entity = await createDomainEntity(profileId, input, owner);
         return {
           success: true,
+          kind: 'entity_saved',
           entity,
           message: `Created ${entity.entityType} "${entity.name}".`,
         };
@@ -102,6 +105,7 @@ export function createDomainProfilesAgentTools(
 
         return {
           success: true,
+          kind: 'entity_updated',
           entity,
           message: `Updated ${entity.entityType} "${entity.name}".`,
         };
@@ -143,6 +147,7 @@ export function createDomainProfilesAgentTools(
 
         return {
           success: true,
+          kind: 'entity_list',
           profile,
           entities: entities ?? [],
           count: entities?.length ?? 0,
@@ -167,6 +172,7 @@ export function createDomainProfilesAgentTools(
 
         return {
           success: true,
+          kind: 'profile_context',
           profile: context.profile,
           entities: context.entities,
           count: context.entities.length,

@@ -62,6 +62,7 @@ export function buildContentPlannerLineTools(userId: string | null) {
         });
         return {
           success: true,
+          kind: 'campaign_created',
           campaignId: brief.id,
           title: brief.title,
           message: `Campaign "${brief.title}" created (ID: ${brief.id.slice(0, 8)}). View it in Content Calendar → Campaigns.`,
@@ -127,6 +128,7 @@ export function buildContentPlannerLineTools(userId: string | null) {
         });
         return {
           success: true,
+          kind: 'calendar_entry_created',
           entryId: entry.id,
           title: entry.title,
           plannedDate: entry.plannedDate,

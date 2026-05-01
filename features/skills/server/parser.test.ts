@@ -37,7 +37,67 @@ test('parseSkillMarkdown reads frontmatter and body', () => {
     trigger: '/triage',
     enabledTools: [],
     body: 'Review the inbox, group issues, and propose next actions.',
+    responseContracts: [],
   });
+});
+
+test('parseSkillMarkdown reads response contracts from frontmatter', () => {
+  const parsed = parseSkillMarkdown(`---
+name: crop-diagnosis
+description: Diagnose crop issues
+response-contracts:
+  - intent: diagnosis
+    default-format: structured_text
+    card-template: agriculture.diagnosis
+    escalation: supported
+  - intent: record_confirmation
+    default-format: card
+    card-template: agriculture.record_entry
+---
+Use this skill for crop diagnosis and record review.`);
+
+  assert.deepEqual(parsed.responseContracts, [
+    {
+      intent: 'diagnosis',
+      defaultFormat: 'structured_text',
+      cardTemplate: 'agriculture.diagnosis',
+      escalation: 'supported',
+      source: 'frontmatter',
+    },
+    {
+      intent: 'record_confirmation',
+      defaultFormat: 'card',
+      cardTemplate: 'agriculture.record_entry',
+      source: 'frontmatter',
+    },
+  ]);
+});
+
+test('parseSkillMarkdown reads response contracts from markdown section fallback', () => {
+  const parsed = parseSkillMarkdown(`# Classroom support
+
+Help teachers support students.
+
+## Response Contracts
+
+- intent: student_support
+- default-format: structured_text
+- card-template: education.student_support
+- required sections: learner_status, support_steps, follow_up
+
+## Notes
+
+Keep the tone calm and practical.`);
+
+  assert.deepEqual(parsed.responseContracts, [
+    {
+      intent: 'student_support',
+      defaultFormat: 'structured_text',
+      cardTemplate: 'education.student_support',
+      requiredSections: ['learner_status', 'support_steps', 'follow_up'],
+      source: 'markdown_section',
+    },
+  ]);
 });
 
 test('buildCreatedSkillFiles generates SKILL.md and normalizes bundled files', () => {

@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { chatRun, user } from '@/db/schema';
 import { db } from '@/lib/db';
 import { requireAdmin } from '@/lib/admin';
@@ -34,6 +34,12 @@ export async function GET(
       promptTokens: chatRun.promptTokens,
       completionTokens: chatRun.completionTokens,
       totalTokens: chatRun.totalTokens,
+      responseIntent: sql<string | null>`${chatRun.outputJson}->>'responseIntent'`,
+      responseFormats: sql<string[]>`coalesce(${chatRun.outputJson}->'responseFormats', '[]'::jsonb)`,
+      templateKey: sql<string | null>`${chatRun.outputJson}->>'templateKey'`,
+      quickReplyCount: sql<number>`coalesce((${chatRun.outputJson}->>'quickReplyCount')::int, 0)`,
+      escalationCreated: sql<boolean>`coalesce((${chatRun.outputJson}->>'escalationCreated')::boolean, false)`,
+      renderFallbackUsed: sql<boolean>`coalesce((${chatRun.outputJson}->>'renderFallbackUsed')::boolean, false)`,
       inputJson: chatRun.inputJson,
       outputJson: chatRun.outputJson,
       errorMessage: chatRun.errorMessage,
@@ -56,6 +62,9 @@ export async function GET(
     status: row.status === 'success' || row.status === 'error' ? row.status : 'pending',
     routeKind: row.routeKind === 'image' ? 'image' : 'text',
     routingMode: row.routingMode === 'manual' || row.routingMode === 'auto' ? row.routingMode : null,
+    responseFormats: Array.isArray(row.responseFormats)
+      ? row.responseFormats.filter((value): value is string => typeof value === 'string')
+      : [],
     inputJson: row.inputJson,
     outputJson: row.outputJson,
     startedAt: row.startedAt.toISOString(),

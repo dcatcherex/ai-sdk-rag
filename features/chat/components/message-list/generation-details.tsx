@@ -29,7 +29,7 @@ export const EnhancedPromptChip = ({ text }: { text: string }) => {
 
 export const GenerationDetails = ({ metadata }: { metadata: ChatMessageMetadata }) => {
   const [promptOpen, setPromptOpen] = useState(false);
-  const { routing, enhancedPrompt } = metadata;
+  const { routing, enhancedPrompt, responseFormat } = metadata;
   if (!routing) return null;
 
   return (
@@ -50,6 +50,36 @@ export const GenerationDetails = ({ metadata }: { metadata: ChatMessageMetadata 
         )}
 
       </div>
+      {responseFormat && (
+        <div className="flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
+          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+            Intent: {responseFormat.responseIntent}
+          </span>
+          {responseFormat.responseFormats.map((format) => (
+            <span
+              key={format}
+              className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-900/60"
+            >
+              {format}
+            </span>
+          ))}
+          {responseFormat.templateKey ? (
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+              Template: {responseFormat.templateKey}
+            </span>
+          ) : null}
+          {responseFormat.quickReplyCount > 0 ? (
+            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+              Quick replies: {responseFormat.quickReplyCount}
+            </span>
+          ) : null}
+          {responseFormat.escalationCreated ? (
+            <span className="rounded-full bg-rose-50 px-2 py-0.5 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+              Escalation
+            </span>
+          ) : null}
+        </div>
+      )}
       {enhancedPrompt && (
         <div>
           <button

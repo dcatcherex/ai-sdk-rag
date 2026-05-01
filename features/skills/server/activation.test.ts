@@ -113,10 +113,53 @@ test('resolveActivatedSkills uses full package entry file content on activation'
   assert.equal(activated.length, 1);
   assert.equal(activated[0]?.activationSource, 'model');
   assert.match(activated[0]?.instructionContent ?? '', /references\/checklist\.md/);
+  assert.deepEqual(activated[0]?.responseContracts, []);
 
   const block = buildActiveSkillsBlock(activated);
   assert.match(block, /Instruction file: SKILL\.md/);
   assert.match(block, /name: package-skill/);
+});
+
+test('resolveActivatedSkills attaches parsed response contracts from package skills', () => {
+  const skill = baseSkill({
+    id: 'diagnosis-skill',
+    name: 'diagnosis-skill',
+    skillKind: 'package',
+    activationMode: 'model',
+    description: 'Diagnose plant issues',
+  });
+
+  const activated = resolveActivatedSkills(
+    [skill],
+    'Please diagnose this cassava leaf issue',
+    {
+      'diagnosis-skill': [
+        baseFile({
+          skillId: 'diagnosis-skill',
+          textContent: `---
+name: diagnosis-skill
+description: Diagnose plant issues
+response-contracts:
+  - intent: diagnosis
+    default-format: structured_text
+    card-template: agriculture.diagnosis
+    escalation: supported
+---
+Use this skill for diagnosis.`,
+        }),
+      ],
+    },
+  );
+
+  assert.deepEqual(activated[0]?.responseContracts, [
+    {
+      intent: 'diagnosis',
+      defaultFormat: 'structured_text',
+      cardTemplate: 'agriculture.diagnosis',
+      escalation: 'supported',
+      source: 'frontmatter',
+    },
+  ]);
 });
 
 test('getResolvedSkillResourcesForPrompt prefers explicitly referenced non-script files', () => {

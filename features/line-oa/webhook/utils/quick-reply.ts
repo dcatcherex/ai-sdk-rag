@@ -10,7 +10,7 @@ export function buildQuickReplyItem(text: string, labelText?: string): QuickRepl
   const displayText = labelText ?? text;
   const label =
     displayText.length > QUICK_REPLY_LABEL_MAX
-      ? `${displayText.slice(0, QUICK_REPLY_LABEL_MAX - 1)}...`
+      ? `${displayText.slice(0, QUICK_REPLY_LABEL_MAX - 3)}...`
       : displayText;
 
   return {

@@ -4,7 +4,13 @@ import { nanoid } from "nanoid";
 import { eq } from "drizzle-orm";
 import { chatRun } from "@/db/schema";
 import { db } from "@/lib/db";
-import type { ChatMessage, ChatMessageMetadata, RoutingMetadata } from "@/features/chat/types";
+import type { ChatMessage, RoutingMetadata } from "@/features/chat/types";
+import {
+  buildChatRunOutputSummary,
+  getFollowUpSuggestionCount,
+  getToolCallCount,
+  getUsedToolNames,
+} from './summary';
 
 type StartChatRunInput = {
   userId: string;
@@ -132,57 +138,4 @@ export function buildChatRunInputSummary(input: {
   };
 }
 
-export function buildChatRunOutputSummary(input: {
-  routeKind: "text" | "image";
-  messages?: ChatMessage[];
-  followUpSuggestionCount?: number;
-  generatedImage?: { mediaType: string };
-  memoryExtracted?: boolean;
-}) {
-  const toolNames = input.messages ? getUsedToolNames(input.messages) : [];
-
-  return {
-    routeKind: input.routeKind,
-    usedTools: toolNames.length > 0,
-    toolNames,
-    followUpSuggestionCount: input.followUpSuggestionCount ?? 0,
-    memoryExtracted: input.memoryExtracted ?? false,
-    generatedImage: input.generatedImage
-      ? { mediaType: input.generatedImage.mediaType }
-      : null,
-  };
-}
-
-export function getUsedToolNames(messages: ChatMessage[]): string[] {
-  const names = new Set<string>();
-
-  for (const message of messages) {
-    for (const part of message.parts) {
-      if (typeof part.type === "string" && part.type.startsWith("tool-")) {
-        names.add(part.type.slice(5));
-      }
-    }
-  }
-
-  return [...names];
-}
-
-export function getToolCallCount(messages: ChatMessage[]): number {
-  let count = 0;
-
-  for (const message of messages) {
-    for (const part of message.parts) {
-      if (typeof part.type === "string" && part.type.startsWith("tool-")) {
-        count += 1;
-      }
-    }
-  }
-
-  return count;
-}
-
-export function getFollowUpSuggestionCount(messages: ChatMessage[]): number {
-  const lastAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant");
-  const metadata = (lastAssistantMessage?.metadata ?? null) as ChatMessageMetadata | null;
-  return metadata?.followUpSuggestions?.length ?? 0;
-}
+export { buildChatRunOutputSummary, getFollowUpSuggestionCount, getToolCallCount, getUsedToolNames };

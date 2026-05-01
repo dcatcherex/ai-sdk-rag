@@ -67,12 +67,16 @@ function RunRow({ run }: { run: ChatRunListItem }) {
 
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span>{formatDate(run.createdAt)}</span>
+        {run.responseIntent ? <span>Intent: {run.responseIntent}</span> : null}
+        {run.templateKey ? <span>Template: {run.templateKey}</span> : null}
         {run.usedTools ? (
           <span className="inline-flex items-center gap-1">
             <WrenchIcon className="size-3" />
             {run.toolCallCount} tool {run.toolCallCount === 1 ? 'call' : 'calls'}
           </span>
         ) : null}
+        {run.quickReplyCount > 0 ? <span>{run.quickReplyCount} quick replies</span> : null}
+        {run.escalationCreated ? <span>Escalation</span> : null}
         {typeof run.totalTokens === 'number' ? <span>{run.totalTokens} tokens</span> : null}
         {typeof run.creditCost === 'number' ? <span>{run.creditCost} credits</span> : null}
       </div>
@@ -163,6 +167,16 @@ export function ChatRunsCard({
                 </Badge>
               ))}
             </div>
+
+            {data.summary.byResponseIntent.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {data.summary.byResponseIntent.map((item) => (
+                  <Badge key={`intent-${item.key}`} variant="outline" className="capitalize">
+                    {item.key}: {item.count}
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
 
             <Separator />
 

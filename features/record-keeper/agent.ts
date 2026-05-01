@@ -22,7 +22,14 @@ export function createRecordKeeperAgentTools(ctx: Pick<AgentToolContext, 'userId
       needsApproval: true,
       inputSchema: logActivityInputSchema,
       async execute(input) {
-        return { success: true, ...(await runLogActivity(input, userId)) };
+        const result = await runLogActivity(input, userId);
+        return {
+          success: true,
+          kind: 'record_saved',
+          contextType: input.contextType,
+          ...result,
+          recordId: result.id,
+        };
       },
     }),
 
@@ -31,7 +38,12 @@ export function createRecordKeeperAgentTools(ctx: Pick<AgentToolContext, 'userId
         'Retrieve saved activity records. Use when the user asks to see logs, check history, or wants to know what was done in a period. Supports filtering by entity, category, and date range.',
       inputSchema: getRecordsInputSchema,
       async execute(input) {
-        return { success: true, ...(await runGetRecords(input, userId)) };
+        return {
+          success: true,
+          kind: 'record_list',
+          contextType: input.contextType,
+          ...(await runGetRecords(input, userId)),
+        };
       },
     }),
 
@@ -40,7 +52,12 @@ export function createRecordKeeperAgentTools(ctx: Pick<AgentToolContext, 'userId
         'Summarize activity records for a period and compute cost/income totals. Use when the user asks for a weekly or monthly summary, or wants to know total expenses.',
       inputSchema: summarizeRecordsInputSchema,
       async execute(input) {
-        return { success: true, ...(await runSummarizeRecords(input, userId)) };
+        return {
+          success: true,
+          kind: 'record_summary',
+          contextType: input.contextType,
+          ...(await runSummarizeRecords(input, userId)),
+        };
       },
     }),
   };

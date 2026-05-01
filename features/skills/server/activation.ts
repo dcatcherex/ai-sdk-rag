@@ -1,6 +1,8 @@
 import type { Skill, SkillFile } from '../types';
+import type { SkillResponseContract } from '@/features/response-format/contracts';
 import { getResolvedSkillResourcesForPrompt, getSkillFilesBySkillIds } from './resources';
 import { tokenizeForSkillMatch } from './shared';
+import { parseSkillMarkdown } from './parser';
 
 export type SkillActivationSource = 'rule' | 'model';
 
@@ -9,6 +11,7 @@ export type ActivatedSkill = {
   activationSource: SkillActivationSource;
   instructionContent: string;
   instructionPath: string | null;
+  responseContracts: SkillResponseContract[];
 };
 
 export type SkillRuntimeContext = {
@@ -171,7 +174,19 @@ function buildActivatedSkill(
     activationSource,
     instructionContent,
     instructionPath: skill.skillKind === 'package' ? skill.entryFilePath : null,
+    responseContracts: resolveSkillResponseContracts(skill, entryFile?.textContent),
   };
+}
+
+function resolveSkillResponseContracts(
+  skill: Skill,
+  entryFileContent?: string | null,
+): SkillResponseContract[] {
+  if (skill.skillKind === 'package' && entryFileContent) {
+    return parseSkillMarkdown(entryFileContent).responseContracts;
+  }
+
+  return parseSkillMarkdown(skill.promptFragment).responseContracts;
 }
 
 function scoreSkillDiscovery(skill: Skill, messageTokens: Set<string>): number {

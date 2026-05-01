@@ -20,6 +20,12 @@ export type ChatRunListItem = {
   toolCallCount: number;
   creditCost: number | null;
   totalTokens: number | null;
+  responseIntent: string | null;
+  responseFormats: string[];
+  templateKey: string | null;
+  quickReplyCount: number;
+  escalationCreated: boolean;
+  renderFallbackUsed: boolean;
   errorMessage: string | null;
   createdAt: string;
   completedAt: string | null;
@@ -38,6 +44,7 @@ export type ChatRunSummary = {
   byRouteKind: ChatRunsSummaryItem[];
   byResolvedModel: ChatRunsSummaryItem[];
   byRoutingMode: ChatRunsSummaryItem[];
+  byResponseIntent: ChatRunsSummaryItem[];
 };
 
 export type ChatRunsOverview = {

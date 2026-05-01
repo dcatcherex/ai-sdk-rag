@@ -52,6 +52,8 @@ import { brandPhotosManifest } from '@/features/brand-photos/manifest';
 import { createBrandPhotosAgentTools } from '@/features/brand-photos/agent';
 import { domainProfilesManifest } from '@/features/domain-profiles/manifest';
 import { createDomainProfilesAgentTools } from '@/features/domain-profiles/agent';
+import { collaborationManifest } from '@/features/collaboration/manifest';
+import { createCollaborationAgentTools } from '@/features/collaboration/agent';
 
 const SERVER_REGISTRY: RegisteredTool[] = [
   {
@@ -203,6 +205,12 @@ const SERVER_REGISTRY: RegisteredTool[] = [
     getAgentDefinition: (ctx: AgentToolContext) =>
       createDomainProfilesAgentTools({ userId: ctx.userId, brandId: ctx.brandId }),
     getSidebarPageHref: () => `/tools/${domainProfilesManifest.slug}`,
+  },
+  {
+    manifest: collaborationManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createCollaborationAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${collaborationManifest.slug}`,
   },
 ];
 

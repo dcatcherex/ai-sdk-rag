@@ -54,7 +54,7 @@ export async function GET(req: Request) {
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  const [runs, totalResult, statusRows, routeRows, modelRows] = await Promise.all([
+  const [runs, totalResult, statusRows, routeRows, modelRows, responseIntentRows] = await Promise.all([
     db
       .select({
         id: chatRun.id,
@@ -75,6 +75,12 @@ export async function GET(req: Request) {
         toolCallCount: chatRun.toolCallCount,
         creditCost: chatRun.creditCost,
         totalTokens: chatRun.totalTokens,
+        responseIntent: sql<string | null>`${chatRun.outputJson}->>'responseIntent'`,
+        responseFormats: sql<string[]>`coalesce(${chatRun.outputJson}->'responseFormats', '[]'::jsonb)`,
+        templateKey: sql<string | null>`${chatRun.outputJson}->>'templateKey'`,
+        quickReplyCount: sql<number>`coalesce((${chatRun.outputJson}->>'quickReplyCount')::int, 0)`,
+        escalationCreated: sql<boolean>`coalesce((${chatRun.outputJson}->>'escalationCreated')::boolean, false)`,
+        renderFallbackUsed: sql<boolean>`coalesce((${chatRun.outputJson}->>'renderFallbackUsed')::boolean, false)`,
         errorMessage: chatRun.errorMessage,
         createdAt: chatRun.createdAt,
         completedAt: chatRun.completedAt,
@@ -118,6 +124,15 @@ export async function GET(req: Request) {
       .leftJoin(user, eq(chatRun.userId, user.id))
       .where(whereClause)
       .groupBy(chatRun.resolvedModelId),
+    db
+      .select({
+        key: sql<string | null>`${chatRun.outputJson}->>'responseIntent'`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(chatRun)
+      .leftJoin(user, eq(chatRun.userId, user.id))
+      .where(whereClause)
+      .groupBy(sql`${chatRun.outputJson}->>'responseIntent'`),
   ]);
 
   const summary = {
@@ -127,6 +142,7 @@ export async function GET(req: Request) {
     pendingCount: 0,
     byRouteKind: routeRows.map((row) => ({ key: row.key, count: row.count })),
     byResolvedModel: modelRows.flatMap((row) => (row.key ? [{ key: row.key, count: row.count }] : [])),
+    byResponseIntent: responseIntentRows.flatMap((row) => (row.key ? [{ key: row.key, count: row.count }] : [])),
   };
 
   for (const row of statusRows) {
@@ -142,6 +158,9 @@ export async function GET(req: Request) {
       status: run.status === 'success' || run.status === 'error' ? run.status : 'pending',
       routeKind: run.routeKind === 'image' ? 'image' : 'text',
       routingMode: run.routingMode === 'manual' || run.routingMode === 'auto' ? run.routingMode : null,
+      responseFormats: Array.isArray(run.responseFormats)
+        ? run.responseFormats.filter((value): value is string => typeof value === 'string')
+        : [],
       createdAt: run.createdAt.toISOString(),
       completedAt: run.completedAt ? run.completedAt.toISOString() : null,
     })),

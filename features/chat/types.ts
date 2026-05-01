@@ -1,5 +1,6 @@
 import type { UIDataTypes, UIMessage, UIMessagePart } from 'ai';
 import type { ChatTools } from '@/lib/tools';
+import type { ResponseAuditSummary } from '@/features/response-format/server/audit';
 
 export type ThreadItem = {
   id: string;
@@ -22,6 +23,7 @@ export type ChatMessageMetadata = {
   routing?: RoutingMetadata;
   enhancedPrompt?: string;
   followUpSuggestions?: string[];
+  responseFormat?: ResponseAuditSummary;
   // Compare mode
   compareGroupId?: string;
   compareModelId?: string;

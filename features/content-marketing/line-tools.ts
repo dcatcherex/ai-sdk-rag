@@ -31,6 +31,8 @@ export function buildContentMarketingLineTools(userId: string | null) {
       execute: async ({ topic, platforms, tone }) => {
         const result = await generateCaptions({ topic, platforms, tone });
         return {
+          kind: 'content_plan_generated',
+          topic,
           base: result.base,
           overrides: result.overrides,
           message: `Generated captions for ${platforms.join(', ')}.`,
@@ -103,6 +105,7 @@ export function buildContentMarketingLineTools(userId: string | null) {
         });
         return {
           success: true,
+          kind: 'content_draft_saved',
           postId: post.id,
           status: post.status,
           message: `Draft saved (ID: ${post.id.slice(0, 8)}). View it in Content Hub → Posts.`,

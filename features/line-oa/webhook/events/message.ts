@@ -14,8 +14,6 @@ import {
 import type { AgentRow, LineMessage, LinkedUser, MessagePart, Sender } from '../types';
 import { MAX_CONTEXT_MESSAGES } from '../types';
 import { getOrCreateConversation } from '../db';
-import { buildReplyMessages } from '../flex';
-import { buildQuickReplyItem } from '../utils/quick-reply';
 import { extractTextContent } from '../utils/text';
 import { stripMarkdown } from '../utils/markdown';
 import { consumeLinkToken, registerLineUser } from '@/features/line-oa/link/service';
@@ -47,8 +45,22 @@ import {
   startCanonicalAgentImageGeneration,
 } from '@/features/agents/server/run-service';
 import { wantsImageGeneration } from '@/features/agents/server/media-intent';
+import { buildFallbackResponsePlan, renderResponseForLine } from '@/features/response-format';
+import type { ResponseQuickReply } from '@/features/response-format';
+import { mergeResponseQuickReplies } from '@/features/response-format/workflow';
 
 export { wantsImageGeneration };
+
+function buildSuggestionQuickReplies(suggestions: string[]): ResponseQuickReply[] {
+  return suggestions
+    .filter((suggestion) => suggestion.trim().length > 0)
+    .slice(0, 3)
+    .map((suggestion) => ({
+      actionType: 'message',
+      label: suggestion,
+      text: suggestion,
+    }));
+}
 
 /**
  * Falls back to chatModel (Gemini) for vision if agent uses an unsupported model.
@@ -683,13 +695,35 @@ export async function handleMessageEvent(
       }
     }
 
-    const quickReplyItems = suggestions
-      .filter((suggestion) => suggestion.trim().length > 0)
-      .slice(0, 3)
-      .map((suggestion) => buildQuickReplyItem(suggestion));
-    const quickReply = quickReplyItems.length > 0 ? { items: quickReplyItems } : undefined;
-
-    const textMessages = buildReplyMessages(displayText, sender, quickReply);
+    const responsePlan = generateResult.responsePlan
+      ? {
+          ...generateResult.responsePlan,
+          bodyText: displayText,
+          quickReplies: mergeResponseQuickReplies(
+            generateResult.responsePlan.quickReplies,
+            buildSuggestionQuickReplies(suggestions),
+          ),
+          formats: [
+            ...generateResult.responsePlan.formats.filter((format) => format !== 'quick_replies'),
+            ...(mergeResponseQuickReplies(
+              generateResult.responsePlan.quickReplies,
+              buildSuggestionQuickReplies(suggestions),
+            ).length > 0 ? ['quick_replies' as const] : []),
+          ],
+          metadata: {
+            ...generateResult.responsePlan.metadata,
+            channel: 'line',
+          },
+        }
+      : buildFallbackResponsePlan({
+          text: displayText,
+          locale: 'th-TH',
+          quickReplies: buildSuggestionQuickReplies(suggestions),
+          metadata: {
+            channel: 'line',
+          },
+        });
+    const textMessages = renderResponseForLine(responsePlan, { sender });
     const imageMessages: LineMessage[] = generateResult.imageUrls
       .slice(0, Math.max(0, 4 - textMessages.length))
       .map((url) => ({ type: 'image', originalContentUrl: url, previewImageUrl: url } as LineMessage));
@@ -915,13 +949,15 @@ export async function handleMessageEvent(
       }
     }
 
-    const videoQuickReplyItems = videoSuggestions
-      .filter((s) => s.trim().length > 0)
-      .slice(0, 3)
-      .map((s) => buildQuickReplyItem(s));
-    const videoQuickReply = videoQuickReplyItems.length > 0 ? { items: videoQuickReplyItems } : undefined;
-
-    const videoReplyMessages = buildReplyMessages(videoReplyText, sender, videoQuickReply);
+    const videoResponsePlan = buildFallbackResponsePlan({
+      text: videoReplyText,
+      locale: 'th-TH',
+      quickReplies: buildSuggestionQuickReplies(videoSuggestions),
+      metadata: {
+        channel: 'line',
+      },
+    });
+    const videoReplyMessages = renderResponseForLine(videoResponsePlan, { sender });
     await lineClient.replyMessage({ replyToken: event.replyToken, messages: videoReplyMessages });
     recordMessageEvent(channel.id, lineUserId).catch(() => {});
     return;

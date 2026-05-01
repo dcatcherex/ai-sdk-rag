@@ -161,7 +161,7 @@ export const MessageItem = ({
       data-message-id={message.id}
       className={`scroll-mt-4 rounded-xl transition-colors duration-150 ${
         isActiveMessage
-          ? 'bg-primary/6 ring-1 ring-primary/15'
+          ? ''
           : ''
       } ${
         isDeleteHighlighted

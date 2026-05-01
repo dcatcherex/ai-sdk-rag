@@ -48,6 +48,7 @@ export type AgentRunTextResult = {
   text: string;
   toolCallCount: number;
   imageUrls: string[];
+  responsePlan?: import('@/features/response-format').ResponsePlan;
   modelId: string;
   creditCost: number;
 };

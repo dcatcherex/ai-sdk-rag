@@ -202,6 +202,7 @@ export async function getForecastForLocation(locationQuery: string) {
   const trimmedLocation = locationQuery.trim();
   if (!trimmedLocation) {
     return {
+      kind: 'weather_lookup_error' as const,
       error: 'missing_location' as const,
       message: 'Please provide a location name to check the weather.',
       source: 'Open-Meteo',
@@ -221,6 +222,7 @@ export async function getForecastForLocation(locationQuery: string) {
 
   if (!match) {
     return {
+      kind: 'weather_lookup_error' as const,
       error: 'location_not_found' as const,
       message: `I could not find weather data for "${trimmedLocation}". Try a province, district, or city name.`,
       source: 'Open-Meteo',
@@ -270,6 +272,7 @@ export async function getForecastForLocation(locationQuery: string) {
   });
 
   return {
+    kind: 'weather_forecast' as const,
     location: {
       name: match.name,
       admin1: match.admin1 ?? null,
@@ -319,6 +322,7 @@ export const weatherTools = {
         return await getForecastForLocation(location);
       } catch (error) {
         return {
+          kind: 'weather_lookup_error' as const,
           error: 'weather_lookup_failed',
           message: error instanceof Error
             ? error.message

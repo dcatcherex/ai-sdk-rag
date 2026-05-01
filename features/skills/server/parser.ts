@@ -1,4 +1,12 @@
 import type { CreateSkillInput, SkillTriggerType } from '../types';
+import {
+  dedupeSkillResponseContracts,
+  normalizeRequiredSections,
+  normalizeResponseContractEscalation,
+  normalizeResponseFormat,
+  normalizeResponseIntent,
+  type SkillResponseContract,
+} from '@/features/response-format/contracts';
 
 export type ParsedSkillMarkdown = {
   name: string;
@@ -7,6 +15,7 @@ export type ParsedSkillMarkdown = {
   trigger?: string;
   enabledTools: string[];
   body: string;
+  responseContracts: SkillResponseContract[];
 };
 
 export function buildSkillMarkdown(data: CreateSkillInput): string {
@@ -43,9 +52,11 @@ export function parseSkillMarkdown(content: string): ParsedSkillMarkdown {
   const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   let frontmatter: Record<string, string> = {};
   let body = content;
+  let frontmatterSource = '';
 
   if (fmMatch) {
-    frontmatter = parseSimpleYaml(fmMatch[1] ?? '');
+    frontmatterSource = fmMatch[1] ?? '';
+    frontmatter = parseSimpleYaml(frontmatterSource);
     body = (fmMatch[2] ?? '').trim();
   }
 
@@ -71,7 +82,23 @@ export function parseSkillMarkdown(content: string): ParsedSkillMarkdown {
     ? rawAllowedTools.split(/\s+/).filter(Boolean)
     : [];
 
-  return { name, description, triggerType, trigger, enabledTools, body };
+  const frontmatterContracts = parseResponseContractsFromFrontmatter(frontmatterSource);
+  const markdownContracts = frontmatterContracts.length === 0
+    ? parseResponseContractsFromMarkdownSection(body)
+    : [];
+
+  return {
+    name,
+    description,
+    triggerType,
+    trigger,
+    enabledTools,
+    body,
+    responseContracts: dedupeSkillResponseContracts([
+      ...frontmatterContracts,
+      ...markdownContracts,
+    ]),
+  };
 }
 
 function escapeFrontmatterValue(value: string): string {
@@ -126,4 +153,152 @@ function parseSimpleYaml(yaml: string): Record<string, string> {
   }
 
   return result;
+}
+
+function parseResponseContractsFromFrontmatter(frontmatterSource: string): SkillResponseContract[] {
+  if (!frontmatterSource.trim()) return [];
+
+  const lines = frontmatterSource.split('\n');
+  const contracts: SkillResponseContract[] = [];
+  let startIndex = -1;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    if (/^response-contracts:\s*$/i.test(lines[i]?.trim() ?? '')) {
+      startIndex = i + 1;
+      break;
+    }
+  }
+
+  if (startIndex === -1) return [];
+
+  const items: Array<Record<string, string>> = [];
+  let current: Record<string, string> | null = null;
+
+  for (let i = startIndex; i < lines.length; i += 1) {
+    const line = lines[i] ?? '';
+    if (!line.trim()) continue;
+    if (!/^\s+/.test(line)) break;
+
+    const trimmed = line.trim();
+    if (trimmed.startsWith('- ')) {
+      if (current && Object.keys(current).length > 0) {
+        items.push(current);
+      }
+      current = {};
+      const inlineEntry = trimmed.slice(2).trim();
+      if (inlineEntry) {
+        const parsed = parseKeyValueLine(inlineEntry);
+        if (parsed) current[parsed.key] = parsed.value;
+      }
+      continue;
+    }
+
+    if (!current) continue;
+    const parsed = parseKeyValueLine(trimmed);
+    if (parsed) current[parsed.key] = parsed.value;
+  }
+
+  if (current && Object.keys(current).length > 0) {
+    items.push(current);
+  }
+
+  return items
+    .map((item) => buildSkillResponseContract(item, 'frontmatter'))
+    .filter((contract): contract is SkillResponseContract => contract !== null);
+}
+
+function parseResponseContractsFromMarkdownSection(body: string): SkillResponseContract[] {
+  const lines = body.split('\n');
+  const sectionStart = lines.findIndex((line) => /^##+\s+Response Contracts\s*$/i.test(line.trim()));
+  if (sectionStart === -1) return [];
+
+  const sectionLines: string[] = [];
+  for (let i = sectionStart + 1; i < lines.length; i += 1) {
+    const line = lines[i] ?? '';
+    if (/^##+\s+/.test(line.trim())) break;
+    sectionLines.push(line);
+  }
+
+  const sectionBody = sectionLines.join('\n').trim();
+  if (!sectionBody) return [];
+
+  const items: Array<Record<string, string>> = [];
+  let current: Record<string, string> = {};
+
+  for (const rawLine of sectionBody.split('\n')) {
+    const line = rawLine.trim();
+    if (!line) {
+      if (Object.keys(current).length > 0) {
+        items.push(current);
+        current = {};
+      }
+      continue;
+    }
+
+    const bulletMatch = line.match(/^[-*]\s+(.*)$/);
+    if (!bulletMatch) continue;
+
+    const parsed = parseKeyValueLine(bulletMatch[1] ?? '');
+    if (!parsed) continue;
+
+    if (parsed.key === 'intent' && Object.keys(current).length > 0) {
+      items.push(current);
+      current = {};
+    }
+
+    current[parsed.key] = parsed.value;
+  }
+
+  if (Object.keys(current).length > 0) {
+    items.push(current);
+  }
+
+  return items
+    .map((item) => buildSkillResponseContract(item, 'markdown_section'))
+    .filter((contract): contract is SkillResponseContract => contract !== null);
+}
+
+function parseKeyValueLine(input: string): { key: string; value: string } | null {
+  const colonIndex = input.indexOf(':');
+  if (colonIndex === -1) return null;
+
+  const key = input.slice(0, colonIndex).trim().toLowerCase();
+  const value = input.slice(colonIndex + 1).trim().replace(/^["']|["']$/g, '');
+  if (!key || !value) return null;
+
+  return { key, value };
+}
+
+function buildSkillResponseContract(
+  values: Record<string, string>,
+  source: SkillResponseContract['source'],
+): SkillResponseContract | null {
+  const intent = normalizeResponseIntent(values.intent);
+  if (!intent) return null;
+
+  const contract: SkillResponseContract = {
+    intent,
+    source,
+  };
+
+  const defaultFormat = normalizeResponseFormat(values['default-format']);
+  if (defaultFormat) {
+    contract.defaultFormat = defaultFormat;
+  }
+
+  if (values['card-template']) {
+    contract.cardTemplate = values['card-template'].trim();
+  }
+
+  const escalation = normalizeResponseContractEscalation(values.escalation);
+  if (escalation) {
+    contract.escalation = escalation;
+  }
+
+  const requiredSections = normalizeRequiredSections(values['required sections']);
+  if (requiredSections.length > 0) {
+    contract.requiredSections = requiredSections;
+  }
+
+  return contract;
 }

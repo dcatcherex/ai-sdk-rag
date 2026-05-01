@@ -28,6 +28,7 @@ import { webDeployManifest } from '@/features/deploy/manifest';
 import { platformAgentManifest } from '@/features/platform-agent/manifest';
 import { brandPhotosManifest } from '@/features/brand-photos/manifest';
 import { domainProfilesManifest } from '@/features/domain-profiles/manifest';
+import { collaborationManifest } from '@/features/collaboration/manifest';
 
 /** All registered tool manifests */
 export const TOOL_MANIFESTS: ToolManifest[] = [
@@ -54,6 +55,7 @@ export const TOOL_MANIFESTS: ToolManifest[] = [
   platformAgentManifest,
   brandPhotosManifest,
   domainProfilesManifest,
+  collaborationManifest,
 ];
 
 /** Map from tool id → manifest */
