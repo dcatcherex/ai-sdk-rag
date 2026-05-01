@@ -75,7 +75,11 @@ export function buildResponsePlan({
   toolResults,
 }: BuildResponsePlanInput): ResponsePlan {
   const toolSelection = selectResponseFromToolResults(toolResults, locale);
-  const resolvedIntent = intent ?? toolSelection?.intent ?? 'answer';
+  const resolvedIntent =
+    intent
+    ?? toolSelection?.intent
+    ?? inferResponseIntentFromText(text, userText)
+    ?? 'answer';
   const resolvedSafety = safety ?? inferResponseSafety({
     userText,
     responseText: text.trim() || toolSelection?.bodyText || '',
@@ -115,6 +119,33 @@ export function buildResponsePlan({
       ...(metadata ?? {}),
     },
   };
+}
+
+function inferResponseIntentFromText(text: string, userText?: string): ResponseIntent | null {
+  const normalizedText = text.trim();
+  const normalizedUserText = userText?.trim() ?? '';
+  if (!normalizedText) return null;
+
+  const hasThaiDiagnosisContract =
+    normalizedText.includes('ปัญหาที่น่าจะเป็น:')
+    && normalizedText.includes('ความมั่นใจ:')
+    && normalizedText.includes('ควรทำทันที:');
+  const hasEnglishDiagnosisContract =
+    /likely (issue|problem|diagnosis):/i.test(normalizedText)
+    && /confidence:/i.test(normalizedText)
+    && /(do now|immediate action|next steps):/i.test(normalizedText);
+  const userAskedForDiagnosis =
+    /(diagnos|identify|what is wrong|โรค|อาการ|ตรวจ|วิเคราะห์)/i.test(normalizedUserText);
+
+  if (hasThaiDiagnosisContract || hasEnglishDiagnosisContract) {
+    return 'diagnosis';
+  }
+
+  if (userAskedForDiagnosis && /(confidence|severity|ความมั่นใจ|ความรุนแรง)/i.test(normalizedText)) {
+    return 'diagnosis';
+  }
+
+  return null;
 }
 
 export function selectResponseFromToolResults(

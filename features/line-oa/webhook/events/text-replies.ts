@@ -114,6 +114,38 @@ async function persistLineTurn(input: {
   ]);
 }
 
+function extractLatestQuestion(text: string): string | undefined {
+  const lines = text
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const question = [...lines].reverse().find((line) =>
+    /[?？]$/.test(line)
+    || /(ไหม|มั้ย|หรือยัง|หรือไม่|แบบไหน|แค่ไหน|อะไร|ที่ไหน|เมื่อไร)(ครับ|ค่ะ|คะ)?$/.test(line),
+  );
+
+  return question?.slice(0, 220);
+}
+
+function buildAssistantSuggestionContext(replyText: string): {
+  text: string;
+  latestQuestion?: string;
+} {
+  const latestQuestion = extractLatestQuestion(replyText);
+  const intro = replyText.slice(0, 220);
+  const outro = replyText.length > 220 ? replyText.slice(-360) : '';
+
+  return {
+    text: [
+      intro,
+      ...(outro ? [`assistant_tail: ${outro}`] : []),
+      ...(latestQuestion ? [`assistant_latest_question: ${latestQuestion}`] : []),
+    ].join('\n'),
+    latestQuestion,
+  };
+}
+
 export async function runCanonicalLineReply(
   input: RunCanonicalLineReplyInput,
   context: RunCanonicalLineReplyContext,
@@ -162,19 +194,21 @@ export async function runCanonicalLineReply(
   const displayText = input.displayReplyText ? input.displayReplyText(replyText) : replyText;
   const storedUserText = input.storedUserText ?? input.runtimeUserText;
   const memoryUserText = input.memoryUserText ?? input.runtimeUserText;
+  const assistantSuggestionContext = buildAssistantSuggestionContext(replyText);
 
   const contextStr = [
     ...context.historyMessages
       .slice(-4)
       .map((message) => `${message.role}: ${message.content.slice(0, 200)}`),
     `user: ${storedUserText.slice(0, 200)}`,
-    `assistant: ${replyText.slice(0, 200)}`,
+    `assistant: ${assistantSuggestionContext.text}`,
   ].join('\n');
 
   const [suggestions] = await Promise.all([
     generateFollowUpSuggestions(contextStr, {
       domainHint: context.followUpDomainHint,
       skillHints: context.followUpSkillHints,
+      latestAssistantQuestion: assistantSuggestionContext.latestQuestion,
     }),
     persistLineTurn({
       threadId: context.threadId,

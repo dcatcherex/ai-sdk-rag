@@ -21,12 +21,15 @@ First, decide which mode applies based on the last assistant message:
 Then generate exactly 3 short strings accordingly:
 - In "answers" mode: concrete example answers the user could tap to reply
 - In "questions" mode: short next messages the user could send to continue naturally
+- If the assistant's latest message ends with a specific question, make the chips direct answers to that question.
+- If the question offers choices, mirror those choices as user answers.
 
 Rules:
 - Return ONLY a JSON object: {"mode": "answers"|"questions", "items": ["...", "...", "..."]}
 - Each item must be <=${maxChars} characters.
 ${langRule}- No explanations, no preamble, only raw JSON.
 - Each item must sound like a user message, request, answer, or follow-up.
+- Avoid generic acknowledgement chips like "yes", "got it", or "thanks" unless the latest question is strictly yes/no.
 - Never output assistant offers/prompts such as:
   - "How can I help?"
   - "Do you want...?"
@@ -43,10 +46,16 @@ export type FollowUpOptions = {
   languageHint?: string;
   domainHint?: string;
   skillHints?: string[];
+  latestAssistantQuestion?: string;
 };
 
 function buildOptionalGuidance(options: FollowUpOptions): string {
   const lines: string[] = [];
+
+  if (options.latestAssistantQuestion?.trim()) {
+    lines.push(`- The assistant's latest question is: ${options.latestAssistantQuestion.trim()}`);
+    lines.push('- Prefer answer chips for that exact question over generic acknowledgements.');
+  }
 
   if (options.domainHint?.trim()) {
     lines.push(`- Active profession/domain: ${options.domainHint.trim()}.`);
@@ -76,6 +85,23 @@ function isAssistantPerspectiveSuggestion(value: string): boolean {
     /^need .*help\b/,
     /^let me know\b/,
     /^would you like\b/,
+  ].some((pattern) => pattern.test(normalized));
+}
+
+function isLowValueAcknowledgement(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+
+  return [
+    /^yes$/,
+    /^ok(?:ay)?$/,
+    /^thanks?$/,
+    /^thank you$/,
+    /^got it$/,
+    /^understood$/,
+    /^ใช่(?:ครับ|ค่ะ|คะ)?$/,
+    /^โอเค(?:ครับ|ค่ะ|คะ)?$/,
+    /^เข้าใจแล้ว(?:ครับ|ค่ะ|คะ)?$/,
+    /^ขอบคุณ(?:ครับ|ค่ะ|คะ)?$/,
   ].some((pattern) => pattern.test(normalized));
 }
 
@@ -109,6 +135,7 @@ export async function generateFollowUpSuggestions(
       .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
       .map((item) => item.trim().slice(0, maxChars))
       .filter((item) => !isAssistantPerspectiveSuggestion(item))
+      .filter((item) => !options.latestAssistantQuestion?.trim() || !isLowValueAcknowledgement(item))
       .slice(0, 3);
   } catch (error) {
     console.error('Follow-up suggestion generation failed:', error);
