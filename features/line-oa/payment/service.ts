@@ -82,6 +82,27 @@ export type VerifySlipResult =
   | { ok: true; orderId: string; credits: number; senderName: string }
   | { ok: false; error: string };
 
+export async function hasPendingPaymentOrder(
+  lineUserId: string,
+  channelId: string,
+): Promise<boolean> {
+  const now = new Date();
+  const orderRows = await db
+    .select({ id: linePaymentOrder.id })
+    .from(linePaymentOrder)
+    .where(
+      and(
+        eq(linePaymentOrder.channelId, channelId),
+        eq(linePaymentOrder.lineUserId, lineUserId),
+        eq(linePaymentOrder.status, 'pending'),
+        gt(linePaymentOrder.expiresAt, now),
+      ),
+    )
+    .limit(1);
+
+  return Boolean(orderRows[0]);
+}
+
 /**
  * Verify a slip image (base64 JPEG/PNG) against slipok.app.
  * Finds the latest pending order for this LINE user and marks it completed.
