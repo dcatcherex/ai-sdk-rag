@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { getCurrentUser } from '@/lib/auth-server';
 
+const TTS_MODEL = 'gemini-3.1-flash-tts-preview';
+const TTS_MAX_ATTEMPTS = 3;
+
 function pcmToWav(pcm: Buffer, sampleRate = 24000): Buffer {
   const numChannels = 1;
   const bitsPerSample = 16;
@@ -27,6 +30,30 @@ function pcmToWav(pcm: Buffer, sampleRate = 24000): Buffer {
   return Buffer.concat([header, pcm]);
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function extractInlineAudioBase64(response: {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        inlineData?: { data?: string; mimeType?: string };
+      }>;
+    };
+  }>;
+}): string | null {
+  for (const candidate of response.candidates ?? []) {
+    for (const part of candidate.content?.parts ?? []) {
+      const data = part.inlineData?.data;
+      if (typeof data === 'string' && data.length > 0) {
+        return data;
+      }
+    }
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) {
@@ -46,22 +73,32 @@ export async function POST(req: NextRequest) {
 
   try {
     const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    const response = await genAI.models.generateContent({
-      model: 'gemini-3.1-flash-tts-preview',
-      contents: [{ parts: [{ text: ttsText }] }],
-      config: {
-        responseModalities: ['AUDIO'],
-        speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } },
+    let pcmBase64: string | null = null;
+    let lastResponse: unknown = null;
+    for (let attempt = 1; attempt <= TTS_MAX_ATTEMPTS; attempt += 1) {
+      const response = await genAI.models.generateContent({
+        model: TTS_MODEL,
+        contents: [{ parts: [{ text: ttsText }] }],
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } },
+          },
         },
-      },
-    });
+      });
+      lastResponse = response;
+      pcmBase64 = extractInlineAudioBase64(response) ?? response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data ?? null;
+      if (pcmBase64) {
+        break;
+      }
+      if (attempt < TTS_MAX_ATTEMPTS) {
+        await sleep(attempt * 250);
+      }
+    }
 
-    const pcmBase64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (!pcmBase64) {
-      const finishReason = response.candidates?.[0]?.finishReason;
-      console.error('[TTS] No audio data returned. finishReason:', finishReason);
-      return NextResponse.json({ error: 'TTS returned no audio', finishReason }, { status: 502 });
+      console.error('[TTS] No audio data returned after retries:', lastResponse);
+      return NextResponse.json({ error: 'TTS returned no audio' }, { status: 502 });
     }
 
     const pcmBuffer = Buffer.from(pcmBase64, 'base64');

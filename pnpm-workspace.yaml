@@ -1,6 +1,6 @@
-ignoredBuiltDependencies:
-  - sharp
+strictDepBuilds: true
 
-onlyBuiltDependencies:
-  - esbuild
-  - ffmpeg-static
+allowBuilds:
+  esbuild: true
+  ffmpeg-static: true
+  sharp: false

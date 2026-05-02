@@ -40,10 +40,33 @@ import { buildSuggestionQuickReplies, type ConversationHistoryMessage } from './
 const VOICE_SUMMARY_CHAR_THRESHOLD = 420;
 const VOICE_SUMMARY_WORD_THRESHOLD = 90;
 const MODEL_TRANSCRIBE = 'gemini-2.5-flash-lite';
+const LINE_TTS_MODEL = 'gemini-3.1-flash-tts-preview';
 
 function shouldUseVoiceSummary(text: string): boolean {
   const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
   return text.length > VOICE_SUMMARY_CHAR_THRESHOLD || wordCount > VOICE_SUMMARY_WORD_THRESHOLD;
+}
+
+function extractInlineAudioBase64(response: {
+  candidates?: Array<{
+    finishReason?: string;
+    content?: {
+      parts?: Array<{
+        text?: string;
+        inlineData?: { data?: string; mimeType?: string };
+      }>;
+    };
+  }>;
+}): string | null {
+  for (const candidate of response.candidates ?? []) {
+    for (const part of candidate.content?.parts ?? []) {
+      const data = part.inlineData?.data;
+      if (typeof data === 'string' && data.length > 0) {
+        return data;
+      }
+    }
+  }
+  return null;
 }
 
 type LineChannel = {
@@ -525,7 +548,7 @@ async function sendVoiceReply(
     let response;
     try {
       response = await genAI.models.generateContent({
-        model: 'gemini-3.1-flash-tts-preview',
+        model: LINE_TTS_MODEL,
         contents: [{ parts: [{ text: ttsText }] }],
         config: {
           responseModalities: ['AUDIO'],
@@ -539,7 +562,7 @@ async function sendVoiceReply(
       return;
     }
 
-    const pcmBase64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    let pcmBase64 = extractInlineAudioBase64(response) ?? response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data ?? null;
     if (!pcmBase64) {
       console.warn('[LINE] Voice reply — TTS returned no audio data. candidates:', JSON.stringify(response.candidates?.map((c) => ({ finishReason: c.finishReason, parts: c.content?.parts?.map((p) => ({ type: Object.keys(p).join(',') })) }))));
       return;
@@ -568,6 +591,14 @@ async function sendVoiceReply(
         body: m4aBuffer,
         contentType: 'audio/mp4',
       }));
+      const headResponse = await fetch(url, { method: 'HEAD' });
+      if (!headResponse.ok) {
+        console.error('[LINE] Voice reply - uploaded audio is not publicly reachable:', {
+          audioUrl: url,
+          status: headResponse.status,
+        });
+        return;
+      }
     } catch (uploadErr) {
       console.error('[LINE] Voice reply — R2 upload failed:', uploadErr);
       return;
