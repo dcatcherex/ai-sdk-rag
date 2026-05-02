@@ -54,6 +54,8 @@ import { domainProfilesManifest } from '@/features/domain-profiles/manifest';
 import { createDomainProfilesAgentTools } from '@/features/domain-profiles/agent';
 import { collaborationManifest } from '@/features/collaboration/manifest';
 import { createCollaborationAgentTools } from '@/features/collaboration/agent';
+import { cropPriceManifest } from '@/features/crop-price/manifest';
+import { createCropPriceAgentTools } from '@/features/crop-price/agent';
 
 const SERVER_REGISTRY: RegisteredTool[] = [
   {
@@ -211,6 +213,12 @@ const SERVER_REGISTRY: RegisteredTool[] = [
     getAgentDefinition: (ctx: AgentToolContext) =>
       createCollaborationAgentTools({ userId: ctx.userId }),
     getSidebarPageHref: () => `/tools/${collaborationManifest.slug}`,
+  },
+  {
+    manifest: cropPriceManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createCropPriceAgentTools({ userId: ctx.userId }),
+    getSidebarPageHref: () => `/tools/${cropPriceManifest.slug}`,
   },
 ];
 

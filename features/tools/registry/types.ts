@@ -13,7 +13,8 @@ export type ToolCategory =
   | 'admin'
   | 'utilities'
   | 'developer'
-  | 'media';
+  | 'media'
+  | 'agriculture';
 
 export type ToolManifest = {
   /** Unique stable identifier used in DB, preferences, agent tool names */

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArchiveIcon,
+  ArrowLeftIcon,
   DownloadIcon,
   PencilIcon,
   PlusIcon,
@@ -12,13 +13,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -75,11 +69,114 @@ function parsePayload(value: string): Record<string, unknown> | null {
   }
 }
 
+function FlexTemplateEditor({
+  template,
+  isPending,
+  onBack,
+  onSubmit,
+}: {
+  template: FlexTemplateRecord | null;
+  isPending: boolean;
+  onBack: () => void;
+  onSubmit: (form: FormState) => void;
+}) {
+  const [form, setForm] = useState<FormState>(template ? toForm(template) : emptyForm());
+  const isValid = form.name.trim().length > 0 && form.altText.trim().length > 0 && Boolean(parsePayload(form.flexPayload));
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="sm" className="gap-1.5" onClick={onBack}>
+          <ArrowLeftIcon className="size-4" />
+          Back
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold">{template ? 'Edit flex template' : 'New flex template'}</h1>
+          {template && <p className="text-sm text-muted-foreground">{template.name}</p>}
+        </div>
+      </div>
+
+      <div className="grid gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label>Name</Label>
+            <Input
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="my-template"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Category</Label>
+            <Select
+              value={form.category}
+              onValueChange={(v) => setForm((f) => ({ ...f, category: v as FlexCategory }))}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {CATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c}>{FLEX_CATEGORY_LABELS[c]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Description</Label>
+          <Input
+            value={form.description}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            placeholder="What this template is for"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Alt text</Label>
+          <Input
+            value={form.altText}
+            onChange={(e) => setForm((f) => ({ ...f, altText: e.target.value }))}
+            placeholder="Short notification text (max 400 chars)"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Tags (comma separated)</Label>
+          <Input
+            value={form.tags}
+            onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))}
+            placeholder="alert, crop, price"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Flex JSON &amp; Preview</Label>
+          <div style={{ height: 520 }}>
+            <FlexEditor
+              value={form.flexPayload}
+              onChange={(v) => setForm((f) => ({ ...f, flexPayload: v }))}
+            />
+          </div>
+          {!parsePayload(form.flexPayload) && form.flexPayload.trim() && (
+            <p className="text-xs text-red-600">Invalid JSON</p>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 border-t pt-4">
+          <Button variant="outline" onClick={onBack}>Cancel</Button>
+          <Button onClick={() => onSubmit(form)} disabled={!isValid || isPending}>
+            {isPending ? 'Saving…' : template ? 'Save changes' : 'Create template'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminFlexTemplatesPage() {
   const qc = useQueryClient();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const [editingTemplate, setEditingTemplate] = useState<FlexTemplateRecord | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   const { data, isLoading } = useQuery<{ templates: FlexTemplateRecord[] }>({
     queryKey: ['admin', 'flex-templates'],
@@ -107,9 +204,8 @@ export default function AdminFlexTemplatesPage() {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'flex-templates'] });
-      setDialogOpen(false);
-      setEditingId(null);
-      setForm(emptyForm());
+      setEditingTemplate(null);
+      setIsCreating(false);
     },
   });
 
@@ -141,19 +237,7 @@ export default function AdminFlexTemplatesPage() {
     },
   });
 
-  const openCreate = () => {
-    setEditingId(null);
-    setForm(emptyForm());
-    setDialogOpen(true);
-  };
-
-  const openEdit = (t: FlexTemplateRecord) => {
-    setEditingId(t.id);
-    setForm(toForm(t));
-    setDialogOpen(true);
-  };
-
-  const submit = () => {
+  const handleSubmit = (form: FormState) => {
     const payload = parsePayload(form.flexPayload);
     if (!payload) return;
     const body = {
@@ -164,10 +248,24 @@ export default function AdminFlexTemplatesPage() {
       flexPayload: payload,
       altText: form.altText.trim(),
     };
-    saveMutation.mutate({ id: editingId ?? undefined, body });
+    saveMutation.mutate({ id: editingTemplate?.id, body });
   };
 
-  const isValid = form.name.trim().length > 0 && form.altText.trim().length > 0 && Boolean(parsePayload(form.flexPayload));
+  const handleBack = () => {
+    setEditingTemplate(null);
+    setIsCreating(false);
+  };
+
+  if (editingTemplate || isCreating) {
+    return (
+      <FlexTemplateEditor
+        template={editingTemplate}
+        isPending={saveMutation.isPending}
+        onBack={handleBack}
+        onSubmit={handleSubmit}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -188,7 +286,7 @@ export default function AdminFlexTemplatesPage() {
             <DownloadIcon className="size-4" />
             {seedMutation.isPending ? 'Importing…' : 'Import AgriSpark Templates'}
           </Button>
-          <Button className="gap-1.5" onClick={openCreate}>
+          <Button className="gap-1.5" onClick={() => setIsCreating(true)}>
             <PlusIcon className="size-4" />
             New template
           </Button>
@@ -246,7 +344,12 @@ export default function AdminFlexTemplatesPage() {
                   )}
                 </div>
                 <div className="flex shrink-0 gap-2">
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => openEdit(t)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => setEditingTemplate(t)}
+                  >
                     <PencilIcon className="size-3.5" />
                     Edit
                   </Button>
@@ -283,72 +386,6 @@ export default function AdminFlexTemplatesPage() {
           ))
         )}
       </div>
-
-      <Dialog open={dialogOpen} onOpenChange={(open) => {
-        setDialogOpen(open);
-        if (!open) { setEditingId(null); setForm(emptyForm()); }
-      }}>
-        <DialogContent className="max-h-[95vh] max-w-5xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingId ? 'Edit flex template' : 'Create flex template'}</DialogTitle>
-          </DialogHeader>
-
-          <div className="grid gap-4 py-2">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label>Name</Label>
-                <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="my-template" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Category</Label>
-                <Select value={form.category} onValueChange={(v) => setForm((f) => ({ ...f, category: v as FlexCategory }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIES.map((c) => (
-                      <SelectItem key={c} value={c}>{FLEX_CATEGORY_LABELS[c]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Description</Label>
-              <Input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="What this template is for" />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Alt text</Label>
-              <Input value={form.altText} onChange={(e) => setForm((f) => ({ ...f, altText: e.target.value }))} placeholder="Short notification text (max 400 chars)" />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Tags (comma separated)</Label>
-              <Input value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} placeholder="alert, crop, price" />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Flex JSON &amp; Preview</Label>
-              <div style={{ height: 420 }}>
-                <FlexEditor
-                  value={form.flexPayload}
-                  onChange={(v) => setForm((f) => ({ ...f, flexPayload: v }))}
-                />
-              </div>
-              {!parsePayload(form.flexPayload) && form.flexPayload.trim() && (
-                <p className="text-xs text-red-600">Invalid JSON</p>
-              )}
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={submit} disabled={!isValid || saveMutation.isPending}>
-              {saveMutation.isPending ? 'Saving…' : editingId ? 'Save changes' : 'Create template'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

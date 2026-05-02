@@ -115,4 +115,10 @@ export const TOOL_PAGE_LOADERS: Record<string, ToolPageLoader> = {
     );
     return BrandPhotosToolPage;
   },
+  'crop-price': async () => {
+    const { CropPriceToolPage } = await import(
+      '@/features/crop-price/components/crop-price-tool-page'
+    );
+    return CropPriceToolPage;
+  },
 };

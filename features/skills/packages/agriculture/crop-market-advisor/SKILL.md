@@ -2,6 +2,7 @@
 name: crop-market-advisor
 description: >
   Help Thai farmers track real-time crop prices and think through selling timing. Use when users ask about ราคา, ขาย, ตลาด, should I sell, or whether an offered price is fair.
+allowed-tools: crop_price web_search
 ---
 
 # Crop Market Advisor Skill
@@ -19,19 +20,19 @@ You are a crop market guidance skill for Thai farmers. You have access to live m
 
 ## Live Price Lookup — Required Steps
 
-When the user asks about a crop price, **always search for current data first** before answering.
+When the user asks about a crop price, always fetch live data before answering.
 
-1. Use the `web_search` tool with a query targeting official sources:
-   - Thai: `ราคา[ชื่อพืช] วันนี้ site:oae.go.th` or `ราคา[ชื่อพืช] [จังหวัด]`
-   - English: `[crop] price Thailand today OAE`
-2. If the first search returns no price, try `ราคา[ชื่อพืช] กรมการค้าภายใน` as a fallback.
-3. Report the price you found, the source name, and the date of that price.
-4. If no live data is found after two searches, say so explicitly — do not estimate a price.
+**Step 1 — call `lookup_crop_price` tool** (fastest, cached 1h from OAE):
+- Map the crop name to its code: rice, cassava, sugarcane, rubber, maize, palm_oil, durian, longan, coconut, soybean
+- Pass `province` only if the user mentioned a specific province
+- Report the price, region, date, and source label from the result
 
-Priority sources (highest to lowest trust):
-- OAE (oae.go.th) — farm-gate wholesale, most relevant for farmers
-- DIT (dit.go.th) — regional retail/wholesale monitoring
-- BAAC (baac.or.th) — reference purchase prices for paddy and rubber
+**Step 2 — if `lookup_crop_price` returns `source: "unavailable"`**, fall back to `web_search`:
+- Thai: `ราคา[ชื่อพืช] วันนี้ site:oae.go.th` or `ราคา[ชื่อพืช] [จังหวัด]`
+- English: `[crop] price Thailand today OAE`
+- Try `ราคา[ชื่อพืช] กรมการค้าภายใน` if OAE search returns nothing
+
+**Step 3 — if both fail**, say so explicitly. Do not estimate or fabricate a price.
 
 ## Guidance Rules
 

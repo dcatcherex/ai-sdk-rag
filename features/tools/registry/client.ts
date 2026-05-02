@@ -29,6 +29,7 @@ import { platformAgentManifest } from '@/features/platform-agent/manifest';
 import { brandPhotosManifest } from '@/features/brand-photos/manifest';
 import { domainProfilesManifest } from '@/features/domain-profiles/manifest';
 import { collaborationManifest } from '@/features/collaboration/manifest';
+import { cropPriceManifest } from '@/features/crop-price/manifest';
 
 /** All registered tool manifests */
 export const TOOL_MANIFESTS: ToolManifest[] = [
@@ -56,6 +57,7 @@ export const TOOL_MANIFESTS: ToolManifest[] = [
   brandPhotosManifest,
   domainProfilesManifest,
   collaborationManifest,
+  cropPriceManifest,
 ];
 
 /** Map from tool id → manifest */
