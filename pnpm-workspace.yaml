@@ -4,7 +4,6 @@ allowBuilds:
   "@clerk/shared": true
   "@depot/cli": true
   esbuild: true
-  ffmpeg-static: true
   protobufjs: true
   sharp: false
   unrs-resolver: true
