@@ -4,9 +4,14 @@ import { stripMarkdown } from '@/features/line-oa/webhook/utils/markdown';
 import { QUICK_REPLY_LABEL_MAX } from '@/features/line-oa/webhook/types';
 import type { ResponsePlan, ResponseQuickReply } from '@/features/response-format/types';
 import { canRenderResponseTemplate, getResponseTemplateByKey } from '@/features/response-format/template-registry';
+import { interpolateTemplatePayload } from '@/features/response-format/templates/shared';
 
 type RenderResponseForLineOptions = {
   sender?: Sender;
+  templateOverrides?: Record<string, {
+    altText: string;
+    flexPayload: Record<string, unknown>;
+  }>;
 };
 
 const LINE_DIAGNOSIS_COMPACT_THRESHOLD = 900;
@@ -239,6 +244,19 @@ export function renderResponseForLine(
   const sender = options.sender;
 
   if (plan.card && plan.formats.includes('card')) {
+    const override = options.templateOverrides?.[plan.card.templateKey];
+    if (override) {
+      try {
+        return [attachLineMeta({
+          type: 'flex',
+          altText: String(plan.card.data.altText ?? plan.card.altText ?? override.altText),
+          contents: interpolateTemplatePayload(override.flexPayload, plan.card.data),
+        } as LineMessage, sender, quickReply)];
+      } catch (error) {
+        console.warn('[response-format] LINE catalog card render failed:', error);
+      }
+    }
+
     const template = getResponseTemplateByKey(plan.card.templateKey);
     if (template?.renderLine && canRenderResponseTemplate(template, plan.card.data)) {
       try {

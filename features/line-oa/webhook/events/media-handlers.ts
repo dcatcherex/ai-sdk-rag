@@ -18,8 +18,8 @@ import { KieService } from '@/lib/providers/kieService';
 import { modelSupportsCapability } from '@/features/chat/server/routing';
 import {
   buildFallbackResponsePlan,
-  renderResponseForLine,
 } from '@/features/response-format';
+import { renderResponseForLineFromCatalog } from '@/features/response-format/server/line-render';
 import { CREDIT_PACKAGES } from '@/features/line-oa/payment/packages';
 import {
   createPaymentOrder,
@@ -805,9 +805,11 @@ export async function handleVideoMessage(input: HandleVideoMessageInput): Promis
     },
   });
 
+  const messages = await renderResponseForLineFromCatalog(responsePlan, { sender: input.sender });
+
   await input.lineClient.replyMessage({
     replyToken: input.replyToken,
-    messages: renderResponseForLine(responsePlan, { sender: input.sender }),
+    messages,
   });
   recordMessageEvent(input.channel.id, input.lineUserId).catch(() => {});
   return true;

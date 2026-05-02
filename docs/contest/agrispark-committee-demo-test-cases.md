@@ -38,6 +38,7 @@ Capture these screenshots for the evidence pack:
 - Photo diagnosis answer.
 - Weather risk answer with time window.
 - Farm record confirmation and saved response.
+- Admin Flex Templates gallery with all 13 published AgriSpark templates.
 - Farm/plot context or record summary.
 - Officer/admin control room or broadcast draft.
 - Privacy/governance notice or explanation screen, if available.
@@ -382,6 +383,50 @@ Committee proof point:
 
 Vaja supports B2B2C group access: cooperative or officer-managed channels, not only individual subscriptions.
 
+## Test Case 10A: Flex Template Gallery
+
+Goal: show that LINE responses are governed by reusable admin-managed Flex templates, not one-off hardcoded cards.
+
+Presenter action:
+
+Open:
+
+```txt
+Admin Panel > Flex Templates
+```
+
+Show these published AgriSpark templates:
+
+- `agrispark-officer-broadcast`
+- `agrispark-record-entry`
+- `agrispark-main-menu`
+- `agrispark-7day-forecast`
+- `agrispark-photo-diagnosis`
+- `agrispark-log-confirm`
+- `agrispark-weather-risk`
+- `agrispark-diagnosis-result`
+- `agrispark-severity-alert`
+- `agrispark-flood-alert`
+- `agrispark-weekly-summary`
+- `agrispark-price-check`
+- `agrispark-sell-decision`
+
+Expected result:
+
+- Presenter can open each preview from the admin gallery.
+- Farm record confirmation uses `agrispark-log-confirm`.
+- Saved farm record uses `agrispark-record-entry`.
+- Weather and diagnosis cards use the published AgriSpark templates when a matching response plan is available.
+
+Pass criteria:
+
+- Published admin edits are reflected in LINE runtime responses.
+- Vague save requests ask for missing details before showing a confirmation card.
+
+Committee proof point:
+
+Vaja can standardize user-facing LINE UX through an admin-managed template system while still letting the agent produce flexible domain answers.
+
 ## Test Case 11: Privacy And Governance Notice
 
 Goal: show responsible deployment posture.
@@ -487,4 +532,3 @@ Avoid:
 - anonymous LINE users
 - full PDPA compliance without legal review
 - per-farmer caps already implemented
-

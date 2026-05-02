@@ -9,8 +9,8 @@ import {
 } from '@/lib/memory';
 import {
   buildFallbackResponsePlan,
-  renderResponseForLine,
 } from '@/features/response-format';
+import { renderResponseForLineFromCatalog } from '@/features/response-format/server/line-render';
 import { mergeResponseQuickReplies } from '@/features/response-format/workflow';
 import { LINE_AGENT_RUN_POLICY } from '@/features/agents/server/channel-policies';
 import { wantsImageGeneration } from '@/features/agents/server/media-intent';
@@ -270,7 +270,7 @@ export async function runCanonicalLineReply(
         },
       });
 
-  const textMessages = renderResponseForLine(responsePlan, { sender: context.sender });
+  const textMessages = await renderResponseForLineFromCatalog(responsePlan, { sender: context.sender });
   const imageMessages: LineMessage[] = generateResult.imageUrls
     .slice(0, Math.max(0, 4 - textMessages.length))
     .map((url) => ({

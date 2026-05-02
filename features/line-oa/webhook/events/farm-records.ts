@@ -3,7 +3,8 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '@/lib/db';
 import { chatMessage, chatThread } from '@/db/schema';
-import { buildFallbackResponsePlan, buildResponsePlan, renderResponseForLine } from '@/features/response-format';
+import { buildFallbackResponsePlan, buildResponsePlan } from '@/features/response-format';
+import { renderResponseForLineFromCatalog } from '@/features/response-format/server/line-render';
 import type { ResponseFormat } from '@/features/response-format/types';
 import { runLogActivity } from '@/features/record-keeper/service';
 import type { LogActivityInput } from '@/features/record-keeper/schema';
@@ -137,6 +138,41 @@ function parseFarmRecordDraft(
   };
 }
 
+function getConcreteActivityText(activity: string): string {
+  return activity
+    .replace(/^(ช่วย|ขอ|อยาก|จะ)\s*/u, '')
+    .replace(/(?:ให้หน่อย|หน่อย|ครับ|ค่ะ|คะ)$/u, '')
+    .replace(/\b(?:farm|plot|activity|record|log)\b/giu, ' ')
+    .replace(/(?:ฟาร์ม|แปลง|กิจกรรม|รายการ|บันทึก)/giu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function hasMinimumFarmRecordDetail(draft: PendingFarmRecordDraft): boolean {
+  const concreteActivity = getConcreteActivityText(draft.activity);
+  const hasSupportingDetail = Boolean(
+    draft.entity
+    || draft.quantity
+    || draft.cost !== undefined
+    || draft.income !== undefined,
+  );
+  const isGenericActionOnly = /^(ใส่ปุ๋ย|พ่นยา|รดน้ำ|ให้น้ำ|ปลูก|หว่าน|ขาย|เก็บเกี่ยว)$/u.test(concreteActivity);
+
+  if (!concreteActivity || isGenericActionOnly) {
+    return false;
+  }
+
+  return hasSupportingDetail || concreteActivity.length >= 8;
+}
+
+function buildFarmRecordClarifyingText(): string {
+  return [
+    'ขอรายละเอียดเพิ่มก่อนบันทึกครับ',
+    'ต้องการบันทึกกิจกรรมอะไร และแปลงไหน?',
+    'ถ้ามีปริมาณ ค่าใช้จ่าย หรือวันที่ บอกเพิ่มได้เลย เช่น "วันนี้ใส่ปุ๋ยยูเรีย 50 กก. ที่แปลงหลังบ้าน ค่าใช้จ่าย 850 บาท"',
+  ].join('\n');
+}
+
 export function readPendingFarmRecordDraft(metadata: unknown): PendingFarmRecordDraft | null {
   if (!metadata || typeof metadata !== 'object') return null;
   const draft = (metadata as { pendingFarmRecordDraft?: unknown }).pendingFarmRecordDraft;
@@ -251,6 +287,7 @@ export async function handleFarmRecordMessage(input: HandleFarmRecordMessageInpu
             kind: 'record_saved',
             contextType: pendingFarmRecordDraft.contextType,
             activity: pendingFarmRecordDraft.activity,
+            entity: pendingFarmRecordDraft.entity,
             date: saved.date,
             ...(pendingFarmRecordDraft.cost !== undefined ? { cost: String(pendingFarmRecordDraft.cost) } : {}),
             metadata: pendingFarmRecordDraft.metadata ?? { source: 'line' },
@@ -281,7 +318,7 @@ export async function handleFarmRecordMessage(input: HandleFarmRecordMessageInpu
     await replyWithMessages({
       lineClient: input.lineClient,
       replyToken: input.replyToken,
-      messages: renderResponseForLine(savePlan, { sender: input.sender }),
+      messages: await renderResponseForLineFromCatalog(savePlan, { sender: input.sender }),
     });
     return true;
   }
@@ -325,6 +362,23 @@ export async function handleFarmRecordMessage(input: HandleFarmRecordMessageInpu
     return false;
   }
 
+  if (!hasMinimumFarmRecordDetail(pendingDraft)) {
+    const clarifyingText = buildFarmRecordClarifyingText();
+    await persistLineTurn({
+      threadId: input.threadId,
+      nextPosition: input.nextPosition,
+      now: input.now,
+      userText: input.userText,
+      assistantText: clarifyingText,
+    });
+    await replyWithMessages({
+      lineClient: input.lineClient,
+      replyToken: input.replyToken,
+      messages: [{ type: 'text', text: clarifyingText, ...(input.sender ? { sender: input.sender } : {}) }],
+    });
+    return true;
+  }
+
   const fallbackConfirmationPlan = buildFallbackResponsePlan({
     text: pendingDraft.summaryText,
     locale: 'th-TH',
@@ -350,11 +404,13 @@ export async function handleFarmRecordMessage(input: HandleFarmRecordMessageInpu
     ...fallbackConfirmationPlan,
     formats: confirmationFormats,
     card: {
-      templateKey: 'common.summary',
+      templateKey: 'agriculture.record_confirmation',
       altText: 'ยืนยันรายการก่อนบันทึก',
       data: {
-        title: 'ยืนยันรายการก่อนบันทึก',
-        summary: pendingDraft.summaryText,
+        activity: pendingDraft.activity,
+        plot: pendingDraft.entity ?? 'ยังไม่ระบุ',
+        date: pendingDraft.date,
+        log_id: 'pending',
         altText: 'ยืนยันรายการก่อนบันทึก',
       },
       fallbackText: pendingDraft.summaryText,
@@ -374,7 +430,7 @@ export async function handleFarmRecordMessage(input: HandleFarmRecordMessageInpu
   await replyWithMessages({
     lineClient: input.lineClient,
     replyToken: input.replyToken,
-    messages: renderResponseForLine(confirmationPlan, { sender: input.sender }),
+    messages: await renderResponseForLineFromCatalog(confirmationPlan, { sender: input.sender }),
   });
   return true;
 }

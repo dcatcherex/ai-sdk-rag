@@ -5,6 +5,8 @@ import { writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { eq } from 'drizzle-orm';
 
+import { AGRISPARK_TEMPLATES } from '@/features/line-oa/flex/seeds/agrispark-templates';
+
 const require = createRequire(import.meta.url);
 const serverOnlyPath = require.resolve('server-only');
 require.cache[serverOnlyPath] = {
@@ -132,6 +134,15 @@ const SCENARIOS: Scenario[] = [
       'This is a manual scenario. The generated block below provides a suggested reviewed broadcast message.',
     shouldStayThai: true,
   },
+  {
+    id: 'flex-template-gallery',
+    title: 'Flex Template Gallery',
+    inputType: 'manual',
+    displayInput: 'Admin Flex Templates gallery',
+    note:
+      'Committee demo backup: show the Admin Panel > Flex Templates page and open each published AgriSpark template preview.',
+    shouldStayThai: false,
+  },
 ];
 
 function renderManualBroadcastTemplate(): string {
@@ -147,6 +158,15 @@ function renderManualBroadcastTemplate(): string {
     '- หากต้องใช้สารป้องกันโรคพืช ให้ทำตามฉลากและสวมอุปกรณ์ป้องกัน',
     '',
     'หากอาการลามเร็วหรือไม่แน่ใจ ขอให้ติดต่อเจ้าหน้าที่ส่งเสริมการเกษตรในพื้นที่',
+  ].join('\n');
+}
+
+function renderManualFlexTemplateCatalog(): string {
+  return [
+    'Published AgriSpark Flex templates to show in the committee demo:',
+    '',
+    ...AGRISPARK_TEMPLATES.map((template, index) =>
+      `${index + 1}. ${template.name} - category: ${template.category}; tags: ${template.tags.join(', ')}`),
   ].join('\n');
 }
 
@@ -224,6 +244,10 @@ async function runScenario(agentOwnerUserId: string, scenario: Scenario): Promis
   ]);
 
   if (scenario.inputType === 'manual') {
+    if (scenario.id === 'flex-template-gallery') {
+      return renderManualFlexTemplateCatalog();
+    }
+
     return renderManualBroadcastTemplate();
   }
 

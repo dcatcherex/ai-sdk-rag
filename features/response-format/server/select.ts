@@ -210,7 +210,8 @@ function mapToolPayloadToSelection(
       const date = readString(toolPayload.date) ?? '-';
       const cost = readString(toolPayload.cost) ?? '0';
       const plot =
-        readNestedString(toolPayload, ['metadata', 'entityType'])
+        readString(toolPayload.entity)
+        ?? readNestedString(toolPayload, ['metadata', 'entityType'])
         ?? readNestedString(toolPayload, ['metadata', 'profileId'])
         ?? contextType
         ?? '-';

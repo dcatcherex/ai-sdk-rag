@@ -35,7 +35,14 @@ const AGRICULTURE_TEMPLATE_CONFIG: SeedTemplateConfig[] = [
     seedName: 'agrispark-record-entry',
     title: 'Agriculture Record Entry',
     intent: 'record_saved',
-    requiredDataKeys: ['activity', 'plot', 'date', 'cost'],
+    requiredDataKeys: ['activity', 'date'],
+  },
+  {
+    key: 'agriculture.record_confirmation',
+    seedName: 'agrispark-log-confirm',
+    title: 'Agriculture Record Confirmation',
+    intent: 'record_confirmation',
+    requiredDataKeys: ['activity', 'date', 'log_id'],
   },
 ];
 
@@ -82,6 +89,19 @@ export const AGRICULTURE_RESPONSE_TEMPLATES: ResponseTemplate[] = AGRICULTURE_TE
           fields: buildWebCardFields([
             { label: 'Date', value: data.date },
             { label: 'Cost', value: data.cost },
+          ]),
+        };
+      }
+
+      if (config.key === 'agriculture.record_confirmation') {
+        return {
+          kind: 'card',
+          tone: 'warning',
+          eyebrow: 'Confirm',
+          title: readTemplateString(data, 'activity', 'Confirm record'),
+          summary: readTemplateString(data, 'plot'),
+          fields: buildWebCardFields([
+            { label: 'Date', value: data.date },
           ]),
         };
       }
