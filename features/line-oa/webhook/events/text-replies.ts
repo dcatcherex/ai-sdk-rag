@@ -9,6 +9,7 @@ import {
 } from '@/lib/memory';
 import {
   buildFallbackResponsePlan,
+  buildResponsePlan,
 } from '@/features/response-format';
 import { renderResponseForLineFromCatalog } from '@/features/response-format/server/line-render';
 import { mergeResponseQuickReplies } from '@/features/response-format/workflow';
@@ -30,6 +31,7 @@ import { buildSuggestionQuickReplies, type ConversationHistoryMessage } from './
 import { wantsVideoGeneration, generateAndDeliverVideo } from './media-handlers';
 import { FRIENDLY_STICKERS, pickRandom, shouldAddFriendlySticker } from '@/features/line-oa/utils/stickers';
 import { recordMessageEvent } from '@/features/line-oa/analytics';
+import { getForecastForLocation } from '@/lib/tools/weather';
 
 type RunCanonicalLineReplyInput = {
   runtimeUserText: string;
@@ -144,6 +146,66 @@ function buildAssistantSuggestionContext(replyText: string): {
     ].join('\n'),
     latestQuestion,
   };
+}
+
+function looksLikeWeatherRiskRequest(text: string): boolean {
+  return /(สภาพอากาศ|อากาศ|พยากรณ์|ฝน|พายุ|น้ำท่วม|แล้ง|weather|forecast|rain)/i.test(text)
+    && /(เสี่ยง|ฟาร์ม|แปลง|ปลูก|เก็บเกี่ยว|มะเขือเทศ|พริก|ข้าว|พืช|ควรทำ|กระทบ|7\s*วัน|วันนี้)/i.test(text);
+}
+
+function extractWeatherLocation(text: string, domainContext: ResolvedDomainContext | null): string | null {
+  const explicit = text.match(/(แม่ริม|เชียงใหม่|กรุงเทพฯ?|นครราชสีมา|ขอนแก่น|อุบลราชธานี|สุรินทร์|บุรีรัมย์|ชลบุรี|ระยอง|จันทบุรี|ราชบุรี|นครปฐม|สุพรรณบุรี|พิษณุโลก|ลำพูน|ลำปาง|เชียงราย|สงขลา|หาดใหญ่)/u)?.[1];
+  if (explicit) return explicit;
+
+  const profileData = domainContext?.profile.data ?? {};
+  for (const key of ['district', 'amphoe', 'province', 'location', 'area']) {
+    const value = profileData[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function formatThaiWeatherRiskText(forecast: Awaited<ReturnType<typeof getForecastForLocation>>, userText: string): string {
+  if (forecast.kind !== 'weather_forecast') {
+    return forecast.message;
+  }
+
+  const firstDays = forecast.daily.slice(0, 3);
+  const maxRainChance = Math.max(...forecast.daily.map((day) => day.precipitationProbabilityPercent));
+  const maxRainMm = Math.max(...forecast.daily.map((day) => day.precipitationMm));
+  const crop = userText.match(/(มะเขือเทศ|พริก|ข้าว|มันสำปะหลัง|ลำไย|ทุเรียน|แตงโม|ผัก|ข้าวโพด)/u)?.[1] ?? 'พืชในแปลง';
+  const action = maxRainChance >= 60 || maxRainMm >= 20
+    ? [
+        'ตรวจทางระบายน้ำและลดน้ำขังในแปลง',
+        `งดพ่นสารก่อนฝน และเฝ้าระวังโรคเชื้อราใน${crop}`,
+        'ตรวจใบล่าง โคนต้น และจุดอับชื้นหลังฝนหยุด',
+      ]
+    : [
+        'วางแผนรดน้ำช่วงเช้าหรือเย็น',
+        `ตรวจความชื้นดินและอาการเหี่ยวของ${crop}`,
+        'ใช้ช่วงฝนน้อยทำงานแปลงหรือพ่นสารตามฉลากหากจำเป็น',
+      ];
+
+  return [
+    `ความเสี่ยงหลัก: ${forecast.riskSummary.headline}`,
+    '',
+    `พื้นที่: ${forecast.location.label}`,
+    `ช่วงเวลา: 7 วันข้างหน้า`,
+    `ตอนนี้: ${forecast.current.temperatureC}°C, ความชื้น ${forecast.current.humidityPercent}%, ฝน ${forecast.current.precipitationMm} มม.`,
+    `โอกาสฝนสูงสุด: ${maxRainChance}%`,
+    '',
+    'แนวโน้ม 3 วันแรก:',
+    ...firstDays.map((day) =>
+      `- ${day.date}: สูงสุด ${day.temperatureMaxC}°C, ฝน ${day.precipitationProbabilityPercent}%, ${day.weatherDescription}`),
+    '',
+    'ควรทำทันที:',
+    ...action.map((item) => `• ${item}`),
+    '',
+    `แหล่งข้อมูล: ${forecast.source}`,
+  ].join('\n');
 }
 
 export async function runCanonicalLineReply(
@@ -332,6 +394,64 @@ export async function handleTextMessage(input: HandleTextMessageInput): Promise<
       followUpDomainHint: input.domainContext?.profile.domain,
       followUpSkillHints: input.followUpSkillHints,
     });
+
+  if (looksLikeWeatherRiskRequest(input.userText)) {
+    const location = extractWeatherLocation(input.userText, input.domainContext);
+    if (!location) {
+      const askLocationText = 'ต้องการเช็คสภาพอากาศพื้นที่ไหนครับ? ส่งชื่ออำเภอหรือจังหวัด เช่น "แม่ริม เชียงใหม่" แล้วผมจะเช็คพยากรณ์จริง 7 วันและสรุปความเสี่ยงให้';
+      await persistLineTurn({
+        threadId: input.threadId,
+        nextPosition: input.nextPosition,
+        now: input.now,
+        userText: input.userText,
+        assistantText: askLocationText,
+      });
+      await input.lineClient.replyMessage({
+        replyToken: input.replyToken,
+        messages: [{ type: 'text', text: askLocationText, ...(input.sender ? { sender: input.sender } : {}) }],
+      });
+      recordMessageEvent(input.channel.id, input.lineUserId).catch(() => {});
+      return;
+    }
+
+    const forecast = await getForecastForLocation(location);
+    const weatherText = formatThaiWeatherRiskText(forecast, input.userText);
+    const weatherPlan = buildResponsePlan({
+      text: weatherText,
+      userText: input.userText,
+      locale: 'th-TH',
+      toolResults: [
+        {
+          toolName: 'weather',
+          result: forecast,
+        },
+      ],
+      quickReplies: [
+        { actionType: 'message', label: 'แนะนำงานแปลงต่อ', text: `${location} จากพยากรณ์นี้ควรจัดตารางงานแปลงอย่างไร` },
+        { actionType: 'message', label: 'เช็คอีกพื้นที่', text: 'เช็คสภาพอากาศพื้นที่อื่น' },
+      ],
+      metadata: {
+        channel: 'line',
+        source: 'line_direct_weather',
+      },
+    });
+
+    await persistLineTurn({
+      threadId: input.threadId,
+      nextPosition: input.nextPosition,
+      now: input.now,
+      userText: input.userText,
+      assistantText: weatherText,
+    });
+    await input.lineClient.replyMessage({
+      replyToken: input.replyToken,
+      messages: await renderResponseForLineFromCatalog(weatherPlan, { sender: input.sender }),
+    });
+    recordMessageEvent(input.channel.id, input.lineUserId, {
+      toolCallCount: forecast.kind === 'weather_forecast' ? 1 : 0,
+    }).catch(() => {});
+    return;
+  }
 
   if (await handleFarmRecordMessage({
     userText: input.userText,

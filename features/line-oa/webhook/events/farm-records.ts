@@ -27,6 +27,7 @@ type HandleFarmRecordMessageInput = {
   replyToken: string;
   lineClient: messagingApi.MessagingApiClient;
   sender?: Sender;
+  displayUserText?: string;
 };
 
 function formatBangkokDate(date: Date): string {
@@ -91,7 +92,12 @@ function parseFarmRecordDraft(
   const looksLikeFarmRecord = /(บันทึก|ใส่ปุ๋ย|ยูเรีย|ปุ๋ย|พ่นยา|เก็บเกี่ยว|ขาย|รดน้ำ|ให้น้ำ|ปลูก|หว่าน|fertiliz|spray|harvest|sold|irrigat|plant)/iu.test(trimmed);
   const looksLikeSummary = /(สรุป|summary|รายงาน|report)/iu.test(trimmed);
   const looksLikeLookup = /(ดู|เปิด|แสดง|ขอดู|เช็ค|ตรวจ|ค้น|หา|ย้อนหลัง|ประวัติ|รายการ|list|show|view|history|lookup)/iu.test(trimmed);
-  if (!looksLikeFarmRecord || looksLikeSummary || looksLikeLookup) return null;
+  const looksLikeMarketQuestion = /(ควรขาย|ขาย.*ไหม|ราคา|ตลาด|รออีก|ถือไว้|sell|hold|market|price)/iu.test(trimmed);
+  const looksLikeProfileSetup =
+    /^(ฉัน|ผม|เรา|ดิฉัน)\s*ปลูก/u.test(trimmed)
+    && /(มีแปลง|อยู่ที่|ที่แม่ริม|เชียงใหม่|ไร่|โรงเรือน|สวน|ฟาร์ม)/u.test(trimmed)
+    && !/(วันนี้|เมื่อวาน|บันทึก|ใส่ปุ๋ย|พ่นยา|รดน้ำ|เก็บเกี่ยว|ขาย)/u.test(trimmed);
+  if (!looksLikeFarmRecord || looksLikeSummary || looksLikeLookup || looksLikeMarketQuestion || looksLikeProfileSetup) return null;
 
   const quantityMatch = trimmed.match(/(\d+(?:[.,]\d+)?)\s*(กก\.?|กิโลกรัม|กิโล|kg|kg\.|ไร่|ตัน|ลิตร|ถุง|ต้น)/iu);
   const costMatch = trimmed.match(/(?:ค่าใช้จ่าย|ต้นทุน|ราคา)\s*(\d[\d,]*(?:\.\d+)?)\s*บาท/iu);
@@ -245,10 +251,16 @@ async function replyWithMessages(input: {
   lineClient: messagingApi.MessagingApiClient;
   replyToken: string;
   messages: LineMessage[];
+  displayUserText?: string;
 }) {
   await input.lineClient.replyMessage({
     replyToken: input.replyToken,
-    messages: input.messages,
+    messages: [
+      ...(input.displayUserText
+        ? [{ type: 'text' as const, text: input.displayUserText }]
+        : []),
+      ...input.messages,
+    ].slice(0, 5),
   });
 }
 
@@ -323,6 +335,7 @@ export async function handleFarmRecordMessage(input: HandleFarmRecordMessageInpu
       lineClient: input.lineClient,
       replyToken: input.replyToken,
       messages: await renderResponseForLineFromCatalog(savePlan, { sender: input.sender }),
+      displayUserText: input.displayUserText,
     });
     return true;
   }
@@ -340,6 +353,7 @@ export async function handleFarmRecordMessage(input: HandleFarmRecordMessageInpu
       lineClient: input.lineClient,
       replyToken: input.replyToken,
       messages: [{ type: 'text', text: editText, ...(input.sender ? { sender: input.sender } : {}) }],
+      displayUserText: input.displayUserText,
     });
     return true;
   }
@@ -357,6 +371,7 @@ export async function handleFarmRecordMessage(input: HandleFarmRecordMessageInpu
       lineClient: input.lineClient,
       replyToken: input.replyToken,
       messages: [{ type: 'text', text: cancelText, ...(input.sender ? { sender: input.sender } : {}) }],
+      displayUserText: input.displayUserText,
     });
     return true;
   }
@@ -379,6 +394,7 @@ export async function handleFarmRecordMessage(input: HandleFarmRecordMessageInpu
       lineClient: input.lineClient,
       replyToken: input.replyToken,
       messages: [{ type: 'text', text: clarifyingText, ...(input.sender ? { sender: input.sender } : {}) }],
+      displayUserText: input.displayUserText,
     });
     return true;
   }
@@ -435,6 +451,7 @@ export async function handleFarmRecordMessage(input: HandleFarmRecordMessageInpu
     lineClient: input.lineClient,
     replyToken: input.replyToken,
     messages: await renderResponseForLineFromCatalog(confirmationPlan, { sender: input.sender }),
+    displayUserText: input.displayUserText,
   });
   return true;
 }

@@ -51,6 +51,13 @@ const AGRICULTURE_TEMPLATE_CONFIG: SeedTemplateConfig[] = [
     intent: 'record_confirmation',
     requiredDataKeys: ['activity', 'date', 'log_id'],
   },
+  {
+    key: 'agriculture.weekly_summary',
+    seedName: 'agrispark-weekly-summary',
+    title: 'Agriculture Weekly Summary',
+    intent: 'record_confirmation',
+    requiredDataKeys: ['week_range', 'total_activities', 'total_cost', 'highlight'],
+  },
 ];
 
 export const AGRICULTURE_RESPONSE_TEMPLATES: ResponseTemplate[] = AGRICULTURE_TEMPLATE_CONFIG.flatMap((config) => {
@@ -119,6 +126,20 @@ export const AGRICULTURE_RESPONSE_TEMPLATES: ResponseTemplate[] = AGRICULTURE_TE
           summary: readTemplateString(data, 'plot'),
           fields: buildWebCardFields([
             { label: 'Date', value: data.date },
+          ]),
+        };
+      }
+
+      if (config.key === 'agriculture.weekly_summary') {
+        return {
+          kind: 'card',
+          tone: 'success',
+          eyebrow: 'Summary',
+          title: readTemplateString(data, 'week_range', 'Weekly summary'),
+          summary: readTemplateString(data, 'highlight'),
+          fields: buildWebCardFields([
+            { label: 'Activities', value: data.total_activities },
+            { label: 'Cost', value: data.total_cost },
           ]),
         };
       }

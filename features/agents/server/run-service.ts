@@ -50,9 +50,11 @@ import {
   getLastUserPromptFromRunMessages,
   hasRequiredHeadings,
   inferFarmRecordSummaryRequest,
+  ensureSevereEscalationGuidance,
   isThaiText,
   looksLikeDiagnosisRequest,
   looksLikeRecordSummaryRequest,
+  looksLikeSevereEscalationRequest,
 } from './run-helpers';
 import type {
   AgentRunImageStartedResult,
@@ -550,6 +552,17 @@ export async function runAgentText(prepared: PreparedAgentRun): Promise<AgentRun
           text: stableSummary,
           userText: lastUserPrompt,
           locale: preferThai ? 'th-TH' : 'en-US',
+          toolResults: [
+            {
+              toolName: 'summarize_activity_records',
+              result: {
+                kind: 'record_summary',
+                contextType: directFarmSummaryRequest.contextType,
+                ...summaryPayload,
+                period: directFarmSummaryRequest.period,
+              },
+            },
+          ],
           workflowContext: {
             actorCapabilities: workflowCapabilities,
             scopeType: prepared.activeBrand?.id ? 'brand' : 'user',
@@ -726,6 +739,10 @@ Keep the answer in the same language as the user and preserve any required respo
         resolvedText = thaiOnlyDiagnosis;
       }
     }
+  }
+
+  if (looksLikeSevereEscalationRequest(lastUserPrompt)) {
+    resolvedText = ensureSevereEscalationGuidance(resolvedText, preferThai);
   }
 
   return {

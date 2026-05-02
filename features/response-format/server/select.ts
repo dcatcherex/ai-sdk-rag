@@ -148,14 +148,6 @@ function inferResponseIntentFromText(text: string, userText?: string): ResponseI
   const userAskedForDiagnosis =
     /(diagnos|identify|what is wrong|โรค|อาการ|ตรวจ|วิเคราะห์)/i.test(normalizedUserText);
 
-  if (hasThaiDiagnosisContract || hasEnglishDiagnosisContract) {
-    return 'diagnosis';
-  }
-
-  if (userAskedForDiagnosis && /(confidence|severity|ความมั่นใจ|ความรุนแรง)/i.test(normalizedText)) {
-    return 'diagnosis';
-  }
-
   const hasThaiWeatherContract =
     normalizedText.includes('ความเสี่ยงหลัก:')
     && normalizedText.includes('ช่วงเวลา:')
@@ -165,6 +157,14 @@ function inferResponseIntentFromText(text: string, userText?: string): ResponseI
 
   if (hasThaiWeatherContract || (userAskedWeather && /(ความเสี่ยง|ฝน|พายุ|ระบายน้ำ|โรค|เชื้อรา)/i.test(normalizedText))) {
     return 'risk_summary';
+  }
+
+  if (hasThaiDiagnosisContract || hasEnglishDiagnosisContract) {
+    return 'diagnosis';
+  }
+
+  if (userAskedForDiagnosis && /(confidence|severity|ความมั่นใจ|ความรุนแรง)/i.test(normalizedText)) {
+    return 'diagnosis';
   }
 
   return null;
@@ -339,11 +339,30 @@ function mapToolPayloadToSelection(
     }
     case 'record_summary': {
       const fallbackText = buildRecordSummaryText(toolPayload, locale);
+      const contextType = readString(toolPayload.contextType);
+      const total = readNumber(toolPayload.total) ?? 0;
+      const totalCost = readNumber(toolPayload.totalCost) ?? 0;
+      const period = readString(toolPayload.period) ?? 'week';
+      const highlight = readRecordSummaryHighlight(toolPayload, locale) ?? fallbackText;
+      const farmSummaryCard = contextType === 'farm'
+        ? {
+            templateKey: 'agriculture.weekly_summary',
+            altText: locale.startsWith('th') ? 'สรุปกิจกรรมประจำสัปดาห์' : 'Weekly activity summary',
+            data: {
+              week_range: formatRecordSummaryPeriod(period, locale),
+              total_activities: String(total),
+              total_cost: totalCost.toLocaleString(locale.startsWith('th') ? 'th-TH' : 'en-US'),
+              highlight,
+              altText: locale.startsWith('th') ? 'สรุปกิจกรรมประจำสัปดาห์' : 'Weekly activity summary',
+            },
+            fallbackText,
+          }
+        : null;
       return {
         intent: 'record_confirmation',
         preferredFormats: ['card', 'structured_text'],
         bodyText: fallbackText,
-        card: {
+        card: farmSummaryCard ?? {
           templateKey: 'common.summary',
           altText: locale.startsWith('th') ? 'สรุปบันทึก' : 'Record summary',
           data: {
@@ -353,7 +372,11 @@ function mapToolPayloadToSelection(
           },
           fallbackText,
         },
-        metadata: { toolName, toolKind: kind, templateCandidate: 'common.summary' },
+        metadata: {
+          toolName,
+          toolKind: kind,
+          templateCandidate: farmSummaryCard ? 'agriculture.weekly_summary' : 'common.summary',
+        },
       };
     }
     case 'weather_forecast': {
@@ -509,6 +532,44 @@ function buildRecordSummaryText(payload: ToolPayload, locale: string): string {
     `Total cost: ${totalCost}`,
     `Total income: ${totalIncome}`,
   ].join('\n');
+}
+
+function formatRecordSummaryPeriod(period: string, locale: string): string {
+  if (locale.startsWith('th')) {
+    if (period === 'month') return 'เดือนนี้';
+    if (period === 'all') return 'ทั้งหมด';
+    return 'สัปดาห์นี้';
+  }
+
+  if (period === 'month') return 'This month';
+  if (period === 'all') return 'All records';
+  return 'This week';
+}
+
+function readRecordSummaryHighlight(payload: ToolPayload, locale: string): string | null {
+  const records = Array.isArray(payload.records) ? payload.records : [];
+  const highlights = records.flatMap((entry) => {
+    const record = readObject(entry);
+    const activity = readString(record?.activity);
+    const quantity = readString(record?.quantity);
+    const entity = readString(record?.entity);
+    if (!activity) return [];
+    return [
+      [
+        activity,
+        ...(quantity ? [quantity] : []),
+        ...(entity ? [`(${entity})`] : []),
+      ].join(' '),
+    ];
+  });
+
+  if (highlights.length === 0) {
+    return locale.startsWith('th')
+      ? 'ยังไม่มีรายการสำคัญในช่วงนี้'
+      : 'No key activities logged yet.';
+  }
+
+  return highlights.slice(0, 3).join('\n');
 }
 
 function buildWeatherSummary(payload: ToolPayload, locale: string): string {

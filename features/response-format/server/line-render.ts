@@ -12,6 +12,7 @@ const FLEX_TEMPLATE_NAME_BY_RESPONSE_KEY: Record<string, string> = {
   'agriculture.forecast_7day': 'agrispark-7day-forecast',
   'agriculture.record_confirmation': 'agrispark-log-confirm',
   'agriculture.record_entry': 'agrispark-record-entry',
+  'agriculture.weekly_summary': 'agrispark-weekly-summary',
 };
 
 type CatalogFlexTemplate = {

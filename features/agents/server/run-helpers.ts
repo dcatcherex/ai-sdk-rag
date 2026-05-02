@@ -150,6 +150,39 @@ export function looksLikeDiagnosisRequest(prompt: string | null | undefined): bo
   );
 }
 
+export function looksLikeSevereEscalationRequest(prompt: string | null | undefined): boolean {
+  if (!prompt) return false;
+
+  return /(ทั้งแปลง|เสียหาย|ภายในสองวัน|เร็วมาก|แรง ๆ|แรงๆ|ฉีดยาอะไรแรง|เหี่ยวเร็ว|ระบาดเร็ว|ตายเร็ว|severe|urgent|rapid)/i.test(prompt);
+}
+
+export function ensureSevereEscalationGuidance(text: string, preferThai: boolean): string {
+  const hasOfficerGuidance = preferThai
+    ? /(เจ้าหน้าที่|ส่งเสริม|เกษตรอำเภอ|ผู้เชี่ยวชาญ)/.test(text)
+    : /(extension officer|expert|advisor|agronomist)/i.test(text);
+  const hasUrgentTiming = preferThai
+    ? /(ทันที|ด่วน|เร็ว|ภายใน)/.test(text)
+    : /(quickly|urgent|immediately|as soon as)/i.test(text);
+
+  if (hasOfficerGuidance && hasUrgentTiming) {
+    return text;
+  }
+
+  const addition = preferThai
+    ? [
+        '',
+        'ควรติดต่อเจ้าหน้าที่ส่งเสริมเมื่อไร:',
+        '- กรณีนี้ควรติดต่อเจ้าหน้าที่ส่งเสริมการเกษตรหรือเกษตรอำเภอโดยเร็ว เพราะอาการลามเร็วและกระทบทั้งแปลงภายในสองวัน',
+      ].join('\n')
+    : [
+        '',
+        'When to contact an extension officer:',
+        '- Contact an extension officer or local agronomist quickly because symptoms are spreading rapidly and affecting the whole field.',
+      ].join('\n');
+
+  return `${text.trim()}${addition}`;
+}
+
 export function inferFarmRecordSummaryRequest(prompt: string | null | undefined): {
   contextType: 'farm';
   period: 'week' | 'month' | 'all';

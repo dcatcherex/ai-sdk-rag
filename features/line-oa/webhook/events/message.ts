@@ -349,6 +349,7 @@ export async function handleMessageEvent(
           replyToken,
           lineClient,
           sender,
+          displayUserText: `🎙️ ได้ยินว่า: "${transcript}"`,
         }),
     });
     return;

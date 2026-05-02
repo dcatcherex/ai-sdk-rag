@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import type { messagingApi } from '@line/bot-sdk';
 
 import { db } from '@/lib/db';
@@ -70,26 +70,30 @@ export async function handlePostbackEvent(
       ))
       .limit(1);
 
-    if (!channel || !conversation) {
+    if (!channel) {
       await lineClient.replyMessage({
         replyToken: event.replyToken,
-        messages: [{ type: 'text', text: 'ไม่พบรายการที่รอยืนยันครับ กรุณาส่งรายละเอียดเพื่อบันทึกใหม่อีกครั้ง' }],
+        messages: [{ type: 'text', text: 'ไม่พบช่อง LINE สำหรับบันทึกครับ กรุณาลองส่งรายละเอียดใหม่อีกครั้ง' }],
       });
       return;
     }
 
-    const recentMessages = await db
-      .select({
-        role: chatMessage.role,
-        metadata: chatMessage.metadata,
-        position: chatMessage.position,
-      })
-      .from(chatMessage)
-      .where(eq(chatMessage.threadId, conversation.threadId))
-      .orderBy(desc(chatMessage.position))
-      .limit(20);
+    const recentMessages = conversation
+      ? await db
+          .select({
+            role: chatMessage.role,
+            metadata: chatMessage.metadata,
+            position: chatMessage.position,
+            threadId: chatMessage.threadId,
+          })
+          .from(chatMessage)
+          .where(eq(chatMessage.threadId, conversation.threadId))
+          .orderBy(desc(chatMessage.position))
+          .limit(20)
+      : [];
 
-    const pendingDraft = recentMessages
+    let matchedThreadId = conversation?.threadId ?? null;
+    let pendingDraft = recentMessages
       .filter((row) => row.role === 'assistant')
       .map((row) => readPendingFarmRecordDraft(row.metadata))
       .find((draft) => {
@@ -97,10 +101,38 @@ export async function handlePostbackEvent(
         return !draftId || draftId === 'pending' || draft.draftId === draftId;
       }) ?? null;
 
-    if (!pendingDraft) {
+    if (!pendingDraft && draftId && draftId !== 'pending') {
+      const [draftRow] = await db
+        .select({
+          metadata: chatMessage.metadata,
+          position: chatMessage.position,
+          threadId: chatMessage.threadId,
+        })
+        .from(chatMessage)
+        .innerJoin(lineConversation, eq(lineConversation.threadId, chatMessage.threadId))
+        .where(and(
+          eq(lineConversation.channelId, channelId),
+          sql`${chatMessage.metadata}->'pendingFarmRecordDraft'->>'draftId' = ${draftId}`,
+        ))
+        .orderBy(desc(chatMessage.position))
+        .limit(1);
+
+      pendingDraft = draftRow ? readPendingFarmRecordDraft(draftRow.metadata) : null;
+      matchedThreadId = draftRow?.threadId ?? matchedThreadId;
+      if (draftRow && recentMessages.length === 0) {
+        recentMessages.push({
+          role: 'assistant',
+          metadata: draftRow.metadata,
+          position: draftRow.position,
+          threadId: draftRow.threadId,
+        });
+      }
+    }
+
+    if (!pendingDraft || !matchedThreadId) {
       await lineClient.replyMessage({
         replyToken: event.replyToken,
-        messages: [{ type: 'text', text: 'ไม่พบรายการที่รอยืนยันครับ กรุณาส่งรายละเอียดเพื่อบันทึกใหม่อีกครั้ง' }],
+        messages: [{ type: 'text', text: `ไม่พบรายการที่รอยืนยันครับ (${draftId ?? 'no-draft-id'}) กรุณาส่งรายละเอียดเพื่อบันทึกใหม่อีกครั้ง` }],
       });
       return;
     }
@@ -160,7 +192,7 @@ export async function handlePostbackEvent(
       db.insert(chatMessage).values([
         {
           id: crypto.randomUUID(),
-          threadId: conversation.threadId,
+          threadId: matchedThreadId,
           role: 'user',
           parts: [{ type: 'text', text: 'ยืนยันบันทึกจากปุ่ม' }],
           position: nextPosition,
@@ -168,7 +200,7 @@ export async function handlePostbackEvent(
         },
         {
           id: crypto.randomUUID(),
-          threadId: conversation.threadId,
+          threadId: matchedThreadId,
           role: 'assistant',
           parts: [{ type: 'text', text: saveText }],
           metadata: { responseFormat: savePlan.metadata },
@@ -176,7 +208,7 @@ export async function handlePostbackEvent(
           createdAt: new Date(),
         },
       ]),
-      db.update(chatThread).set({ updatedAt: new Date() }).where(eq(chatThread.id, conversation.threadId)),
+      db.update(chatThread).set({ updatedAt: new Date() }).where(eq(chatThread.id, matchedThreadId)),
     ]);
 
     await lineClient.replyMessage({

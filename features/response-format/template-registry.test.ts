@@ -15,6 +15,7 @@ test('template registry exposes common and agriculture templates', () => {
   assert.ok(keys.includes('agriculture.forecast_7day'));
   assert.ok(keys.includes('agriculture.record_confirmation'));
   assert.ok(keys.includes('agriculture.record_entry'));
+  assert.ok(keys.includes('agriculture.weekly_summary'));
 });
 
 test('agriculture weather template is mapped from the registry', () => {
