@@ -26,7 +26,11 @@ import { stripMarkdown } from '../utils/markdown';
 import type { AgentRow, LineMessage, LinkedUser, Sender } from '../types';
 import type { ResolvedDomainContext } from '@/features/domain-profiles/types';
 import type { Brand } from '@/features/brands/types';
-import { handleFarmRecordMessage } from './farm-records';
+import { handleFarmRecordMessage, readPendingFarmRecordDraft } from './farm-records';
+import {
+  extractWeatherLocation,
+  resolveLineAgricultureIntent,
+} from './intent-router';
 import { buildSuggestionQuickReplies, type ConversationHistoryMessage } from './reply-helpers';
 import { wantsVideoGeneration, generateAndDeliverVideo } from './media-handlers';
 import { FRIENDLY_STICKERS, pickRandom, shouldAddFriendlySticker } from '@/features/line-oa/utils/stickers';
@@ -84,6 +88,7 @@ type HandleTextMessageInput = {
   activeBrand?: Brand | null;
   groupId?: string;
   followUpSkillHints?: string[];
+  displayUserText?: string;
 };
 
 async function persistLineTurn(input: {
@@ -146,26 +151,6 @@ function buildAssistantSuggestionContext(replyText: string): {
     ].join('\n'),
     latestQuestion,
   };
-}
-
-function looksLikeWeatherRiskRequest(text: string): boolean {
-  return /(สภาพอากาศ|อากาศ|พยากรณ์|ฝน|พายุ|น้ำท่วม|แล้ง|weather|forecast|rain)/i.test(text)
-    && /(เสี่ยง|ฟาร์ม|แปลง|ปลูก|เก็บเกี่ยว|มะเขือเทศ|พริก|ข้าว|พืช|ควรทำ|กระทบ|7\s*วัน|วันนี้)/i.test(text);
-}
-
-function extractWeatherLocation(text: string, domainContext: ResolvedDomainContext | null): string | null {
-  const explicit = text.match(/(แม่ริม|เชียงใหม่|กรุงเทพฯ?|นครราชสีมา|ขอนแก่น|อุบลราชธานี|สุรินทร์|บุรีรัมย์|ชลบุรี|ระยอง|จันทบุรี|ราชบุรี|นครปฐม|สุพรรณบุรี|พิษณุโลก|ลำพูน|ลำปาง|เชียงราย|สงขลา|หาดใหญ่)/u)?.[1];
-  if (explicit) return explicit;
-
-  const profileData = domainContext?.profile.data ?? {};
-  for (const key of ['district', 'amphoe', 'province', 'location', 'area']) {
-    const value = profileData[key];
-    if (typeof value === 'string' && value.trim()) {
-      return value.trim();
-    }
-  }
-
-  return null;
 }
 
 function formatThaiWeatherRiskText(forecast: Awaited<ReturnType<typeof getForecastForLocation>>, userText: string): string {
@@ -372,7 +357,7 @@ export async function runCanonicalLineReply(
   return { replyText };
 }
 
-export async function handleTextMessage(input: HandleTextMessageInput): Promise<void> {
+export async function handleTextMessage(input: HandleTextMessageInput): Promise<{ replyText: string } | null> {
   const runReply = (replyInput: RunCanonicalLineReplyInput) =>
     runCanonicalLineReply(replyInput, {
       agentRow: input.agentRow,
@@ -395,7 +380,18 @@ export async function handleTextMessage(input: HandleTextMessageInput): Promise<
       followUpSkillHints: input.followUpSkillHints,
     });
 
-  if (looksLikeWeatherRiskRequest(input.userText)) {
+  const hasPendingFarmRecordDraft = Boolean(readPendingFarmRecordDraft(input.latestPendingFarmRecordDraft));
+  const intentDecision = await resolveLineAgricultureIntent({
+    text: input.userText,
+    hasPendingFarmRecordDraft,
+    domainContext: input.domainContext,
+    modelId: input.modelId,
+    allowClassifier: true,
+  });
+
+  console.info('[LINE] Agriculture intent decision', intentDecision);
+
+  if (intentDecision.intent === 'weather_risk') {
     const location = extractWeatherLocation(input.userText, input.domainContext);
     if (!location) {
       const askLocationText = 'ต้องการเช็คสภาพอากาศพื้นที่ไหนครับ? ส่งชื่ออำเภอหรือจังหวัด เช่น "แม่ริม เชียงใหม่" แล้วผมจะเช็คพยากรณ์จริง 7 วันและสรุปความเสี่ยงให้';
@@ -408,10 +404,15 @@ export async function handleTextMessage(input: HandleTextMessageInput): Promise<
       });
       await input.lineClient.replyMessage({
         replyToken: input.replyToken,
-        messages: [{ type: 'text', text: askLocationText, ...(input.sender ? { sender: input.sender } : {}) }],
+        messages: [
+          ...(input.displayUserText
+            ? [{ type: 'text' as const, text: input.displayUserText, ...(input.sender ? { sender: input.sender } : {}) }]
+            : []),
+          { type: 'text' as const, text: askLocationText, ...(input.sender ? { sender: input.sender } : {}) },
+        ].slice(0, 5),
       });
       recordMessageEvent(input.channel.id, input.lineUserId).catch(() => {});
-      return;
+      return { replyText: askLocationText };
     }
 
     const forecast = await getForecastForLocation(location);
@@ -445,27 +446,40 @@ export async function handleTextMessage(input: HandleTextMessageInput): Promise<
     });
     await input.lineClient.replyMessage({
       replyToken: input.replyToken,
-      messages: await renderResponseForLineFromCatalog(weatherPlan, { sender: input.sender }),
+      messages: [
+        ...(input.displayUserText
+          ? [{ type: 'text' as const, text: input.displayUserText, ...(input.sender ? { sender: input.sender } : {}) }]
+          : []),
+        ...(await renderResponseForLineFromCatalog(weatherPlan, { sender: input.sender })),
+      ].slice(0, 5),
     });
     recordMessageEvent(input.channel.id, input.lineUserId, {
       toolCallCount: forecast.kind === 'weather_forecast' ? 1 : 0,
     }).catch(() => {});
-    return;
+    return { replyText: weatherText };
   }
 
-  if (await handleFarmRecordMessage({
-    userText: input.userText,
-    pendingMetadata: input.latestPendingFarmRecordDraft,
-    domainContext: input.domainContext,
-    threadId: input.threadId,
-    nextPosition: input.nextPosition,
-    now: input.now,
-    channelUserId: input.channel.userId,
-    replyToken: input.replyToken,
-    lineClient: input.lineClient,
-    sender: input.sender,
-  })) {
-    return;
+  if (
+    intentDecision.intent === 'farm_log_create'
+    || intentDecision.intent === 'confirm_pending'
+    || intentDecision.intent === 'edit_pending'
+    || intentDecision.intent === 'cancel_pending'
+  ) {
+    if (await handleFarmRecordMessage({
+      userText: input.userText,
+      pendingMetadata: input.latestPendingFarmRecordDraft,
+      domainContext: input.domainContext,
+      threadId: input.threadId,
+      nextPosition: input.nextPosition,
+      now: input.now,
+      channelUserId: input.channel.userId,
+      replyToken: input.replyToken,
+      lineClient: input.lineClient,
+      sender: input.sender,
+      displayUserText: input.displayUserText,
+    })) {
+      return null;
+    }
   }
 
   if (wantsVideoGeneration(input.userText)) {
@@ -484,7 +498,7 @@ export async function handleTextMessage(input: HandleTextMessageInput): Promise<
 
     void generateAndDeliverVideo(input.lineClient, input.lineUserId, input.userText);
     recordMessageEvent(input.channel.id, input.lineUserId).catch(() => {});
-    return;
+    return { replyText: 'กำลังสร้างวิดีโอ กรุณารอสักครู่ จะส่งให้เมื่อพร้อม' };
   }
 
   if (wantsImageGeneration(input.userText)) {
@@ -523,22 +537,26 @@ export async function handleTextMessage(input: HandleTextMessageInput): Promise<
         toolCallCount: 1,
         imagesSent: 0,
       }).catch((err) => console.warn('[LINE] recordMessageEvent failed:', err));
-      return;
+      return { replyText };
     } catch (err) {
       console.error('[LINE] direct image generation failed:', err);
+      const errorText = `Image generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`;
       await input.lineClient.replyMessage({
         replyToken: input.replyToken,
         messages: [{
           type: 'text',
-          text: `Image generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          text: errorText,
         }],
       });
       recordMessageEvent(input.channel.id, input.lineUserId).catch(() => {});
-      return;
+      return { replyText: errorText };
     }
   }
 
-  await runReply({
+  return await runReply({
     runtimeUserText: input.userText,
+    ...(input.displayUserText
+      ? { displayReplyText: (replyText: string) => `${input.displayUserText}\n\n${replyText}` }
+      : {}),
   });
 }

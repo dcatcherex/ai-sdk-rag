@@ -76,10 +76,11 @@ type HandleAudioMessageInput = {
   eventMessageId: string;
   channelAccessToken: string;
   lineUserId: string;
+  replyToId?: string;
   replyToken: string;
   lineClient: messagingApi.MessagingApiClient;
   runCanonicalLineReply: CanonicalLineReply;
-  tryHandleTranscript?: (transcript: string) => Promise<boolean>;
+  tryHandleTranscript?: (transcript: string) => Promise<{ handled: boolean; replyText?: string }>;
 };
 
 type HandleVideoMessageInput = {
@@ -473,7 +474,7 @@ export async function generateAndDeliverVideo(
 
 async function sendVoiceReply(
   lineClient: messagingApi.MessagingApiClient,
-  lineUserId: string,
+  to: string,
   text: string,
 ): Promise<void> {
   if (!process.env.GEMINI_API_KEY) {
@@ -574,7 +575,7 @@ async function sendVoiceReply(
 
     try {
       await lineClient.pushMessage({
-        to: lineUserId,
+        to,
         messages: [{ type: 'audio', originalContentUrl: url, duration: durationMs }],
       });
     } catch (pushErr) {
@@ -706,7 +707,15 @@ export async function handleAudioMessage(input: HandleAudioMessageInput): Promis
     return true;
   }
 
-  if (await input.tryHandleTranscript?.(transcript)) {
+  const transcriptResult = await input.tryHandleTranscript?.(transcript);
+  if (transcriptResult?.handled) {
+    if (transcriptResult.replyText) {
+      await sendVoiceReply(
+        input.lineClient,
+        input.replyToId ?? input.lineUserId,
+        transcriptResult.replyText,
+      );
+    }
     return true;
   }
 
@@ -718,7 +727,11 @@ export async function handleAudioMessage(input: HandleAudioMessageInput): Promis
   });
 
   if (result?.replyText) {
-    void sendVoiceReply(input.lineClient, input.lineUserId, result.replyText);
+    await sendVoiceReply(
+      input.lineClient,
+      input.replyToId ?? input.lineUserId,
+      result.replyText,
+    );
   }
 
   return true;

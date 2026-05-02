@@ -27,8 +27,8 @@ export const GOOGLE_MODELS: ModelDefinition[] = [
         warningThreshold: 0.8
     },
     {
-        id: "gemini-2.5-flash-preview-tts",
-        name: "Gemini 2.5 Flash Text-to-Speech",
+        id: "gemini-3.1-flash-tts-preview",
+        name: "Gemini 3.1 Flash Text-to-Speech",
         description: "High-fidelity text-to-speech generation with low-latency and cost-efficient audio generation.",
         provider: 'google',
         capabilities: ["speech"],

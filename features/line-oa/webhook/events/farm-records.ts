@@ -59,6 +59,7 @@ function detectConfirmationIntent(text: string): 'confirm' | 'edit' | 'cancel' |
 }
 
 function inferFarmRecordCategory(text: string): string | undefined {
+  if (/ซื้อ/u.test(text)) return 'purchase';
   if (/ปุ๋ย/u.test(text)) return 'fertilizer';
   if (/พ่น|ยา/u.test(text)) return 'pesticide';
   if (/เก็บเกี่ยว/u.test(text)) return 'harvest';
@@ -89,10 +90,10 @@ function parseFarmRecordDraft(
   const trimmed = text.trim();
   if (!trimmed) return null;
 
-  const looksLikeFarmRecord = /(บันทึก|ใส่ปุ๋ย|ยูเรีย|ปุ๋ย|พ่นยา|เก็บเกี่ยว|ขาย|รดน้ำ|ให้น้ำ|ปลูก|หว่าน|fertiliz|spray|harvest|sold|irrigat|plant)/iu.test(trimmed);
+  const looksLikeFarmRecord = /(บันทึก|ซื้อ|ใส่ปุ๋ย|ยูเรีย|ปุ๋ย|พ่นยา|เก็บเกี่ยว|ขาย|รดน้ำ|ให้น้ำ|ปลูก|หว่าน|fertiliz|spray|harvest|sold|irrigat|plant|buy|bought|purchas)/iu.test(trimmed);
   const looksLikeSummary = /(สรุป|summary|รายงาน|report)/iu.test(trimmed);
   const looksLikeLookup = /(ดู|เปิด|แสดง|ขอดู|เช็ค|ตรวจ|ค้น|หา|ย้อนหลัง|ประวัติ|รายการ|list|show|view|history|lookup)/iu.test(trimmed);
-  const looksLikeMarketQuestion = /(ควรขาย|ขาย.*ไหม|ราคา|ตลาด|รออีก|ถือไว้|sell|hold|market|price)/iu.test(trimmed);
+  const looksLikeMarketQuestion = /(ควรขาย|ขาย.*ไหม|ราคาตลาด|ราคา.*ไหม|ตลาด|รออีก|ถือไว้|sell|hold|market price|price.*\?)/iu.test(trimmed);
   const looksLikeProfileSetup =
     /^(ฉัน|ผม|เรา|ดิฉัน)\s*ปลูก/u.test(trimmed)
     && /(มีแปลง|อยู่ที่|ที่แม่ริม|เชียงใหม่|ไร่|โรงเรือน|สวน|ฟาร์ม)/u.test(trimmed)
@@ -100,7 +101,9 @@ function parseFarmRecordDraft(
   if (!looksLikeFarmRecord || looksLikeSummary || looksLikeLookup || looksLikeMarketQuestion || looksLikeProfileSetup) return null;
 
   const quantityMatch = trimmed.match(/(\d+(?:[.,]\d+)?)\s*(กก\.?|กิโลกรัม|กิโล|kg|kg\.|ไร่|ตัน|ลิตร|ถุง|ต้น)/iu);
-  const costMatch = trimmed.match(/(?:ค่าใช้จ่าย|ต้นทุน|ราคา)\s*(\d[\d,]*(?:\.\d+)?)\s*บาท/iu);
+  const costMatch =
+    trimmed.match(/(?:ค่าใช้จ่าย|ต้นทุน|ราคา|จ่าย)\s*(\d[\d,]*(?:\.\d+)?)\s*บาท/iu) ??
+    trimmed.match(/(\d[\d,]*(?:\.\d+)?)\s*บาท/iu);
   const entityMatch = trimmed.match(/(?:ที่|ใน)\s*(แปลง[^\n,]+?)(?=\s*(?:ค่าใช้จ่าย|ต้นทุน|ราคา|$))/u);
 
   let activity = trimmed
