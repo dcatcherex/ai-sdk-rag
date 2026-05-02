@@ -16,6 +16,7 @@
     "test:e2e:install": "playwright install chromium"
   },
   "dependencies": {
+    "@breezystack/lamejs": "^1.2.7",
     "@ai-sdk/openai": "^3.0.25",
     "@ai-sdk/react": "^3.0.71",
     "@aws-sdk/client-s3": "^3.888.0",
@@ -52,7 +53,6 @@
     "embla-carousel-react": "^8.6.0",
     "entities": "^6.0.0",
     "jszip": "^3.10.1",
-    "lamejs": "^1.2.1",
     "lucide-react": "^0.563.0",
     "media-chrome": "^4.17.2",
     "motion": "^12.31.0",

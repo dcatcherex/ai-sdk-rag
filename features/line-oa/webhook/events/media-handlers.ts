@@ -2,7 +2,7 @@ import { generateImage, generateText } from 'ai';
 import { messagingApi } from '@line/bot-sdk';
 import { asc, eq } from 'drizzle-orm';
 import { GoogleGenAI } from '@google/genai';
-import { createRequire } from 'node:module';
+import { Mp3Encoder } from '@breezystack/lamejs';
 
 import { db } from '@/lib/db';
 import { uploadPublicObject } from '@/lib/r2';
@@ -37,13 +37,6 @@ const VOICE_SUMMARY_WORD_THRESHOLD = 90;
 const MODEL_TRANSCRIBE = 'gemini-2.5-flash-lite';
 const LINE_TTS_MODEL = 'gemini-3.1-flash-tts-preview';
 const ENABLE_LINE_VOICE_SUMMARY = false;
-const require = createRequire(import.meta.url);
-const lamejs = require('lamejs') as {
-  Mp3Encoder: new (channels: number, sampleRate: number, kbps: number) => {
-    encodeBuffer(left: Int16Array): Int8Array | Uint8Array | number[];
-    flush(): Int8Array | Uint8Array | number[];
-  };
-};
 
 function shouldUseVoiceSummary(text: string): boolean {
   const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
@@ -157,7 +150,7 @@ function encodePcmToMp3(pcm: Buffer, sampleRate = 24000, kbps = 64): Buffer {
     samples[i] = pcm.readInt16LE(i * 2);
   }
 
-  const encoder = new lamejs.Mp3Encoder(1, sampleRate, kbps);
+  const encoder = new Mp3Encoder(1, sampleRate, kbps);
   const blockSize = 1152;
   const chunks: Buffer[] = [];
 

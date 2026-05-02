@@ -40,6 +40,7 @@ type LiveWebSocketSession = {
   conn: WebSocket;
   close: () => void;
   sendRealtimeInput: (input: LiveRealtimeInput) => void;
+  sendClientContent: (input: { turnComplete: boolean; turns?: any[] }) => void;
 };
 
 const DEFAULT_VOICE = 'Aoede';
@@ -121,7 +122,7 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
       return;
     }
     try {
-      session.sendRealtimeInput({ activityEnd: {} });
+      session.sendClientContent({ turnComplete: true, turns: [] });
     } catch {
       // ignore
     }
@@ -491,12 +492,15 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
             if (socket.readyState !== WebSocket.OPEN) {
               return;
             }
+            if (input.activityStart) console.log('[Live WS] -> send activityStart');
+            if (input.activityEnd) console.log('[Live WS] -> send activityEnd');
             socket.send(JSON.stringify({ realtimeInput: input }));
           },
-          sendClientContent: (input: { turnComplete: boolean }) => {
+          sendClientContent: (input: { turnComplete: boolean; turns?: any[] }) => {
             if (socket.readyState !== WebSocket.OPEN) {
               return;
             }
+            console.log('[Live WS] -> send clientContent:', input);
             socket.send(JSON.stringify({ clientContent: input }));
           },
         };
@@ -544,7 +548,10 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
           }
           try {
             const dataText = event.data instanceof Blob ? await event.data.text() : event.data;
-            const message = JSON.parse(dataText) as Record<string, unknown>;
+            const message = JSON.parse(dataText) as Record<string, any>;
+            if (!message.serverContent?.modelTurn?.parts?.[0]?.inlineData) {
+              console.log('[Live WS] <- recv:', Object.keys(message), message.serverContent ? Object.keys(message.serverContent) : '');
+            }
             handleMessage(message);
           } catch (error) {
             console.error('[useLiveVoice] invalid session message:', error, event.data);
