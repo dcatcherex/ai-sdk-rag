@@ -181,36 +181,7 @@ function buildHeuristicCardFromText(input: {
   }
 
   if (input.intent === 'risk_summary') {
-    if (/(7\s*วัน|เจ็ดวัน|พยากรณ์)/i.test(`${input.userText ?? ''}\n${input.text}`)) {
-      return {
-        templateKey: 'agriculture.forecast_7day',
-        altText: 'พยากรณ์อากาศ 7 วัน',
-        data: {
-          altText: 'พยากรณ์อากาศ 7 วัน',
-        },
-        fallbackText: input.text,
-      };
-    }
-
-    const location =
-      readLocationHint(input.userText)
-      ?? readLocationHint(input.text)
-      ?? 'พื้นที่ของคุณ';
-    return {
-      templateKey: 'agriculture.weather_risk',
-      altText: 'สรุปสภาพอากาศและความเสี่ยง',
-      data: {
-        location,
-        temperature: '-',
-        humidity: '-',
-        rain_chance: '-',
-        farm_advice:
-          readLabeledSection(input.text, ['ควรทำทันที:', 'คำแนะนำ:', 'ความเสี่ยงหลัก:'])
-          ?? input.text.slice(0, 220),
-        altText: 'สรุปสภาพอากาศและความเสี่ยง',
-      },
-      fallbackText: input.text,
-    };
+    return null;
   }
 
   if (input.intent === 'diagnosis') {

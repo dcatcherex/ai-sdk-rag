@@ -12,7 +12,7 @@ import { readPendingFarmRecordDraft } from './farm-records';
 
 type PostbackEvent = {
   replyToken?: string;
-  source?: { userId?: string };
+  source?: { type?: string; userId?: string; groupId?: string };
   postback?: { data: string };
 };
 
@@ -52,6 +52,9 @@ export async function handlePostbackEvent(
       return;
     }
 
+    const draftId = new URLSearchParams(data).get('id');
+    const conversationKey = event.source?.groupId ?? lineUserId;
+
     const [channel] = await db
       .select({ userId: lineOaChannel.userId })
       .from(lineOaChannel)
@@ -63,7 +66,7 @@ export async function handlePostbackEvent(
       .from(lineConversation)
       .where(and(
         eq(lineConversation.channelId, channelId),
-        eq(lineConversation.lineUserId, lineUserId),
+        eq(lineConversation.lineUserId, conversationKey),
       ))
       .limit(1);
 
@@ -86,10 +89,13 @@ export async function handlePostbackEvent(
       .orderBy(desc(chatMessage.position))
       .limit(20);
 
-    const latestAssistant = recentMessages.find((row) => row.role === 'assistant');
-    const pendingDraft = latestAssistant
-      ? readPendingFarmRecordDraft(latestAssistant.metadata)
-      : null;
+    const pendingDraft = recentMessages
+      .filter((row) => row.role === 'assistant')
+      .map((row) => readPendingFarmRecordDraft(row.metadata))
+      .find((draft) => {
+        if (!draft) return false;
+        return !draftId || draftId === 'pending' || draft.draftId === draftId;
+      }) ?? null;
 
     if (!pendingDraft) {
       await lineClient.replyMessage({

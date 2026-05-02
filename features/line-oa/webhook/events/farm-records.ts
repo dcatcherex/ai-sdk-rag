@@ -12,6 +12,7 @@ import type { ResolvedDomainContext } from '@/features/domain-profiles/types';
 import type { LineMessage, Sender } from '../types';
 
 export type PendingFarmRecordDraft = LogActivityInput & {
+  draftId?: string;
   summaryText: string;
 };
 
@@ -127,6 +128,7 @@ function parseFarmRecordDraft(
   ];
 
   return {
+    draftId: crypto.randomUUID(),
     contextType: 'farm',
     category: inferFarmRecordCategory(trimmed),
     entity,
@@ -191,6 +193,7 @@ export function readPendingFarmRecordDraft(metadata: unknown): PendingFarmRecord
 
   return {
     contextType: record.contextType,
+    draftId: typeof record.draftId === 'string' ? record.draftId : undefined,
     category: typeof record.category === 'string' ? record.category : undefined,
     entity: typeof record.entity === 'string' ? record.entity : undefined,
     date: record.date,
@@ -411,7 +414,7 @@ export async function handleFarmRecordMessage(input: HandleFarmRecordMessageInpu
         activity: pendingDraft.activity,
         plot: pendingDraft.entity ?? 'ยังไม่ระบุ',
         date: pendingDraft.date,
-        log_id: 'pending',
+        log_id: pendingDraft.draftId ?? 'pending',
         altText: 'ยืนยันรายการก่อนบันทึก',
       },
       fallbackText: pendingDraft.summaryText,
