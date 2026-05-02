@@ -188,7 +188,29 @@ type LineInboundMessage = {
 
 const getSupportOwnerUserId = (): string => process.env.LINE_OA_OWNER_USER_ID?.trim() ?? '';
 const getDefaultSupportAgentId = (): string | null => process.env.LINE_OA_DEFAULT_AGENT_ID?.trim() || null;
+const getSupportEscalationAssigneeUserId = (): string | null =>
+  process.env.LINE_OA_ESCALATION_ASSIGNEE_USER_ID?.trim() || null;
 export const isLineAutoReplyEnabled = (): boolean => process.env.LINE_OA_AUTO_REPLY === 'true';
+
+const SUPPORT_ESCALATION_KEYWORDS = [
+  'ถามเจ้าหน้าที่',
+  'คุยกับเจ้าหน้าที่',
+  'ติดต่อเจ้าหน้าที่',
+  'เจ้าหน้าที่ช่วย',
+  'human agent',
+  'live agent',
+] as const;
+
+const SUPPORT_ESCALATION_TAGS = ['escalated', 'officer-request', 'agri'] as const;
+
+const SUPPORT_ESCALATION_ACKNOWLEDGEMENT = [
+  'ระบบส่งเรื่องให้เจ้าหน้าที่แล้วครับ ✅',
+  'เพื่อช่วยวิเคราะห์ได้เร็วขึ้น กรุณาส่งเพิ่ม:',
+  '1) พื้นที่ (อำเภอ/จังหวัด)',
+  '2) พืชและอาการหลัก',
+  '3) รูปภาพล่าสุด (ถ้ามี)',
+  'เจ้าหน้าที่จะตอบกลับโดยเร็วที่สุด',
+].join('\n');
 
 const toIsoString = (value: Date | string | null): string | null => {
   if (value === null) {
@@ -827,6 +849,16 @@ const parseSupportTags = (value: unknown): string[] => {
   return normalizeSupportTags(value.filter((item): item is string => typeof item === 'string'));
 };
 
+const getEscalationKeywordMatch = (text: string): string | null => {
+  const normalizedText = text.trim().toLowerCase();
+  if (!normalizedText) {
+    return null;
+  }
+
+  const matchedKeyword = SUPPORT_ESCALATION_KEYWORDS.find((keyword) => normalizedText.includes(keyword));
+  return matchedKeyword ?? null;
+};
+
 export const listSupportMessages = async (
   ownerUserId: string,
   conversationId: string,
@@ -1053,6 +1085,59 @@ export const processLineWebhookEvent = async (event: {
       ...(content ? { content } : {}),
     } satisfies SupportLineInboundPayload,
   });
+
+  const escalationKeyword =
+    event.message.type === 'text' && event.message.text
+      ? getEscalationKeywordMatch(event.message.text)
+      : null;
+
+  if (inserted && escalationKeyword) {
+    const mergedTags = normalizeSupportTags([
+      ...parseSupportTags(conversation.tags),
+      ...SUPPORT_ESCALATION_TAGS,
+    ]);
+
+    const escalationAssigneeUserId = getSupportEscalationAssigneeUserId();
+    if (escalationAssigneeUserId) {
+      try {
+        await updateSupportConversationMetadata({
+          ownerUserId,
+          conversationId: conversation.id,
+          assignedToUserId: escalationAssigneeUserId,
+          tags: mergedTags,
+        });
+      } catch {
+        await updateSupportConversationMetadata({
+          ownerUserId,
+          conversationId: conversation.id,
+          assignedToUserId: null,
+          tags: mergedTags,
+        });
+      }
+    } else {
+      await updateSupportConversationMetadata({
+        ownerUserId,
+        conversationId: conversation.id,
+        assignedToUserId: null,
+        tags: mergedTags,
+      });
+    }
+
+    await sendSupportReply({
+      ownerUserId,
+      conversationId: conversation.id,
+      text: SUPPORT_ESCALATION_ACKNOWLEDGEMENT,
+      senderType: 'agent',
+      replyToken: event.replyToken,
+      payload: {
+        mode: 'escalation-ack',
+        trigger: 'keyword',
+        keyword: escalationKeyword,
+      },
+    });
+
+    return;
+  }
 
   if (
     !inserted ||
