@@ -79,6 +79,7 @@ type HandleAudioMessageInput = {
   replyToken: string;
   lineClient: messagingApi.MessagingApiClient;
   runCanonicalLineReply: CanonicalLineReply;
+  tryHandleTranscript?: (transcript: string) => Promise<boolean>;
 };
 
 type HandleVideoMessageInput = {
@@ -702,6 +703,10 @@ export async function handleAudioMessage(input: HandleAudioMessageInput): Promis
       replyToken: input.replyToken,
       messages: [{ type: 'text', text: '?????? ???????????????????????????????? ???????????????????????' }],
     });
+    return true;
+  }
+
+  if (await input.tryHandleTranscript?.(transcript)) {
     return true;
   }
 

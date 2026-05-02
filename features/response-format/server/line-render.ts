@@ -9,6 +9,7 @@ import type { ResponsePlan } from '@/features/response-format/types';
 const FLEX_TEMPLATE_NAME_BY_RESPONSE_KEY: Record<string, string> = {
   'agriculture.diagnosis': 'agrispark-diagnosis-result',
   'agriculture.weather_risk': 'agrispark-weather-risk',
+  'agriculture.forecast_7day': 'agrispark-7day-forecast',
   'agriculture.record_confirmation': 'agrispark-log-confirm',
   'agriculture.record_entry': 'agrispark-record-entry',
 };

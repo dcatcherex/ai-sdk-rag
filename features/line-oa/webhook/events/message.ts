@@ -29,6 +29,7 @@ import { MAX_CONTEXT_MESSAGES } from '../types';
 import { extractTextContent } from '../utils/text';
 import { handleAudioMessage, handleImageMessage, handleVideoMessage } from './media-handlers';
 import { handleTextMessage, runCanonicalLineReply } from './text-replies';
+import { handleFarmRecordMessage } from './farm-records';
 
 export { wantsImageGeneration };
 
@@ -336,6 +337,19 @@ export async function handleMessageEvent(
       replyToken,
       lineClient,
       runCanonicalLineReply: runLineReply,
+      tryHandleTranscript: (transcript) =>
+        handleFarmRecordMessage({
+          userText: transcript,
+          pendingMetadata: latestPendingFarmRecordDraft,
+          domainContext,
+          threadId,
+          nextPosition,
+          now,
+          channelUserId: channel.userId,
+          replyToken,
+          lineClient,
+          sender,
+        }),
     });
     return;
   }

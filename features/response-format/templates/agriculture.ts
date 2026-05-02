@@ -31,6 +31,13 @@ const AGRICULTURE_TEMPLATE_CONFIG: SeedTemplateConfig[] = [
     requiredDataKeys: ['location', 'temperature', 'humidity', 'rain_chance', 'farm_advice'],
   },
   {
+    key: 'agriculture.forecast_7day',
+    seedName: 'agrispark-7day-forecast',
+    title: 'Agriculture 7-Day Forecast',
+    intent: 'risk_summary',
+    requiredDataKeys: [],
+  },
+  {
     key: 'agriculture.record_entry',
     seedName: 'agrispark-record-entry',
     title: 'Agriculture Record Entry',
@@ -76,6 +83,16 @@ export const AGRICULTURE_RESPONSE_TEMPLATES: ResponseTemplate[] = AGRICULTURE_TE
             { label: 'Humidity', value: data.humidity },
             { label: 'Rain chance', value: data.rain_chance },
           ]),
+        };
+      }
+
+      if (config.key === 'agriculture.forecast_7day') {
+        return {
+          kind: 'card',
+          tone: 'neutral',
+          eyebrow: 'Forecast',
+          title: '7-day forecast',
+          summary: readTemplateString(data, 'summary'),
         };
       }
 

@@ -87,11 +87,12 @@ function parseFarmRecordDraft(
   const trimmed = text.trim();
   if (!trimmed) return null;
 
-  const looksLikeFarmRecord = /(บันทึก|ใส่ปุ๋ย|พ่นยา|เก็บเกี่ยว|ขาย|รดน้ำ|ให้น้ำ|ปลูก|หว่าน|fertiliz|spray|harvest|sold|irrigat|plant)/iu.test(trimmed);
+  const looksLikeFarmRecord = /(บันทึก|ใส่ปุ๋ย|ยูเรีย|ปุ๋ย|พ่นยา|เก็บเกี่ยว|ขาย|รดน้ำ|ให้น้ำ|ปลูก|หว่าน|fertiliz|spray|harvest|sold|irrigat|plant)/iu.test(trimmed);
   const looksLikeSummary = /(สรุป|summary|รายงาน|report)/iu.test(trimmed);
-  if (!looksLikeFarmRecord || looksLikeSummary) return null;
+  const looksLikeLookup = /(ดู|เปิด|แสดง|ขอดู|เช็ค|ตรวจ|ค้น|หา|ย้อนหลัง|ประวัติ|รายการ|list|show|view|history|lookup)/iu.test(trimmed);
+  if (!looksLikeFarmRecord || looksLikeSummary || looksLikeLookup) return null;
 
-  const quantityMatch = trimmed.match(/(\d+(?:[.,]\d+)?)\s*(กก\.?|kg|kg\.|ไร่|ตัน|ลิตร|ถุง|ต้น)/iu);
+  const quantityMatch = trimmed.match(/(\d+(?:[.,]\d+)?)\s*(กก\.?|กิโลกรัม|กิโล|kg|kg\.|ไร่|ตัน|ลิตร|ถุง|ต้น)/iu);
   const costMatch = trimmed.match(/(?:ค่าใช้จ่าย|ต้นทุน|ราคา)\s*(\d[\d,]*(?:\.\d+)?)\s*บาท/iu);
   const entityMatch = trimmed.match(/(?:ที่|ใน)\s*(แปลง[^\n,]+?)(?=\s*(?:ค่าใช้จ่าย|ต้นทุน|ราคา|$))/u);
 
@@ -99,7 +100,7 @@ function parseFarmRecordDraft(
     .replace(/^(วันนี้|เมื่อวาน|พรุ่งนี้|เช้านี้|ตอนเช้า|ตอนเย็น|ช่วงเช้า|ช่วงเย็น)\s*/u, '')
     .replace(/(?:ค่าใช้จ่าย|ต้นทุน|ราคา)\s*\d[\d,]*(?:\.\d+)?\s*บาท/giu, '')
     .replace(/(?:ที่|ใน)\s*แปลง[^\n,]+?(?=\s*(?:ค่าใช้จ่าย|ต้นทุน|ราคา|$))/giu, '')
-    .replace(/\d+(?:[.,]\d+)?\s*(กก\.?|kg|kg\.|ไร่|ตัน|ลิตร|ถุง|ต้น)/giu, '')
+    .replace(/\d+(?:[.,]\d+)?\s*(กก\.?|กิโลกรัม|กิโล|kg|kg\.|ไร่|ตัน|ลิตร|ถุง|ต้น)/giu, '')
     .replace(/^บันทึก(?:กิจกรรม)?[:\s]*/iu, '')
     .trim();
 

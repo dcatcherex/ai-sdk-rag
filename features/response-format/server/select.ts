@@ -99,11 +99,22 @@ export function buildResponsePlan({
     quickReplies,
     buildWorkflowQuickReplies(resolvedWorkflow, locale),
   );
+  const bodyText = text.trim() || toolSelection?.bodyText || '';
+  const heuristicCard = !toolSelection?.card
+    ? buildHeuristicCardFromText({
+        text: bodyText,
+        userText,
+        intent: resolvedIntent,
+        locale,
+      })
+    : null;
   const formats = dedupeFormats([
-    ...(toolSelection?.preferredFormats ?? [detectFallbackFormat(text)]),
+    ...(toolSelection?.preferredFormats ?? [
+      ...(heuristicCard ? ['card' as const] : []),
+      detectFallbackFormat(text),
+    ]),
     ...(resolvedQuickReplies.length > 0 ? ['quick_replies' as const] : []),
   ]);
-  const bodyText = text.trim() || toolSelection?.bodyText || '';
 
   return {
     intent: resolvedIntent,
@@ -111,7 +122,7 @@ export function buildResponsePlan({
     bodyText,
     formats,
     quickReplies: resolvedQuickReplies.length > 0 ? resolvedQuickReplies : undefined,
-    ...(toolSelection?.card ? { card: toolSelection.card } : {}),
+    ...(toolSelection?.card ? { card: toolSelection.card } : heuristicCard ? { card: heuristicCard } : {}),
     ...(resolvedWorkflow ? { workflow: resolvedWorkflow } : {}),
     ...(resolvedSafety ? { safety: resolvedSafety } : {}),
     metadata: {
@@ -145,7 +156,116 @@ function inferResponseIntentFromText(text: string, userText?: string): ResponseI
     return 'diagnosis';
   }
 
+  const hasThaiWeatherContract =
+    normalizedText.includes('ความเสี่ยงหลัก:')
+    && normalizedText.includes('ช่วงเวลา:')
+    && normalizedText.includes('ควรทำทันที:');
+  const userAskedWeather =
+    /(weather|forecast|rain|ฝน|อากาศ|พยากรณ์|พายุ|น้ำท่วม|ชื้น)/i.test(normalizedUserText);
+
+  if (hasThaiWeatherContract || (userAskedWeather && /(ความเสี่ยง|ฝน|พายุ|ระบายน้ำ|โรค|เชื้อรา)/i.test(normalizedText))) {
+    return 'risk_summary';
+  }
+
   return null;
+}
+
+function buildHeuristicCardFromText(input: {
+  text: string;
+  userText?: string;
+  intent: ResponseIntent;
+  locale: string;
+}): ResponseCard | null {
+  if (!input.locale.startsWith('th')) {
+    return null;
+  }
+
+  if (input.intent === 'risk_summary') {
+    if (/(7\s*วัน|เจ็ดวัน|พยากรณ์)/i.test(`${input.userText ?? ''}\n${input.text}`)) {
+      return {
+        templateKey: 'agriculture.forecast_7day',
+        altText: 'พยากรณ์อากาศ 7 วัน',
+        data: {
+          altText: 'พยากรณ์อากาศ 7 วัน',
+        },
+        fallbackText: input.text,
+      };
+    }
+
+    const location =
+      readLocationHint(input.userText)
+      ?? readLocationHint(input.text)
+      ?? 'พื้นที่ของคุณ';
+    return {
+      templateKey: 'agriculture.weather_risk',
+      altText: 'สรุปสภาพอากาศและความเสี่ยง',
+      data: {
+        location,
+        temperature: '-',
+        humidity: '-',
+        rain_chance: '-',
+        farm_advice:
+          readLabeledSection(input.text, ['ควรทำทันที:', 'คำแนะนำ:', 'ความเสี่ยงหลัก:'])
+          ?? input.text.slice(0, 220),
+        altText: 'สรุปสภาพอากาศและความเสี่ยง',
+      },
+      fallbackText: input.text,
+    };
+  }
+
+  if (input.intent === 'diagnosis') {
+    return {
+      templateKey: 'agriculture.diagnosis',
+      altText: 'ผลการวินิจฉัยพืช',
+      data: {
+        crop_name: readCropHint(input.userText) ?? 'พืช',
+        diagnosis:
+          readLabeledSection(input.text, ['ปัญหาที่น่าจะเป็น:', 'โรค/แมลง:', 'วินิจฉัย:'])
+          ?? 'ต้องตรวจสอบเพิ่มเติม',
+        severity:
+          readLabeledSection(input.text, ['ระดับความรุนแรง:', 'ความเสี่ยง:', 'Severity:'])
+          ?? 'ยังไม่ระบุ',
+        recommendation:
+          readLabeledSection(input.text, ['ควรทำทันที:', 'วิธีแก้ไข:', 'คำแนะนำ:'])
+          ?? input.text.slice(0, 220),
+        altText: 'ผลการวินิจฉัยพืช',
+      },
+      fallbackText: input.text,
+    };
+  }
+
+  return null;
+}
+
+function readLabeledSection(text: string, labels: string[]): string | null {
+  const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  for (let index = 0; index < lines.length; index += 1) {
+    const label = labels.find((candidate) => lines[index]?.startsWith(candidate));
+    if (!label) continue;
+
+    const first = lines[index]!.slice(label.length).trim();
+    const rest: string[] = [];
+    for (let next = index + 1; next < lines.length; next += 1) {
+      if (/^[A-Za-zก-๙0-9 _()/.-]+:\s*/.test(lines[next]!)) break;
+      rest.push(lines[next]!);
+    }
+
+    return [first, ...rest].filter(Boolean).slice(0, 4).join('\n') || null;
+  }
+
+  return null;
+}
+
+function readLocationHint(text?: string): string | null {
+  if (!text) return null;
+  const match = text.match(/(เชียงใหม่|กรุงเทพฯ?|นครราชสีมา|ขอนแก่น|อุบลราชธานี|สุรินทร์|บุรีรัมย์|ชลบุรี|ระยอง|จันทบุรี|ราชบุรี|นครปฐม|สุพรรณบุรี|พิษณุโลก|ลำพูน|ลำปาง|แม่ริม)/u);
+  return match?.[1] ?? null;
+}
+
+function readCropHint(text?: string): string | null {
+  if (!text) return null;
+  const match = text.match(/(พริก|มะเขือเทศ|ข้าว|มันสำปะหลัง|ลำไย|ทุเรียน|แตงโม|ผัก|ข้าวโพด|อ้อย|ยางพารา)/u);
+  return match?.[1] ?? null;
 }
 
 export function selectResponseFromToolResults(
