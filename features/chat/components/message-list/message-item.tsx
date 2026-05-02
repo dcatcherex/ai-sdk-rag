@@ -28,6 +28,7 @@ import { filterRenderableMessageParts, getTextContentFromParts } from '@/feature
 import type { ChatMessage, ChatMessageMetadata, ChatMessagePart, ChatReferenceImage, MessageReaction, QuizFollowUpContext } from '@/features/chat/types';
 import type { MediaAsset } from '@/features/gallery/types';
 import { EnhancedPromptChip, GenerationDetails } from './generation-details';
+import { ReadAloudButton } from './read-aloud-button';
 import { FollowUpChips } from './follow-up-chips';
 import type { ReactionMap, PendingDelete } from './types';
 
@@ -231,6 +232,9 @@ export const MessageItem = ({
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+            )}
+            {message.role === 'assistant' && textContent && (
+              <ReadAloudButton text={textContent} />
             )}
             {message.role === 'assistant' && (
               <TooltipProvider>

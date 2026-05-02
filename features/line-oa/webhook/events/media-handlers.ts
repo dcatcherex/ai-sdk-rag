@@ -105,7 +105,7 @@ async function streamToBuffer(stream: AsyncIterable<Uint8Array>): Promise<Buffer
 
 function pcmToMp3(pcm: Buffer, sampleRate = 24000): Buffer {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const lamejs = require('lamejs') as {
+  const lamejs = require('@breezystack/lamejs') as {
     Mp3Encoder: new (
       ch: number,
       sr: number,
@@ -418,19 +418,26 @@ async function sendVoiceReply(
   const ttsText = text.slice(0, 500);
   try {
     const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    const response = await genAI.models.generateContent({
-      model: 'gemini-2.5-flash-preview-tts',
-      contents: [{ parts: [{ text: ttsText }] }],
-      config: {
-        responseModalities: ['AUDIO'],
-        speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } },
+    let response;
+    try {
+      response = await genAI.models.generateContent({
+        model: 'gemini-3.1-flash-tts-preview',
+        contents: [{ parts: [{ text: ttsText }] }],
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } },
+          },
         },
-      },
-    });
+      });
+    } catch (ttsErr) {
+      console.error('[LINE] Voice reply — TTS generation failed:', ttsErr);
+      return;
+    }
 
     const pcmBase64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (!pcmBase64) {
+      console.warn('[LINE] Voice reply — TTS returned no audio data. candidates:', JSON.stringify(response.candidates?.map((c) => ({ finishReason: c.finishReason, parts: c.content?.parts?.map((p) => ({ type: Object.keys(p).join(',') })) }))));
       return;
     }
 
@@ -438,18 +445,28 @@ async function sendVoiceReply(
     const mp3Buffer = pcmToMp3(pcmBuffer);
     const durationMs = Math.round((pcmBuffer.length / (24000 * 2)) * 1000);
     const key = `line-audio/${crypto.randomUUID()}.mp3`;
-    const { url } = await uploadPublicObject({
-      key,
-      body: mp3Buffer,
-      contentType: 'audio/mpeg',
-    });
+    let url: string;
+    try {
+      ({ url } = await uploadPublicObject({
+        key,
+        body: mp3Buffer,
+        contentType: 'audio/mpeg',
+      }));
+    } catch (uploadErr) {
+      console.error('[LINE] Voice reply — R2 upload failed:', uploadErr);
+      return;
+    }
 
-    await lineClient.pushMessage({
-      to: lineUserId,
-      messages: [{ type: 'audio', originalContentUrl: url, duration: durationMs }],
-    });
+    try {
+      await lineClient.pushMessage({
+        to: lineUserId,
+        messages: [{ type: 'audio', originalContentUrl: url, duration: durationMs }],
+      });
+    } catch (pushErr) {
+      console.error('[LINE] Voice reply — pushMessage failed:', pushErr);
+    }
   } catch (err) {
-    console.warn('[LINE] Voice reply failed:', err);
+    console.error('[LINE] Voice reply — unexpected error:', err);
   }
 }
 
