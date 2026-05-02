@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GoogleGenAI, Modality, Session, type LiveConnectConfig } from '@google/genai';
 
 export type VoiceState = 'idle' | 'connecting' | 'listening' | 'ai-speaking' | 'error';
 
@@ -24,11 +23,30 @@ type UseLiveVoiceOptions = {
   history?: VoiceHistoryTurn[];
 };
 
-const LIVE_MODEL = 'gemini-3.1-flash-live-preview';
+type LiveBlob = {
+  data: string;
+  mimeType: string;
+};
+
+type LiveRealtimeInput = {
+  activityEnd?: object;
+  activityStart?: object;
+  audio?: LiveBlob;
+  text?: string;
+  video?: LiveBlob;
+};
+
+type LiveWebSocketSession = {
+  conn: WebSocket;
+  close: () => void;
+  sendRealtimeInput: (input: LiveRealtimeInput) => void;
+};
+
 const DEFAULT_VOICE = 'Aoede';
 const BASE_SYSTEM_INSTRUCTION = 'You are a helpful, friendly assistant. Always respond in the same language the user speaks in — Thai or English. Keep responses conversational and concise.';
-const AUDIO_ACTIVITY_THRESHOLD = 120;
+const AUDIO_ACTIVITY_THRESHOLD = 20;
 const AUDIO_ACTIVITY_HOLD_MS = 900;
+const AUDIO_ACTIVITY_FORCE_START_CHUNKS = 6;
 
 function buildSystemInstruction(history?: VoiceHistoryTurn[]) {
   const priorTurns = (history ?? []).slice(-12).filter((turn) => turn.text.trim());
@@ -50,7 +68,7 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
   const [speakAloud, setSpeakAloudState] = useState(true);
 
   // Internal refs — not state so they don't cause re-renders
-  const sessionRef = useRef<Session | null>(null);
+  const sessionRef = useRef<LiveWebSocketSession | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -70,6 +88,7 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
   const isConnectingRef = useRef(false);
   const isGoAwayReconnectPendingRef = useRef(false);
   const isActivityActiveRef = useRef(false);
+  const lowActivityChunkCountRef = useRef(0);
   const connectRef = useRef<(() => Promise<void>) | null>(null);
 
   enabledRef.current = enabled;
@@ -79,7 +98,7 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
     onError?.(msg);
   }, [onError]);
 
-  const isSessionSocketOpen = useCallback((session: Session | null) => {
+  const isSessionSocketOpen = useCallback((session: LiveWebSocketSession | null) => {
     if (!session) {
       return false;
     }
@@ -95,7 +114,7 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
     }
   }, []);
 
-  const finishActivity = useCallback((session: Session | null) => {
+  const finishActivity = useCallback((session: LiveWebSocketSession | null) => {
     clearActivityEndTimeout();
     if (!session || !isActivityActiveRef.current || !isSessionSocketOpen(session)) {
       isActivityActiveRef.current = false;
@@ -365,10 +384,30 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
         : 0;
       const hasSpeech = averageLevel > AUDIO_ACTIVITY_THRESHOLD;
 
-      if (hasSpeech && !isActivityActiveRef.current) {
+      if (hasSpeech) {
+        lowActivityChunkCountRef.current = 0;
+      } else if (!isActivityActiveRef.current) {
+        lowActivityChunkCountRef.current += 1;
+      }
+
+      const shouldForceStart =
+        !isActivityActiveRef.current &&
+        lowActivityChunkCountRef.current >= AUDIO_ACTIVITY_FORCE_START_CHUNKS;
+
+      if ((hasSpeech || shouldForceStart) && !isActivityActiveRef.current) {
         try {
           activeSession.sendRealtimeInput({ activityStart: {} });
           isActivityActiveRef.current = true;
+          lowActivityChunkCountRef.current = 0;
+
+          // If we forced activity start on low-level input, still send activityEnd
+          // after a short hold so the model can produce a turn.
+          if (!hasSpeech) {
+            clearActivityEndTimeout();
+            activityEndTimeoutRef.current = window.setTimeout(() => {
+              finishActivity(activeSession);
+            }, AUDIO_ACTIVITY_HOLD_MS);
+          }
         } catch {
           return;
         }
@@ -396,6 +435,7 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
   const stopMicrophone = useCallback(() => {
     clearActivityEndTimeout();
     isActivityActiveRef.current = false;
+    lowActivityChunkCountRef.current = 0;
     workletNodeRef.current?.disconnect();
     workletNodeRef.current = null;
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
@@ -429,85 +469,129 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
       // Get ephemeral token from our backend
       const res = await fetch('/api/live-token');
       if (!res.ok) throw new Error('Failed to get live token');
-      const { token } = await res.json() as { token: string };
-
-      // Connect directly to Gemini Live API using ephemeral token
-      const ai = new GoogleGenAI({ apiKey: token, httpOptions: { apiVersion: 'v1alpha' } });
+      const { token, model } = await res.json() as { token: string; model?: string };
+      if (!model || model.trim().length === 0) {
+        throw new Error('Live token response missing model');
+      }
 
       let connected = false;
 
-      const config: LiveConnectConfig = {
-        responseModalities: [Modality.AUDIO],
-        inputAudioTranscription: {},
-        outputAudioTranscription: {},
-        realtimeInputConfig: {
-          automaticActivityDetection: {
-            disabled: true,
-          },
-        },
-        speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName ?? DEFAULT_VOICE } },
-        },
-        systemInstruction: buildSystemInstruction(historyRef.current),
-        contextWindowCompression: { slidingWindow: {} },
-        sessionResumption: resumeHandle ? { handle: resumeHandle } : {},
-      };
+      const socketUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${encodeURIComponent(token)}`;
 
-      const session = await ai.live.connect({
-        model: LIVE_MODEL,
-        config,
-        callbacks: {
-          onopen: () => {
-            if (activeConnectionIdRef.current !== connectionAttemptId) {
-              return;
+      const session = await new Promise<LiveWebSocketSession>((resolve, reject) => {
+        const socket = new WebSocket(socketUrl);
+        const liveSession: LiveWebSocketSession = {
+          conn: socket,
+          close: () => {
+            if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+              socket.close();
             }
-            connected = true;
-            isConnectingRef.current = false;
-            isGoAwayReconnectPendingRef.current = false;
-            clearReconnectTimeout();
-            setVoiceState('listening');
           },
-          onmessage: (message: unknown) => {
-            if (activeConnectionIdRef.current !== connectionAttemptId) {
+          sendRealtimeInput: (input: LiveRealtimeInput) => {
+            if (socket.readyState !== WebSocket.OPEN) {
               return;
             }
-            handleMessage(message as Record<string, unknown>);
+            socket.send(JSON.stringify({ realtimeInput: input }));
           },
-          onerror: (e: { message?: string }) => {
-            if (activeConnectionIdRef.current !== connectionAttemptId) {
+          sendClientContent: (input: { turnComplete: boolean }) => {
+            if (socket.readyState !== WebSocket.OPEN) {
               return;
             }
-            console.error('[useLiveVoice] session error:', e);
-            reportError(e.message ?? 'Connection error');
+            socket.send(JSON.stringify({ clientContent: input }));
           },
-          onclose: (e?: { code?: number; reason?: string }) => {
-            if (activeConnectionIdRef.current !== connectionAttemptId) {
-              return;
-            }
-            console.warn('[useLiveVoice] session closed — code:', e?.code, '| reason:', e?.reason);
-            isConnectingRef.current = false;
-            activeConnectionIdRef.current = null;
-            sessionRef.current = null;
-            stopMicrophone();
-            clearPlaybackQueue();
-            const shouldReconnect = !manualDisconnectRef.current && enabledRef.current;
-            const wasGoAwayReconnect = isGoAwayReconnectPendingRef.current;
-            isGoAwayReconnectPendingRef.current = false;
-            if (shouldReconnect && wasGoAwayReconnect) {
-              void connectRef.current?.();
-              return;
-            }
-            if (shouldReconnect) {
-              const description = e?.reason
-                ? `Live session closed (${e.code ?? 'unknown'}): ${e.reason}`
-                : `Live session closed (${e?.code ?? 'unknown'})`;
-              reportError(description);
-              return;
-            }
-            // Don't overwrite an error state — keep it visible so the user sees the toast
-            setVoiceState((prev) => (prev === 'error' ? 'error' : 'idle'));
-          },
-        },
+        };
+
+        socket.onopen = () => {
+          if (activeConnectionIdRef.current !== connectionAttemptId) {
+            socket.close();
+            return;
+          }
+
+          const setup = {
+            model: `models/${model}`,
+            generationConfig: {
+              responseModalities: ['AUDIO'],
+              speechConfig: {
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName ?? DEFAULT_VOICE } },
+              },
+            },
+            inputAudioTranscription: {},
+            outputAudioTranscription: {},
+            realtimeInputConfig: {
+              automaticActivityDetection: {
+                disabled: true,
+              },
+            },
+            systemInstruction: {
+              parts: [{ text: buildSystemInstruction(historyRef.current) }],
+            },
+            contextWindowCompression: { slidingWindow: {} },
+            sessionResumption: resumeHandle ? { handle: resumeHandle } : {},
+          };
+
+          socket.send(JSON.stringify({ setup }));
+          connected = true;
+          isConnectingRef.current = false;
+          isGoAwayReconnectPendingRef.current = false;
+          clearReconnectTimeout();
+          setVoiceState('listening');
+          resolve(liveSession);
+        };
+
+        socket.onmessage = async (event: MessageEvent<Blob | string>) => {
+          if (activeConnectionIdRef.current !== connectionAttemptId) {
+            return;
+          }
+          try {
+            const dataText = event.data instanceof Blob ? await event.data.text() : event.data;
+            const message = JSON.parse(dataText) as Record<string, unknown>;
+            handleMessage(message);
+          } catch (error) {
+            console.error('[useLiveVoice] invalid session message:', error, event.data);
+          }
+        };
+
+        socket.onerror = () => {
+          if (activeConnectionIdRef.current !== connectionAttemptId) {
+            return;
+          }
+          if (!connected) {
+            reject(new Error('Connection error'));
+            return;
+          }
+          reportError('Connection error');
+        };
+
+        socket.onclose = (event: CloseEvent) => {
+          if (activeConnectionIdRef.current !== connectionAttemptId) {
+            return;
+          }
+          console.warn('[useLiveVoice] session closed — code:', event.code, '| reason:', event.reason);
+          if (!connected) {
+            reject(new Error(event.reason || `Live session closed (${event.code})`));
+            return;
+          }
+          isConnectingRef.current = false;
+          activeConnectionIdRef.current = null;
+          sessionRef.current = null;
+          stopMicrophone();
+          clearPlaybackQueue();
+          const shouldReconnect = !manualDisconnectRef.current && enabledRef.current;
+          const wasGoAwayReconnect = isGoAwayReconnectPendingRef.current;
+          isGoAwayReconnectPendingRef.current = false;
+          if (shouldReconnect && wasGoAwayReconnect) {
+            void connectRef.current?.();
+            return;
+          }
+          if (shouldReconnect) {
+            const description = event.reason
+              ? `Live session closed (${event.code ?? 'unknown'}): ${event.reason}`
+              : `Live session closed (${event.code ?? 'unknown'})`;
+            reportError(description);
+            return;
+          }
+          setVoiceState((prev) => (prev === 'error' ? 'error' : 'idle'));
+        };
       });
 
       if (activeConnectionIdRef.current !== connectionAttemptId) {
