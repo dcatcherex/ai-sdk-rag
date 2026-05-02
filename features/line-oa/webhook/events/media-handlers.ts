@@ -2,6 +2,12 @@ import { generateImage, generateText } from 'ai';
 import { messagingApi } from '@line/bot-sdk';
 import { asc, eq } from 'drizzle-orm';
 import { GoogleGenAI } from '@google/genai';
+import { execFile as execFileCb } from 'node:child_process';
+import { promises as fs } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { promisify } from 'node:util';
+import ffmpegPath from 'ffmpeg-static';
 
 import { db } from '@/lib/db';
 import { uploadPublicObject } from '@/lib/r2';
@@ -103,34 +109,78 @@ async function streamToBuffer(stream: AsyncIterable<Uint8Array>): Promise<Buffer
   return Buffer.concat(chunks.map((c) => Buffer.from(c)));
 }
 
-function pcmToMp3(pcm: Buffer, sampleRate = 24000): Buffer {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const lamejs = require('@breezystack/lamejs') as {
-    Mp3Encoder: new (
-      ch: number,
-      sr: number,
-      kbps: number,
-    ) => { encodeBuffer(l: Int16Array): Int8Array; flush(): Int8Array };
-  };
-  const encoder = new lamejs.Mp3Encoder(1, sampleRate, 128);
-  const samples = new Int16Array(pcm.buffer, pcm.byteOffset, pcm.length / 2);
-  const frameSize = 1152;
-  const chunks: Buffer[] = [];
+function pcmToWav(pcm: Buffer, sampleRate = 24000): Buffer {
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+  const blockAlign = numChannels * (bitsPerSample / 8);
+  const dataSize = pcm.length;
 
-  for (let i = 0; i < samples.length; i += frameSize) {
-    const frame = samples.subarray(i, i + frameSize);
-    const encoded = encoder.encodeBuffer(frame);
-    if (encoded.length > 0) {
-      chunks.push(Buffer.from(encoded.buffer, encoded.byteOffset, encoded.byteLength));
+  const header = Buffer.alloc(44);
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + dataSize, 4);
+  header.write('WAVE', 8);
+  header.write('fmt ', 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(numChannels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bitsPerSample, 34);
+  header.write('data', 36);
+  header.writeUInt32LE(dataSize, 40);
+
+  return Buffer.concat([header, pcm]);
+}
+
+async function transcodeWavToM4a(wavBuffer: Buffer): Promise<Buffer> {
+  if (!ffmpegPath) {
+    throw new Error('ffmpeg-static path is unavailable');
+  }
+  const execFile = promisify(execFileCb);
+
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'line-tts-'));
+  const inputPath = path.join(tempDir, 'input.wav');
+  const outputPath = path.join(tempDir, 'output.m4a');
+
+  try {
+    await fs.writeFile(inputPath, wavBuffer);
+
+    const args = [
+      '-y',
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-i',
+      inputPath,
+      '-ac',
+      '1',
+      '-ar',
+      '24000',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '64k',
+      '-movflags',
+      '+faststart',
+      outputPath,
+    ];
+
+    try {
+      await execFile(ffmpegPath, args, { windowsHide: true });
+    } catch (error) {
+      const stderr =
+        typeof error === 'object' && error !== null && 'stderr' in error
+          ? String((error as { stderr?: unknown }).stderr ?? '')
+          : '';
+      throw new Error(`ffmpeg transcode failed. ${stderr.trim()}`.trim());
     }
-  }
 
-  const flushed = encoder.flush();
-  if (flushed.length > 0) {
-    chunks.push(Buffer.from(flushed.buffer, flushed.byteOffset, flushed.byteLength));
+    return await fs.readFile(outputPath);
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
   }
-
-  return Buffer.concat(chunks);
 }
 
 async function transcribeLineAudio(messageId: string, channelAccessToken: string): Promise<string> {
@@ -442,15 +492,24 @@ async function sendVoiceReply(
     }
 
     const pcmBuffer = Buffer.from(pcmBase64, 'base64');
-    const mp3Buffer = pcmToMp3(pcmBuffer);
+    const wavBuffer = pcmToWav(pcmBuffer);
     const durationMs = Math.round((pcmBuffer.length / (24000 * 2)) * 1000);
-    const key = `line-audio/${crypto.randomUUID()}.mp3`;
+    let m4aBuffer: Buffer;
+
+    try {
+      m4aBuffer = await transcodeWavToM4a(wavBuffer);
+    } catch (transcodeErr) {
+      console.error('[LINE] Voice reply — m4a transcode failed:', transcodeErr);
+      return;
+    }
+
+    const key = `line-audio/${crypto.randomUUID()}.m4a`;
     let url: string;
     try {
       ({ url } = await uploadPublicObject({
         key,
-        body: mp3Buffer,
-        contentType: 'audio/mpeg',
+        body: m4aBuffer,
+        contentType: 'audio/mp4',
       }));
     } catch (uploadErr) {
       console.error('[LINE] Voice reply — R2 upload failed:', uploadErr);
