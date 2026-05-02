@@ -36,7 +36,7 @@ const VOICE_SUMMARY_CHAR_THRESHOLD = 420;
 const VOICE_SUMMARY_WORD_THRESHOLD = 90;
 const MODEL_TRANSCRIBE = 'gemini-2.5-flash-lite';
 const LINE_TTS_MODEL = 'gemini-3.1-flash-tts-preview';
-const ENABLE_LINE_VOICE_SUMMARY = false;
+const ENABLE_LINE_VOICE_SUMMARY = true;
 
 function shouldUseVoiceSummary(text: string): boolean {
   const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
