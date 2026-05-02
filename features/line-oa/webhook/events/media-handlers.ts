@@ -37,6 +37,14 @@ import { generateLineFollowUpSuggestions as generateFollowUpSuggestions } from '
 import type { LineMessage, LinkedUser, MessagePart, Sender } from '../types';
 import { buildSuggestionQuickReplies, type ConversationHistoryMessage } from './reply-helpers';
 
+const VOICE_SUMMARY_CHAR_THRESHOLD = 420;
+const VOICE_SUMMARY_WORD_THRESHOLD = 90;
+
+function shouldUseVoiceSummary(text: string): boolean {
+  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+  return text.length > VOICE_SUMMARY_CHAR_THRESHOLD || wordCount > VOICE_SUMMARY_WORD_THRESHOLD;
+}
+
 type LineChannel = {
   id: string;
   userId: string;
@@ -138,6 +146,11 @@ async function transcodeWavToM4a(wavBuffer: Buffer): Promise<Buffer> {
   if (!ffmpegPath) {
     throw new Error('ffmpeg-static path is unavailable');
   }
+
+  await fs.access(ffmpegPath).catch(() => {
+    throw new Error(`ffmpeg binary not found at path: ${ffmpegPath}`);
+  });
+
   const execFile = promisify(execFileCb);
 
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'line-tts-'));
@@ -465,9 +478,47 @@ async function sendVoiceReply(
     return;
   }
 
-  const ttsText = text.slice(0, 500);
   try {
     const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    let speechSourceText = text;
+
+    if (shouldUseVoiceSummary(text)) {
+      try {
+        const summaryResponse = await genAI.models.generateContent({
+          model: 'gemini-2.5-flash-lite',
+          contents: [{
+            role: 'user',
+            parts: [{
+              text: [
+                'Summarize this assistant response for voice playback.',
+                'Requirements:',
+                '- Keep the original language and tone (Thai if Thai, English if English).',
+                '- Maximum 2 short sentences.',
+                '- Keep key actionable points only.',
+                '- Plain text only; no bullets, no markdown, no labels.',
+                '',
+                'Response:',
+                text,
+              ].join('\n'),
+            }],
+          }],
+        });
+
+        const summarized = summaryResponse.text?.trim();
+        if (summarized) {
+          speechSourceText = summarized;
+          console.info('[LINE] Voice reply — using summarized audio script', {
+            originalChars: text.length,
+            summaryChars: summarized.length,
+          });
+        }
+      } catch (summaryErr) {
+        console.error('[LINE] Voice reply — summary generation failed, using original text:', summaryErr);
+      }
+    }
+
+    const ttsText = speechSourceText.slice(0, 500);
+
     let response;
     try {
       response = await genAI.models.generateContent({
@@ -499,7 +550,10 @@ async function sendVoiceReply(
     try {
       m4aBuffer = await transcodeWavToM4a(wavBuffer);
     } catch (transcodeErr) {
-      console.error('[LINE] Voice reply — m4a transcode failed:', transcodeErr);
+      console.error('[LINE] Voice reply — m4a transcode failed:', {
+        error: transcodeErr,
+        ffmpegPath,
+      });
       return;
     }
 
@@ -522,7 +576,11 @@ async function sendVoiceReply(
         messages: [{ type: 'audio', originalContentUrl: url, duration: durationMs }],
       });
     } catch (pushErr) {
-      console.error('[LINE] Voice reply — pushMessage failed:', pushErr);
+      console.error('[LINE] Voice reply — pushMessage failed:', {
+        error: pushErr,
+        audioUrl: url,
+        durationMs,
+      });
     }
   } catch (err) {
     console.error('[LINE] Voice reply — unexpected error:', err);
