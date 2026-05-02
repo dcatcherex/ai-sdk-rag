@@ -289,9 +289,17 @@ export async function runCanonicalLineReply(
     } as LineMessage);
   }
 
+  const outgoingMessages = [...textMessages, ...imageMessages, ...stickerMessages];
+  console.info('[LINE] Reply render', {
+    formats: responsePlan.formats,
+    templateKey: responsePlan.card?.templateKey ?? null,
+    messageTypes: outgoingMessages.map((message) => message.type),
+    hasFlex: outgoingMessages.some((message) => message.type === 'flex'),
+  });
+
   await context.lineClient.replyMessage({
     replyToken: context.replyToken,
-    messages: [...textMessages, ...imageMessages, ...stickerMessages],
+    messages: outgoingMessages,
   });
 
   recordMessageEvent(context.channel.id, context.activeLineUserId, {

@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { chatMessage, chatThread } from '@/db/schema';
 import { buildFallbackResponsePlan, buildResponsePlan, renderResponseForLine } from '@/features/response-format';
+import type { ResponseFormat } from '@/features/response-format/types';
 import { runLogActivity } from '@/features/record-keeper/service';
 import type { LogActivityInput } from '@/features/record-keeper/schema';
 import type { ResolvedDomainContext } from '@/features/domain-profiles/types';
@@ -324,7 +325,7 @@ export async function handleFarmRecordMessage(input: HandleFarmRecordMessageInpu
     return false;
   }
 
-  const confirmationPlan = buildFallbackResponsePlan({
+  const fallbackConfirmationPlan = buildFallbackResponsePlan({
     text: pendingDraft.summaryText,
     locale: 'th-TH',
     quickReplies: [
@@ -337,6 +338,28 @@ export async function handleFarmRecordMessage(input: HandleFarmRecordMessageInpu
       source: 'line_record_draft_confirmation',
     },
   });
+
+  const confirmationFormats: ResponseFormat[] = [
+    'card',
+    ...fallbackConfirmationPlan.formats.filter(
+      (format): format is Exclude<ResponseFormat, 'card'> => format !== 'card',
+    ),
+  ];
+
+  const confirmationPlan = {
+    ...fallbackConfirmationPlan,
+    formats: confirmationFormats,
+    card: {
+      templateKey: 'common.summary',
+      altText: 'ยืนยันรายการก่อนบันทึก',
+      data: {
+        title: 'ยืนยันรายการก่อนบันทึก',
+        summary: pendingDraft.summaryText,
+        altText: 'ยืนยันรายการก่อนบันทึก',
+      },
+      fallbackText: pendingDraft.summaryText,
+    },
+  };
 
   await persistLineTurn({
     threadId: input.threadId,

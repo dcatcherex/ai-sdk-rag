@@ -39,6 +39,7 @@ import { buildSuggestionQuickReplies, type ConversationHistoryMessage } from './
 
 const VOICE_SUMMARY_CHAR_THRESHOLD = 420;
 const VOICE_SUMMARY_WORD_THRESHOLD = 90;
+const MODEL_TRANSCRIBE = 'gemini-2.5-flash-lite';
 
 function shouldUseVoiceSummary(text: string): boolean {
   const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
@@ -485,7 +486,7 @@ async function sendVoiceReply(
     if (shouldUseVoiceSummary(text)) {
       try {
         const summaryResponse = await genAI.models.generateContent({
-          model: 'gemini-2.5-flash-lite',
+          model: MODEL_TRANSCRIBE,
           contents: [{
             role: 'user',
             parts: [{

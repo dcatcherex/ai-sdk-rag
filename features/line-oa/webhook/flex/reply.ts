@@ -9,6 +9,16 @@ import type {
 import { FLEX_BULLET_THRESHOLD, LINE_GREEN } from '../types';
 import { splitIntoChunks } from '../utils/text';
 
+const LIST_MARKER_REGEX = /^\s*(?:•|-|\*|\d+[.)])\s+/;
+
+function isListLine(line: string): boolean {
+  return LIST_MARKER_REGEX.test(line);
+}
+
+function stripListMarker(line: string): string {
+  return line.replace(LIST_MARKER_REGEX, '').trim();
+}
+
 /**
  * ⑤ Decide between Flex bubble (structured list) and plain text chunks.
  *
@@ -20,7 +30,7 @@ export function buildReplyMessages(
   sender: Sender | undefined,
   quickReply: QuickReply | undefined,
 ): LineMessage[] {
-  const bulletLines = text.match(/^• .*/gm) ?? [];
+  const bulletLines = text.split('\n').filter((line) => isListLine(line));
 
   if (bulletLines.length >= FLEX_BULLET_THRESHOLD) {
     return [buildFlexReplyBubble(text, sender, quickReply)];
@@ -60,9 +70,12 @@ export function buildFlexReplyBubble(
   let zone: 'intro' | 'bullets' | 'outro' = 'intro';
 
   for (const line of lines) {
-    if (/^• /.test(line)) {
+    if (isListLine(line)) {
       zone = 'bullets';
-      bulletItems.push(line.slice(2).trim());
+      const item = stripListMarker(line);
+      if (item) {
+        bulletItems.push(item);
+      }
     } else if (zone === 'bullets' && line.trim() === '') {
       outroLines.push('');
     } else if (zone === 'bullets') {
