@@ -1,38 +1,21 @@
 import 'server-only';
 
 import { convertToModelMessages, generateText, stepCountIs, type ToolSet } from 'ai';
-import { eq } from 'drizzle-orm';
-import { availableModels, chatModel } from '@/lib/ai';
-import { db } from '@/lib/db';
-import { agent } from '@/db/schema';
-import { getUserMemoryContext } from '@/lib/memory';
-import { buildToolSet } from '@/lib/tools';
 import { buildResponsePlan } from '@/features/response-format';
 import { listResponseWorkflowCapabilities } from '@/features/privacy-governance/access-control';
-import { createAgentTools } from '@/lib/agent-tools';
-import { buildMCPToolSet } from '@/lib/tools/mcp';
 import { getCreditCost } from '@/lib/credits';
 import { buildBrandImageContext, buildImageBrandSuffix } from '@/features/brands/service';
 import type { Brand } from '@/features/brands/types';
 import type { Agent } from '@/features/agents/types';
-import { renderDomainContextPromptBlock } from '@/features/domain-profiles/server/prompt';
-import { buildDomainSetupPromptBlock } from '@/features/domain-profiles/server/setup';
-import type { DomainProfileOwnerContext, ResolvedDomainContext } from '@/features/domain-profiles/types';
 import type { SkillRuntimeContext } from '@/features/skills/server/activation';
-import { buildUserCreatedToolSet } from '@/features/user-tools/service';
 import {
-  buildAgentRunSystemPrompt,
-  EMPTY_SKILL_RUNTIME,
   mergeAgentDocumentIds,
-  mergeAgentToolIds,
   resolveAgentBaseSystemPrompt,
-  resolveAgentBrandRuntime,
-  resolveAgentSkillRuntime,
 } from './runtime';
-import {
-  getModelByIntent,
-  toolDisabledModels,
-} from '@/features/chat/server/routing';
+import { resolveRunModel } from './run-model';
+import { resolveRunContext } from './run-context';
+import { buildPreparedRunTools, resolveRunToolIds } from './run-tools';
+import { buildPreparedRunPrompt } from './run-prompt';
 import {
   inferChatImageTaskHint,
   resolveAdminImageModel,
@@ -64,7 +47,7 @@ import type {
   AgentRunTextResult,
 } from './run-types';
 
-type PreparedAgentRunChannelContext = {
+export type PreparedAgentRunChannelContext = {
   baseToolIds?: string[] | null;
   memoryContext?: string;
   sharedMemoryBlock?: string;
@@ -116,61 +99,6 @@ export type PreparedAgentRun = {
 
 function getChannelContext(request: AgentRunRequest): PreparedAgentRunChannelContext {
   return (request.channelContext ?? {}) as PreparedAgentRunChannelContext;
-}
-
-function getDomainProfileOwnerContext(
-  request: AgentRunRequest,
-  lineChannelId?: string,
-): DomainProfileOwnerContext | null {
-  if (request.identity.userId) {
-    return {
-      userId: request.identity.userId,
-    };
-  }
-
-  if (
-    request.identity.channel === 'line' &&
-    request.identity.lineUserId &&
-    lineChannelId
-  ) {
-    return {
-      lineUserId: request.identity.lineUserId,
-      channelId: lineChannelId,
-    };
-  }
-
-  return null;
-}
-
-async function resolveDomainPromptContext(input: {
-  request: AgentRunRequest;
-  lineChannelId?: string;
-  userMessage: string | null;
-}): Promise<ResolvedDomainContext | null> {
-  const owner = getDomainProfileOwnerContext(input.request, input.lineChannelId);
-  if (!owner) {
-    return null;
-  }
-
-  const { resolveRelevantDomainContext } = await import('@/features/domain-profiles/service');
-  return resolveRelevantDomainContext(
-    {
-      userMessage: input.userMessage ?? undefined,
-      profileLimit: 10,
-      entityLimit: 8,
-    },
-    owner,
-  );
-}
-
-function buildChannelResponseBlock(request: AgentRunRequest): string {
-  if (request.policy.responseFormat !== 'plain_text') return '';
-
-  return '\n\n<channel_response_format>\n'
-    + 'IMPORTANT: You are replying in a plain-text channel. '
-    + 'Do not use markdown syntax, code fences, tables, or HTML. '
-    + 'Keep formatting minimal and use plain sentences or simple bullet points only.\n'
-    + '</channel_response_format>';
 }
 
 function looksLikeInternalToolSyntax(text: string): boolean {
@@ -333,49 +261,19 @@ export async function startCanonicalAgentImageGeneration(input: {
 
 export async function prepareAgentRun(request: AgentRunRequest): Promise<PreparedAgentRun> {
   const channelContext = getChannelContext(request);
-  const [agentRows, memoryContextOverride] = await Promise.all([
-    channelContext.agentOverride !== undefined
-      ? Promise.resolve(channelContext.agentOverride ? [channelContext.agentOverride] : [])
-      : request.agentId
-        ? db.select().from(agent).where(eq(agent.id, request.agentId)).limit(1)
-        : Promise.resolve([]),
-    channelContext.memoryContext !== undefined
-      ? Promise.resolve(channelContext.memoryContext)
-      : request.policy.allowMemoryRead && request.identity.userId
-        ? getUserMemoryContext(request.identity.userId)
-        : Promise.resolve(''),
-  ]);
-
-  const resolvedAgent = (agentRows[0] ?? null) as Agent | null;
-  const lastUserPrompt = getLastUserPromptFromRunMessages(request.messages);
-  const [resolvedSkillRuntime, brandRuntime, resolvedDomainContext] = await Promise.all([
-    channelContext.skillRuntimeOverride !== undefined
-      ? Promise.resolve(channelContext.skillRuntimeOverride)
-      : resolveAgentSkillRuntime(resolvedAgent, lastUserPrompt),
-    resolveAgentBrandRuntime({
-      userId: request.identity.billingUserId,
-      activeBrandId: request.activeBrandId ?? null,
-      agent: resolvedAgent,
-      enabled: true,
-    }),
-    channelContext.domainContextBlock !== undefined
-      ? Promise.resolve(null)
-      : resolveDomainPromptContext({
-          request,
-          lineChannelId: channelContext.lineChannelId,
-          userMessage: lastUserPrompt,
-        }),
-  ]);
-  const skillRuntime = resolvedSkillRuntime ?? EMPTY_SKILL_RUNTIME;
-  const { brandResolution, activeBrand } = brandRuntime;
-  const resolvedDomainContextBlock = channelContext.domainContextBlock
-    ?? renderDomainContextPromptBlock(resolvedDomainContext);
-  const resolvedDomainSetupBlock = channelContext.domainSetupBlock
-    ?? buildDomainSetupPromptBlock({
-      userMessage: lastUserPrompt,
-      context: resolvedDomainContext,
-      skillRuntime,
-    });
+  const {
+    resolvedAgent,
+    lastUserPrompt,
+    memoryContext,
+    skillRuntime,
+    brandResolution,
+    activeBrand,
+    resolvedDomainContextBlock,
+    resolvedDomainSetupBlock,
+  } = await resolveRunContext({
+    request,
+    channelContext,
+  });
 
   if (brandResolution?.shouldBlock) {
     throw new Error(brandResolution.blockMessage ?? 'This agent requires a valid brand before it can run.');
@@ -385,123 +283,61 @@ export async function prepareAgentRun(request: AgentRunRequest): Promise<Prepare
     agentDocumentIds: resolvedAgent?.documentIds,
     selectedDocumentIds: request.selectedDocumentIds,
   });
-  const baseToolIds = channelContext.baseToolIds ?? resolvedAgent?.enabledTools ?? null;
-  const activeToolIds = mergeAgentToolIds({
-    baseToolIds,
+  const activeToolIds = resolveRunToolIds({
+    baseToolIds: channelContext.baseToolIds,
+    fallbackToolIds: resolvedAgent?.enabledTools ?? null,
+    skillToolIds: skillRuntime.skillToolIds,
+  });
+  const resolvedRunModel = resolveRunModel({
+    request,
+    resolvedAgent,
+    lastUserPrompt,
     skillRuntime,
+    userScores: channelContext.userScores ?? new Map<string, number>(),
+    getCreditCostForModel: getCreditCost,
   });
 
-  const enabledIds =
-    request.enabledModelIds?.length
-      ? request.enabledModelIds.filter((id) => availableModels.some((model) => model.id === id))
-      : availableModels.map((model) => model.id);
-
-  const manualModel = request.model && request.model !== 'auto' ? request.model : null;
-  const manualResolved = manualModel && enabledIds.includes(manualModel) ? manualModel : null;
-  const agentAutoModel =
-    (!request.model || request.model === 'auto') &&
-    resolvedAgent?.modelId &&
-    enabledIds.includes(resolvedAgent.modelId)
-      ? resolvedAgent.modelId
-      : null;
-
-  const estimatedContextTokens =
-    request.messages.reduce((sum, message) => {
-      const partsLength = message.parts ? JSON.stringify(message.parts).length : 0;
-      return sum + Math.ceil((message.content.length + partsLength) / 4);
-    }, 0) +
-    Math.ceil(
-      (skillRuntime.activeSkillsBlock.length +
-        skillRuntime.skillResourcesBlock.length +
-        skillRuntime.catalogBlock.length) / 4,
-    ) +
-    3000;
-
-  const routedModel = manualResolved
-    ? { modelId: manualResolved, reason: 'Manual selection' }
-    : agentAutoModel
-      ? { modelId: agentAutoModel, reason: 'Agent default model' }
-      : getModelByIntent({
-          prompt: lastUserPrompt,
-          enabledModelIds: enabledIds.length > 0 ? enabledIds : [chatModel],
-          useWebSearch: request.useWebSearch,
-          userScores: channelContext.userScores ?? new Map<string, number>(),
-          hasAgent: Boolean(resolvedAgent),
-          hasActiveSkills: skillRuntime.activatedSkills.length > 0,
-          messageCount: request.messages.length,
-          estimatedContextTokens,
-        });
-
-  const modelId = routedModel.modelId;
-  const supportsTools = request.policy.allowTools && !toolDisabledModels.has(modelId);
+  const modelId = resolvedRunModel.modelId;
+  const supportsTools = resolvedRunModel.supportsTools;
   const baseSystemPrompt = channelContext.baseSystemPromptOverride
     ?? resolveAgentBaseSystemPrompt({ agent: resolvedAgent });
-  const memoryContext = memoryContextOverride ?? '';
-  const systemPrompt = buildAgentRunSystemPrompt({
-    base: baseSystemPrompt,
-    conversationSummaryBlock: channelContext.conversationSummaryBlock ?? '',
-    threadWorkingMemoryBlock: channelContext.threadWorkingMemoryBlock ?? '',
-    isGrounded: Boolean(effectiveDocumentIds?.length),
+  const systemPrompt = buildPreparedRunPrompt({
+    request,
+    baseSystemPrompt,
     activeBrand,
     memoryContext,
-    sharedMemoryBlock: channelContext.sharedMemoryBlock ?? '',
-    domainContextBlock: resolvedDomainContextBlock,
-    domainSetupBlock: resolvedDomainSetupBlock,
-    skillRuntime: skillRuntime ?? EMPTY_SKILL_RUNTIME,
-    examPrepBlock: channelContext.examPrepBlock ?? '',
-    certBlock: channelContext.certBlock ?? '',
-    quizContextBlock: supportsTools ? (channelContext.quizContextBlock ?? '') : '',
+    effectiveDocumentIds,
+    skillRuntime,
+    supportsTools,
+    channelContext: {
+      conversationSummaryBlock: channelContext.conversationSummaryBlock,
+      threadWorkingMemoryBlock: channelContext.threadWorkingMemoryBlock,
+      sharedMemoryBlock: channelContext.sharedMemoryBlock,
+      domainContextBlock: resolvedDomainContextBlock,
+      domainSetupBlock: resolvedDomainSetupBlock,
+      examPrepBlock: channelContext.examPrepBlock,
+      certBlock: channelContext.certBlock,
+      quizContextBlock: channelContext.quizContextBlock,
+      extraBlocks: channelContext.extraBlocks,
+    },
     brandPromptInstruction: brandResolution?.promptInstruction,
-    extraBlocks: [...(channelContext.extraBlocks ?? []), buildChannelResponseBlock(request)],
   });
 
-  let tools: ToolSet | undefined;
-  if (supportsTools) {
-    const builtInTools = channelContext.toolsOverride
-      ?? (
-        resolvedAgent
-          ? createAgentTools(
-              activeToolIds,
-              request.identity.billingUserId,
-              effectiveDocumentIds,
-              {
-                threadId: request.threadId,
-                referenceImageUrls: channelContext.referenceImageUrls,
-                brandId: activeBrand?.id,
-              },
-            )
-          : buildToolSet({
-              enabledToolIds: activeToolIds,
-              userId: request.identity.billingUserId,
-              brandId: activeBrand?.id,
-              documentIds: effectiveDocumentIds,
-              rerankEnabled: channelContext.rerankEnabled ?? false,
-              source: 'agent',
-              threadId: request.threadId,
-              referenceImageUrls: channelContext.referenceImageUrls,
-            })
-      );
-    const customTools = channelContext.toolsOverride || !resolvedAgent
-      ? {}
-      : await buildUserCreatedToolSet({
-          userId: request.identity.billingUserId,
-          agentId: resolvedAgent.id,
-          source: request.identity.channel === 'line' ? 'line' : 'agent',
-          threadId: request.threadId,
-        });
-    tools = { ...builtInTools, ...customTools };
-
-    if (!channelContext.toolsOverride && request.policy.allowMcp && resolvedAgent?.mcpServers?.length) {
-      const mcpTools = await buildMCPToolSet(
-        resolvedAgent.mcpServers,
-        channelContext.mcpCredentials ?? {},
-      ).catch((error: unknown) => {
-        console.error('[MCP] Tool build failed:', error);
-        return {};
-      });
-      tools = { ...tools, ...mcpTools };
-    }
-  }
+  const tools = await buildPreparedRunTools({
+    supportsTools,
+    toolsOverride: channelContext.toolsOverride,
+    resolvedAgent,
+    activeToolIds,
+    billingUserId: request.identity.billingUserId,
+    effectiveDocumentIds,
+    activeBrandId: activeBrand?.id,
+    rerankEnabled: channelContext.rerankEnabled,
+    threadId: request.threadId,
+    referenceImageUrls: channelContext.referenceImageUrls,
+    allowMcp: request.policy.allowMcp,
+    channel: request.identity.channel,
+    mcpCredentials: channelContext.mcpCredentials,
+  });
 
   return {
     request,
@@ -512,8 +348,8 @@ export async function prepareAgentRun(request: AgentRunRequest): Promise<Prepare
     activeToolIds,
     supportsTools,
     modelId,
-    routingReason: routedModel.reason,
-    creditCost: getCreditCost(modelId),
+    routingReason: resolvedRunModel.routingReason,
+    creditCost: resolvedRunModel.creditCost,
     systemPrompt,
     memoryContext,
     skillRuntime,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireUser } from "@/lib/auth-server";
-import { archiveBrandMemory } from "@/features/memory/service";
+import { archiveBrandMemory } from "@/features/memory/server/brand-memory";
 
 type Params = { params: Promise<{ id: string; memoryId: string }> };
 

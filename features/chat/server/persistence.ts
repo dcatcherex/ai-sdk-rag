@@ -1,13 +1,19 @@
 import { eq } from 'drizzle-orm';
-import { nanoid } from 'nanoid';
 import { db } from '@/lib/db';
 import { chatMessage, chatThread, mediaAsset, tokenUsage } from '@/db/schema';
 import { deductCredits } from '@/lib/credits';
 import { deductGuestCredits } from '@/lib/guest-access';
 import type { ChatMessage } from '@/features/chat/types';
 import type { TokenUsageSnapshot } from './schema';
+import { finalizeChatBilling } from './billing';
 import { isImageFilePart, uploadImagePart } from './image-upload';
-import { getThreadPreviewFromMessages, getThreadTitleFromMessages } from './thread-utils';
+import {
+  buildChatMessageInsertRows,
+  buildThreadUpdateValues,
+  preparePersistableChatMessages,
+  selectOrphanedPreservedRows,
+} from './message-persistence';
+import { buildTokenUsageInsert } from './token-usage';
 
 type PersistChatResultOptions = {
   updatedMessages: ChatMessage[];
@@ -25,57 +31,28 @@ export const persistChatResult = async (options: PersistChatResultOptions): Prom
   const { updatedMessages, threadId, userId, guestSessionId, currentTitle, resolvedModel, creditCost, tokenUsageData, brandId } =
     options;
 
-  // Assign stable IDs and upload any inline data-URL images to R2
-  const messagesWithIds = updatedMessages.map((m) => ({ ...m, id: m.id || crypto.randomUUID() }));
-
-  const messageResults = await Promise.all(
-    messagesWithIds.map(async (message) => {
-      const partResults = await Promise.all(
-        message.parts.map(async (part, index) => {
-          if (!isImageFilePart(part as any) || !userId) return { part };
-          return uploadImagePart({ part: part as any, threadId, messageId: message.id, index, userId });
-        })
-      );
-      return {
-        message: { ...message, parts: partResults.map((r) => r.part) },
-        assets: partResults.flatMap((r) => (r.asset ? [r.asset] : [])),
-      };
-    })
-  );
-
-  const chatMessages = messageResults.map((r) => r.message);
-  const assets = messageResults.flatMap((r) => r.assets);
-  const preview = getThreadPreviewFromMessages(chatMessages);
-  const nextTitle =
-    currentTitle === 'New chat'
-      ? (getThreadTitleFromMessages(chatMessages) ?? currentTitle)
-      : currentTitle;
+  const prepared = await preparePersistableChatMessages({
+    updatedMessages,
+    threadId,
+    userId,
+    isImageFilePart,
+    uploadImagePart,
+  });
+  const chatMessages = prepared.messages;
+  const assets = prepared.assets;
 
   // Preserve compare + team-run messages: managed by their own routes, not this chat session
   const existingRows = await db.select().from(chatMessage).where(eq(chatMessage.threadId, threadId));
-  const compareRows = existingRows.filter((row) => {
-    const meta = row.metadata as { compareGroupId?: string; teamRun?: unknown } | null;
-    return !!meta?.compareGroupId || !!meta?.teamRun;
-  });
+  const mainMessageIds = new Set(chatMessages.map((message) => message.id));
+  const orphanedCompareRows = selectOrphanedPreservedRows(existingRows, mainMessageIds);
 
   await db.delete(chatMessage).where(eq(chatMessage.threadId, threadId));
 
   if (chatMessages.length > 0) {
-    await db.insert(chatMessage).values(
-      chatMessages.map((message, index) => ({
-        id: message.id,
-        threadId,
-        role: message.role,
-        parts: message.parts,
-        metadata: message.metadata ?? null,
-        position: index,
-      }))
-    );
+    await db.insert(chatMessage).values(buildChatMessageInsertRows(threadId, chatMessages));
   }
 
   // Re-insert compare messages not already included in the main flow
-  const mainMessageIds = new Set(chatMessages.map((m) => m.id));
-  const orphanedCompareRows = compareRows.filter((r) => !mainMessageIds.has(r.id));
   if (orphanedCompareRows.length > 0) {
     await db.insert(chatMessage).values(orphanedCompareRows);
   }
@@ -84,40 +61,33 @@ export const persistChatResult = async (options: PersistChatResultOptions): Prom
     await db.insert(mediaAsset).values(assets);
   }
 
-  if (userId) {
-    await deductCredits({
-      userId,
-      amount: creditCost,
-      description: `Chat: ${resolvedModel} (thread ${threadId})`,
-    }).catch((e) => console.error('Failed to deduct credits:', e));
-  } else if (guestSessionId) {
-    await deductGuestCredits(guestSessionId, creditCost)
-      .catch((e) => console.error('Failed to deduct guest credits:', e));
-  }
+  await db
+    .update(chatThread)
+    .set(buildThreadUpdateValues({
+      messages: chatMessages,
+      currentTitle,
+      brandId,
+    }))
+    .where(eq(chatThread.id, threadId));
 
   if (tokenUsageData) {
     await db
       .insert(tokenUsage)
-      .values({
-        id: nanoid(),
+      .values(buildTokenUsageInsert({
         threadId,
         model: resolvedModel,
-        promptTokens: tokenUsageData.promptTokens || 0,
-        completionTokens: tokenUsageData.completionTokens || 0,
-        totalTokens:
-          tokenUsageData.totalTokens ||
-          (tokenUsageData.promptTokens || 0) + (tokenUsageData.completionTokens || 0),
-      })
+        tokenUsageData,
+      }))
       .catch((e) => console.error('Failed to track token usage:', e));
   }
 
-  await db
-    .update(chatThread)
-    .set({
-      preview,
-      title: nextTitle,
-      updatedAt: new Date(),
-      ...(brandId !== undefined ? { brandId: brandId ?? null } : {}),
-    })
-    .where(eq(chatThread.id, threadId));
+  await finalizeChatBilling({
+    userId,
+    guestSessionId,
+    creditCost,
+    resolvedModel,
+    threadId,
+    deductUserCredits: deductCredits,
+    deductGuestCredits,
+  });
 };

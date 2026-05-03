@@ -1,5 +1,6 @@
 import { availableModels, isStrongModel, chatModel, type Capability, type ModelOption } from '@/lib/ai';
 import type { ModelScoreMap } from '@/lib/model-scores';
+import { detectRoutingIntent } from './routing-intent';
 
 export type RoutingDecision = {
   modelId: string;
@@ -63,15 +64,6 @@ function selectTextModel(options: {
     if (fitting.length > 0) textModels = fitting;
   }
 
-  const getUserScore = (modelId: string): number => {
-    if (!userScores || userScores.size === 0) return 0;
-    let total = 0;
-    for (const [key, val] of userScores) {
-      if (key.startsWith(`${modelId}::`)) total += val;
-    }
-    return total;
-  };
-
   let candidates = textModels;
   if (preferStrong) {
     const strong = textModels.filter((m) => isStrongModel(m.id));
@@ -85,11 +77,20 @@ function selectTextModel(options: {
 
   return (
     [...candidates].sort((a, b) => {
-      const scoreDiff = getUserScore(b.id) - getUserScore(a.id);
+      const scoreDiff = getModelUserScore(b.id, userScores) - getModelUserScore(a.id, userScores);
       if (scoreDiff !== 0) return scoreDiff;
       return (a.inputCost ?? 0) - (b.inputCost ?? 0); // cheaper wins ties
     })[0]?.id ?? safeFallback
   );
+}
+
+export function getModelUserScore(modelId: string, userScores?: ModelScoreMap): number {
+  if (!userScores || userScores.size === 0) return 0;
+  let total = 0;
+  for (const [key, val] of userScores) {
+    if (key.startsWith(`${modelId}::`)) total += val;
+  }
+  return total;
 }
 
 export const getModelByIntent = (options: {
@@ -108,50 +109,9 @@ export const getModelByIntent = (options: {
   const enabledModels = availableModels.filter((m) => enabledModelIds.includes(m.id)) as ModelOption[];
   const safeFallback = enabledModels[0]?.id ?? chatModel;
 
+  const intent = detectRoutingIntent({ prompt, useWebSearch });
+
   if (!prompt) return { modelId: safeFallback, reason: 'Empty prompt' };
-
-  const lower = prompt.toLowerCase();
-  const wordCount = prompt.trim().split(/\s+/).length;
-
-  const wantsImage =
-    lower.startsWith('create image') ||
-    lower.startsWith('generate image') ||
-    lower.startsWith('edit image') ||
-    lower.includes('image of') ||
-    lower.includes('edit this image') ||
-    lower.includes('change this image') ||
-    lower.includes('remove background') ||
-    lower.includes('draw ') ||
-    lower.includes('illustration');
-
-  // 'source' removed — too broad ("source of this claim")
-  const wantsWeb =
-    Boolean(useWebSearch) ||
-    lower.includes('search') ||
-    lower.includes('latest') ||
-    lower.includes('news') ||
-    lower.includes('web');
-
-  // 'api' and 'function' removed — too many false positives outside coding contexts
-  const wantsCode =
-    lower.includes('code') ||
-    lower.includes('coding') ||
-    lower.includes('typescript') ||
-    lower.includes('javascript') ||
-    lower.includes('python') ||
-    lower.includes('refactor') ||
-    lower.includes('debug') ||
-    lower.includes('implement') ||
-    lower.includes('class');
-
-  const wantsReasoning =
-    lower.includes('analy') ||
-    lower.includes('reason') ||
-    lower.includes('compare') ||
-    lower.includes('evaluate') ||
-    lower.includes('diagnose') ||
-    lower.includes('pros and cons') ||
-    lower.includes('tradeoff');
 
   const pickByCapability = (capability: Capability): string | undefined => {
     const capable = enabledModels.filter((m) =>
@@ -162,35 +122,32 @@ export const getModelByIntent = (options: {
     let best = capable[0]!;
     let bestScore = -Infinity;
     for (const m of capable) {
-      let total = 0;
-      for (const [key, val] of userScores) {
-        if (key.startsWith(`${m.id}::`)) total += val;
-      }
+      const total = getModelUserScore(m.id, userScores);
       if (total > bestScore) { bestScore = total; best = m; }
     }
     return best.id;
   };
 
-  if (wantsImage) {
+  if (intent.wantsImage) {
     const modelId = pickByCapability('image gen');
     return modelId
       ? { modelId, reason: 'Image generation request' }
       : { modelId: safeFallback, reason: 'Image request but no image-capable model enabled' };
   }
 
-  if (wantsWeb) {
+  if (intent.wantsWeb) {
     const modelId = pickByCapability('web search');
     return modelId
       ? { modelId, reason: 'Web search intent' }
       : { modelId: safeFallback, reason: 'Web search intent but no web-capable model enabled' };
   }
 
-  if (wantsCode) {
+  if (intent.wantsCode) {
     const modelId = selectTextModel({ enabledModels, userScores, preferStrong: true, estimatedContextTokens, safeFallback });
     return { modelId, reason: 'Coding intent' };
   }
 
-  if (wantsReasoning) {
+  if (intent.wantsReasoning) {
     const modelId = selectTextModel({ enabledModels, userScores, preferStrong: true, estimatedContextTokens, safeFallback });
     return { modelId, reason: 'Reasoning intent' };
   }
@@ -198,7 +155,7 @@ export const getModelByIntent = (options: {
   // Phase 3: cheap-route simple, non-specialized queries.
   // Eligibility: short prompt, fresh conversation, no agent/skills overhead.
   const isSimpleQuery =
-    wordCount < 20 &&
+    intent.wordCount < 20 &&
     !hasAgent &&
     !hasActiveSkills &&
     (messageCount ?? 0) <= 2;

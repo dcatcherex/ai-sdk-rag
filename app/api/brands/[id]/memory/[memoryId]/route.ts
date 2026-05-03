@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireUser } from "@/lib/auth-server";
 import { updateBrandMemorySchema } from "@/features/memory/schema";
-import { deleteBrandMemory, updateBrandMemory } from "@/features/memory/service";
+import { deleteBrandMemory, updateBrandMemory } from "@/features/memory/server/brand-memory";
 
 type Params = { params: Promise<{ id: string; memoryId: string }> };
 

@@ -12,22 +12,15 @@ import { db } from '@/lib/db';
 import { agent } from '@/db/schema';
 import { checkUserApproved, getThreadForSession, getUserPrefs } from '@/features/chat/server/queries';
 import { getAgentForUser } from '@/features/agents/server/queries';
-import { enhancePrompt } from '@/lib/prompt-enhance';
-import { summarizeConversation, SUMMARY_THRESHOLD } from '@/lib/conversation-summary';
 import { getUserModelScores } from '@/lib/model-scores';
-import { getUserMemoryContext, extractAndStoreMemory } from '@/lib/memory';
-import { generateFollowUpSuggestions } from '@/lib/follow-up-suggestions';
+import { getUserMemoryContext } from '@/lib/memory';
 import { getUserBalance } from '@/lib/credits';
-import { parseGuestCookie, getGuestSessionById, deductGuestCredits } from '@/lib/guest-access';
+import { deductGuestCredits } from '@/lib/guest-access';
 import { requestSchema } from '@/features/chat/server/schema';
 import { WEB_AGENT_RUN_POLICY } from '@/features/agents/server/channel-policies';
+import { buildBrandMemoryPromptBlock } from '@/features/memory/server/brand-memory';
+import { buildThreadWorkingMemoryPromptBlock } from '@/features/memory/server/working-memory';
 import {
-  buildBrandMemoryPromptBlock,
-  buildThreadWorkingMemoryPromptBlock,
-  refreshThreadWorkingMemoryFromMessages,
-} from '@/features/memory/service';
-import {
-  mergeAgentToolIds,
   resolveAgentBrandRuntime,
   resolveAgentSkillRuntime,
 } from '@/features/agents/server/runtime';
@@ -40,30 +33,24 @@ import { getLastUserPrompt } from '@/features/chat/server/thread-utils';
 import { isImageOnlyModel } from '@/features/chat/server/routing';
 import { buildReferencePreviewItems } from '@/features/image/reference-previews';
 import {
-  ensureConfiguredStarterAgentForUser,
-  getConfiguredGuestStarterAgent,
-} from '@/features/agents/server/starter';
-import { persistChatResult } from '@/features/chat/server/persistence';
-import {
   buildChatRunInputSummary,
-  buildChatRunOutputSummary,
   completeChatRunError,
-  completeChatRunSuccess,
-  getFollowUpSuggestionCount,
-  getToolCallCount,
   startChatRun,
   updateChatRunRouting,
 } from '@/features/chat/audit/audit';
 import type { ChatMessage, ChatMessageMetadata, RoutingMetadata } from '@/features/chat/types';
-import { buildResponseAuditSummary, buildResponsePlan } from '@/features/response-format';
-import {
-  getImageAttachmentParts,
-  getLatestAssistantImageParts,
-  isFreshImageRegenerationRequest,
-  isImplicitImageEditRequest,
-} from '@/features/chat/server/image-context';
+import { finalizeImageChatTurn, finalizeTextChatTurn } from '@/features/chat/server/finalization';
 import { hydrateIncomingChatMessages } from '@/features/chat/server/message-hydration';
 import { isImageFilePart, uploadImagePart } from '@/features/chat/server/image-upload';
+import { resolveWebChatIdentity } from '@/features/chat/server/web-chat-identity';
+import { resolveWebActiveAgent } from '@/features/chat/server/web-active-agent';
+import {
+  buildQuizContextBlock,
+  buildWebChannelContext,
+  resolveConversationSummary,
+  resolvePromptEnhancement,
+} from '@/features/chat/server/web-channel-context';
+import { buildImageChannelContext } from '@/features/chat/server/web-image-channel-context';
 
 export { type ChatMessage };
 export const maxDuration = 30;
@@ -80,25 +67,20 @@ export async function POST(req: Request) {
       req.json(),
       headers(),
     ]);
-    const session = sessionUser ? { user: sessionUser } : null;
-
-    // Guest session fallback when unauthenticated
-    let guestSessionId: string | null = null;
-    let guestBalance = 0;
-    if (!session?.user) {
-      const cookieHeader = requestHeaders.get('cookie');
-      const guestId = parseGuestCookie(cookieHeader);
-      if (guestId) {
-        const gs = await getGuestSessionById(guestId);
-        if (gs) { guestSessionId = gs.id; guestBalance = gs.credits; }
-      }
-      if (!guestSessionId) {
+    let identity;
+    try {
+      identity = await resolveWebChatIdentity({
+        sessionUser,
+        cookieHeader: requestHeaders.get('cookie'),
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Unauthorized') {
         return Response.json({ error: 'Unauthorized' }, { status: 401 });
       }
+      throw error;
     }
 
-    const isGuest = !session?.user;
-    const effectiveUserId = session?.user?.id ?? '';
+    const { isGuest, effectiveUserId, guestSessionId, guestBalance } = identity;
 
     const { messages, threadId, model, useWebSearch, selectedDocumentIds, enabledModelIds, agentId, brandId, quizContext } =
       requestSchema.parse(rawBody);
@@ -162,27 +144,14 @@ export async function POST(req: Request) {
 
     const currentTitle = thread.title ?? 'New chat';
     const userPrefs = prefs ?? { memoryEnabled: true, memoryInjectEnabled: true, memoryExtractEnabled: true, promptEnhancementEnabled: true, followUpSuggestionsEnabled: true, enabledToolIds: null, rerankEnabled: false };
-    let activeAgent: Agent | null = activeAgentRow;
-    let requiresConfiguredStarterTemplate = false;
-    if (!activeAgent) {
-      if (isGuest) {
-        const starterAgent = await getConfiguredGuestStarterAgent();
-        if (starterAgent) {
-          activeAgent = starterAgent;
-        }
-      } else if (!agentId) {
-        const starterAgent = await ensureConfiguredStarterAgentForUser(effectiveUserId);
-        if (starterAgent) {
-          activeAgent = starterAgent;
-        } else {
-          const agentCountRows = await db
-            .select({ count: count() })
-            .from(agent)
-            .where(eq(agent.userId, effectiveUserId));
-          requiresConfiguredStarterTemplate = (agentCountRows[0]?.count ?? 0) === 0;
-        }
-      }
-    }
+    const resolvedActiveAgent = await resolveWebActiveAgent({
+      isGuest,
+      requestedAgentId: agentId,
+      effectiveUserId,
+      activeAgentRow,
+    });
+    let activeAgent: Agent | null = resolvedActiveAgent.activeAgent;
+    const { requiresConfiguredStarterTemplate } = resolvedActiveAgent;
     if (requiresConfiguredStarterTemplate) {
       return Response.json(
         { error: 'A starter template must be configured before first-time users can chat. Ask an admin to update Platform Settings.' },
@@ -229,8 +198,6 @@ export async function POST(req: Request) {
     const baseToolIds = activeAgent
       ? activeAgent.enabledTools
       : (userPrefs.enabledToolIds ?? null);
-    // Merge in tool IDs unlocked by triggered skills (deduplicated)
-    const activeToolIds = mergeAgentToolIds({ baseToolIds, skillRuntime });
 
     // Base system prompt: platform agent > agent > default
     let baseSystemPrompt: string;
@@ -248,53 +215,23 @@ export async function POST(req: Request) {
       ? new Map<string, number>()
       : await getUserModelScores(effectiveUserId);
 
-    const quizContextBlock = quizContext
-      ? `\n\n<interactive_quiz_context>
-Latest quiz state from the client UI:
-- Quiz message ID: ${quizContext.messageId}
-- Questions completed: ${quizContext.answeredCount}/${quizContext.questionCount}
-- Objective questions scored: ${quizContext.correctCount}/${quizContext.objectiveAnsweredCount}
-- Quiz completed: ${quizContext.completed ? 'yes' : 'no'}
-${quizContext.attempts.length > 0 ? `- Attempts:\n${quizContext.attempts.map((attempt, index) => [
-  `${index + 1}. ${attempt.question}`,
-  `   Topic: ${attempt.topic}`,
-  `   Type: ${attempt.type}`,
-  `   User answer: ${attempt.userAnswer || '(blank)'}`,
-  `   Correct answer: ${attempt.correctAnswer}`,
-  `   Revealed: ${attempt.wasRevealed ? 'yes' : 'no'}`,
-  `   Result: ${attempt.isCorrect === null ? 'not auto-graded' : attempt.isCorrect ? 'correct' : 'incorrect'}`,
-].join('\n')).join('\n')}` : ''}
-</interactive_quiz_context>
-
-IMPORTANT: This quiz context reflects the learner's actual progress in the interactive quiz UI. If the user asks what to do next, what they got wrong, what to review, or asks for a diagnosis after completing the quiz, rely on this context instead of claiming the quiz is unfinished. If the quiz is completed and the user asks for next-step guidance, prefer using analyze_learning_gaps with the completed attempts when exam prep tools are available.`
-      : '';
+    const quizContextBlock = buildQuizContextBlock({ quizContext });
     // ── Prompt enhancement ───────────────────────────────────────────────────
-    let enhancedPrompt: string | undefined;
-    let messagesToSend = eagerUploadedMessages;
-    if (userPrefs.promptEnhancementEnabled && lastUserPrompt) {
-      const enhanced = await enhancePrompt(lastUserPrompt, memoryContext);
-      if (enhanced !== lastUserPrompt) {
-        enhancedPrompt = enhanced;
-        const lastUserIdx = eagerUploadedMessages.map((m) => m.role).lastIndexOf('user');
-        if (lastUserIdx !== -1) {
-          messagesToSend = eagerUploadedMessages.map((m, i) =>
-            i !== lastUserIdx
-              ? m
-              : { ...m, parts: m.parts.map((p) => (p.type === 'text' ? { ...p, text: enhanced } : p)) }
-          );
-        }
-      }
-    }
+    const promptEnhancement = await resolvePromptEnhancement({
+      enabled: userPrefs.promptEnhancementEnabled ?? true,
+      lastUserPrompt,
+      memoryContext,
+      messages: eagerUploadedMessages,
+    });
+    const enhancedPrompt = promptEnhancement.enhancedPrompt;
+    let messagesToSend = promptEnhancement.messagesToSend;
 
     // ── Conversation summarisation ───────────────────────────────────────────
-    let conversationSummaryBlock = '';
-    if (messages.length > SUMMARY_THRESHOLD) {
-      const { summary, trimmedMessages } = await summarizeConversation(messagesToSend as ChatMessage[]);
-      if (summary) {
-        conversationSummaryBlock = `\n\n<conversation_summary>\nSummary of earlier conversation:\n${summary}\n</conversation_summary>`;
-        messagesToSend = trimmedMessages;
-      }
-    }
+    const conversationSummary = await resolveConversationSummary({
+      messages: messagesToSend as ChatMessage[],
+    });
+    const conversationSummaryBlock = conversationSummary.conversationSummaryBlock;
+    messagesToSend = conversationSummary.messagesToSend;
 
     // ── System prompt assembly ───────────────────────────────────────────────
 
@@ -308,6 +245,24 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
       : isGuest
         ? {}
         : undefined;
+    const channelContext = buildWebChannelContext({
+      memoryContext,
+      sharedMemoryBlock,
+      threadWorkingMemoryBlock,
+      conversationSummaryBlock,
+      quizContextBlock,
+      imageBlocks,
+      rerankEnabled: userPrefs.rerankEnabled ?? false,
+      referenceImageUrls: effectiveReferenceImageParts.map((part) => part.url),
+      mcpCredentials: (userPrefs as { mcpCredentials?: Record<string, string> }).mcpCredentials ?? {},
+      baseToolIds,
+      activeAgent,
+      baseSystemPromptOverride: isPlatformAgentActive ? baseSystemPrompt : undefined,
+      userScores,
+      toolsOverride,
+      skillRuntime,
+    });
+
     const preparedRun = await prepareAgentRun({
       identity: {
         channel: 'web',
@@ -324,23 +279,7 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
       enabledModelIds,
       useWebSearch,
       policy: WEB_AGENT_RUN_POLICY,
-      channelContext: {
-        memoryContext,
-        sharedMemoryBlock,
-        threadWorkingMemoryBlock,
-        conversationSummaryBlock,
-        quizContextBlock,
-        extraBlocks: imageBlocks,
-        rerankEnabled: userPrefs.rerankEnabled ?? false,
-        referenceImageUrls: effectiveReferenceImageParts.map((part) => part.url),
-        mcpCredentials: (userPrefs as { mcpCredentials?: Record<string, string> }).mcpCredentials ?? {},
-        baseToolIds,
-        agentOverride: activeAgent as Agent | null,
-        baseSystemPromptOverride: isPlatformAgentActive ? baseSystemPrompt : undefined,
-        userScores,
-        toolsOverride,
-        skillRuntimeOverride: skillRuntime,
-      },
+      channelContext,
     });
 
     const resolvedModel = preparedRun.modelId;
@@ -468,50 +407,11 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
         stream: createUIMessageStream<ChatMessage>({
           originalMessages: messages,
           onFinish: async ({ messages: updatedMessages }) => {
-            try {
-              await persistChatResult({
-                updatedMessages,
-                threadId: finishCtx.threadId,
-                userId: finishCtx.userId,
-                guestSessionId: finishCtx.guestSessionId,
-                currentTitle: finishCtx.currentTitle,
-                resolvedModel: finishCtx.resolvedModel,
-                creditCost: finishCtx.creditCost,
-                brandId: finishCtx.brandId,
-                tokenUsageData: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-              });
-
-              if (finishCtx.currentChatRunId) await completeChatRunSuccess(finishCtx.currentChatRunId, {
-                routeKind: 'image',
-                resolvedModelId: finishCtx.resolvedModel,
-                creditCost: finishCtx.creditCost,
-                toolCallCount: 1,
-                promptTokens: 0,
-                completionTokens: 0,
-                totalTokens: 0,
-                outputJson: buildChatRunOutputSummary({
-                  routeKind: 'image',
-                  responseFormat: buildResponseAuditSummary(
-                    buildResponsePlan({
-                      text: toolOutput.message,
-                      userText: finishCtx.lastUserPrompt ?? '',
-                      locale: 'en-US',
-                    }),
-                  ),
-                  generatedImage: { mediaType: 'image/kie-async' },
-                  memoryExtracted: false,
-                }),
-              });
-            } catch (error) {
-              console.error('Failed to finalize async image chat run:', error);
-              if (finishCtx.currentChatRunId) {
-                await completeChatRunError(finishCtx.currentChatRunId, {
-                  errorMessage: error instanceof Error ? error.message : 'Unknown finalization error',
-                  routeKind: 'image',
-                  resolvedModelId: finishCtx.resolvedModel,
-                }).catch((auditError) => console.error('Failed to mark image chat run as error:', auditError));
-              }
-            }
+            await finalizeImageChatTurn({
+              updatedMessages,
+              finishCtx,
+              toolMessage: toolOutput.message,
+            });
           },
           execute: ({ writer }) => {
             writer.write({ type: 'start', messageMetadata: messageMetadata() });
@@ -556,117 +456,12 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
       originalMessages: messages,
       messageMetadata,
       onFinish: async ({ messages: updatedMessages }) => {
-        try {
-          const usage = (await result.usage) as { promptTokens?: number; completionTokens?: number; totalTokens?: number } | null;
-          const typedMessages = updatedMessages as ChatMessage[];
-
-          const lastAssistantIdx = typedMessages.map((m) => m.role).lastIndexOf('assistant');
-          let messagesWithSuggestions = typedMessages;
-          if (lastAssistantIdx !== -1 && finishCtx.followUpSuggestionsEnabled) {
-            const contextStr = typedMessages
-              .slice(-6)
-              .map((m) => {
-                const textPart = m.parts.find((p) => p.type === 'text');
-                const text = textPart?.type === 'text' ? textPart.text.slice(0, 400) : '';
-                return `${m.role}: ${text}`;
-              })
-              .filter((line) => !line.endsWith(': '))
-              .join('\n');
-
-            const suggestions = await generateFollowUpSuggestions(contextStr);
-            if (suggestions.length > 0) {
-              messagesWithSuggestions = typedMessages.map((m, i) =>
-                i === lastAssistantIdx
-                  ? { ...m, metadata: { ...m.metadata, followUpSuggestions: suggestions } }
-                  : m
-              );
-            }
-          }
-
-          const lastAssistantText = getLastAssistantText(messagesWithSuggestions);
-          const responsePlan = lastAssistantText
-            ? buildResponsePlan({
-                text: lastAssistantText,
-                userText: finishCtx.lastUserPrompt ?? '',
-                locale: inferLocaleFromText(lastAssistantText, finishCtx.lastUserPrompt ?? ''),
-                quickReplies: normalizeSuggestionQuickReplies(
-                  ((messagesWithSuggestions[lastAssistantIdx]?.metadata as ChatMessageMetadata | undefined)?.followUpSuggestions) ?? [],
-                ),
-              })
-            : null;
-          const responseAudit = responsePlan ? buildResponseAuditSummary(responsePlan) : null;
-
-          if (responseAudit && lastAssistantIdx !== -1) {
-            messagesWithSuggestions = messagesWithSuggestions.map((message, index) =>
-              index === lastAssistantIdx
-                ? { ...message, metadata: { ...(message.metadata ?? {}), responseFormat: responseAudit } }
-                : message,
-            );
-          }
-
-          await persistChatResult({
-            updatedMessages: messagesWithSuggestions,
-            threadId: finishCtx.threadId,
-            userId: finishCtx.userId,
-            guestSessionId: finishCtx.guestSessionId,
-            currentTitle: finishCtx.currentTitle,
-            resolvedModel: finishCtx.resolvedModel,
-            creditCost: finishCtx.creditCost,
-            brandId: finishCtx.brandId,
-            tokenUsageData: usage,
-          });
-
-          if (finishCtx.userId) {
-            await refreshThreadWorkingMemoryFromMessages({
-              threadId: finishCtx.threadId,
-              brandId: finishCtx.brandId,
-              messages: messagesWithSuggestions as Array<{
-                id?: string;
-                role: string;
-                parts?: Array<{ type?: string; text?: string }>;
-              }>,
-            }).catch((error) => console.error('Failed to refresh thread working memory:', error));
-
-            const shouldExtractMemory = finishCtx.memoryEnabled && finishCtx.memoryExtractEnabled;
-            if (shouldExtractMemory) {
-              void extractAndStoreMemory(
-                finishCtx.userId,
-                messagesWithSuggestions as Array<{ role: string; parts?: Array<{ type: string; text?: string }> }>,
-                finishCtx.threadId,
-                finishCtx.memoryContext,
-              );
-            }
-
-            const toolCallCount = getToolCallCount(messagesWithSuggestions);
-            if (finishCtx.currentChatRunId) {
-              await completeChatRunSuccess(finishCtx.currentChatRunId, {
-                routeKind: 'text',
-                resolvedModelId: finishCtx.resolvedModel,
-                creditCost: finishCtx.creditCost,
-                toolCallCount,
-                promptTokens: usage?.promptTokens,
-                completionTokens: usage?.completionTokens,
-                totalTokens: usage?.totalTokens,
-                outputJson: buildChatRunOutputSummary({
-                  routeKind: 'text',
-                  messages: messagesWithSuggestions,
-                  followUpSuggestionCount: getFollowUpSuggestionCount(messagesWithSuggestions),
-                  memoryExtracted: shouldExtractMemory,
-                  responseFormat: responseAudit,
-                }),
-              });
-            }
-          }
-        } catch (error) {
-          console.error('Failed to finalize chat run:', error);
-          if (finishCtx.currentChatRunId) {
-            await completeChatRunError(finishCtx.currentChatRunId, {
-              errorMessage: error instanceof Error ? error.message : 'Unknown finalization error',
-              routeKind: 'text',
-              resolvedModelId: finishCtx.resolvedModel,
-            }).catch((auditError) => console.error('Failed to mark chat run as error:', auditError));
-          }
-        }
+        const usage = (await result.usage) as { promptTokens?: number; completionTokens?: number; totalTokens?: number } | null;
+        await finalizeTextChatTurn({
+          updatedMessages: updatedMessages as ChatMessage[],
+          usage,
+          finishCtx,
+        });
       },
     });
   } catch (error) {
@@ -680,78 +475,4 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
     }
     return Response.json({ error: message }, { status: 400 });
   }
-}
-
-function buildImageChannelContext(input: {
-  messages: ChatMessage[];
-  lastUserPrompt: string | null | undefined;
-}) {
-  const { messages, lastUserPrompt } = input;
-
-  const latestAssistantImageParts = getLatestAssistantImageParts(messages);
-  const latestUserMessage = [...messages].reverse().find((m) => m.role === 'user');
-  const latestUserImageParts = getImageAttachmentParts(latestUserMessage);
-  const wantsFreshImageRegeneration = isFreshImageRegenerationRequest(lastUserPrompt);
-  const shouldAutoReuseLastImage =
-    latestAssistantImageParts.length > 0 &&
-    latestUserImageParts.length === 0 &&
-    isImplicitImageEditRequest(lastUserPrompt) &&
-    !wantsFreshImageRegeneration;
-  const effectiveReferenceImageParts =
-    latestUserImageParts.length > 0
-      ? latestUserImageParts
-      : shouldAutoReuseLastImage
-        ? latestAssistantImageParts
-        : [];
-
-  const latestImageToolBlock =
-    latestAssistantImageParts.length > 0
-      ? `\n\n<latest_generated_images>
-The most recent assistant-generated image(s) in this thread:
-${latestAssistantImageParts.map((part, index) => `${index + 1}. ${part.url}`).join('\n')}
-</latest_generated_images>
-
-IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or continue from the most recently generated image without attaching a new image, treat the image above as the reference image automatically. When calling the \`generate_image\` tool for that kind of follow-up, include these URL(s) in \`imageUrls\` instead of generating from scratch.`
-      : '';
-
-  const freshImageRegenerationBlock = `\n\nIMPORTANT: If the user asks for another version, a new theme, a new style, a different layout, a fresh variation, or says things like "ขอแบบใหม่", "ขออีกภาพ", or "เปลี่ยนธีม", do NOT automatically reuse the most recently generated image as an edit reference unless they explicitly say to keep/edit the same image. Treat those requests as fresh generation requests instead.`;
-
-  const userAttachedImageUrls = latestUserImageParts.map((p) => p.url).filter((u) => u.startsWith('http'));
-  const userAttachedImagesBlock =
-    userAttachedImageUrls.length > 0
-      ? `\n\n<user_attached_images>
-The user has attached the following image(s) to their current message:
-${userAttachedImageUrls.map((url, index) => `${index + 1}. ${url}`).join('\n')}
-</user_attached_images>
-
-IMPORTANT: These are the exact URL(s) the user attached. If they want to generate, edit, or transform an image based on these attachments, you MUST include these URL(s) in the \`imageUrls\` parameter when calling \`generate_image\`. Do not omit \`imageUrls\` when the user has attached images.`
-      : '';
-
-  return {
-    effectiveReferenceImageParts,
-    imageBlocks: [latestImageToolBlock, freshImageRegenerationBlock, userAttachedImagesBlock] as [string, string, string],
-  };
-}
-
-function getLastAssistantText(messages: ChatMessage[]): string {
-  const lastAssistantMessage = [...messages].reverse().find((message) => message.role === 'assistant');
-  if (!lastAssistantMessage) return '';
-
-  const textPart = lastAssistantMessage.parts.find((part) => part.type === 'text');
-  return textPart?.type === 'text' ? textPart.text.trim() : '';
-}
-
-function normalizeSuggestionQuickReplies(suggestions: string[]) {
-  return suggestions
-    .filter((suggestion) => suggestion.trim().length > 0)
-    .slice(0, 4)
-    .map((suggestion) => ({
-      actionType: 'message' as const,
-      label: suggestion,
-      text: suggestion,
-    }));
-}
-
-function inferLocaleFromText(...candidates: string[]): string {
-  return candidates.some((candidate) => /[ก-๙]/.test(candidate)) ? 'th-TH' : 'en-US';
 }

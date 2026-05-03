@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireUser } from "@/lib/auth-server";
-import { clearThreadWorkingMemory, getThreadWorkingMemory } from "@/features/memory/service";
+import { clearThreadWorkingMemory, getThreadWorkingMemory } from "@/features/memory/server/working-memory";
 
 type Params = { params: Promise<{ threadId: string }> };
 

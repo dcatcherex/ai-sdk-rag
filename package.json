@@ -10,7 +10,7 @@
     "lint": "eslint",
     "db:reconcile-migrations": "tsx scripts/reconcile-drizzle-ledger.ts",
     "deploy:trigger": "trigger deploy",
-    "test": "tsx --test features/skills/server/*.test.ts features/agents/server/*.test.ts features/user-tools/server/*.test.ts features/chat/components/empty-state/*.test.ts",
+    "test": "tsx --test features/skills/server/*.test.ts features/agents/server/*.test.ts features/user-tools/server/*.test.ts features/chat/server/*.test.ts features/memory/server/*.test.ts features/chat/components/empty-state/*.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:install": "playwright install chromium"
