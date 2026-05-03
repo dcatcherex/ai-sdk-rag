@@ -6,11 +6,12 @@ import {
   stepCountIs,
 } from 'ai';
 import { headers } from 'next/headers';
-import { and, count, eq, exists, isNull, or } from 'drizzle-orm';
+import { count, eq } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth-server';
 import { db } from '@/lib/db';
-import { agent, agentShare, chatThread, user as userTable, userPreferences } from '@/db/schema';
-import { isStrongModel } from '@/lib/ai';
+import { agent } from '@/db/schema';
+import { checkUserApproved, getThreadForSession, getUserPrefs } from '@/features/chat/server/queries';
+import { getAgentForUser } from '@/features/agents/server/queries';
 import { enhancePrompt } from '@/lib/prompt-enhance';
 import { summarizeConversation, SUMMARY_THRESHOLD } from '@/lib/conversation-summary';
 import { getUserModelScores } from '@/lib/model-scores';
@@ -128,7 +129,6 @@ export async function POST(req: Request) {
             ? { ...m, id: eagerMsgId, parts: eagerPartResults.map((r) => r.part) }
             : m,
         );
-        console.log('[IMG-URL-TRACE] eager upload done', eagerPartResults.flatMap((r) => r.asset ? [r.asset.url] : []));
       }
     }
 
@@ -142,65 +142,27 @@ export async function POST(req: Request) {
       };
     });
 
-    const [userRow, threadRows, prefsRows, balance, activeAgentRows] = await Promise.all([
-      isGuest
-        ? Promise.resolve([{ approved: true }])
-        : db.select({ approved: userTable.approved }).from(userTable).where(eq(userTable.id, effectiveUserId)).limit(1),
-      isGuest
-        ? db.select({ id: chatThread.id, title: chatThread.title }).from(chatThread).where(and(eq(chatThread.id, threadId), eq(chatThread.guestSessionId, guestSessionId!))).limit(1)
-        : db.select({ id: chatThread.id, title: chatThread.title }).from(chatThread).where(and(eq(chatThread.id, threadId), eq(chatThread.userId, effectiveUserId))).limit(1),
-      isGuest
-        ? Promise.resolve([])
-        : db.select().from(userPreferences).where(eq(userPreferences.userId, effectiveUserId)).limit(1),
-      isGuest
-        ? Promise.resolve(guestBalance)
-        : getUserBalance(effectiveUserId),
-      (!isGuest && agentId)
-        ? db
-            .select()
-            .from(agent)
-            .where(
-              and(
-                eq(agent.id, agentId),
-                or(
-                  eq(agent.userId, effectiveUserId),
-                  eq(agent.isPublic, true),
-                  and(
-                    isNull(agent.userId),
-                    eq(agent.managedByAdmin, true),
-                    eq(agent.catalogStatus, 'published'),
-                  ),
-                  exists(
-                    db
-                      .select({ id: agentShare.agentId })
-                      .from(agentShare)
-                      .where(
-                        and(
-                          eq(agentShare.agentId, agentId),
-                          eq(agentShare.sharedWithUserId, effectiveUserId),
-                        ),
-                      ),
-                  ),
-                ),
-              ),
-            )
-            .limit(1)
-        : Promise.resolve([]),
+    const [userApproved, thread, prefs, balance, activeAgentRow] = await Promise.all([
+      isGuest ? Promise.resolve(true) : checkUserApproved(effectiveUserId),
+      getThreadForSession({ threadId, userId: isGuest ? null : effectiveUserId, guestSessionId }),
+      isGuest ? Promise.resolve(null) : getUserPrefs(effectiveUserId),
+      isGuest ? Promise.resolve(guestBalance) : getUserBalance(effectiveUserId),
+      (!isGuest && agentId) ? getAgentForUser(agentId, effectiveUserId) : Promise.resolve(null),
     ]);
 
-    if (!isGuest && !userRow[0]?.approved) {
+    if (!isGuest && !userApproved) {
       return Response.json(
         { error: 'Your account is pending approval. Please contact the admin.' },
         { status: 403 }
       );
     }
-    if (threadRows.length === 0) {
+    if (!thread) {
       return Response.json({ error: 'Thread not found' }, { status: 404 });
     }
 
-    const currentTitle = threadRows[0]!.title ?? 'New chat';
-    const userPrefs = prefsRows[0] ?? { memoryEnabled: true, memoryInjectEnabled: true, memoryExtractEnabled: true, promptEnhancementEnabled: true, followUpSuggestionsEnabled: true, enabledToolIds: null, rerankEnabled: false };
-    let activeAgent: (typeof activeAgentRows)[number] | Agent | null = activeAgentRows[0] ?? null;
+    const currentTitle = thread.title ?? 'New chat';
+    const userPrefs = prefs ?? { memoryEnabled: true, memoryInjectEnabled: true, memoryExtractEnabled: true, promptEnhancementEnabled: true, followUpSuggestionsEnabled: true, enabledToolIds: null, rerankEnabled: false };
+    let activeAgent: Agent | null = activeAgentRow;
     let requiresConfiguredStarterTemplate = false;
     if (!activeAgent) {
       if (isGuest) {
@@ -270,9 +232,6 @@ export async function POST(req: Request) {
     // Merge in tool IDs unlocked by triggered skills (deduplicated)
     const activeToolIds = mergeAgentToolIds({ baseToolIds, skillRuntime });
 
-    const examPrepToolEnabled = activeToolIds === null || activeToolIds.includes('exam_prep');
-    const certificateToolEnabled = activeToolIds === null || activeToolIds.includes('certificate');
-
     // Base system prompt: platform agent > agent > default
     let baseSystemPrompt: string;
     if (isPlatformAgentActive) {
@@ -289,116 +248,6 @@ export async function POST(req: Request) {
       ? new Map<string, number>()
       : await getUserModelScores(effectiveUserId);
 
-    const preparedSeed = await prepareAgentRun({
-      identity: {
-        channel: 'web',
-        userId: isGuest ? null : effectiveUserId,
-        billingUserId: effectiveUserId,
-        guestId: guestSessionId,
-      },
-      threadId,
-      agentId: activeAgent?.id ?? null,
-      activeBrandId: brandId,
-      selectedDocumentIds,
-      messages: baseAgentRunMessages,
-      model: model ?? null,
-      enabledModelIds,
-      useWebSearch,
-      policy: { ...WEB_AGENT_RUN_POLICY, allowTools: false },
-      channelContext: {
-        memoryContext,
-        sharedMemoryBlock,
-        threadWorkingMemoryBlock,
-        baseToolIds,
-        agentOverride: activeAgent as Agent | null,
-        baseSystemPromptOverride: isPlatformAgentActive ? baseSystemPrompt : undefined,
-        userScores,
-        skillRuntimeOverride: skillRuntime,
-      },
-    });
-
-    const resolvedModel = preparedSeed.modelId;
-    const routingMetadata: RoutingMetadata = {
-      mode: manualModelSelected ? 'manual' : 'auto',
-      modelId: resolvedModel,
-      reason: preparedSeed.routingReason,
-    };
-    chatRunRouteKind = isImageOnlyModel(resolvedModel) ? 'image' : 'text';
-    chatRunResolvedModelId = resolvedModel;
-
-    // chatRun audit skipped for guests (chatRun requires a real userId FK)
-    let currentChatRunId = '';
-    if (!isGuest) {
-      currentChatRunId = await startChatRun({
-        userId: effectiveUserId,
-        threadId,
-        agentId: activeAgent?.id ?? null,
-        brandId: activeBrand?.id ?? null,
-        requestedModelId: model ?? activeAgent?.modelId ?? null,
-        useWebSearch,
-        inputJson: buildChatRunInputSummary({
-          messages,
-          requestedModelId: model ?? activeAgent?.modelId ?? null,
-          useWebSearch,
-          selectedDocumentIds: preparedSeed.effectiveDocumentIds,
-          enabledModelIds,
-          agentId: activeAgent?.id ?? null,
-          brandId: activeBrand?.id ?? null,
-          quizContext,
-          activeToolIds: preparedSeed.activeToolIds,
-          activeSkillIds: preparedSeed.skillRuntime.activatedSkills.map((entry) => entry.skill.id),
-          lastUserPrompt,
-        }),
-      });
-      chatRunId = currentChatRunId;
-
-      await updateChatRunRouting(currentChatRunId, {
-        routeKind: chatRunRouteKind,
-        resolvedModelId: resolvedModel,
-        routing: routingMetadata,
-      });
-    }
-
-    // ── Credit check ─────────────────────────────────────────────────────────
-    const seedCreditCost = preparedSeed.creditCost;
-    if (balance < seedCreditCost) {
-      if (currentChatRunId) {
-        await completeChatRunError(currentChatRunId, {
-          errorMessage: `Insufficient credits for ${resolvedModel}`,
-          routeKind: chatRunRouteKind,
-          resolvedModelId: resolvedModel,
-        });
-      }
-      return Response.json(
-        {
-          error: `Insufficient credits. This model costs ${seedCreditCost} credits, but you have ${balance}. Please contact admin for more credits.`,
-        },
-        { status: 402 }
-      );
-    }
-
-    const supportsTools = preparedSeed.supportsTools;
-
-    // Inject tool guidance only when the message is relevant to that tool domain.
-    // This avoids spending ~200 tokens of system prompt on every unrelated message.
-    const examRelevant = !!quizContext || /quiz|exam|practice|study|flashcard|flash card|grade|diagnos|learning gap|weak area|revision|ทบทวน|ข้อสอบ|แบบฝึกหัด/i.test(lastUserPrompt ?? '');
-    const examPrepToolInstructions = supportsTools && examPrepToolEnabled && examRelevant
-      ? '\nIMPORTANT: When the user asks to be quizzed, wants practice questions, asks you to grade an answer, wants a study plan, asks you to diagnose weak areas or misconceptions, or asks for flashcards or memorization cards, you MUST call the exam prep tools directly. Do NOT pretend to grade or generate a quiz freehand when the exam prep tools are available. If selected documents are attached to the chat, the exam prep tools already ground themselves in those documents automatically, so use the relevant exam prep tool directly unless you need extra document exploration beyond the tool result. Use generate_practice_quiz for quizzes and mock questions, grade_practice_answer for scoring or feedback on an answer, create_study_plan for revision schedules and topic prioritization, analyze_learning_gaps for weakness diagnosis, misconceptions, and what to study next, and generate_flashcards for revision cards and recall practice. If an exam prep tool call fails, explain the real issue briefly and ask only for the missing information.'
-      : '';
-
-    const certRelevant = /certif|template|recipient|generate cert|preview cert|ใบรับรอง|ใบประกาศ|ใบวุฒิ/i.test(lastUserPrompt ?? '');
-    const certificateBrandHint = activeBrand
-      ? (() => {
-          const hints: string[] = [`The user's active brand is "${activeBrand.name}".`];
-          const primaryColor = activeBrand.colors.find((c) => c.label.toLowerCase() === 'primary') ?? activeBrand.colors[0];
-          if (primaryColor?.hex) hints.push(`Primary brand color: ${primaryColor.hex}.`);
-          if (activeBrand.fonts.length) hints.push(`Brand fonts: ${activeBrand.fonts.join(', ')}.`);
-          return ` ${hints.join(' ')} Prefer these values when filling certificate fields unless the user specifies otherwise.`;
-        })()
-      : '';
-    const certificateToolInstructions = supportsTools && certificateToolEnabled && certRelevant
-      ? `\nIMPORTANT: When the user wants to create, preview, or inspect certificate templates or certificate outputs, you MUST call the certificate tools directly. Do NOT describe tool calls, do NOT print JSON action blocks, and do NOT say you are about to call a tool. If you need template information, call list_certificate_templates. If you need to validate inputs, call preview_certificate_generation. If you need to create the output, call generate_certificate_output or generate_certificate. If a certificate tool call fails, explain the actual tool error briefly and ask the user only for the missing information or corrective action. Do NOT fabricate a generic technical issue message and do NOT emit another pseudo tool-call block as text.${certificateBrandHint}`
-      : '';
     const quizContextBlock = quizContext
       ? `\n\n<interactive_quiz_context>
 Latest quiz state from the client UI:
@@ -422,7 +271,7 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
     // ── Prompt enhancement ───────────────────────────────────────────────────
     let enhancedPrompt: string | undefined;
     let messagesToSend = eagerUploadedMessages;
-    if (userPrefs.promptEnhancementEnabled && lastUserPrompt && !isStrongModel(resolvedModel)) {
+    if (userPrefs.promptEnhancementEnabled && lastUserPrompt) {
       const enhanced = await enhancePrompt(lastUserPrompt, memoryContext);
       if (enhanced !== lastUserPrompt) {
         enhancedPrompt = enhanced;
@@ -449,72 +298,10 @@ IMPORTANT: This quiz context reflects the learner's actual progress in the inter
 
     // ── System prompt assembly ───────────────────────────────────────────────
 
-    // DEBUG: trace image URL sources — full scan across all messages
-    const _dbgAllFileParts = messagesToSend.flatMap(m =>
-      (m.parts ?? [])
-        .filter(p => (p as {type?:string}).type === 'file')
-        .map(p => ({ role: m.role, url: (p as {url?:string}).url?.substring(0, 100) }))
-    );
-    const _dbgToolParts = messagesToSend.flatMap(m =>
-      (m.parts ?? [])
-        .filter(p => (p as {type?:string}).type?.startsWith('tool-') && (p as {toolName?:string}).toolName === 'generate_image')
-        .map(p => {
-          const part = p as {type?:string; input?:Record<string,unknown>; output?:Record<string,unknown>};
-          const inputUrls = (part.input?.imageUrls as string[] | undefined) ?? [];
-          const out = part.output ?? {};
-          const outputUrls = (out.imageUrls as string[] | undefined) ?? (out.imageUrl ? [out.imageUrl as string] : []);
-          return { type: part.type, inputUrls: inputUrls.map((u:string) => u.substring(0,100)), outputUrls: outputUrls.map((u:string) => u.substring(0,100)) };
-        })
-    );
-    console.log('[IMG-URL-TRACE] ALL file parts across messages:', JSON.stringify(_dbgAllFileParts));
-    console.log('[IMG-URL-TRACE] generate_image tool parts (input+output):', JSON.stringify(_dbgToolParts));
-
-    const latestAssistantImageParts = getLatestAssistantImageParts(messagesToSend);
-    const latestUserMessage = [...messagesToSend].reverse().find((message) => message.role === 'user');
-    const latestUserImageParts = getImageAttachmentParts(latestUserMessage);
-    const wantsFreshImageRegeneration = isFreshImageRegenerationRequest(lastUserPrompt);
-    const shouldAutoReuseLastImage =
-      latestAssistantImageParts.length > 0 &&
-      latestUserImageParts.length === 0 &&
-      isImplicitImageEditRequest(lastUserPrompt) &&
-      !wantsFreshImageRegeneration;
-    const effectiveReferenceImageParts = latestUserImageParts.length > 0
-      ? latestUserImageParts
-      : shouldAutoReuseLastImage
-        ? latestAssistantImageParts
-        : [];
-
-    console.log('[IMG-URL-TRACE] latestAssistantImageParts:', JSON.stringify(latestAssistantImageParts.map(p => p.url)));
-    console.log('[IMG-URL-TRACE] threadWorkingMemoryBlock snippet:', threadWorkingMemoryBlock.substring(0, 400));
-    console.log('[IMG-URL-TRACE] sharedMemoryBlock snippet:', sharedMemoryBlock.substring(0, 200));
-    console.log('[IMG-URL-TRACE] memoryContext snippet:', memoryContext.substring(0, 600));
-
-    const latestImageToolBlock =
-      supportsTools && latestAssistantImageParts.length > 0
-        ? `\n\n<latest_generated_images>
-The most recent assistant-generated image(s) in this thread:
-${latestAssistantImageParts.map((part, index) => `${index + 1}. ${part.url}`).join('\n')}
-</latest_generated_images>
-
-IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or continue from the most recently generated image without attaching a new image, treat the image above as the reference image automatically. When calling the \`generate_image\` tool for that kind of follow-up, include these URL(s) in \`imageUrls\` instead of generating from scratch.`
-        : '';
-    const freshImageRegenerationBlock =
-      supportsTools
-        ? `\n\nIMPORTANT: If the user asks for another version, a new theme, a new style, a different layout, a fresh variation, or says things like "ขอแบบใหม่", "ขออีกภาพ", or "เปลี่ยนธีม", do NOT automatically reuse the most recently generated image as an edit reference unless they explicitly say to keep/edit the same image. Treat those requests as fresh generation requests instead.`
-        : '';
-
-    const userAttachedImageUrls = latestUserImageParts
-      .map((p) => p.url)
-      .filter((u) => u.startsWith('http'));
-    const userAttachedImagesBlock =
-      supportsTools && userAttachedImageUrls.length > 0
-        ? `\n\n<user_attached_images>
-The user has attached the following image(s) to their current message:
-${userAttachedImageUrls.map((url, index) => `${index + 1}. ${url}`).join('\n')}
-</user_attached_images>
-
-IMPORTANT: These are the exact URL(s) the user attached. If they want to generate, edit, or transform an image based on these attachments, you MUST include these URL(s) in the \`imageUrls\` parameter when calling \`generate_image\`. Do not omit \`imageUrls\` when the user has attached images.`
-        : '';
+    const { effectiveReferenceImageParts, imageBlocks } = buildImageChannelContext({
+      messages: messagesToSend,
+      lastUserPrompt,
+    });
 
     const toolsOverride = isPlatformAgentActive
       ? getPlatformAgentTools({ userId: effectiveUserId })
@@ -542,14 +329,8 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
         sharedMemoryBlock,
         threadWorkingMemoryBlock,
         conversationSummaryBlock,
-        examPrepBlock: examPrepToolInstructions,
-        certBlock: certificateToolInstructions,
-        quizContextBlock: supportsTools ? quizContextBlock : '',
-        extraBlocks: [
-          latestImageToolBlock,
-          freshImageRegenerationBlock,
-          userAttachedImagesBlock,
-        ],
+        quizContextBlock,
+        extraBlocks: imageBlocks,
         rerankEnabled: userPrefs.rerankEnabled ?? false,
         referenceImageUrls: effectiveReferenceImageParts.map((part) => part.url),
         mcpCredentials: (userPrefs as { mcpCredentials?: Record<string, string> }).mcpCredentials ?? {},
@@ -562,9 +343,84 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
       },
     });
 
+    const resolvedModel = preparedRun.modelId;
+    const routingMetadata: RoutingMetadata = {
+      mode: manualModelSelected ? 'manual' : 'auto',
+      modelId: resolvedModel,
+      reason: preparedRun.routingReason,
+    };
+    chatRunRouteKind = isImageOnlyModel(resolvedModel) ? 'image' : 'text';
+    chatRunResolvedModelId = resolvedModel;
+
+    // chatRun audit skipped for guests (chatRun requires a real userId FK)
+    let currentChatRunId = '';
+    if (!isGuest) {
+      currentChatRunId = await startChatRun({
+        userId: effectiveUserId,
+        threadId,
+        agentId: activeAgent?.id ?? null,
+        brandId: activeBrand?.id ?? null,
+        requestedModelId: model ?? activeAgent?.modelId ?? null,
+        useWebSearch,
+        inputJson: buildChatRunInputSummary({
+          messages,
+          requestedModelId: model ?? activeAgent?.modelId ?? null,
+          useWebSearch,
+          selectedDocumentIds: preparedRun.effectiveDocumentIds,
+          enabledModelIds,
+          agentId: activeAgent?.id ?? null,
+          brandId: activeBrand?.id ?? null,
+          quizContext,
+          activeToolIds: preparedRun.activeToolIds,
+          activeSkillIds: preparedRun.skillRuntime.activatedSkills.map((entry) => entry.skill.id),
+          lastUserPrompt,
+        }),
+      });
+      chatRunId = currentChatRunId;
+
+      await updateChatRunRouting(currentChatRunId, {
+        routeKind: chatRunRouteKind,
+        resolvedModelId: resolvedModel,
+        routing: routingMetadata,
+      });
+    }
+
+    // ── Credit check ─────────────────────────────────────────────────────────
     const creditCost = preparedRun.creditCost;
+    if (balance < creditCost) {
+      if (currentChatRunId) {
+        await completeChatRunError(currentChatRunId, {
+          errorMessage: `Insufficient credits for ${resolvedModel}`,
+          routeKind: chatRunRouteKind,
+          resolvedModelId: resolvedModel,
+        });
+      }
+      return Response.json(
+        {
+          error: `Insufficient credits. This model costs ${creditCost} credits, but you have ${balance}. Please contact admin for more credits.`,
+        },
+        { status: 402 }
+      );
+    }
+
     const effectiveSystemPrompt = preparedRun.systemPrompt;
     const activeTools = preparedRun.tools;
+
+    const finishCtx = {
+      threadId,
+      userId: isGuest ? null : effectiveUserId,
+      guestSessionId: isGuest ? guestSessionId : null,
+      currentTitle,
+      resolvedModel,
+      creditCost,
+      brandId: activeBrand?.id ?? null,
+      currentChatRunId,
+      followUpSuggestionsEnabled: userPrefs.followUpSuggestionsEnabled ?? true,
+      memoryEnabled: userPrefs.memoryEnabled ?? true,
+      memoryExtractEnabled: userPrefs.memoryExtractEnabled ?? true,
+      memoryContext,
+      lastUserPrompt,
+    };
 
     const messageMetadata = (): ChatMessageMetadata => ({
       routing: routingMetadata,
@@ -594,10 +450,6 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
         source: 'chat',
       });
 
-      
-      // Logo appended last — model receives it as a brand mark reference, not a composition element
-      
-
       const toolCallId = crypto.randomUUID();
       const toolInput = { prompt: imageRun.prompt, modelId: imageRun.modelId };
       const toolOutput = {
@@ -619,20 +471,20 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
             try {
               await persistChatResult({
                 updatedMessages,
-                threadId,
-                userId: isGuest ? null : effectiveUserId,
-                guestSessionId: isGuest ? guestSessionId : null,
-                currentTitle,
-                resolvedModel,
-                creditCost,
-                brandId: activeBrand?.id ?? null,
+                threadId: finishCtx.threadId,
+                userId: finishCtx.userId,
+                guestSessionId: finishCtx.guestSessionId,
+                currentTitle: finishCtx.currentTitle,
+                resolvedModel: finishCtx.resolvedModel,
+                creditCost: finishCtx.creditCost,
+                brandId: finishCtx.brandId,
                 tokenUsageData: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
               });
 
-              if (currentChatRunId) await completeChatRunSuccess(currentChatRunId, {
+              if (finishCtx.currentChatRunId) await completeChatRunSuccess(finishCtx.currentChatRunId, {
                 routeKind: 'image',
-                resolvedModelId: resolvedModel,
-                creditCost,
+                resolvedModelId: finishCtx.resolvedModel,
+                creditCost: finishCtx.creditCost,
                 toolCallCount: 1,
                 promptTokens: 0,
                 completionTokens: 0,
@@ -642,7 +494,7 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
                   responseFormat: buildResponseAuditSummary(
                     buildResponsePlan({
                       text: toolOutput.message,
-                      userText: lastUserPrompt ?? '',
+                      userText: finishCtx.lastUserPrompt ?? '',
                       locale: 'en-US',
                     }),
                   ),
@@ -652,11 +504,11 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
               });
             } catch (error) {
               console.error('Failed to finalize async image chat run:', error);
-              if (currentChatRunId) {
-                await completeChatRunError(currentChatRunId, {
+              if (finishCtx.currentChatRunId) {
+                await completeChatRunError(finishCtx.currentChatRunId, {
                   errorMessage: error instanceof Error ? error.message : 'Unknown finalization error',
                   routeKind: 'image',
-                  resolvedModelId: resolvedModel,
+                  resolvedModelId: finishCtx.resolvedModel,
                 }).catch((auditError) => console.error('Failed to mark image chat run as error:', auditError));
               }
             }
@@ -708,10 +560,9 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
           const usage = (await result.usage) as { promptTokens?: number; completionTokens?: number; totalTokens?: number } | null;
           const typedMessages = updatedMessages as ChatMessage[];
 
-          // Inject follow-up suggestions into last assistant message
           const lastAssistantIdx = typedMessages.map((m) => m.role).lastIndexOf('assistant');
           let messagesWithSuggestions = typedMessages;
-          if (lastAssistantIdx !== -1 && (userPrefs.followUpSuggestionsEnabled ?? true)) {
+          if (lastAssistantIdx !== -1 && finishCtx.followUpSuggestionsEnabled) {
             const contextStr = typedMessages
               .slice(-6)
               .map((m) => {
@@ -736,47 +587,39 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
           const responsePlan = lastAssistantText
             ? buildResponsePlan({
                 text: lastAssistantText,
-                userText: lastUserPrompt ?? '',
-                locale: inferLocaleFromText(lastAssistantText, lastUserPrompt ?? ''),
+                userText: finishCtx.lastUserPrompt ?? '',
+                locale: inferLocaleFromText(lastAssistantText, finishCtx.lastUserPrompt ?? ''),
                 quickReplies: normalizeSuggestionQuickReplies(
                   ((messagesWithSuggestions[lastAssistantIdx]?.metadata as ChatMessageMetadata | undefined)?.followUpSuggestions) ?? [],
                 ),
               })
             : null;
-          const responseAudit = responsePlan
-            ? buildResponseAuditSummary(responsePlan)
-            : null;
+          const responseAudit = responsePlan ? buildResponseAuditSummary(responsePlan) : null;
 
           if (responseAudit && lastAssistantIdx !== -1) {
             messagesWithSuggestions = messagesWithSuggestions.map((message, index) =>
               index === lastAssistantIdx
-                ? {
-                    ...message,
-                    metadata: {
-                      ...(message.metadata ?? {}),
-                      responseFormat: responseAudit,
-                    },
-                  }
+                ? { ...message, metadata: { ...(message.metadata ?? {}), responseFormat: responseAudit } }
                 : message,
             );
           }
 
           await persistChatResult({
             updatedMessages: messagesWithSuggestions,
-            threadId,
-            userId: isGuest ? null : effectiveUserId,
-            guestSessionId: isGuest ? guestSessionId : null,
-            currentTitle,
-            resolvedModel,
-            creditCost,
-            brandId: activeBrand?.id ?? null,
+            threadId: finishCtx.threadId,
+            userId: finishCtx.userId,
+            guestSessionId: finishCtx.guestSessionId,
+            currentTitle: finishCtx.currentTitle,
+            resolvedModel: finishCtx.resolvedModel,
+            creditCost: finishCtx.creditCost,
+            brandId: finishCtx.brandId,
             tokenUsageData: usage,
           });
 
-          if (!isGuest) {
+          if (finishCtx.userId) {
             await refreshThreadWorkingMemoryFromMessages({
-              threadId,
-              brandId: activeBrand?.id ?? null,
+              threadId: finishCtx.threadId,
+              brandId: finishCtx.brandId,
               messages: messagesWithSuggestions as Array<{
                 id?: string;
                 role: string;
@@ -784,43 +627,43 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
               }>,
             }).catch((error) => console.error('Failed to refresh thread working memory:', error));
 
-            const shouldExtractMemory = userPrefs.memoryEnabled && userPrefs.memoryExtractEnabled;
+            const shouldExtractMemory = finishCtx.memoryEnabled && finishCtx.memoryExtractEnabled;
             if (shouldExtractMemory) {
               void extractAndStoreMemory(
-                effectiveUserId,
+                finishCtx.userId,
                 messagesWithSuggestions as Array<{ role: string; parts?: Array<{ type: string; text?: string }> }>,
-                threadId,
-                memoryContext
+                finishCtx.threadId,
+                finishCtx.memoryContext,
               );
             }
 
             const toolCallCount = getToolCallCount(messagesWithSuggestions);
-            if (currentChatRunId) {
-              await completeChatRunSuccess(currentChatRunId, {
+            if (finishCtx.currentChatRunId) {
+              await completeChatRunSuccess(finishCtx.currentChatRunId, {
                 routeKind: 'text',
-                resolvedModelId: resolvedModel,
-                creditCost,
+                resolvedModelId: finishCtx.resolvedModel,
+                creditCost: finishCtx.creditCost,
                 toolCallCount,
                 promptTokens: usage?.promptTokens,
                 completionTokens: usage?.completionTokens,
                 totalTokens: usage?.totalTokens,
                 outputJson: buildChatRunOutputSummary({
-                routeKind: 'text',
-                messages: messagesWithSuggestions,
-                followUpSuggestionCount: getFollowUpSuggestionCount(messagesWithSuggestions),
-                memoryExtracted: shouldExtractMemory,
-                responseFormat: responseAudit,
-              }),
-            });
-          }
+                  routeKind: 'text',
+                  messages: messagesWithSuggestions,
+                  followUpSuggestionCount: getFollowUpSuggestionCount(messagesWithSuggestions),
+                  memoryExtracted: shouldExtractMemory,
+                  responseFormat: responseAudit,
+                }),
+              });
+            }
           }
         } catch (error) {
           console.error('Failed to finalize chat run:', error);
-          if (currentChatRunId) {
-            await completeChatRunError(currentChatRunId, {
+          if (finishCtx.currentChatRunId) {
+            await completeChatRunError(finishCtx.currentChatRunId, {
               errorMessage: error instanceof Error ? error.message : 'Unknown finalization error',
               routeKind: 'text',
-              resolvedModelId: resolvedModel,
+              resolvedModelId: finishCtx.resolvedModel,
             }).catch((auditError) => console.error('Failed to mark chat run as error:', auditError));
           }
         }
@@ -837,6 +680,57 @@ IMPORTANT: These are the exact URL(s) the user attached. If they want to generat
     }
     return Response.json({ error: message }, { status: 400 });
   }
+}
+
+function buildImageChannelContext(input: {
+  messages: ChatMessage[];
+  lastUserPrompt: string | null | undefined;
+}) {
+  const { messages, lastUserPrompt } = input;
+
+  const latestAssistantImageParts = getLatestAssistantImageParts(messages);
+  const latestUserMessage = [...messages].reverse().find((m) => m.role === 'user');
+  const latestUserImageParts = getImageAttachmentParts(latestUserMessage);
+  const wantsFreshImageRegeneration = isFreshImageRegenerationRequest(lastUserPrompt);
+  const shouldAutoReuseLastImage =
+    latestAssistantImageParts.length > 0 &&
+    latestUserImageParts.length === 0 &&
+    isImplicitImageEditRequest(lastUserPrompt) &&
+    !wantsFreshImageRegeneration;
+  const effectiveReferenceImageParts =
+    latestUserImageParts.length > 0
+      ? latestUserImageParts
+      : shouldAutoReuseLastImage
+        ? latestAssistantImageParts
+        : [];
+
+  const latestImageToolBlock =
+    latestAssistantImageParts.length > 0
+      ? `\n\n<latest_generated_images>
+The most recent assistant-generated image(s) in this thread:
+${latestAssistantImageParts.map((part, index) => `${index + 1}. ${part.url}`).join('\n')}
+</latest_generated_images>
+
+IMPORTANT: If the user asks to edit, modify, change, add to, remove from, or continue from the most recently generated image without attaching a new image, treat the image above as the reference image automatically. When calling the \`generate_image\` tool for that kind of follow-up, include these URL(s) in \`imageUrls\` instead of generating from scratch.`
+      : '';
+
+  const freshImageRegenerationBlock = `\n\nIMPORTANT: If the user asks for another version, a new theme, a new style, a different layout, a fresh variation, or says things like "ขอแบบใหม่", "ขออีกภาพ", or "เปลี่ยนธีม", do NOT automatically reuse the most recently generated image as an edit reference unless they explicitly say to keep/edit the same image. Treat those requests as fresh generation requests instead.`;
+
+  const userAttachedImageUrls = latestUserImageParts.map((p) => p.url).filter((u) => u.startsWith('http'));
+  const userAttachedImagesBlock =
+    userAttachedImageUrls.length > 0
+      ? `\n\n<user_attached_images>
+The user has attached the following image(s) to their current message:
+${userAttachedImageUrls.map((url, index) => `${index + 1}. ${url}`).join('\n')}
+</user_attached_images>
+
+IMPORTANT: These are the exact URL(s) the user attached. If they want to generate, edit, or transform an image based on these attachments, you MUST include these URL(s) in the \`imageUrls\` parameter when calling \`generate_image\`. Do not omit \`imageUrls\` when the user has attached images.`
+      : '';
+
+  return {
+    effectiveReferenceImageParts,
+    imageBlocks: [latestImageToolBlock, freshImageRegenerationBlock, userAttachedImagesBlock] as [string, string, string],
+  };
 }
 
 function getLastAssistantText(messages: ChatMessage[]): string {
