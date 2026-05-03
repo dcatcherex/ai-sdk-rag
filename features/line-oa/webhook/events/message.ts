@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, desc, eq, max } from 'drizzle-orm';
 import { messagingApi } from '@line/bot-sdk';
 
 import { db } from '@/lib/db';
@@ -44,6 +44,7 @@ type ChannelInfo = {
   name: string;
   channelAccessToken: string;
   memberRichMenuLineId?: string | null;
+  intentRouterMode?: string | null;
 };
 
 export async function handleMessageEvent(
@@ -93,14 +94,30 @@ export async function handleMessageEvent(
     groupId,
   );
 
-  const historyRows = await db
-    .select({ role: chatMessage.role, parts: chatMessage.parts, metadata: chatMessage.metadata })
-    .from(chatMessage)
-    .where(eq(chatMessage.threadId, threadId))
-    .orderBy(asc(chatMessage.position))
-    .limit(MAX_CONTEXT_MESSAGES);
+  const [historyRows, latestAssistantRow, positionRow] = await Promise.all([
+    db
+      .select({ role: chatMessage.role, parts: chatMessage.parts })
+      .from(chatMessage)
+      .where(eq(chatMessage.threadId, threadId))
+      .orderBy(desc(chatMessage.position))
+      .limit(MAX_CONTEXT_MESSAGES),
+    db
+      .select({ metadata: chatMessage.metadata })
+      .from(chatMessage)
+      .where(eq(chatMessage.threadId, threadId))
+      .orderBy(desc(chatMessage.position))
+      .limit(10)
+      .then((rows) => rows.find((r) => r.metadata !== null && r.metadata !== undefined) ?? null),
+    db
+      .select({ maxPos: max(chatMessage.position) })
+      .from(chatMessage)
+      .where(eq(chatMessage.threadId, threadId))
+      .then((rows) => rows[0]),
+  ]);
 
-  const historyMessages = historyRows
+  // Reverse so history is oldest-first for the AI context window
+  const historyMessages = [...historyRows]
+    .reverse()
     .filter((row) => row.role === 'user' || row.role === 'assistant')
     .map((row) => ({
       role: row.role as 'user' | 'assistant',
@@ -108,9 +125,7 @@ export async function handleMessageEvent(
     }))
     .filter((message) => message.content.length > 0);
 
-  const latestPendingFarmRecordDraft = [...historyRows]
-    .reverse()
-    .find((row) => row.role === 'assistant')?.metadata;
+  const latestPendingFarmRecordDraft = latestAssistantRow?.metadata ?? null;
 
   const {
     memoryContext,
@@ -132,7 +147,7 @@ export async function handleMessageEvent(
   });
 
   const now = new Date();
-  const nextPosition = historyRows.length;
+  const nextPosition = (positionRow?.maxPos ?? -1) + 1;
 
   const runLineReply = (input: {
     runtimeUserText: string;
@@ -196,6 +211,7 @@ export async function handleMessageEvent(
           latestPendingFarmRecordDraft,
           domainContext,
           channel: { id: channel.id, userId: channel.userId },
+          intentRouterMode: channel.intentRouterMode ?? undefined,
           threadId,
           nextPosition,
           now,
@@ -254,6 +270,7 @@ export async function handleMessageEvent(
     latestPendingFarmRecordDraft,
     domainContext,
     channel: { id: channel.id, userId: channel.userId },
+    intentRouterMode: channel.intentRouterMode ?? undefined,
     threadId,
     nextPosition,
     now,

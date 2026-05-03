@@ -206,30 +206,55 @@ function sanitizeClassifierDecision(value: Partial<LineIntentDecision> | null): 
   };
 }
 
+export type IntentRouterMode = 'regex_first' | 'ai_only' | 'regex_only';
+
 export async function resolveLineAgricultureIntent(input: RegexIntentInput & {
   modelId: string;
   allowClassifier?: boolean;
+  mode?: IntentRouterMode;
+  historyMessages?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }): Promise<LineIntentDecision> {
+  const mode = input.mode ?? (input.allowClassifier ? 'regex_first' : 'regex_only');
+
+  if (mode === 'regex_only') {
+    return resolveLineAgricultureIntentByRegex(input);
+  }
+
+  if (mode === 'ai_only') {
+    return (await runClassifier(input.text, input.modelId, input.historyMessages)) ?? resolveLineAgricultureIntentByRegex(input);
+  }
+
+  // regex_first: try regex, fall back to classifier only for unknowns
   const regexDecision = resolveLineAgricultureIntentByRegex(input);
   if (regexDecision.intent !== 'unknown' && regexDecision.confidence >= MEDIUM_CONFIDENCE) {
     return regexDecision;
   }
 
-  if (!input.allowClassifier) {
-    return regexDecision;
-  }
+  return (await runClassifier(input.text, input.modelId, input.historyMessages)) ?? regexDecision;
+}
 
+async function runClassifier(
+  text: string,
+  modelId: string,
+  historyMessages?: Array<{ role: 'user' | 'assistant'; content: string }>,
+): Promise<LineIntentDecision | null> {
   try {
+    const recentHistory = (historyMessages ?? []).slice(-4);
+    const historyBlock = recentHistory.length > 0
+      ? '\n\nRecent conversation:\n' + recentHistory.map((m) => `${m.role}: ${m.content}`).join('\n')
+      : '';
+
     const result = await generateText({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      model: input.modelId as any,
+      model: modelId as any,
       system: [
         'Classify one LINE message for a Thai agriculture assistant.',
         'Return ONLY compact JSON with keys: intent, confidence, missing, reason.',
         'Allowed intents: farm_log_create, farm_log_summary, farm_profile_setup, weather_risk, market_decision, plant_diagnosis, unknown.',
+        'Use the recent conversation for context (e.g. a short location reply follows a weather question).',
         'Be conservative. If the user asks whether to sell, choose market_decision. If the user asks weather/rain/forecast/farm risk, choose weather_risk and include missing:["location"] when no place is given. If the user asks to view/summarize records, choose farm_log_summary. If the user only states their farm/crop/location setup, choose farm_profile_setup. Choose farm_log_create only when they report a completed farm activity to save.',
       ].join(' '),
-      prompt: `Message: ${input.text}`,
+      prompt: `Message: ${text}${historyBlock}`,
     });
 
     const classifierDecision = sanitizeClassifierDecision(parseClassifierJson(result.text));
@@ -239,6 +264,5 @@ export async function resolveLineAgricultureIntent(input: RegexIntentInput & {
   } catch (err) {
     console.warn('[LINE] intent classifier failed:', err);
   }
-
-  return regexDecision;
+  return null;
 }

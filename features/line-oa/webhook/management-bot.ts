@@ -9,7 +9,7 @@
  */
 
 import { generateText } from 'ai';
-import { asc, eq } from 'drizzle-orm';
+import { desc, eq, max } from 'drizzle-orm';
 import type { messagingApi } from '@line/bot-sdk';
 import { db } from '@/lib/db';
 import { chatMessage, chatThread } from '@/db/schema';
@@ -64,15 +64,23 @@ export async function handleManagementBotEvent(
     `[Management] ${channel.name}`,
   );
 
-  // Load recent history
-  const historyRows = await db
-    .select({ role: chatMessage.role, parts: chatMessage.parts })
-    .from(chatMessage)
-    .where(eq(chatMessage.threadId, threadId))
-    .orderBy(asc(chatMessage.position))
-    .limit(MAX_CONTEXT_MESSAGES);
+  // Load recent history (newest-first, reversed for AI context)
+  const [historyRows, positionRow] = await Promise.all([
+    db
+      .select({ role: chatMessage.role, parts: chatMessage.parts })
+      .from(chatMessage)
+      .where(eq(chatMessage.threadId, threadId))
+      .orderBy(desc(chatMessage.position))
+      .limit(MAX_CONTEXT_MESSAGES),
+    db
+      .select({ maxPos: max(chatMessage.position) })
+      .from(chatMessage)
+      .where(eq(chatMessage.threadId, threadId))
+      .then((rows) => rows[0]),
+  ]);
 
-  const historyMessages = historyRows
+  const historyMessages = [...historyRows]
+    .reverse()
     .map((row) => {
       const parts = row.parts as Array<{ type?: string; text?: string }>;
       const text = parts.find((p) => p.type === 'text')?.text ?? '';
@@ -126,7 +134,7 @@ export async function handleManagementBotEvent(
 
   // Persist messages to the thread
   const now = new Date();
-  const existingCount = historyRows.length;
+  const nextPosition = (positionRow?.maxPos ?? -1) + 1;
   await Promise.all([
     db.insert(chatMessage).values([
       {
@@ -134,7 +142,7 @@ export async function handleManagementBotEvent(
         threadId,
         role: 'user',
         parts: [{ type: 'text', text: userText }],
-        position: existingCount,
+        position: nextPosition,
         createdAt: now,
       },
       {
@@ -142,7 +150,7 @@ export async function handleManagementBotEvent(
         threadId,
         role: 'assistant',
         parts: [{ type: 'text', text: cleanReply }],
-        position: existingCount + 1,
+        position: nextPosition + 1,
         createdAt: now,
       },
     ]),

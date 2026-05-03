@@ -24,6 +24,8 @@ export const lineOaChannel = pgTable("line_oa_channel", {
   imageUrl: text("image_url"),
   /** LINE platform menu ID to assign to a user after they register as a member. */
   memberRichMenuLineId: text("member_rich_menu_line_id"),
+  /** How incoming messages are routed to intent handlers. */
+  intentRouterMode: text("intent_router_mode").notNull().default("ai_only"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (table) => [

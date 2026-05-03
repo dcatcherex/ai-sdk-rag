@@ -175,7 +175,7 @@ async function processEvents(
 
         await handleMessageEvent(
           event,
-          { id: channel.id, userId: channel.userId, name: channel.name, channelAccessToken: channel.channelAccessToken, memberRichMenuLineId: channel.memberRichMenuLineId },
+          { id: channel.id, userId: channel.userId, name: channel.name, channelAccessToken: channel.channelAccessToken, memberRichMenuLineId: channel.memberRichMenuLineId, intentRouterMode: channel.intentRouterMode },
           lineClient,
           effectiveAgentRow,
           effectiveSender,

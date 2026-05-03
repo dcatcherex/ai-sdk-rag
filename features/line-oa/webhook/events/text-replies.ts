@@ -27,9 +27,11 @@ import type { AgentRow, LineMessage, LinkedUser, Sender } from '../types';
 import type { ResolvedDomainContext } from '@/features/domain-profiles/types';
 import type { Brand } from '@/features/brands/types';
 import { handleFarmRecordMessage, readPendingFarmRecordDraft } from './farm-records';
+import { runSummarizeRecords } from '@/features/record-keeper/service';
 import {
   extractWeatherLocation,
   resolveLineAgricultureIntent,
+  type IntentRouterMode,
 } from './intent-router';
 import { buildSuggestionQuickReplies, type ConversationHistoryMessage } from './reply-helpers';
 import { wantsVideoGeneration, generateAndDeliverVideo } from './media-handlers';
@@ -89,6 +91,7 @@ type HandleTextMessageInput = {
   groupId?: string;
   followUpSkillHints?: string[];
   displayUserText?: string;
+  intentRouterMode?: string;
 };
 
 async function persistLineTurn(input: {
@@ -191,6 +194,40 @@ function formatThaiWeatherRiskText(forecast: Awaited<ReturnType<typeof getForeca
     '',
     `แหล่งข้อมูล: ${forecast.source}`,
   ].join('\n');
+}
+
+function formatFarmSummaryText(summary: Awaited<ReturnType<typeof runSummarizeRecords>>): string {
+  if (summary.total === 0) {
+    return 'ยังไม่มีบันทึกกิจกรรมในช่วงนี้ครับ';
+  }
+
+  const lines: string[] = [
+    `สรุปสัปดาห์นี้:`,
+    '',
+    'งานที่ทำ:',
+  ];
+
+  for (const r of summary.records) {
+    const parts: string[] = [`• ${r.activity}`];
+    if (r.quantity) parts.push(`(${r.quantity})`);
+    if (r.entity) parts.push(`ที่ ${r.entity}`);
+    parts.push(`วันที่ ${r.date}`);
+    lines.push(parts.join(' '));
+  }
+
+  lines.push('');
+  lines.push(`ค่าใช้จ่ายหรือผลผลิตที่บันทึก:`);
+  if (summary.totalCost > 0) {
+    lines.push(`• ค่าใช้จ่ายรวม: ${summary.totalCost.toLocaleString('th-TH')} บาท`);
+  }
+  if (summary.totalIncome > 0) {
+    lines.push(`• รายรับรวม: ${summary.totalIncome.toLocaleString('th-TH')} บาท`);
+  }
+  if (summary.totalCost === 0 && summary.totalIncome === 0) {
+    lines.push(`• ยังไม่มีตัวเลขค่าใช้จ่ายหรือรายรับ`);
+  }
+
+  return lines.join('\n');
 }
 
 export async function runCanonicalLineReply(
@@ -386,7 +423,8 @@ export async function handleTextMessage(input: HandleTextMessageInput): Promise<
     hasPendingFarmRecordDraft,
     domainContext: input.domainContext,
     modelId: input.modelId,
-    allowClassifier: true,
+    mode: (input.intentRouterMode ?? 'ai_only') as IntentRouterMode,
+    historyMessages: input.historyMessages,
   });
 
   console.info('[LINE] Agriculture intent decision', intentDecision);
@@ -457,6 +495,43 @@ export async function handleTextMessage(input: HandleTextMessageInput): Promise<
       toolCallCount: forecast.kind === 'weather_forecast' ? 1 : 0,
     }).catch(() => {});
     return { replyText: weatherText };
+  }
+
+  if (intentDecision.intent === 'farm_log_summary') {
+    const summary = await runSummarizeRecords(
+      { contextType: 'farm', period: 'week' },
+      input.channel.userId,
+    );
+    const summaryText = formatFarmSummaryText(summary);
+    const summaryPlan = buildResponsePlan({
+      text: summaryText,
+      userText: input.userText,
+      locale: 'th-TH',
+      toolResults: [{ toolName: 'summarize_records', result: summary }],
+      quickReplies: [
+        { actionType: 'message', label: 'บันทึกรายการเพิ่ม', text: 'จะบันทึกรายการเพิ่ม' },
+        { actionType: 'message', label: 'เช็คอากาศ', text: 'เช็คสภาพอากาศและความเสี่ยงฟาร์ม 7 วัน' },
+      ],
+      metadata: { channel: 'line', source: 'line_farm_summary' },
+    });
+    await persistLineTurn({
+      threadId: input.threadId,
+      nextPosition: input.nextPosition,
+      now: input.now,
+      userText: input.userText,
+      assistantText: summaryText,
+    });
+    await input.lineClient.replyMessage({
+      replyToken: input.replyToken,
+      messages: [
+        ...(input.displayUserText
+          ? [{ type: 'text' as const, text: input.displayUserText, ...(input.sender ? { sender: input.sender } : {}) }]
+          : []),
+        ...(await renderResponseForLineFromCatalog(summaryPlan, { sender: input.sender })),
+      ].slice(0, 5),
+    });
+    recordMessageEvent(input.channel.id, input.lineUserId, { toolCallCount: 1 }).catch(() => {});
+    return { replyText: summaryText };
   }
 
   if (

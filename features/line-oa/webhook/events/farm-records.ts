@@ -106,11 +106,10 @@ function parseFarmRecordDraft(
     trimmed.match(/(\d[\d,]*(?:\.\d+)?)\s*บาท/iu);
   const entityMatch = trimmed.match(/(?:ที่|ใน)\s*(แปลง[^\n,]+?)(?=\s*(?:ค่าใช้จ่าย|ต้นทุน|ราคา|$))/u);
 
+  // Keep the full user text — stripping numbers leaves broken fragments.
+  // Quantity, entity, and cost are extracted separately as structured fields.
   let activity = trimmed
     .replace(/^(วันนี้|เมื่อวาน|พรุ่งนี้|เช้านี้|ตอนเช้า|ตอนเย็น|ช่วงเช้า|ช่วงเย็น)\s*/u, '')
-    .replace(/(?:ค่าใช้จ่าย|ต้นทุน|ราคา)\s*\d[\d,]*(?:\.\d+)?\s*บาท/giu, '')
-    .replace(/(?:ที่|ใน)\s*แปลง[^\n,]+?(?=\s*(?:ค่าใช้จ่าย|ต้นทุน|ราคา|$))/giu, '')
-    .replace(/\d+(?:[.,]\d+)?\s*(กก\.?|กิโลกรัม|กิโล|kg|kg\.|ไร่|ตัน|ลิตร|ถุง|ต้น)/giu, '')
     .replace(/^บันทึก(?:กิจกรรม)?[:\s]*/iu, '')
     .trim();
 
@@ -118,8 +117,8 @@ function parseFarmRecordDraft(
     activity = trimmed;
   }
 
-  if (activity.length > 140) {
-    activity = activity.slice(0, 140).trim();
+  if (activity.length > 200) {
+    activity = activity.slice(0, 200).trim();
   }
 
   const quantity = quantityMatch ? `${quantityMatch[1]} ${quantityMatch[2]}`.replace(/\s+/g, ' ').trim() : undefined;
@@ -128,7 +127,7 @@ function parseFarmRecordDraft(
   const summaryLines = [
     'สรุปรายการที่จะบันทึก:',
     `กิจกรรม: ${activity}`,
-    ...(entity ? [`แปลง: ${entity}`] : []),
+    ...(entity ? [`แปลง: ${entity}`] : [`แปลง: ยังไม่ระบุ`]),
     ...(quantity ? [`ปริมาณ: ${quantity}`] : []),
     ...(cost !== undefined ? [`ค่าใช้จ่าย: ${cost.toLocaleString('th-TH')} บาท`] : []),
     `วันที่: ${formatBangkokDate(now)}`,
