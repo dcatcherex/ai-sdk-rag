@@ -1,7 +1,6 @@
 import type { Skill, SkillFile } from '../types';
 import type { SkillResponseContract } from '@/features/response-format/contracts';
 import { getResolvedSkillResourcesForPrompt, getSkillFilesBySkillIds } from './resources';
-import { tokenizeForSkillMatch } from './shared';
 import { parseSkillMarkdown } from './parser';
 
 export type SkillActivationSource = 'rule' | 'model';
@@ -26,46 +25,56 @@ export function detectTriggeredSkills(skills: Skill[], userMessage: string): Ski
   const msg = userMessage.trim();
   const msgLower = msg.toLowerCase();
 
-  return skills.filter((skill) => {
-    if (skill.activationMode === 'model') return false;
+  // Gap 3: removed activationMode === 'model' guard — all skills with a rule trigger are checked
+  const triggered = skills.filter((skill) => {
     if (skill.triggerType === 'always') return true;
     if (!skill.trigger) return false;
 
     if (skill.triggerType === 'slash') {
-      const trigger = skill.trigger.startsWith('/') ? skill.trigger : `/${skill.trigger}`;
-      return msg.startsWith(trigger) || msgLower.startsWith(trigger.toLowerCase());
+      // Gap 2: match /command anywhere in message (not just at start), Thai-aware word boundary
+      const trigger = (skill.trigger.startsWith('/') ? skill.trigger : `/${skill.trigger}`).toLowerCase();
+      const pattern = new RegExp(
+        `(?:^|[\\s\\u0E00-\\u0E7F])${escapeRegex(trigger)}(?=[\\s\\u0E00-\\u0E7F]|$)`,
+        'i',
+      );
+      return pattern.test(msg);
     }
 
     return msgLower.includes(skill.trigger.toLowerCase());
   });
-}
 
-export function selectModelDiscoveredSkills(skills: Skill[], userMessage: string): Skill[] {
-  const normalizedMessage = tokenizeForSkillMatch(userMessage);
+  // Gap 8: log slash trigger collisions so operators can detect config issues
+  const seen = new Map<string, string>();
+  for (const skill of triggered) {
+    if (skill.triggerType === 'slash') {
+      const key = skill.trigger?.toLowerCase() ?? '';
+      if (seen.has(key)) {
+        console.warn(
+          `[skills] Slash trigger collision: "${key}" matches both "${seen.get(key)}" and "${skill.name}". Both will activate.`,
+        );
+      } else {
+        seen.set(key, skill.name);
+      }
+    }
+  }
 
-  return skills
-    .filter((skill) => skill.activationMode === 'model')
-    .map((skill) => ({
-      skill,
-      score: scoreSkillDiscovery(skill, normalizedMessage),
-    }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score || a.skill.name.localeCompare(b.skill.name))
-    .slice(0, 2)
-    .map((entry) => entry.skill);
+  return triggered;
 }
 
 export function buildAvailableSkillsCatalog(skills: Skill[]): string {
-  const catalogSkills = skills.filter((skill) => skill.activationMode === 'model');
+  // Gap 3: filter by discoveryMode instead of activationMode
+  const catalogSkills = skills.filter((skill) => skill.discoveryMode === 'catalog');
   if (catalogSkills.length === 0) return '';
 
   return (
     '\n\n<available_skills>\n'
     + catalogSkills
       .map((skill) => {
+        // Gap 4: enforce token budget — never use promptFragment in catalog
+        const catalogDescription = (skill.description ?? skill.name).slice(0, 200);
         const lines = [
           `<skill name="${escapeXml(skill.name)}">`,
-          `<description>${escapeXml(skill.description ?? skill.promptFragment.slice(0, 120))}</description>`,
+          `<description>${escapeXml(catalogDescription)}</description>`,
         ];
 
         if (skill.skillKind === 'package') {
@@ -80,23 +89,18 @@ export function buildAvailableSkillsCatalog(skills: Skill[]): string {
   );
 }
 
+// Rule-only activation — does not run LLM discovery.
+// For full activation including LLM discovery, use resolveSkillRuntimeContext().
 export function resolveActivatedSkills(
   skills: Skill[],
   userMessage: string,
   filesBySkillId: Record<string, SkillFile[]> = {},
 ): ActivatedSkill[] {
   const ruleTriggered = detectTriggeredSkills(skills, userMessage);
-  const modelDiscovered = selectModelDiscoveredSkills(skills, userMessage);
   const deduped = new Map<string, ActivatedSkill>();
 
   for (const skill of ruleTriggered) {
     deduped.set(skill.id, buildActivatedSkill(skill, 'rule', filesBySkillId[skill.id] ?? []));
-  }
-
-  for (const skill of modelDiscovered) {
-    if (!deduped.has(skill.id)) {
-      deduped.set(skill.id, buildActivatedSkill(skill, 'model', filesBySkillId[skill.id] ?? []));
-    }
   }
 
   return [...deduped.values()];
@@ -136,8 +140,24 @@ export async function resolveSkillRuntimeContext(
     };
   }
 
-  const candidateSkills = resolveActivatedSkills(skills, userMessage);
-  if (candidateSkills.length === 0) {
+  // Gap 1: rule-triggered skills (sync) + LLM-discovered catalog skills (async)
+  const ruleTriggered = detectTriggeredSkills(skills, userMessage);
+  const catalogSkills = skills.filter((s) => s.discoveryMode === 'catalog');
+  const { runLlmSkillDiscovery } = await import('./llm-discovery');
+  const modelDiscovered = await runLlmSkillDiscovery(catalogSkills, userMessage);
+
+  // Deduplicate: rule takes priority over model when the same skill is selected by both
+  const deduped = new Map<string, { skill: Skill; source: SkillActivationSource }>();
+  for (const skill of ruleTriggered) {
+    deduped.set(skill.id, { skill, source: 'rule' });
+  }
+  for (const skill of modelDiscovered) {
+    if (!deduped.has(skill.id)) {
+      deduped.set(skill.id, { skill, source: 'model' });
+    }
+  }
+
+  if (deduped.size === 0) {
     return {
       catalogBlock,
       activatedSkills: [],
@@ -147,8 +167,11 @@ export async function resolveSkillRuntimeContext(
     };
   }
 
-  const filesBySkillId = await getSkillFilesBySkillIds(candidateSkills.map((entry) => entry.skill.id));
-  const activatedSkills = resolveActivatedSkills(skills, userMessage, filesBySkillId);
+  const selectedEntries = [...deduped.values()];
+  const filesBySkillId = await getSkillFilesBySkillIds(selectedEntries.map((e) => e.skill.id));
+  const activatedSkills = selectedEntries.map(({ skill, source }) =>
+    buildActivatedSkill(skill, source, filesBySkillId[skill.id] ?? []),
+  );
 
   return {
     catalogBlock,
@@ -165,14 +188,21 @@ function buildActivatedSkill(
   files: SkillFile[],
 ): ActivatedSkill {
   const entryFile = files.find((file) => file.relativePath === skill.entryFilePath);
-  const instructionContent = skill.skillKind === 'package' && entryFile?.textContent
+  const baseContent = skill.skillKind === 'package' && entryFile?.textContent
     ? entryFile.textContent
     : skill.promptFragment;
+
+  // Gap 6 Phase A: surface bundled scripts so the LLM can reference or invoke them
+  const scriptFiles = files.filter((f) => f.fileKind === 'script' && f.textContent);
+  const scriptBlock = scriptFiles.length > 0
+    ? '\n\n**Bundled scripts** (reference for code interpreter or tool calls):\n'
+      + scriptFiles.map((f) => `\`\`\`\n# ${f.relativePath}\n${f.textContent}\n\`\`\``).join('\n')
+    : '';
 
   return {
     skill,
     activationSource,
-    instructionContent,
+    instructionContent: baseContent + scriptBlock,
     instructionPath: skill.skillKind === 'package' ? skill.entryFilePath : null,
     responseContracts: resolveSkillResponseContracts(skill, entryFile?.textContent),
   };
@@ -189,19 +219,8 @@ function resolveSkillResponseContracts(
   return parseSkillMarkdown(skill.promptFragment).responseContracts;
 }
 
-function scoreSkillDiscovery(skill: Skill, messageTokens: Set<string>): number {
-  if (messageTokens.size === 0) return 0;
-
-  const haystack = `${skill.name} ${skill.description ?? ''} ${skill.promptFragment.slice(0, 280)}`.toLowerCase();
-  let score = 0;
-
-  for (const token of messageTokens) {
-    if (haystack.includes(token)) {
-      score += token.length >= 6 ? 2 : 1;
-    }
-  }
-
-  return score;
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function escapeXml(value: string): string {

@@ -19,11 +19,18 @@ export type RoutingMetadata = {
   reason: string;
 };
 
+export type ActivatedSkillBadge = {
+  id: string;
+  name: string;
+  source: 'rule' | 'model';
+};
+
 export type ChatMessageMetadata = {
   routing?: RoutingMetadata;
   enhancedPrompt?: string;
   followUpSuggestions?: string[];
   responseFormat?: ResponseAuditSummary;
+  activatedSkills?: ActivatedSkillBadge[];
   // Compare mode
   compareGroupId?: string;
   compareModelId?: string;

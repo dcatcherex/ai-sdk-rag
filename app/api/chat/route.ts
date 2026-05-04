@@ -364,6 +364,15 @@ export async function POST(req: Request) {
     const messageMetadata = (): ChatMessageMetadata => ({
       routing: routingMetadata,
       ...(enhancedPrompt ? { enhancedPrompt } : {}),
+      ...(skillRuntime.activatedSkills.length > 0
+        ? {
+            activatedSkills: skillRuntime.activatedSkills.map((entry) => ({
+              id: entry.skill.id,
+              name: entry.skill.name,
+              source: entry.activationSource,
+            })),
+          }
+        : {}),
     });
 
     // ── Async KIE image generation path ─────────────────────────────────────

@@ -35,7 +35,6 @@ export {
   buildActiveSkillsBlock,
   resolveActivatedSkills,
   resolveSkillRuntimeContext,
-  selectModelDiscoveredSkills,
 } from './server/activation';
 
 export {

@@ -5,6 +5,7 @@ import type {
   CloneBehavior,
   Skill,
   SkillActivationMode,
+  SkillDiscoveryMode,
   SkillFile,
   SkillSource,
   SkillTriggerType,
@@ -38,6 +39,7 @@ export function mapSkillRow(row: typeof agentSkill.$inferSelect): Skill {
     triggerType: row.triggerType as SkillTriggerType,
     skillKind: row.skillKind as Skill['skillKind'],
     activationMode: row.activationMode as Skill['activationMode'],
+    discoveryMode: (row.discoveryMode ?? 'hidden') as SkillDiscoveryMode,
     syncStatus: row.syncStatus as Skill['syncStatus'],
     catalogScope: row.catalogScope as CatalogScope,
     catalogStatus: row.catalogStatus as CatalogStatus,
@@ -70,6 +72,7 @@ export function applySkillAttachmentOverrides(
   return {
     ...skill,
     activationMode: (attachment.activationModeOverride as SkillActivationMode | null) ?? skill.activationMode,
+    discoveryMode: (attachment.discoveryModeOverride as SkillDiscoveryMode | null) ?? skill.discoveryMode,
     triggerType,
     trigger,
   };

@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, real, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
 import { agent } from "./agents";
@@ -34,6 +34,7 @@ export const agentSkill = pgTable("agent_skill", {
   sourceId: text("source_id").references(() => skillSource.id, { onDelete: "set null" }),
   skillKind: text("skill_kind").notNull().default("inline"),
   activationMode: text("activation_mode").notNull().default("rule"),
+  discoveryMode: text("discovery_mode").notNull().default("hidden"),
   entryFilePath: text("entry_file_path").notNull().default("SKILL.md"),
   installedRef: text("installed_ref"),
   installedCommitSha: text("installed_commit_sha"),
@@ -91,6 +92,7 @@ export const agentSkillAttachment = pgTable("agent_skill_attachment", {
   skillId: text("skill_id").notNull().references(() => agentSkill.id, { onDelete: "cascade" }),
   isEnabled: boolean("is_enabled").notNull().default(true),
   activationModeOverride: text("activation_mode_override"),
+  discoveryModeOverride: text("discovery_mode_override"),
   triggerTypeOverride: text("trigger_type_override"),
   triggerOverride: text("trigger_override"),
   priority: integer("priority").notNull().default(0),
@@ -101,6 +103,29 @@ export const agentSkillAttachment = pgTable("agent_skill_attachment", {
   uniqueIndex("agent_skill_attachment_agentId_skillId_idx").on(table.agentId, table.skillId),
   index("agent_skill_attachment_agentId_idx").on(table.agentId),
   index("agent_skill_attachment_skillId_idx").on(table.skillId),
+]);
+
+export const skillEvalCase = pgTable("skill_eval_case", {
+  id: text("id").primaryKey(),
+  skillId: text("skill_id").notNull().references(() => agentSkill.id, { onDelete: "cascade" }),
+  message: text("message").notNull(),
+  shouldActivate: boolean("should_activate").notNull(),
+  label: text("label"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("skill_eval_case_skillId_idx").on(table.skillId),
+]);
+
+export const skillEvalRun = pgTable("skill_eval_run", {
+  id: text("id").primaryKey(),
+  skillId: text("skill_id").notNull().references(() => agentSkill.id, { onDelete: "cascade" }),
+  ranAt: timestamp("ran_at").notNull().defaultNow(),
+  precision: real("precision"),
+  recall: real("recall"),
+  f1: real("f1"),
+  results: jsonb("results"),
+}, (table) => [
+  index("skill_eval_run_skillId_idx").on(table.skillId),
 ]);
 
 export const agentSkillRelations = relations(agentSkill, ({ one, many }) => ({

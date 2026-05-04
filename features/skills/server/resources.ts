@@ -59,8 +59,14 @@ function resolveExplicitlyReferencedFiles(entry: ActivatedSkill, files: SkillFil
 }
 
 function selectRelevantReferenceFiles(files: SkillFile[], messageTokens: Set<string>): SkillFile[] {
-  return files
-    .filter((file) => file.fileKind === 'reference' && isPromptInjectableFile(file))
+  const injectable = files.filter((file) => file.fileKind === 'reference' && isPromptInjectableFile(file));
+
+  // Gap 5: Thai/non-ASCII messages produce zero tokens — fall back to first 2 reference files
+  if (messageTokens.size === 0) {
+    return injectable.slice(0, 2);
+  }
+
+  return injectable
     .map((file) => ({
       file,
       score: scoreReferenceFile(file, messageTokens),

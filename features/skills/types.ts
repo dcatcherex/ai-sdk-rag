@@ -1,6 +1,7 @@
 export type SkillTriggerType = 'slash' | 'keyword' | 'always';
 export type SkillKind = 'inline' | 'package';
 export type SkillActivationMode = 'rule' | 'model';
+export type SkillDiscoveryMode = 'catalog' | 'hidden';
 export type SkillSyncStatus = 'local' | 'synced' | 'update_available' | 'diverged' | 'error';
 export type SkillFileKind = 'skill' | 'reference' | 'asset' | 'script' | 'other';
 export type CatalogScope = 'personal' | 'system';
@@ -67,6 +68,7 @@ export type Skill = {
   sourceId: string | null;
   skillKind: SkillKind;
   activationMode: SkillActivationMode;
+  discoveryMode: SkillDiscoveryMode;
   entryFilePath: string;
   installedRef: string | null;
   installedCommitSha: string | null;
@@ -105,6 +107,7 @@ export type AgentSkillAttachmentInput = {
   skillId: string;
   isEnabled?: boolean;
   activationModeOverride?: SkillActivationMode | null;
+  discoveryModeOverride?: SkillDiscoveryMode | null;
   triggerTypeOverride?: SkillTriggerType | null;
   triggerOverride?: string | null;
   priority?: number;
@@ -117,6 +120,7 @@ export type AgentSkillAttachment = {
   skillId: string;
   isEnabled: boolean;
   activationModeOverride: SkillActivationMode | null;
+  discoveryModeOverride: SkillDiscoveryMode | null;
   triggerTypeOverride: SkillTriggerType | null;
   triggerOverride: string | null;
   priority: number;
@@ -131,6 +135,7 @@ export type CreateSkillInput = {
   category?: string | null;
   description: string;
   activationMode?: SkillActivationMode;
+  discoveryMode?: SkillDiscoveryMode;
   triggerType?: SkillTriggerType;
   trigger?: string | null;
   promptFragment: string;

@@ -22,6 +22,7 @@ const baseSkill = (overrides: Partial<Skill>): Skill => ({
   sourceId: null,
   skillKind: 'inline',
   activationMode: 'rule',
+  discoveryMode: 'hidden',
   entryFilePath: 'SKILL.md',
   installedRef: null,
   installedCommitSha: null,
@@ -66,18 +67,18 @@ const baseFile = (overrides: Partial<SkillFile>): SkillFile => ({
   ...overrides,
 });
 
-test('buildAvailableSkillsCatalog lists only model-discoverable attached skills', () => {
+test('buildAvailableSkillsCatalog lists only catalog-discoverable skills', () => {
   const catalog = buildAvailableSkillsCatalog([
     baseSkill({
       id: 'rule-skill',
       name: 'rule-skill',
-      activationMode: 'rule',
+      discoveryMode: 'hidden',
     }),
     baseSkill({
       id: 'package-skill',
       name: 'package-skill',
       skillKind: 'package',
-      activationMode: 'model',
+      discoveryMode: 'catalog',
       entryFilePath: '.agents/SKILL.md',
       description: 'Handle invoices & receipts',
     }),
@@ -93,7 +94,8 @@ test('resolveActivatedSkills uses full package entry file content on activation'
     id: 'package-skill',
     name: 'package-skill',
     skillKind: 'package',
-    activationMode: 'model',
+    triggerType: 'always',
+    trigger: null,
     promptFragment: 'Fallback body',
   });
 
@@ -111,7 +113,7 @@ test('resolveActivatedSkills uses full package entry file content on activation'
   );
 
   assert.equal(activated.length, 1);
-  assert.equal(activated[0]?.activationSource, 'model');
+  assert.equal(activated[0]?.activationSource, 'rule');
   assert.match(activated[0]?.instructionContent ?? '', /references\/checklist\.md/);
   assert.deepEqual(activated[0]?.responseContracts, []);
 
@@ -125,7 +127,8 @@ test('resolveActivatedSkills attaches parsed response contracts from package ski
     id: 'diagnosis-skill',
     name: 'diagnosis-skill',
     skillKind: 'package',
-    activationMode: 'model',
+    triggerType: 'always',
+    trigger: null,
     description: 'Diagnose plant issues',
   });
 
@@ -167,7 +170,8 @@ test('getResolvedSkillResourcesForPrompt prefers explicitly referenced non-scrip
     id: 'package-skill',
     name: 'package-skill',
     skillKind: 'package',
-    activationMode: 'model',
+    triggerType: 'always',
+    trigger: null,
   });
 
   const activated = resolveActivatedSkills(

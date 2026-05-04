@@ -4,7 +4,6 @@ export {
   detectTriggeredSkills,
   resolveActivatedSkills,
   resolveSkillRuntimeContext,
-  selectModelDiscoveredSkills,
 } from './activation';
 
 export {

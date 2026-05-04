@@ -30,6 +30,7 @@ import type { MediaAsset } from '@/features/gallery/types';
 import { EnhancedPromptChip, GenerationDetails } from './generation-details';
 import { ReadAloudButton } from './read-aloud-button';
 import { FollowUpChips } from './follow-up-chips';
+import { SkillBadges } from './skill-badges';
 import type { ReactionMap, PendingDelete } from './types';
 
 function hasSuccessfulInteractiveQuizTool(parts: ChatMessagePart[]): boolean {
@@ -146,6 +147,9 @@ export const MessageItem = ({
     isLastAssistant && status === 'ready'
       ? (message.metadata as ChatMessageMetadata | undefined)?.followUpSuggestions ?? []
       : [];
+  const activatedSkills = message.role === 'assistant'
+    ? (message.metadata as ChatMessageMetadata | undefined)?.activatedSkills ?? []
+    : [];
   const showFollowUpLoading = isLastAssistant && status === 'submitted';
   const showFollowUpSyncHint =
     isLastAssistant &&
@@ -186,6 +190,7 @@ export const MessageItem = ({
             />
           ))}
           {enhancedPrompt && <EnhancedPromptChip text={enhancedPrompt} />}
+          {activatedSkills.length > 0 && <SkillBadges skills={activatedSkills} />}
           {showFollowUpLoading && (
             <div className="mt-3 flex gap-2">
               {[1, 2, 3].map((i) => (

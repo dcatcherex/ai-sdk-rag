@@ -36,6 +36,7 @@ function createPackageSkill(overrides: Partial<Skill> = {}): Skill {
     sourceId: null,
     skillKind: "package",
     activationMode: "model",
+    discoveryMode: "catalog",
     entryFilePath: "SKILL.md",
     installedRef: null,
     installedCommitSha: null,

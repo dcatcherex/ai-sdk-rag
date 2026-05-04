@@ -7,6 +7,7 @@ import type {
   AgentSkillAttachmentInput,
   Skill,
   SkillActivationMode,
+  SkillDiscoveryMode,
   SkillTriggerType,
 } from '../types';
 import { applySkillAttachmentOverrides, normalizeAttachmentTrigger } from './shared';
@@ -33,6 +34,7 @@ export async function getSkillAttachmentsForAgent(
   return rows.map(({ attachment, skill }) => ({
     ...attachment,
     activationModeOverride: attachment.activationModeOverride as SkillActivationMode | null,
+    discoveryModeOverride: attachment.discoveryModeOverride as SkillDiscoveryMode | null,
     triggerTypeOverride: attachment.triggerTypeOverride as SkillTriggerType | null,
     skill: applySkillAttachmentOverrides(mapSkillRow(skill), attachment),
   }));
