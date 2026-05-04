@@ -40,7 +40,6 @@ type LiveWebSocketSession = {
   conn: WebSocket;
   close: () => void;
   sendRealtimeInput: (input: LiveRealtimeInput) => void;
-  sendClientContent: (input: { turnComplete: boolean; turns?: any[] }) => void;
 };
 
 const DEFAULT_VOICE = 'Aoede';
@@ -122,7 +121,7 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
       return;
     }
     try {
-      session.sendClientContent({ turnComplete: true, turns: [] });
+      session.sendRealtimeInput({ activityEnd: {} });
     } catch {
       // ignore
     }
@@ -496,13 +495,6 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
             if (input.activityEnd) console.log('[Live WS] -> send activityEnd');
             socket.send(JSON.stringify({ realtimeInput: input }));
           },
-          sendClientContent: (input: { turnComplete: boolean; turns?: any[] }) => {
-            if (socket.readyState !== WebSocket.OPEN) {
-              return;
-            }
-            console.log('[Live WS] -> send clientContent:', input);
-            socket.send(JSON.stringify({ clientContent: input }));
-          },
         };
 
         socket.onopen = () => {
@@ -515,6 +507,7 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
             model: `models/${model}`,
             generationConfig: {
               responseModalities: ['AUDIO'],
+              mediaResolution: 'MEDIA_RESOLUTION_MEDIUM',
               speechConfig: {
                 voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName ?? DEFAULT_VOICE } },
               },
@@ -529,7 +522,10 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
             systemInstruction: {
               parts: [{ text: buildSystemInstruction(historyRef.current) }],
             },
-            contextWindowCompression: { slidingWindow: {} },
+            contextWindowCompression: {
+              triggerTokens: '104857',
+              slidingWindow: { targetTokens: '52428' },
+            },
             sessionResumption: resumeHandle ? { handle: resumeHandle } : {},
           };
 

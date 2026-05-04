@@ -1,4 +1,4 @@
-import { GoogleGenAI, Modality } from '@google/genai';
+import { GoogleGenAI, MediaResolution, Modality } from '@google/genai';
 import { requireUser } from "@/lib/auth-server";
 
 const DEFAULT_LIVE_MODEL = 'gemini-3.1-flash-live-preview';
@@ -32,12 +32,17 @@ export async function GET() {
         model: liveModel,
         config: {
           responseModalities: [Modality.AUDIO],
+          mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
           inputAudioTranscription: {},
           outputAudioTranscription: {},
           realtimeInputConfig: {
             automaticActivityDetection: {
               disabled: true,
             },
+          },
+          contextWindowCompression: {
+            triggerTokens: '104857',
+            slidingWindow: { targetTokens: '52428' },
           },
           sessionResumption: {},
         },
