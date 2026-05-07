@@ -83,9 +83,13 @@ async function executeUserToolVersion(params: {
   userId: string;
   source: UserToolSource;
   threadId?: string | null;
+  agentId?: string | null;
 }): Promise<ToolExecutionResult> {
   const runId = await recordUserToolRunStart({
     toolSlug: `user-tool/${params.toolDef.slug}`,
+    toolId: params.toolDef.id,
+    toolVersionId: params.version.id,
+    agentId: params.agentId,
     userId: params.userId,
     threadId: params.threadId,
     source: params.source,
@@ -170,6 +174,7 @@ export async function executeUserToolById(params: {
     userId: params.userId,
     source: params.source,
     threadId: params.threadId,
+    agentId: params.agentId,
   });
 }
 
@@ -217,6 +222,7 @@ export async function buildUserCreatedToolSet(params: {
           userId: params.userId,
           source: params.source,
           threadId: params.threadId ?? null,
+          agentId: params.agentId ?? null,
         });
         return executed;
       },

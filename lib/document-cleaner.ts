@@ -6,8 +6,7 @@
  */
 
 import { generateText } from 'ai';
-
-const CLEAN_MODEL = 'google/gemini-2.5-flash-lite';
+import { getModelSlot } from '@/lib/ai-config';
 
 const CLEANING_SYSTEM = `You are a knowledge base document optimizer. Transform raw documents into clean, dense, LLM-search-optimized text.
 
@@ -57,7 +56,7 @@ export interface CleanResult {
 
 export async function cleanDocument(content: string): Promise<CleanResult> {
   const { text } = await generateText({
-    model: CLEAN_MODEL,
+    model: await getModelSlot('backgroundModel'),
     system: CLEANING_SYSTEM,
     prompt: content,
   });

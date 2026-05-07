@@ -1,5 +1,8 @@
 export type Gateway = "kie" | "openrouter" | "glm" | "vercel";
 
+/** Explicit capability tier — replaces the input-cost heuristic. */
+export type ModelCapabilityTier = "standard" | "strong" | "reasoning";
+
 export type ModelOption = {
   id: string;
   name: string;
@@ -13,6 +16,8 @@ export type ModelOption = {
   gateway: Gateway;
   description: string;
   capabilities?: Capability[];
+  /** Capability tier for routing decisions. Defaults to "standard" when absent. */
+  capabilityTier?: ModelCapabilityTier;
 };
 
 export type Capability =
@@ -51,6 +56,7 @@ export const availableModels = [
     provider: "google",
     gateway: "vercel",
     description: "Fast and efficient model",
+    capabilityTier: "standard",
   },
   {
     id: "google/gemini-3.1-flash-lite-preview",
@@ -64,6 +70,7 @@ export const availableModels = [
     provider: "google",
     gateway: "vercel",
     description: "Fast and efficient model",
+    capabilityTier: "standard",
   },
   {
     id: "google/gemini-3-pro-preview",
@@ -77,6 +84,7 @@ export const availableModels = [
     provider: "google",
     gateway: "vercel",
     description: "Fast and efficient model",
+    capabilityTier: "strong",
   },
   {
     id: "google/gemini-3.1-flash-image-preview",
@@ -96,6 +104,7 @@ export const availableModels = [
     provider: "google",
     gateway: "vercel",
     description: "Fast and efficient model",
+    capabilityTier: "strong",
   },
   {
     id: "google/gemini-3-pro-image",
@@ -110,6 +119,7 @@ export const availableModels = [
     provider: "google",
     gateway: "vercel",
     description: "Fast and efficient model",
+    capabilityTier: "strong",
   },
   {
     id: "openai/gpt-5.4-mini",
@@ -123,6 +133,7 @@ export const availableModels = [
     provider: "openai",
     gateway: "vercel",
     description: "Fast and efficient model",
+    capabilityTier: "strong",
   },
   {
     id: "openai/gpt-5.4-nano",
@@ -135,6 +146,7 @@ export const availableModels = [
     provider: "openai",
     gateway: "vercel",
     description: "Fast and efficient model",
+    capabilityTier: "standard",
   },
   {
     id: "openai/gpt-5.4",
@@ -148,6 +160,7 @@ export const availableModels = [
     provider: "openai",
     gateway: "vercel",
     description: "Frontier version of GPT-5 for well-defined tasks",
+    capabilityTier: "strong",
   },
   {
     id: "openai/gpt-image-2",
@@ -171,6 +184,7 @@ export const availableModels = [
     provider: "anthropic",
     gateway: "vercel",
     description: "Balanced performance and speed",
+    capabilityTier: "strong",
   },
   {
     id: "anthropic/claude-sonnet-4.6",
@@ -184,6 +198,7 @@ export const availableModels = [
     provider: "anthropic",
     gateway: "vercel",
     description: "Balanced performance and speed",
+    capabilityTier: "strong",
   },
   {
     id: "anthropic/claude-opus-4.6",
@@ -197,6 +212,7 @@ export const availableModels = [
     provider: "anthropic",
     gateway: "vercel",
     description: "Balanced performance and speed",
+    capabilityTier: "reasoning",
   },
   {
     id: "minimax/minimax-m2.7",
@@ -210,6 +226,7 @@ export const availableModels = [
     provider: "minimax",
     gateway: "vercel",
     description: "Balanced performance and speed",
+    capabilityTier: "standard",
   },
   {
     id: "minimax/minimax-m2.7-highspeed",
@@ -223,10 +240,11 @@ export const availableModels = [
     provider: "minimax",
     gateway: "vercel",
     description: "Balanced performance and speed",
+    capabilityTier: "strong",
   },
   {
     id: "zai/glm-5-turbo",
-    name: "GLM 5 Turbo", 
+    name: "GLM 5 Turbo",
     context: "203k",
     latency: 4.4,
     throughput: 142,
@@ -236,10 +254,11 @@ export const availableModels = [
     provider: "zai",
     gateway: "vercel",
     description: "Balanced performance and speed",
+    capabilityTier: "strong",
   },
   {
     id: "zai/glm-5",
-    name: "GLM 5", 
+    name: "GLM 5",
     context: "203k",
     latency: 9.2,
     throughput: 42,
@@ -249,10 +268,11 @@ export const availableModels = [
     provider: "zai",
     gateway: "vercel",
     description: "Balanced performance and speed",
+    capabilityTier: "strong",
   },
   {
     id: "moonshotai/kimi-k2.6",
-    name: "Kimi K2.6", 
+    name: "Kimi K2.6",
     context: "262k",
     latency: 1,
     throughput: 70,
@@ -262,6 +282,7 @@ export const availableModels = [
     provider: "moonshotai",
     gateway: "vercel",
     description: "Balanced performance and speed",
+    capabilityTier: "strong",
   },
   
 
@@ -275,11 +296,8 @@ export const transcriptionModel = "google/gemini-2.5-flash-lite";
  * Returns true for models capable enough to self-clarify vague prompts.
  * Prompt enhancement adds latency and a redundant LLM call for these models —
  * skip it and let the model handle ambiguity natively.
- *
- * Uses input cost ($/1M tokens) as a capability proxy: ≥ $0.50 → strong.
- * Update model costs in availableModels to keep this current; no manual list needed.
  */
 export function isStrongModel(modelId: string): boolean {
   const model = availableModels.find((m) => m.id === modelId);
-  return (model?.inputCost ?? 0) >= 0.5;
+  return (model?.capabilityTier ?? 'standard') !== 'standard';
 }

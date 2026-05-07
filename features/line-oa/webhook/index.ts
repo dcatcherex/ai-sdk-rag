@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { messagingApi, validateSignature } from '@line/bot-sdk';
 import { db } from '@/lib/db';
 import { brandAsset, lineAccountLink, lineOaChannel, lineRichMenu, lineUserAgentSession, lineUserMenu } from '@/db/schema';
-import { chatModel } from '@/lib/ai';
+import { getModelSlot } from '@/lib/ai-config';
 import type { AgentRow, LinkedUser, Sender } from './types';
 import { handleFollowEvent } from './events/follow';
 import { handleMessageEvent, wantsImageGeneration } from './events/message';
@@ -90,8 +90,8 @@ async function processEvents(
       )[0]?.url ?? undefined
     : undefined;
 
-  const systemPrompt = resolveAgentBaseSystemPrompt({ agent: agentRow });
-  const modelId = agentRow?.modelId ?? chatModel;
+  const systemPrompt = await resolveAgentBaseSystemPrompt({ agent: agentRow });
+  const modelId = agentRow?.modelId ?? await getModelSlot('chatModel') ?? 'google/gemini-3.1-flash-lite-preview';
 
   // ② Sender shown on every message bubble (LINE limits sender.name to 20 chars)
   const sender: Sender | undefined = agentRow?.name
@@ -290,8 +290,8 @@ async function resolveEffectiveAgent(input: {
     if (userAgent) {
       return {
         agentRow: userAgent as AgentRow,
-        systemPrompt: resolveAgentBaseSystemPrompt({ agent: userAgent }),
-        modelId: userAgent.modelId ?? chatModel,
+        systemPrompt: await resolveAgentBaseSystemPrompt({ agent: userAgent }),
+        modelId: userAgent.modelId ?? await getModelSlot('chatModel') ?? 'google/gemini-3.1-flash-lite-preview',
         sender: userAgent.name ? { name: userAgent.name.slice(0, 20) } : undefined,
       };
     }

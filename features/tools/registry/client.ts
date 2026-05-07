@@ -30,6 +30,7 @@ import { brandPhotosManifest } from '@/features/brand-photos/manifest';
 import { domainProfilesManifest } from '@/features/domain-profiles/manifest';
 import { collaborationManifest } from '@/features/collaboration/manifest';
 import { cropPriceManifest } from '@/features/crop-price/manifest';
+import { caseWorkspaceManifest } from '@/features/case-workspace/manifest';
 
 /** All registered tool manifests */
 export const TOOL_MANIFESTS: ToolManifest[] = [
@@ -58,6 +59,7 @@ export const TOOL_MANIFESTS: ToolManifest[] = [
   domainProfilesManifest,
   collaborationManifest,
   cropPriceManifest,
+  caseWorkspaceManifest,
 ];
 
 /** Map from tool id → manifest */

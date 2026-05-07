@@ -2,13 +2,12 @@ import { generateObject } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { z } from 'zod/v4';
 import type { Skill } from '../types';
+import { getModelSlot } from '@/lib/ai-config';
 
 const openrouter = createOpenAI({
   baseURL: 'https://openrouter.ai/api/v1',
   apiKey: process.env.OPENAI_API_KEY!,
 });
-
-const discoveryModel = openrouter('google/gemini-2.5-flash-lite');
 
 const discoveryResultSchema = z.object({
   skillIds: z.array(z.string()),
@@ -21,6 +20,8 @@ export async function runLlmSkillDiscovery(
   userMessage: string,
 ): Promise<Skill[]> {
   if (catalogSkills.length === 0 || !userMessage.trim()) return [];
+
+  const discoveryModel = openrouter(await getModelSlot('backgroundModel'));
 
   const catalog = catalogSkills
     .map((s) => `ID: ${s.id}\nName: ${s.name}\nDescription: ${s.description ?? s.name}`)

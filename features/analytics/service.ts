@@ -5,6 +5,7 @@ import { generateText } from 'ai';
 import { db } from '@/lib/db';
 import { contentPieceMetric, abVariant, contentPiece } from '@/db/schema';
 import { chatModel } from '@/lib/ai';
+import { getModelSlot } from '@/lib/ai-config';
 import type {
   ContentPieceMetric,
   TrackMetricInput,
@@ -288,7 +289,7 @@ Respond in this exact JSON format:
 Score should be 0-100 based on overall performance quality.`;
 
   const { text } = await generateText({
-    model: chatModel,
+    model: await getModelSlot('chatModel') ?? chatModel,
     prompt,
   });
 

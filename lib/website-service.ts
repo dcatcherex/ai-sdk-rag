@@ -16,14 +16,14 @@ import { siteDataJsonSchema } from '@/features/website-builder/schema';
 import type { SiteDataJson, WebsiteRecord, SiteActionSource } from '@/features/website-builder/types';
 import type { ToolExecutionResult } from '@/features/tools/registry/types';
 
-const WEBSITE_MODEL = 'google/gemini-2.5-flash-lite';
+import { getModelSlot } from '@/lib/ai-config';
 
-function getAiModel() {
+async function getAiModel() {
   const openai = createOpenAI({
     baseURL: process.env.OPENAI_BASE_URL ?? 'https://openrouter.ai/api/v1',
     apiKey: process.env.OPENAI_API_KEY ?? '',
   });
-  return openai(WEBSITE_MODEL);
+  return openai(await getModelSlot('backgroundModel'));
 }
 
 type ServiceContext = {
@@ -90,7 +90,7 @@ async function logGeneration(options: {
     userId: options.userId,
     action: options.action,
     promptText: options.promptText,
-    modelId: WEBSITE_MODEL,
+    modelId: await getModelSlot('backgroundModel'),
     promptTokens: options.promptTokens,
     completionTokens: options.completionTokens,
     creditsDeducted: options.creditsDeducted,
@@ -129,7 +129,7 @@ Template: ${input.templateSlug}
 Current date: ${new Date().toISOString()}`;
 
   const { object: siteData, usage } = await generateObject({
-    model: getAiModel(),
+    model: await getAiModel(),
     schema: siteDataJsonSchema,
     system: systemPrompt,
     prompt: userPrompt,
@@ -211,7 +211,7 @@ ${JSON.stringify(currentData, null, 2)}
 User edit request: ${input.editRequest}`;
 
   const { object: updatedData, usage } = await generateObject({
-    model: getAiModel(),
+    model: await getAiModel(),
     schema: siteDataJsonSchema,
     system: systemPrompt,
     prompt: userPrompt,

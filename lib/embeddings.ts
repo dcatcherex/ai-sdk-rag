@@ -11,14 +11,11 @@
  */
 
 import { embed, embedMany } from 'ai';
+import { getModelSlot } from '@/lib/ai-config';
 
-// Configuration - Using Vercel AI Gateway (no separate API key needed!)
-const EMBEDDING_MODEL = 'mistral/mistral-embed'; // 1024 dimensions
-
-// Using Mistral because:
-// - Supports 1024 dimensions (matches our existing vectors in DB)
-// - Available via AI Gateway (no extra API keys)
-// - Good quality for semantic search
+// WARNING: Changing embeddingModel requires re-indexing all document vectors.
+// The current default (mistral/mistral-embed) produces 1024-dim vectors — do not
+// change the DB slot without also running a full document re-embedding migration.
 
 export interface EmbeddingOptions {
   model?: string;
@@ -38,7 +35,7 @@ export async function generateEmbedding(
     throw new Error(`Invalid text for embedding: ${typeof text} - "${text}"`);
   }
 
-  const model = options.model || EMBEDDING_MODEL;
+  const model = options.model || await getModelSlot('embeddingModel');
 
   try {
     // Using AI Gateway - model string is automatically routed
@@ -69,7 +66,7 @@ export async function generateEmbeddings(
   texts: string[],
   options: EmbeddingOptions = {}
 ): Promise<number[][]> {
-  const model = options.model || EMBEDDING_MODEL;
+  const model = options.model || await getModelSlot('embeddingModel');
 
   try {
     // Using AI Gateway for batch embeddings

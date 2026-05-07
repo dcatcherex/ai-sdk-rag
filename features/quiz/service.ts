@@ -28,7 +28,7 @@ export type QuizServiceOptions = {
 
 // ── Internal grounding helpers ────────────────────────────────────────────────
 
-const QUIZ_MODEL = 'google/gemini-2.5-flash-lite';
+import { getModelSlot } from '@/lib/ai-config';
 const DEFAULT_GROUNDING_LIMIT = 4;
 
 type GroundingReference = {
@@ -118,7 +118,7 @@ export async function runGeneratePracticeQuiz(
     .join('\n\n');
 
   const { output } = await generateText({
-    model: QUIZ_MODEL,
+    model: await getModelSlot('backgroundModel'),
     system:
       "You create high-quality exam practice content. Return only valid structured data that matches the schema. Make questions clear, fair, and aligned to the requested difficulty. For MCQ questions, provide exactly 4 options. For true/false questions, provide options [\"True\", \"False\"]. If source material is provided, base the quiz on it and avoid inventing unsupported facts. When the source material includes numbered excerpts like [1] or [2], add the matching excerpt numbers to each question's references array. Use only the provided excerpt numbers and leave references empty when support is weak or absent.",
     output: Output.object({ schema: quizOutputSchema }),
@@ -153,7 +153,7 @@ export async function runGradePracticeAnswer(
   );
 
   const { output } = await generateText({
-    model: QUIZ_MODEL,
+    model: await getModelSlot('backgroundModel'),
     system:
       "You are a fair exam grader. Grade the answer against the question, expected answer, rubric, and any provided source material. Return only valid structured data that matches the schema. Keep feedback concise and actionable. If source material is provided, prioritize it over unsupported assumptions. When the source material includes numbered excerpts like [1] or [2], add the matching excerpt numbers to each strengths, missingPoints, and improvements item via the references array. Use only the provided excerpt numbers and leave references empty when support is weak or absent.",
     output: Output.object({ schema: gradingOutputSchema }),
@@ -189,7 +189,7 @@ export async function runCreateStudyPlan(
   );
 
   const { output } = await generateText({
-    model: QUIZ_MODEL,
+    model: await getModelSlot('backgroundModel'),
     system:
       "You create practical exam study plans. Return only valid structured data that matches the schema. Prioritize weak topics, distribute workload realistically, and keep each day focused. If source material is provided, align the plan to it and emphasize document-backed topics. When the source material includes numbered excerpts like [1] or [2], add the matching excerpt numbers to each task's references array. Use only the provided excerpt numbers and leave references empty when support is weak or absent.",
     output: Output.object({ schema: studyPlanOutputSchema }),
@@ -245,7 +245,7 @@ export async function runAnalyzeLearningGaps(
     .join('\n\n');
 
   const { output } = await generateText({
-    model: QUIZ_MODEL,
+    model: await getModelSlot('backgroundModel'),
     system:
       "You analyze learning gaps for exam preparation. Return only valid structured data that matches the schema. Diagnose the learner's weakest areas, identify likely misconceptions, and recommend the next best revision actions. If source material is provided, anchor the diagnosis to it and avoid unsupported claims. When the source material includes numbered excerpts like [1] or [2], add the matching excerpt numbers to each weak area, misconception, and recommended action via the references array. Use only the provided excerpt numbers and leave references empty when support is weak or absent.",
     output: Output.object({ schema: learningGapOutputSchema }),
@@ -282,7 +282,7 @@ export async function runGenerateFlashcards(
     .join('\n\n');
 
   const { output } = await generateText({
-    model: QUIZ_MODEL,
+    model: await getModelSlot('backgroundModel'),
     system:
       "You create concise, high-quality study flashcards. Return only valid structured data that matches the schema. Make the front side a clear recall prompt and the back side a concise but informative answer. If source material is provided, base the flashcards on it and avoid inventing unsupported facts. When the source material includes numbered excerpts like [1] or [2], add the matching excerpt numbers to each flashcard's references array. Use only the provided excerpt numbers and leave references empty when support is weak or absent.",
     output: Output.object({ schema: flashcardOutputSchema }),

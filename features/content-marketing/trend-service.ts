@@ -28,10 +28,7 @@ import { trendCache } from '@/db/schema';
 import { env } from '@/lib/env';
 import { getMockTrends } from './mock-trends';
 import type { TrendItem, TrendPlatform, GetTrendsInput, GetTrendsResult } from './types';
-
-// ── Model ─────────────────────────────────────────────────────────────────────
-
-const TREND_AI_MODEL = 'google/gemini-2.5-flash-lite' as Parameters<typeof generateText>[0]['model'];
+import { getModelSlot } from '@/lib/ai-config';
 
 // ── Week key helpers ──────────────────────────────────────────────────────────
 
@@ -362,7 +359,7 @@ ${needsIdeas.map((t, i) => `${i + 1}. "${t.title}" on ${t.platform} — ${t.desc
 Respond ONLY with a JSON array (no markdown fences):
 [{"index":1,"ideas":["idea one","idea two","idea three"]},{"index":2,"ideas":[...]},...]`;
 
-    const { text } = await generateText({ model: TREND_AI_MODEL, prompt });
+    const { text } = await generateText({ model: await getModelSlot('backgroundModel') as Parameters<typeof generateText>[0]['model'], prompt });
 
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) return items;

@@ -18,22 +18,12 @@ import type {
   WorkspaceTextAssistResult,
 } from './types';
 
-const WORKSPACE_TEXT_ASSIST_MODEL = 'google/gemini-2.5-flash-lite';
+import { getModelSlot } from '@/lib/ai-config';
+
 const WORKSPACE_IMAGE_ASSIST_MODEL = 'nano-banana-2';
 
-function getWorkspaceAssistModel(kind: WorkspaceTextAssistKind): string {
-  switch (kind) {
-    case 'agent-description':
-    case 'agent-starters':
-    case 'skill-description':
-      return WORKSPACE_TEXT_ASSIST_MODEL;
-  }
-}
-
-function ensureModelExists(modelId: string): string {
-  return availableModels.some((model) => model.id === modelId)
-    ? modelId
-    : WORKSPACE_TEXT_ASSIST_MODEL;
+function ensureModelExists(modelId: string, fallback: string): string {
+  return availableModels.some((model) => model.id === modelId) ? modelId : fallback;
 }
 
 function ensureImageModelExists(modelId?: string): string {
@@ -65,7 +55,8 @@ export async function runWorkspaceTextAssist(
 ): Promise<WorkspaceTextAssistResult> {
   const typedInput = input as WorkspaceTextAssistRequest;
   const promptConfig = buildWorkspaceTextAssistPrompt(typedInput);
-  const modelId = ensureModelExists(getWorkspaceAssistModel(input.kind));
+  const backgroundModel = await getModelSlot('backgroundModel');
+  const modelId = ensureModelExists(backgroundModel, backgroundModel);
 
   const { output } = await generateText({
     model: modelId,

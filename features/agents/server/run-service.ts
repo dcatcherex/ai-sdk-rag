@@ -1,7 +1,8 @@
 import 'server-only';
 
 import { convertToModelMessages, generateText, stepCountIs, type ToolSet } from 'ai';
-import { buildResponsePlan } from '@/features/response-format';
+import { getModelSlot } from '@/lib/ai-config';
+import { buildResponsePlan } from '@/features/response-format/server/select';
 import { listResponseWorkflowCapabilities } from '@/features/privacy-governance/access-control';
 import { getCreditCost } from '@/lib/credits';
 import { buildBrandImageContext, buildImageBrandSuffix } from '@/features/brands/service';
@@ -12,10 +13,11 @@ import {
   mergeAgentDocumentIds,
   resolveAgentBaseSystemPrompt,
 } from './runtime';
-import { resolveRunModel } from './run-model';
+import { resolveRunModel, type ModelSelection } from './run-model';
 import { resolveRunContext } from './run-context';
 import { buildPreparedRunTools, resolveRunToolIds } from './run-tools';
 import { buildPreparedRunPrompt } from './run-prompt';
+import type { ResolvedPromptContext } from '@/features/chat/server/prompt-context';
 import {
   inferChatImageTaskHint,
   resolveAdminImageModel,
@@ -90,8 +92,10 @@ export type PreparedAgentRun = {
   supportsTools: boolean;
   modelId: string;
   routingReason: string;
+  modelSelection: ModelSelection;
   creditCost: number;
   systemPrompt: string;
+  resolvedPromptContext: ResolvedPromptContext;
   memoryContext: string;
   skillRuntime: SkillRuntimeContext;
   tools?: ToolSet;
@@ -295,13 +299,14 @@ export async function prepareAgentRun(request: AgentRunRequest): Promise<Prepare
     skillRuntime,
     userScores: channelContext.userScores ?? new Map<string, number>(),
     getCreditCostForModel: getCreditCost,
+    defaultChatModel: await getModelSlot('chatModel') ?? undefined,
   });
 
   const modelId = resolvedRunModel.modelId;
   const supportsTools = resolvedRunModel.supportsTools;
   const baseSystemPrompt = channelContext.baseSystemPromptOverride
-    ?? resolveAgentBaseSystemPrompt({ agent: resolvedAgent });
-  const systemPrompt = buildPreparedRunPrompt({
+    ?? await resolveAgentBaseSystemPrompt({ agent: resolvedAgent });
+  const resolvedPromptContext = buildPreparedRunPrompt({
     request,
     baseSystemPrompt,
     activeBrand,
@@ -322,6 +327,7 @@ export async function prepareAgentRun(request: AgentRunRequest): Promise<Prepare
     },
     brandPromptInstruction: brandResolution?.promptInstruction,
   });
+  const systemPrompt = resolvedPromptContext.systemPrompt;
 
   const tools = await buildPreparedRunTools({
     supportsTools,
@@ -349,8 +355,10 @@ export async function prepareAgentRun(request: AgentRunRequest): Promise<Prepare
     supportsTools,
     modelId,
     routingReason: resolvedRunModel.routingReason,
+    modelSelection: resolvedRunModel.modelSelection,
     creditCost: resolvedRunModel.creditCost,
     systemPrompt,
+    resolvedPromptContext,
     memoryContext,
     skillRuntime,
     ...(tools ? { tools } : {}),

@@ -12,7 +12,7 @@ import { searchDocumentsWithFilter } from '@/lib/vector-store';
 import type { BrandGuardrail, GuardrailCheckResult, GuardrailViolation } from './types';
 import type { CreateGuardrailInput, UpdateGuardrailInput } from './schema';
 
-const GUARDRAIL_MODEL = 'google/gemini-2.5-flash-lite';
+import { getModelSlot } from '@/lib/ai-config';
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────
 
@@ -169,7 +169,7 @@ ${content.slice(0, 3000)}
 Return ONLY the raw JSON array, no markdown, no code fences.`;
 
       const { text } = await generateText({
-        model: GUARDRAIL_MODEL as Parameters<typeof generateText>[0]['model'],
+        model: await getModelSlot('backgroundModel') as Parameters<typeof generateText>[0]['model'],
         prompt,
       });
 

@@ -121,4 +121,10 @@ export const TOOL_PAGE_LOADERS: Record<string, ToolPageLoader> = {
     );
     return CropPriceToolPage;
   },
+  'case-workspace': async () => {
+    const { CaseWorkspaceToolPage } = await import(
+      '@/features/case-workspace/components/case-workspace-tool-page'
+    );
+    return CaseWorkspaceToolPage;
+  },
 };

@@ -1,9 +1,11 @@
 export type WorkspaceTextAssistKind =
   | 'agent-description'
   | 'agent-starters'
-  | 'skill-description';
+  | 'skill-description'
+  | 'tool-description'
+  | 'tool-input-help';
 
-export type WorkspaceAssistEntityType = 'agent' | 'skill';
+export type WorkspaceAssistEntityType = 'agent' | 'skill' | 'tool';
 
 export type WorkspaceTextAssistContext = {
   entityId?: string;

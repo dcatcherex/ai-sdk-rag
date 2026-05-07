@@ -6,8 +6,8 @@ import { isAdminEmail } from '@/lib/admin';
 import { agent, user, userPreferences } from '@/db/schema';
 import { db } from '@/lib/db';
 import { chatModel, maxSteps } from '@/lib/ai';
+import { getModelSlot } from '@/lib/ai-config';
 import { getCreditCost, getUserBalance, deductCredits } from '@/lib/credits';
-import { createAgentTools } from '@/lib/agent-tools';
 import { buildToolSet } from '@/lib/tools';
 import { toolDisabledModels } from '@/features/chat/server/routing';
 import { getSystemPrompt } from '@/lib/prompt';
@@ -919,7 +919,7 @@ export const generateSupportReply = async (options: {
     rerankEnabled: false,
   };
 
-  const modelId = activeAgent?.modelId ?? process.env.LINE_OA_MODEL_ID?.trim() ?? chatModel;
+  const modelId = activeAgent?.modelId ?? process.env.LINE_OA_MODEL_ID?.trim() ?? await getModelSlot('chatModel') ?? chatModel;
   const creditCost = getCreditCost(modelId);
   const balance = await getUserBalance(ownerUserId);
   if (balance < creditCost) {
@@ -928,7 +928,13 @@ export const generateSupportReply = async (options: {
 
   const supportsTools = !toolDisabledModels.has(modelId);
   const tools = activeAgent
-    ? createAgentTools(activeAgent.enabledTools, ownerUserId, activeAgent.documentIds)
+    ? buildToolSet({
+        enabledToolIds: activeAgent.enabledTools,
+        userId: ownerUserId,
+        documentIds: activeAgent.documentIds ?? undefined,
+        source: 'agent',
+        certificateMaxRecipients: 50,
+      })
     : buildToolSet({
         enabledToolIds: prefs.enabledToolIds ?? null,
         userId: ownerUserId,
@@ -958,7 +964,7 @@ export const generateSupportReply = async (options: {
     .join('\n');
 
   const system = [
-    activeAgent?.systemPrompt ?? getSystemPrompt(),
+    activeAgent?.systemPrompt ?? await getSystemPrompt(),
     'You are replying to a customer inside a LINE official account support inbox.',
     'Reply in the same language as the customer when practical.',
     'Be concise, polite, and action-oriented.',

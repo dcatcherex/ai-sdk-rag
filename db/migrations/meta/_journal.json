@@ -267,6 +267,13 @@
       "when": 1777500000000,
       "tag": "0044_structured_starter_tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1778033605923,
+      "tag": "0045_polite_black_bolt",
+      "breakpoints": true
     }
   ]
 }

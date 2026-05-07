@@ -2,7 +2,7 @@ import { generateText, Output, tool } from 'ai';
 import { z } from 'zod';
 import { searchDocumentsByIds, type SearchResult } from '@/lib/vector-store';
 
-const EXAM_PREP_MODEL = 'google/gemini-2.5-flash-lite';
+import { getModelSlot } from '@/lib/ai-config';
 const DEFAULT_GROUNDING_LIMIT = 4;
 
 const referenceIdsSchema = z.array(z.number().int().min(1)).default([]);
@@ -183,7 +183,7 @@ export function createExamPrepTools(options?: ExamPrepToolOptions) {
           .filter((value): value is string => Boolean(value))
           .join('\n\n');
         const { output } = await generateText({
-          model: EXAM_PREP_MODEL,
+          model: await getModelSlot('backgroundModel'),
           system: 'You create high-quality exam practice content. Return only valid structured data that matches the schema. Make questions clear, fair, and aligned to the requested difficulty. For MCQ questions, provide exactly 4 options. For true/false questions, provide options ["True", "False"]. If source material is provided, base the quiz on it and avoid inventing unsupported facts. When the source material includes numbered excerpts like [1] or [2], add the matching excerpt numbers to each question\'s references array. Use only the provided excerpt numbers and leave references empty when support is weak or absent.',
           output: Output.object({ schema: quizOutputSchema }),
           prompt: [
@@ -222,7 +222,7 @@ export function createExamPrepTools(options?: ExamPrepToolOptions) {
           options,
         );
         const { output } = await generateText({
-          model: EXAM_PREP_MODEL,
+          model: await getModelSlot('backgroundModel'),
           system: 'You are a fair exam grader. Grade the answer against the question, expected answer, rubric, and any provided source material. Return only valid structured data that matches the schema. Keep feedback concise and actionable. If source material is provided, prioritize it over unsupported assumptions. When the source material includes numbered excerpts like [1] or [2], add the matching excerpt numbers to each strengths, missingPoints, and improvements item via the references array. Use only the provided excerpt numbers and leave references empty when support is weak or absent.',
           output: Output.object({ schema: gradingOutputSchema }),
           prompt: [
@@ -262,7 +262,7 @@ export function createExamPrepTools(options?: ExamPrepToolOptions) {
           options,
         );
         const { output } = await generateText({
-          model: EXAM_PREP_MODEL,
+          model: await getModelSlot('backgroundModel'),
           system: 'You create practical exam study plans. Return only valid structured data that matches the schema. Prioritize weak topics, distribute workload realistically, and keep each day focused. If source material is provided, align the plan to it and emphasize document-backed topics. When the source material includes numbered excerpts like [1] or [2], add the matching excerpt numbers to each task\'s references array. Use only the provided excerpt numbers and leave references empty when support is weak or absent.',
           output: Output.object({ schema: studyPlanOutputSchema }),
           prompt: [
@@ -323,7 +323,7 @@ export function createExamPrepTools(options?: ExamPrepToolOptions) {
           .join('\n\n');
 
         const { output } = await generateText({
-          model: EXAM_PREP_MODEL,
+          model: await getModelSlot('backgroundModel'),
           system: 'You analyze learning gaps for exam preparation. Return only valid structured data that matches the schema. Diagnose the learner\'s weakest areas, identify likely misconceptions, and recommend the next best revision actions. If source material is provided, anchor the diagnosis to it and avoid unsupported claims. When the source material includes numbered excerpts like [1] or [2], add the matching excerpt numbers to each weak area, misconception, and recommended action via the references array. Use only the provided excerpt numbers and leave references empty when support is weak or absent.',
           output: Output.object({ schema: learningGapOutputSchema }),
           prompt: [
@@ -366,7 +366,7 @@ export function createExamPrepTools(options?: ExamPrepToolOptions) {
           .join('\n\n');
 
         const { output } = await generateText({
-          model: EXAM_PREP_MODEL,
+          model: await getModelSlot('backgroundModel'),
           system: 'You create concise, high-quality study flashcards. Return only valid structured data that matches the schema. Make the front side a clear recall prompt and the back side a concise but informative answer. If source material is provided, base the flashcards on it and avoid inventing unsupported facts. When the source material includes numbered excerpts like [1] or [2], add the matching excerpt numbers to each flashcard\'s references array. Use only the provided excerpt numbers and leave references empty when support is weak or absent.',
           output: Output.object({ schema: flashcardOutputSchema }),
           prompt: [

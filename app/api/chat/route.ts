@@ -416,11 +416,18 @@ export async function POST(req: Request) {
         stream: createUIMessageStream<ChatMessage>({
           originalMessages: messages,
           onFinish: async ({ messages: updatedMessages }) => {
-            await finalizeImageChatTurn({
+            const imageResult = await finalizeImageChatTurn({
               updatedMessages,
               finishCtx,
               toolMessage: toolOutput.message,
             });
+            if (!imageResult.ok) {
+              console.error('[chat] fatal finalization failure', {
+                step: imageResult.failure.step,
+                threadId: finishCtx.threadId,
+                error: imageResult.failure.error,
+              });
+            }
           },
           execute: ({ writer }) => {
             writer.write({ type: 'start', messageMetadata: messageMetadata() });
@@ -466,11 +473,18 @@ export async function POST(req: Request) {
       messageMetadata,
       onFinish: async ({ messages: updatedMessages }) => {
         const usage = (await result.usage) as { promptTokens?: number; completionTokens?: number; totalTokens?: number } | null;
-        await finalizeTextChatTurn({
+        const textResult = await finalizeTextChatTurn({
           updatedMessages: updatedMessages as ChatMessage[],
           usage,
           finishCtx,
         });
+        if (!textResult.ok) {
+          console.error('[chat] fatal finalization failure', {
+            step: textResult.failure.step,
+            threadId: finishCtx.threadId,
+            error: textResult.failure.error,
+          });
+        }
       },
     });
   } catch (error) {

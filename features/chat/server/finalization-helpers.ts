@@ -1,5 +1,5 @@
-import { generateFollowUpSuggestions } from '@/lib/follow-up-suggestions';
-import { buildResponseAuditSummary, buildResponsePlan } from '@/features/response-format';
+import { buildResponseAuditSummary } from '@/features/response-format/server/audit';
+import { buildResponsePlan } from '@/features/response-format/server/select';
 import type { ChatMessage, ChatMessageMetadata } from '@/features/chat/types';
 import type { ResponseAuditSummary } from '@/features/response-format/server/audit';
 
@@ -19,12 +19,16 @@ export async function prepareTextMessagesForFinalization({
   messages,
   lastUserPrompt,
   followUpSuggestionsEnabled,
-  generateSuggestions = generateFollowUpSuggestions,
+  generateSuggestions,
 }: PrepareTextMessagesOptions): Promise<PrepareTextMessagesResult> {
   const lastAssistantIdx = messages.map((message) => message.role).lastIndexOf('assistant');
   let messagesWithSuggestions = messages;
 
   if (lastAssistantIdx !== -1 && followUpSuggestionsEnabled) {
+    if (!generateSuggestions) {
+      const { generateFollowUpSuggestions } = await import('@/lib/follow-up-suggestions');
+      generateSuggestions = generateFollowUpSuggestions;
+    }
     const contextStr = messages
       .slice(-6)
       .map((message) => {

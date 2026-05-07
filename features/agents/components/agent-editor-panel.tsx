@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowLeftIcon, BotIcon } from 'lucide-react';
+import { ArrowLeftIcon, BotIcon, SparklesIcon } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import {
   AlertDialog,
@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { AgentOptimizerPanel } from './agent-optimizer-panel';
 import { AgentForm } from './agent-form';
 import { AGENT_EDITOR_SECTIONS, type AgentEditorSectionId } from './agent-editor-sections';
 import type { Agent, CreateAgentInput } from '../types';
@@ -93,6 +94,21 @@ export function AgentEditorPanel({ agent, isPending, onBack, onSubmit }: AgentEd
           layout="panel"
           submitLabel={isEdit ? 'Save changes' : 'Create agent'}
           visibleSections={AGENT_EDITOR_SECTIONS.map((section) => section.id)}
+          customSections={agent ? [
+            {
+              id: 'optimizer',
+              icon: SparklesIcon,
+              label: 'Optimize',
+              description: 'AI-powered analysis and improvement of prompt, skills, and tools.',
+              content: (
+                <AgentOptimizerPanel
+                  agentId={agent.id}
+                  apiBase="/api/agents"
+                  initialTestMessage={agent.starterTasks?.[0]?.prompt}
+                />
+              ),
+            },
+          ] : []}
         />
       </div>
 

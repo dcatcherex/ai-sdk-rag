@@ -1,12 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  buildFallbackResponsePlan,
-  buildResponsePlan,
-  renderResponseForLine,
-  renderResponseForWeb,
-} from '@/features/response-format';
+import { buildFallbackResponsePlan } from '@/features/response-format/service';
+import { buildResponsePlan } from '@/features/response-format/server/select';
+import { renderResponseForLine } from '@/features/response-format/channels/line';
+import { renderResponseForWeb } from '@/features/response-format/channels/web';
 
 test('buildFallbackResponsePlan marks short replies as plain text', () => {
   const plan = buildFallbackResponsePlan({

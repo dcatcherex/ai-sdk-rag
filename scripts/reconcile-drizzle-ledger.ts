@@ -210,6 +210,29 @@ const migrations: MigrationSpec[] = [
     ],
   },
   {
+    id: 44,
+    tag: '0044_structured_starter_tasks',
+    when: 1777500000000,
+    file: '0044_structured_starter_tasks.sql',
+    mode: 'backfill',
+    checks: [
+      { kind: 'column', table: 'agent', column: 'starter_tasks' },
+    ],
+  },
+  {
+    id: 45,
+    tag: '0045_polite_black_bolt',
+    when: 1778033605923,
+    file: '0045_polite_black_bolt.sql',
+    mode: 'backfill',
+    checks: [
+      { kind: 'column', table: 'tool_run', column: 'tool_kind' },
+      { kind: 'column', table: 'tool_run', column: 'tool_id' },
+      { kind: 'column', table: 'tool_run', column: 'tool_version_id' },
+      { kind: 'column', table: 'tool_run', column: 'agent_id' },
+    ],
+  },
+  {
     id: 42,
     tag: '0043_complete_prowler',
     when: 1777382451943,

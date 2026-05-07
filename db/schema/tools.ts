@@ -7,6 +7,10 @@ import { chatThread } from "./chat";
 export const toolRun = pgTable("tool_run", {
   id: text("id").primaryKey(),
   toolSlug: text("tool_slug").notNull(),
+  toolKind: text("tool_kind").notNull().default("built_in"), // 'built_in' | 'user_created'
+  toolId: text("tool_id"),
+  toolVersionId: text("tool_version_id"),
+  agentId: text("agent_id"),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   threadId: text("thread_id").references(() => chatThread.id, { onDelete: "set null" }),
   source: text("source").notNull(),
@@ -20,6 +24,9 @@ export const toolRun = pgTable("tool_run", {
   index("tool_run_userId_idx").on(table.userId),
   index("tool_run_toolSlug_idx").on(table.toolSlug),
   index("tool_run_threadId_idx").on(table.threadId),
+  index("tool_run_toolKind_idx").on(table.toolKind),
+  index("tool_run_toolId_idx").on(table.toolId),
+  index("tool_run_agentId_idx").on(table.agentId),
 ]);
 
 export const toolArtifact = pgTable("tool_artifact", {

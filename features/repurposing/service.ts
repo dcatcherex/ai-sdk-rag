@@ -11,7 +11,7 @@ import { contentPiece } from '@/db/schema';
 import type { ContentPiece } from '@/features/long-form/types';
 import type { RepurposeFormat, RepurposeInput } from './types';
 
-const CONTENT_MODEL = 'google/gemini-2.5-flash-lite';
+import { getModelSlot } from '@/lib/ai-config';
 
 const openrouter = createOpenAI({
   baseURL: 'https://openrouter.ai/api/v1',
@@ -74,7 +74,7 @@ Return a JSON object with this exact shape:
 }`;
 
   const { text } = await generateText({
-    model: openrouter(CONTENT_MODEL),
+    model: openrouter(await getModelSlot('backgroundModel')),
     system: systemPrompt,
     prompt: userPrompt,
   });

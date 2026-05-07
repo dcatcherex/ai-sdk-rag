@@ -11,8 +11,7 @@ import {
   parseWorkingMemoryResponse,
   type PromptableMessage,
 } from "./shared";
-
-export const WORKING_MEMORY_MODEL = "google/gemini-2.5-flash-lite";
+import { getModelSlot } from "@/lib/ai-config";
 
 async function getDb() {
   return (await import("@/lib/db")).db;
@@ -121,7 +120,7 @@ Rules:
 - Do not invent missing decisions or artifacts`;
 
   const { text } = await generateText({
-    model: WORKING_MEMORY_MODEL,
+    model: await getModelSlot('backgroundModel'),
     system: "You produce compact, faithful working memory for an ongoing chat thread.",
     prompt: `${prompt}\n\nConversation:\n${conversation}`,
   });

@@ -7,6 +7,9 @@ import type { UserToolSource } from "../types";
 
 export async function recordUserToolRunStart(params: {
   toolSlug: string;
+  toolId?: string | null;
+  toolVersionId?: string | null;
+  agentId?: string | null;
   userId: string;
   threadId?: string | null;
   source: UserToolSource;
@@ -16,6 +19,10 @@ export async function recordUserToolRunStart(params: {
   await db.insert(toolRun).values({
     id,
     toolSlug: params.toolSlug,
+    toolKind: "user_created",
+    toolId: params.toolId ?? null,
+    toolVersionId: params.toolVersionId ?? null,
+    agentId: params.agentId ?? null,
     userId: params.userId,
     threadId: params.threadId ?? null,
     source: params.source,

@@ -29,7 +29,7 @@ test('buildChannelResponseBlock only adds plain-text guidance for plain_text cha
 });
 
 test('buildPreparedRunPrompt omits quiz block when tools are disabled', () => {
-  const prompt = buildPreparedRunPrompt({
+  const { systemPrompt: prompt } = buildPreparedRunPrompt({
     request: {
       identity: {
         channel: 'web',
@@ -66,7 +66,7 @@ test('buildPreparedRunPrompt omits quiz block when tools are disabled', () => {
 });
 
 test('buildPreparedRunPrompt appends channel response block for plain-text channels', () => {
-  const prompt = buildPreparedRunPrompt({
+  const { systemPrompt: prompt } = buildPreparedRunPrompt({
     request: {
       identity: {
         channel: 'line',

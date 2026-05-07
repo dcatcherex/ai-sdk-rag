@@ -1,7 +1,6 @@
 import { generateText } from 'ai';
 import type { ChatMessage } from '@/features/chat/types';
-
-const SUMMARY_MODEL = 'google/gemini-2.5-flash-lite';
+import { getModelSlot } from '@/lib/ai-config';
 export const SUMMARY_THRESHOLD = 20;
 const MESSAGES_TO_KEEP = 4;
 
@@ -39,7 +38,7 @@ export async function summarizeConversation(messages: ChatMessage[]): Promise<Su
 
   try {
     const { text } = await generateText({
-      model: SUMMARY_MODEL,
+      model: await getModelSlot('backgroundModel'),
       system: SUMMARY_SYSTEM,
       prompt: `Conversation to summarize:\n\n${transcript}`,
     });

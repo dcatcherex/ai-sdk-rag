@@ -1,6 +1,5 @@
 import { generateText } from 'ai';
-
-const DEFAULT_MODEL = 'google/gemini-2.5-flash-lite';
+import { getModelSlot } from '@/lib/ai-config';
 const DEFAULT_MAX_CHARS = 60;
 
 function buildSystemPrompt(maxChars: number, languageHint?: string): string {
@@ -109,7 +108,7 @@ export async function generateFollowUpSuggestions(
   conversationContext: string,
   options: FollowUpOptions = {},
 ): Promise<string[]> {
-  const model = options.model ?? DEFAULT_MODEL;
+  const model = options.model ?? await getModelSlot('backgroundModel');
   const maxChars = options.maxChars ?? DEFAULT_MAX_CHARS;
 
   try {

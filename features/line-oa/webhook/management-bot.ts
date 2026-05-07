@@ -15,6 +15,7 @@ import { db } from '@/lib/db';
 import { chatMessage, chatThread } from '@/db/schema';
 import { nanoid } from 'nanoid';
 import { chatModel } from '@/lib/ai';
+import { getModelSlot } from '@/lib/ai-config';
 import { getWorkspaceContext } from '@/features/platform-agent/service';
 import {
   buildPlatformAgentSystemPrompt,
@@ -101,7 +102,7 @@ export async function handleManagementBotEvent(
   try {
     const result = await generateText({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      model: chatModel as any,
+      model: (await getModelSlot('chatModel') ?? chatModel) as any,
       system: systemPrompt,
       messages: [...historyMessages, { role: 'user', content: userText }],
       ...(tools ? { tools, maxSteps: 3 } : {}),

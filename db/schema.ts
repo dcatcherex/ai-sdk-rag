@@ -24,3 +24,4 @@ export * from "./schema/guest";
 export * from "./schema/integrations";
 export * from "./schema/user-tools";
 export * from "./schema/domain-profiles";
+export * from "./schema/ai-config";

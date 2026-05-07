@@ -3,7 +3,8 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '@/lib/db';
 import { chatMessage, chatThread } from '@/db/schema';
-import { buildFallbackResponsePlan, buildResponsePlan } from '@/features/response-format';
+import { buildFallbackResponsePlan } from '@/features/response-format/service';
+import { buildResponsePlan } from '@/features/response-format/server/select';
 import { renderResponseForLineFromCatalog } from '@/features/response-format/server/line-render';
 import type { ResponseFormat } from '@/features/response-format/types';
 import { runLogActivity } from '@/features/record-keeper/service';

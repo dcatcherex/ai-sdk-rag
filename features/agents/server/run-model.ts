@@ -1,7 +1,12 @@
 import { availableModels, chatModel } from '@/lib/ai';
-import { getModelByIntent, toolDisabledModels } from '@/features/chat/server/routing';
+import { getModelSlot } from '@/lib/ai-config';
+import { toolDisabledModels } from '@/features/chat/server/routing';
+import { selectModel, type ModelSelection } from '@/features/chat/server/model-selector';
+
 import type { SkillRuntimeContext } from '@/features/skills/server/activation';
 import type { AgentRunRequest } from './run-types';
+
+export type { ModelSelection };
 
 export type ResolvedRunModel = {
   enabledModelIds: string[];
@@ -9,6 +14,7 @@ export type ResolvedRunModel = {
   routingReason: string;
   creditCost: number;
   supportsTools: boolean;
+  modelSelection: ModelSelection;
 };
 
 export function supportsToolsForRunModel(input: {
@@ -41,6 +47,7 @@ export function resolveRunModel(input: {
   skillRuntime: Pick<SkillRuntimeContext, 'activatedSkills' | 'activeSkillsBlock' | 'skillResourcesBlock' | 'catalogBlock'>;
   userScores?: Map<string, number>;
   getCreditCostForModel?: (modelId: string) => number;
+  defaultChatModel?: string;
 }): ResolvedRunModel {
   const {
     request,
@@ -49,6 +56,7 @@ export function resolveRunModel(input: {
     skillRuntime,
     userScores,
     getCreditCostForModel = () => 0,
+    defaultChatModel = chatModel,
   } = input;
 
   const enabledModelIds =
@@ -56,45 +64,45 @@ export function resolveRunModel(input: {
       ? request.enabledModelIds.filter((id) => availableModels.some((model) => model.id === id))
       : availableModels.map((model) => model.id);
 
-  const manualModel = request.model && request.model !== 'auto' ? request.model : null;
-  const manualResolved = manualModel && enabledModelIds.includes(manualModel) ? manualModel : null;
-  const agentAutoModel =
-    (!request.model || request.model === 'auto')
-    && resolvedAgent?.modelId
-    && enabledModelIds.includes(resolvedAgent.modelId)
-      ? resolvedAgent.modelId
-      : null;
-
-  const estimatedContextTokens = estimateRunContextTokens({
+  const estimatedInputTokens = estimateRunContextTokens({
     messages: request.messages,
     skillRuntime,
   });
 
-  const routedModel = manualResolved
-    ? { modelId: manualResolved, reason: 'Manual selection' }
-    : agentAutoModel
-      ? { modelId: agentAutoModel, reason: 'Agent default model' }
-      : getModelByIntent({
-          prompt: lastUserPrompt,
-          enabledModelIds: enabledModelIds.length > 0 ? enabledModelIds : [chatModel],
-          useWebSearch: request.useWebSearch,
-          userScores,
-          hasAgent: Boolean(resolvedAgent),
-          hasActiveSkills: skillRuntime.activatedSkills.length > 0,
-          messageCount: request.messages.length,
-          estimatedContextTokens,
-        });
+  const modelSelection = selectModel({
+    requestedModel: request.model ?? null,
+    enabledModelIds,
+    agentModelId: resolvedAgent?.modelId ?? null,
+    prompt: lastUserPrompt,
+    useWebSearch: request.useWebSearch,
+    userScores,
+    hasAgent: Boolean(resolvedAgent),
+    hasActiveSkills: skillRuntime.activatedSkills.length > 0,
+    messageCount: request.messages.length,
+    estimatedInputTokens,
+    allowTools: request.policy.allowTools,
+    defaultChatModel,
+  });
 
-  const modelId = routedModel.modelId;
+  const { modelId } = modelSelection;
+
+  const REASON_LABEL: Record<string, string> = {
+    manual_override: 'Manual selection',
+    agent_override: 'Agent default model',
+    image_intent: 'Image generation request',
+    web_intent: 'Web search intent',
+    code_intent: 'Coding intent',
+    reasoning_intent: 'Reasoning intent',
+    cost_optimized: 'Simple query → cost-optimized model',
+    default: 'General chat',
+  };
 
   return {
     enabledModelIds,
     modelId,
-    routingReason: routedModel.reason,
+    routingReason: REASON_LABEL[modelSelection.reason] ?? modelSelection.reason,
     creditCost: getCreditCostForModel(modelId),
-    supportsTools: supportsToolsForRunModel({
-      allowTools: request.policy.allowTools,
-      modelId,
-    }),
+    supportsTools: modelSelection.supportsTools,
+    modelSelection,
   };
 }

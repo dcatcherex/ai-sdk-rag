@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { RESPONSE_INTENT_REGISTRY } from '@/features/response-format';
+import { RESPONSE_INTENT_REGISTRY } from '@/features/response-format/contracts';
 import { parseSkillMarkdown } from '@/features/skills/server/parser';
 
 test('response intent registry covers common multi-profession intents', () => {

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Loader2Icon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { AiAssistButton } from '@/features/workspace-ai/components/ai-assist-button';
+import { AiSuggestionDialog } from '@/features/workspace-ai/components/ai-suggestion-dialog';
+import { requestWorkspaceTextAssist } from '@/features/workspace-ai/client';
 import type { UserToolDetail } from '../hooks/use-user-tools';
 
 type ToolBuilderProps = {
@@ -45,6 +49,31 @@ export function ToolBuilder({
   onSave,
   onLoadFromTool,
 }: ToolBuilderProps) {
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
+  const [descriptionSuggestions, setDescriptionSuggestions] = useState<string[]>([]);
+  const [descriptionDialogOpen, setDescriptionDialogOpen] = useState(false);
+
+  async function handleGenerateDescription() {
+    setIsGeneratingDescription(true);
+    try {
+      const result = await requestWorkspaceTextAssist('tool-description', {
+        targetLocale: 'th',
+        context: {
+          entityType: 'tool',
+          name: form.name || undefined,
+          currentValue: form.description || undefined,
+          extra: { executionType: form.executionType },
+        },
+      });
+      setDescriptionSuggestions(result.suggestions);
+      setDescriptionDialogOpen(true);
+    } catch {
+      // silently fail — user can retry
+    } finally {
+      setIsGeneratingDescription(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
       {selectedTool ? (
@@ -95,7 +124,15 @@ export function ToolBuilder({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="tool-description">Description</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="tool-description">Description</Label>
+          <AiAssistButton
+            onClick={handleGenerateDescription}
+            isLoading={isGeneratingDescription}
+            idleLabel="Generate"
+            loadingLabel="Generating…"
+          />
+        </div>
         <Textarea
           id="tool-description"
           value={form.description}
@@ -103,6 +140,18 @@ export function ToolBuilder({
           rows={3}
         />
       </div>
+
+      <AiSuggestionDialog
+        open={descriptionDialogOpen}
+        onOpenChange={setDescriptionDialogOpen}
+        title="Description suggestions"
+        description="Pick a description for this tool."
+        suggestions={descriptionSuggestions}
+        onSelect={(suggestion) => {
+          onChange({ description: suggestion });
+          setDescriptionDialogOpen(false);
+        }}
+      />
 
       {form.executionType === 'webhook' ? (
         <>

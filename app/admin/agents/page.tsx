@@ -5,10 +5,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArchiveIcon,
   ArrowLeftIcon,
+  CopyIcon,
   PencilIcon,
   PlusIcon,
   RocketIcon,
   Settings2Icon,
+  SparklesIcon,
   Trash2Icon,
 } from 'lucide-react';
 
@@ -28,6 +30,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AgentForm } from '@/features/agents/components/agent-form';
 import { AdminAgentCatalogSection } from '@/features/agents/components/admin-agent-catalog-section';
+import { AgentOptimizerPanel } from '@/features/agents/components/agent-optimizer-panel';
 import type { Skill } from '@/features/skills/types';
 import type { Agent, CreateAgentInput } from '@/features/agents/types';
 
@@ -52,6 +55,10 @@ const ADMIN_CATALOG_SECTION_ID = 'catalog';
 function formatDate(date: string | Date | null) {
   if (!date) return '-';
   return new Date(date).toLocaleString();
+}
+
+function formatAgentId(agentId: string) {
+  return agentId.length > 12 ? `${agentId.slice(0, 12)}…` : agentId;
 }
 
 function StatusBadge({ status }: { status: Agent['catalogStatus'] }) {
@@ -148,6 +155,21 @@ function AdminAgentEditor({
             agent={agent}
             availableSkills={availableSkills}
             customSections={[
+              ...(agent
+                ? [{
+                    id: 'optimizer',
+                    icon: SparklesIcon,
+                    label: 'Optimize',
+                    description: 'AI-powered analysis and improvement of prompt, skills, and tools.',
+                    content: (
+                      <AgentOptimizerPanel
+                        agentId={agent.id}
+                        apiBase="/api/admin/agents"
+                        initialTestMessage={agent.starterTasks?.[0]?.prompt}
+                      />
+                    ),
+                  }]
+                : []),
               {
                 id: ADMIN_CATALOG_SECTION_ID,
                 icon: Settings2Icon,
@@ -214,6 +236,19 @@ export default function AdminAgentsPage() {
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [copiedAgentId, setCopiedAgentId] = useState<string | null>(null);
+
+  const handleCopyAgentId = async (agentId: string) => {
+    try {
+      await navigator.clipboard.writeText(agentId);
+      setCopiedAgentId(agentId);
+      window.setTimeout(() => {
+        setCopiedAgentId((current) => (current === agentId ? null : current));
+      }, 1200);
+    } catch {
+      setCopiedAgentId(null);
+    }
+  };
 
   const { data, isLoading } = useQuery<AgentsResponse>({
     queryKey: ['admin', 'agents'],
@@ -435,7 +470,7 @@ export default function AdminAgentsPage() {
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
+              <CardContent className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-2 lg:grid-cols-5">
                 <div>
                   <p className="font-medium text-foreground">Model</p>
                   <p>{agent.modelId ?? 'Auto'}</p>
@@ -451,6 +486,25 @@ export default function AdminAgentsPage() {
                 <div>
                   <p className="font-medium text-foreground">Updated</p>
                   <p>{formatDate(agent.updatedAt)}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">Agent ID</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">
+                      {formatAgentId(agent.id)}
+                    </code>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 gap-1 px-2 text-xs"
+                      onClick={() => {
+                        void handleCopyAgentId(agent.id);
+                      }}
+                    >
+                      <CopyIcon className="size-3" />
+                      {copiedAgentId === agent.id ? 'Copied' : 'Copy'}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>

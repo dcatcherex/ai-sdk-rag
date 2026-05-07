@@ -24,7 +24,7 @@ import type {
   PublishResult,
 } from './types';
 
-const CONTENT_MODEL = 'google/gemini-2.5-flash-lite';
+import { getModelSlot } from '@/lib/ai-config';
 
 // ── Caption Generation ────────────────────────────────────────────────────────
 
@@ -70,7 +70,7 @@ Rules:
 - Return ONLY the raw JSON object, no markdown, no code fences, no explanation`;
 
   const { text } = await generateText({
-    model: CONTENT_MODEL,
+    model: await getModelSlot('backgroundModel'),
     prompt,
   });
 

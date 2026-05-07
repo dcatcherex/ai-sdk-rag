@@ -8,12 +8,11 @@ import { db } from '@/lib/db';
 import { uploadPublicObject } from '@/lib/r2';
 import { chatMessage, chatThread } from '@/db/schema';
 import { chatModel } from '@/lib/ai';
+import { getModelSlot } from '@/lib/ai-config';
 import { getKieApiKey } from '@/lib/api/routeGuards';
 import { KieService } from '@/lib/providers/kieService';
 import { modelSupportsCapability } from '@/features/chat/server/routing';
-import {
-  buildFallbackResponsePlan,
-} from '@/features/response-format';
+import { buildFallbackResponsePlan } from '@/features/response-format/service';
 import { renderResponseForLineFromCatalog } from '@/features/response-format/server/line-render';
 import { CREDIT_PACKAGES } from '@/features/line-oa/payment/packages';
 import {
@@ -127,8 +126,8 @@ type ClassifiedLineImageIntent = {
   reason?: string;
 };
 
-function resolveVisionModel(modelId: string): string {
-  return modelSupportsCapability(modelId, 'vision') ? modelId : chatModel;
+async function resolveVisionModel(modelId: string): Promise<string> {
+  return modelSupportsCapability(modelId, 'vision') ? modelId : await getModelSlot('chatModel') ?? chatModel;
 }
 
 async function streamToBuffer(stream: AsyncIterable<Uint8Array>): Promise<Buffer> {
@@ -340,7 +339,7 @@ async function deriveImageObservation(
 
   const { text } = await generateText({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    model: resolveVisionModel(modelId) as any,
+    model: await resolveVisionModel(modelId) as any,
     system: systemPrompt,
     messages: [
       {
@@ -728,7 +727,7 @@ export async function handleVideoMessage(input: HandleVideoMessageInput): Promis
 
   const { text: rawVideoReply } = await generateText({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    model: resolveVisionModel(input.modelId) as any,
+    model: await resolveVisionModel(input.modelId) as any,
     system: `${input.lineSystemPrompt}\n\nThe user sent a video. You are seeing a preview frame from that video.`,
     messages: [
       ...input.historyMessages,

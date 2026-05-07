@@ -1,5 +1,5 @@
 import { getSystemPrompt, resolveSystemPromptTemplate } from '@/lib/prompt';
-import { assembleSystemPrompt } from '@/features/chat/server/prompt-assembly';
+import { buildResolvedPromptContext } from '@/features/chat/server/prompt-context';
 import { resolveEffectiveBrand } from './brand-resolution';
 import type { Brand } from '@/features/brands/types';
 import type { BrandAccessPolicy, BrandMode, FallbackBehavior } from '@/features/agents/types';
@@ -63,11 +63,11 @@ export async function resolveAgentBrandRuntime(input: {
   };
 }
 
-export function resolveAgentBaseSystemPrompt(input: {
+export async function resolveAgentBaseSystemPrompt(input: {
   agent: AgentRuntimeAgent | null;
   fallbackPrompt?: string;
-}): string {
-  return resolveSystemPromptTemplate(input.agent?.systemPrompt ?? input.fallbackPrompt ?? getSystemPrompt());
+}): Promise<string> {
+  return resolveSystemPromptTemplate(input.agent?.systemPrompt ?? input.fallbackPrompt ?? await getSystemPrompt());
 }
 
 export function mergeAgentToolIds(input: {
@@ -106,7 +106,7 @@ export function buildAgentRunSystemPrompt(input: {
   brandPromptInstruction?: string | null;
   extraBlocks?: Array<string | null | undefined>;
 }): string {
-  const prompt = assembleSystemPrompt({
+  return buildResolvedPromptContext({
     base: input.base,
     conversationSummaryBlock: input.conversationSummaryBlock ?? '',
     threadWorkingMemoryBlock: input.threadWorkingMemoryBlock ?? '',
@@ -120,11 +120,7 @@ export function buildAgentRunSystemPrompt(input: {
     examPrepBlock: input.examPrepBlock ?? '',
     certBlock: input.certBlock ?? '',
     quizContextBlock: input.quizContextBlock ?? '',
-  });
-
-  return prompt
-    + (input.brandPromptInstruction
-      ? `\n\n<brand_resolution>\n${input.brandPromptInstruction}\n</brand_resolution>`
-      : '')
-    + (input.extraBlocks ?? []).filter((block): block is string => Boolean(block)).join('');
+    brandPromptInstruction: input.brandPromptInstruction,
+    extraBlocks: input.extraBlocks,
+  }).systemPrompt;
 }

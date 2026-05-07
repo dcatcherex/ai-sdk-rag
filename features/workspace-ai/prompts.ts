@@ -122,6 +122,57 @@ Rules:
           .join("\n"),
       };
     }
+
+    case "tool-description": {
+      const executionType = input.context.extra?.executionType as string | undefined;
+      return {
+        maxSuggestions: 3,
+        system: `You write concise, agent-facing descriptions for user-created AI tools.
+
+Rules:
+- Describe what the tool does and what kind of input it expects.
+- The description is shown to an AI agent deciding whether to call this tool.
+- Keep each suggestion under 200 characters.
+- Match the requested language.
+- Each suggestion must be a single sentence.
+- Do not mention technical implementation details like "webhook" or "API".
+- Return only valid structured output.`,
+        prompt: [
+          "Write 3 alternative tool descriptions.",
+          `Language: ${locale}`,
+          `Tone: ${tone}`,
+          optionalLine("Tool name", input.context.name),
+          executionType ? `Execution type: ${executionType}` : "",
+          optionalLine("Current description", currentValue),
+          instruction ? `Extra instruction: ${instruction}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      };
+    }
+
+    case "tool-input-help": {
+      return {
+        maxSuggestions: 3,
+        system: `You write short help text for individual input fields on a user-created AI tool.
+
+Rules:
+- Explain what value the user should enter for this field.
+- Keep each suggestion under 100 characters.
+- Match the requested language.
+- Each suggestion must be a single sentence.
+- Return only valid structured output.`,
+        prompt: [
+          "Write 3 alternative help texts for this tool input field.",
+          `Language: ${locale}`,
+          optionalLine("Tool name", input.context.name),
+          optionalLine("Field context", currentValue),
+          instruction ? `Extra instruction: ${instruction}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      };
+    }
   }
 }
 

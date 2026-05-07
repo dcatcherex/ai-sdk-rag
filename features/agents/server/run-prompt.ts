@@ -1,7 +1,10 @@
 import type { Brand } from '@/features/brands/types';
 import type { SkillRuntimeContext } from '@/features/skills/server/activation';
 import type { AgentRunRequest } from './run-types';
-import { buildAgentRunSystemPrompt } from './runtime';
+import {
+  buildResolvedPromptContext,
+  type ResolvedPromptContext,
+} from '@/features/chat/server/prompt-context';
 
 export function buildChannelResponseBlock(request: Pick<AgentRunRequest, 'policy'>): string {
   if (request.policy.responseFormat !== 'plain_text') return '';
@@ -33,10 +36,20 @@ export function buildPreparedRunPrompt(input: {
     extraBlocks?: Array<string | null | undefined>;
   };
   brandPromptInstruction?: string | null;
-}): string {
-  const { request, baseSystemPrompt, activeBrand, memoryContext, effectiveDocumentIds, skillRuntime, supportsTools, channelContext, brandPromptInstruction } = input;
+}): ResolvedPromptContext {
+  const {
+    request,
+    baseSystemPrompt,
+    activeBrand,
+    memoryContext,
+    effectiveDocumentIds,
+    skillRuntime,
+    supportsTools,
+    channelContext,
+    brandPromptInstruction,
+  } = input;
 
-  return buildAgentRunSystemPrompt({
+  return buildResolvedPromptContext({
     base: baseSystemPrompt,
     conversationSummaryBlock: channelContext.conversationSummaryBlock ?? '',
     threadWorkingMemoryBlock: channelContext.threadWorkingMemoryBlock ?? '',

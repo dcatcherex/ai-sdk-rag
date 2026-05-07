@@ -7,10 +7,8 @@ import {
   extractAndStoreLineUserMemory,
   extractAndStoreMemory,
 } from '@/lib/memory';
-import {
-  buildFallbackResponsePlan,
-  buildResponsePlan,
-} from '@/features/response-format';
+import { buildFallbackResponsePlan } from '@/features/response-format/service';
+import { buildResponsePlan } from '@/features/response-format/server/select';
 import { renderResponseForLineFromCatalog } from '@/features/response-format/server/line-render';
 import { mergeResponseQuickReplies } from '@/features/response-format/workflow';
 import { LINE_AGENT_RUN_POLICY } from '@/features/agents/server/channel-policies';
@@ -26,6 +24,14 @@ import { stripMarkdown } from '../utils/markdown';
 import type { AgentRow, LineMessage, LinkedUser, Sender } from '../types';
 import type { ResolvedDomainContext } from '@/features/domain-profiles/types';
 import type { Brand } from '@/features/brands/types';
+import type { ResolvedCaseWorkspacePromptContext } from '@/features/case-workspace/service';
+import {
+  buildAddCaseNoteDraft,
+  buildCreateCaseDraft,
+  detectCaseWorkspaceFollowUpSignal,
+  readPendingCaseWorkspaceDraft,
+  type PendingCaseWorkspaceDraft,
+} from '@/features/case-workspace/service';
 import { handleFarmRecordMessage, readPendingFarmRecordDraft } from './farm-records';
 import { runSummarizeRecords } from '@/features/record-keeper/service';
 import {
@@ -71,6 +77,7 @@ type HandleTextMessageInput = {
   userText: string;
   latestPendingFarmRecordDraft: unknown;
   domainContext: ResolvedDomainContext | null;
+  caseWorkspaceContext?: ResolvedCaseWorkspacePromptContext | null;
   channel: { id: string; userId: string };
   threadId: string;
   nextPosition: number;
@@ -100,6 +107,7 @@ async function persistLineTurn(input: {
   now: Date;
   userText: string;
   assistantText: string;
+  assistantMetadata?: Record<string, unknown>;
 }) {
   await Promise.all([
     db.insert(chatMessage).values([
@@ -116,12 +124,28 @@ async function persistLineTurn(input: {
         threadId: input.threadId,
         role: 'assistant',
         parts: [{ type: 'text', text: input.assistantText }],
+        ...(input.assistantMetadata ? { metadata: input.assistantMetadata } : {}),
         position: input.nextPosition + 1,
         createdAt: input.now,
       },
     ]),
     db.update(chatThread).set({ updatedAt: input.now }).where(eq(chatThread.id, input.threadId)),
   ]);
+}
+
+function buildCaseWorkspaceConfirmationQuickReplies(draft: PendingCaseWorkspaceDraft) {
+  return [
+    {
+      actionType: 'postback' as const,
+      label: 'Confirm',
+      postbackData: `case_workspace:confirm:${draft.draftId}`,
+    },
+    {
+      actionType: 'postback' as const,
+      label: 'Cancel',
+      postbackData: `case_workspace:cancel:${draft.draftId}`,
+    },
+  ];
 }
 
 function extractLatestQuestion(text: string): string | undefined {
@@ -555,6 +579,76 @@ export async function handleTextMessage(input: HandleTextMessageInput): Promise<
     })) {
       return null;
     }
+  }
+
+  const pendingCaseDraft = readPendingCaseWorkspaceDraft(input.latestPendingFarmRecordDraft);
+  if (!pendingCaseDraft && input.caseWorkspaceContext?.shouldSuggestCreate) {
+    const draft = buildCreateCaseDraft({
+      userText: input.userText,
+      profileId: input.caseWorkspaceContext.context?.profile.id ?? input.domainContext?.profile.id,
+    });
+    const plan = buildFallbackResponsePlan({
+      text: draft.summaryText,
+      locale: 'en-US',
+      quickReplies: buildCaseWorkspaceConfirmationQuickReplies(draft),
+      metadata: {
+        channel: 'line',
+        source: 'line_case_workspace_create_confirmation',
+      },
+    });
+
+    await persistLineTurn({
+      threadId: input.threadId,
+      nextPosition: input.nextPosition,
+      now: input.now,
+      userText: input.userText,
+      assistantText: draft.summaryText,
+      assistantMetadata: {
+        pendingCaseWorkspaceDraft: draft,
+      },
+    });
+    await input.lineClient.replyMessage({
+      replyToken: input.replyToken,
+      messages: await renderResponseForLineFromCatalog(plan, { sender: input.sender }),
+    });
+    return { replyText: draft.summaryText };
+  }
+
+  if (
+    !pendingCaseDraft
+    && input.caseWorkspaceContext?.context
+    && detectCaseWorkspaceFollowUpSignal(input.userText)
+  ) {
+    const draft = buildAddCaseNoteDraft({
+      caseId: input.caseWorkspaceContext.context.case.id,
+      title: `LINE follow-up for ${input.caseWorkspaceContext.context.case.name}`,
+      userText: input.userText,
+    });
+    const plan = buildFallbackResponsePlan({
+      text: draft.summaryText,
+      locale: 'en-US',
+      quickReplies: buildCaseWorkspaceConfirmationQuickReplies(draft),
+      metadata: {
+        channel: 'line',
+        source: 'line_case_workspace_note_confirmation',
+      },
+    });
+
+    await persistLineTurn({
+      threadId: input.threadId,
+      nextPosition: input.nextPosition,
+      now: input.now,
+      userText: input.userText,
+      assistantText: draft.summaryText,
+      assistantMetadata: {
+        pendingCaseWorkspaceDraft: draft,
+      },
+    });
+    await input.lineClient.replyMessage({
+      replyToken: input.replyToken,
+      messages: await renderResponseForLineFromCatalog(plan, { sender: input.sender }),
+    });
+    return { replyText: draft.summaryText };
   }
 
   if (wantsVideoGeneration(input.userText)) {

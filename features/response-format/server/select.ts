@@ -423,6 +423,40 @@ function mapToolPayloadToSelection(
         bodyText: buildDomainContextSummary(toolPayload, locale),
         metadata: { toolName, toolKind: kind },
       };
+    case 'case_saved':
+    case 'case_updated':
+    case 'case_task_saved':
+    case 'case_note_saved':
+      return {
+        intent: kind === 'case_saved' ? 'record_saved' : 'record_confirmation',
+        preferredFormats: ['structured_text'],
+        bodyText: buildCaseWorkspaceWriteSummary(toolPayload, locale),
+        metadata: { toolName, toolKind: kind, templateCandidate: 'common.confirmation' },
+      };
+    case 'case_context':
+      return {
+        intent: 'client_follow_up',
+        preferredFormats: ['structured_text'],
+        bodyText: buildCaseWorkspaceContextSummary(toolPayload, locale),
+        metadata: { toolName, toolKind: kind },
+      };
+    case 'case_summary':
+      return {
+        intent: 'client_follow_up',
+        preferredFormats: ['card', 'structured_text'],
+        bodyText: buildCaseWorkspaceSummary(toolPayload, locale),
+        card: {
+          templateKey: 'common.summary',
+          altText: locale.startsWith('th') ? 'สรุปเคส' : 'Case summary',
+          data: {
+            title: locale.startsWith('th') ? 'สรุปเคส' : 'Case summary',
+            summary: buildCaseWorkspaceSummary(toolPayload, locale),
+            altText: locale.startsWith('th') ? 'สรุปเคส' : 'Case summary',
+          },
+          fallbackText: buildCaseWorkspaceSummary(toolPayload, locale),
+        },
+        metadata: { toolName, toolKind: kind, templateCandidate: 'common.summary' },
+      };
     case 'content_plan_generated':
     case 'campaign_created':
     case 'calendar_entry_created':
@@ -683,6 +717,72 @@ function buildApprovalSummary(payload: ToolPayload, locale: string): string {
     `Item: ${contentTitle}`,
     ...(assignee ? [`Assignee: ${assignee}`] : []),
   ].join('\n');
+}
+
+function buildCaseWorkspaceWriteSummary(payload: ToolPayload, locale: string): string {
+  const caseRecord = readObject(payload.case);
+  const contactRecord = readObject(payload.contact);
+  const taskRecord = readObject(payload.task);
+  const noteRecord = readObject(payload.note);
+
+  const subject =
+    readString(caseRecord?.name)
+    ?? readString(contactRecord?.name)
+    ?? readString(taskRecord?.title)
+    ?? readString(noteRecord?.title)
+    ?? 'item';
+
+  if (locale.startsWith('th')) {
+    return [
+      readString(payload.message) ?? 'บันทึกข้อมูลเรียบร้อย',
+      `รายการ: ${subject}`,
+    ].join('\n');
+  }
+
+  return [
+    readString(payload.message) ?? 'Saved successfully.',
+    `Item: ${subject}`,
+  ].join('\n');
+}
+
+function buildCaseWorkspaceContextSummary(payload: ToolPayload, locale: string): string {
+  const caseRecord = readObject(payload.case);
+  const contactRecord = readObject(payload.contact);
+  const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
+  const timeline = Array.isArray(payload.timeline) ? payload.timeline : [];
+
+  const caseName = readString(caseRecord?.name) ?? 'Case';
+  const caseStatus = readString(caseRecord?.status) ?? '-';
+  const contactName = readString(contactRecord?.name);
+
+  if (locale.startsWith('th')) {
+    return [
+      `เคส: ${caseName}`,
+      `สถานะ: ${caseStatus}`,
+      ...(contactName ? [`ผู้ติดต่อ: ${contactName}`] : []),
+      `งานค้าง: ${tasks.length}`,
+      `ไทม์ไลน์ล่าสุด: ${timeline.length}`,
+    ].join('\n');
+  }
+
+  return [
+    `Case: ${caseName}`,
+    `Status: ${caseStatus}`,
+    ...(contactName ? [`Contact: ${contactName}`] : []),
+    `Open tasks: ${tasks.length}`,
+    `Timeline items: ${timeline.length}`,
+  ].join('\n');
+}
+
+function buildCaseWorkspaceSummary(payload: ToolPayload, locale: string): string {
+  const summary = readString(payload.summary);
+  const replyDraft = readString(payload.replyDraft);
+
+  if (summary) {
+    return replyDraft ? `${summary}\n\n${replyDraft}` : summary;
+  }
+
+  return locale.startsWith('th') ? 'ยังไม่มีสรุปเคส' : 'No case summary available.';
 }
 
 function readObject(value: unknown): Record<string, unknown> | null {

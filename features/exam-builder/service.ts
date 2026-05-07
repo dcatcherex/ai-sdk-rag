@@ -31,7 +31,7 @@ import {
 } from './schema';
 import type { z } from 'zod';
 
-const EXAM_MODEL = 'google/gemini-2.5-flash-lite';
+import { getModelSlot } from '@/lib/ai-config';
 
 // ── AI Generation ─────────────────────────────────────────────────────────────
 
@@ -56,7 +56,7 @@ export async function runGenerateExamQuestions(
   const requestedTypeDescriptions = questionTypes.map((t) => typeDescriptions[t]).join('\n');
 
   const { output } = await generateText({
-    model: EXAM_MODEL,
+    model: await getModelSlot('backgroundModel'),
     system: `You are an expert Thai school curriculum developer and exam writer. Create high-quality exam questions aligned to the Thai national curriculum (หลักสูตรแกนกลาง).
 
 Rules:

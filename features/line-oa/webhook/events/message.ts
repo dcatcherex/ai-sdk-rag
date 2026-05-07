@@ -18,6 +18,10 @@ import {
 import { resolveRelevantDomainContext } from '@/features/domain-profiles/service';
 import { renderDomainContextPromptBlock } from '@/features/domain-profiles/server/prompt';
 import { buildDomainSetupPromptBlock } from '@/features/domain-profiles/server/setup';
+import {
+  renderCaseWorkspacePromptBlock,
+  resolveRelevantCaseWorkspaceContext,
+} from '@/features/case-workspace/service';
 import { consumeLinkToken, registerLineUser } from '@/features/line-oa/link/service';
 import { createPaymentOrder, sendPaymentQr } from '@/features/line-oa/payment/service';
 import { CREDIT_PACKAGES, formatPackageMenu } from '@/features/line-oa/payment/packages';
@@ -133,6 +137,7 @@ export async function handleMessageEvent(
     lineSystemPrompt,
     activeBrand,
     domainContext,
+    caseWorkspaceContext,
     lineExtraBlocks,
     followUpSkillHints,
   } = await buildLineAgentContext({
@@ -210,6 +215,7 @@ export async function handleMessageEvent(
           userText: transcript,
           latestPendingFarmRecordDraft,
           domainContext,
+          caseWorkspaceContext,
           channel: { id: channel.id, userId: channel.userId },
           intentRouterMode: channel.intentRouterMode ?? undefined,
           threadId,
@@ -269,6 +275,7 @@ export async function handleMessageEvent(
     userText: textMessage,
     latestPendingFarmRecordDraft,
     domainContext,
+    caseWorkspaceContext,
     channel: { id: channel.id, userId: channel.userId },
     intentRouterMode: channel.intentRouterMode ?? undefined,
     threadId,
@@ -439,7 +446,18 @@ async function buildLineAgentContext(input: {
       ? { userId: linkedUser.userId }
       : { lineUserId, channelId: channel.id },
   );
+  const caseWorkspaceContext = await resolveRelevantCaseWorkspaceContext(
+    {
+      userMessage: textMessage,
+      lineUserId,
+      channelId: channel.id,
+    },
+    linkedUser?.userId
+      ? { userId: linkedUser.userId }
+      : { lineUserId, channelId: channel.id },
+  );
   const domainContextBlock = renderDomainContextPromptBlock(domainContext);
+  const caseWorkspaceBlock = renderCaseWorkspacePromptBlock(caseWorkspaceContext);
   const domainSetupBlock = buildDomainSetupPromptBlock({
     userMessage: textMessage,
     context: domainContext,
@@ -461,22 +479,36 @@ async function buildLineAgentContext(input: {
     certBlock: '',
     quizContextBlock: '',
     brandPromptInstruction: brandResolution?.promptInstruction,
+    extraBlocks: caseWorkspaceBlock ? [caseWorkspaceBlock] : undefined,
   });
 
   const lineExtraBlocks = groupId
     ? [
         `\n\n<line_group_context>\nYou are in a LINE group chat shared by multiple users. Keep replies concise and relevant to the whole group.${linkedUser?.displayName ? ` The member who sent this message is ${linkedUser.displayName}.` : ''}\n</line_group_context>`,
+        ...(caseWorkspaceBlock ? [`\n\n${caseWorkspaceBlock}`] : []),
       ]
     : linkedUser?.displayName
       ? [
           `\n\n<line_user_context>\nThe user you are talking to is named ${linkedUser.displayName}. Address them by name naturally when appropriate.\n</line_user_context>`,
+          ...(caseWorkspaceBlock ? [`\n\n${caseWorkspaceBlock}`] : []),
         ]
-      : [];
+      : caseWorkspaceBlock
+        ? [`\n\n${caseWorkspaceBlock}`]
+        : [];
 
   const followUpSkillHints = skillRuntime.activatedSkills
     .map((entry) => entry.skill.name.trim())
     .filter((name) => name.length > 0)
     .slice(0, 4);
 
-  return { memoryContext, shouldExtractMemory, lineSystemPrompt, activeBrand, domainContext, lineExtraBlocks, followUpSkillHints };
+  return {
+    memoryContext,
+    shouldExtractMemory,
+    lineSystemPrompt,
+    activeBrand,
+    domainContext,
+    caseWorkspaceContext,
+    lineExtraBlocks,
+    followUpSkillHints,
+  };
 }

@@ -56,6 +56,8 @@ import { collaborationManifest } from '@/features/collaboration/manifest';
 import { createCollaborationAgentTools } from '@/features/collaboration/agent';
 import { cropPriceManifest } from '@/features/crop-price/manifest';
 import { createCropPriceAgentTools } from '@/features/crop-price/agent';
+import { caseWorkspaceManifest } from '@/features/case-workspace/manifest';
+import { createCaseWorkspaceAgentTools } from '@/features/case-workspace/agent';
 
 const SERVER_REGISTRY: RegisteredTool[] = [
   {
@@ -219,6 +221,12 @@ const SERVER_REGISTRY: RegisteredTool[] = [
     getAgentDefinition: (ctx: AgentToolContext) =>
       createCropPriceAgentTools({ userId: ctx.userId }),
     getSidebarPageHref: () => `/tools/${cropPriceManifest.slug}`,
+  },
+  {
+    manifest: caseWorkspaceManifest,
+    getAgentDefinition: (ctx: AgentToolContext) =>
+      createCaseWorkspaceAgentTools({ userId: ctx.userId, brandId: ctx.brandId }),
+    getSidebarPageHref: () => `/tools/${caseWorkspaceManifest.slug}`,
   },
 ];
 

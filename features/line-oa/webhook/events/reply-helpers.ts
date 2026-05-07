@@ -1,4 +1,4 @@
-import type { ResponseQuickReply } from '@/features/response-format';
+import type { ResponseQuickReply } from '@/features/response-format/types';
 
 export type ConversationHistoryMessage = {
   role: 'user' | 'assistant';

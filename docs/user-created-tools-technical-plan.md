@@ -80,10 +80,14 @@ Implemented:
 Not implemented yet:
 
 - skill unlock support for custom tools
-- richer `toolRun` attribution columns such as `toolKind`, `toolId`, `toolVersionId`, and `agentId`
 - connected-account or secret-ref auth resolution inside custom webhook execution
 - LINE-specific custom-tool runtime integration
 - template publishing and broader catalog/publish semantics
+
+Completed since last update:
+
+- `toolRun` attribution columns (`toolKind`, `toolId`, `toolVersionId`, `agentId`) added to schema and applied via migration `0045_polite_black_bolt`; `history.ts` and `runtime.ts` now pass these values on every user-created tool run
+- workspace AI assist extended for `tool` entity type: `tool-description` and `tool-input-help` kinds added to schema, types, and prompts; the tool builder description field now has an inline "Generate" button
 
 Notes:
 

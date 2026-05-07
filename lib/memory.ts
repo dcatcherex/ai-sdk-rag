@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { userMemory } from '@/db/schema';
 import { eq, desc, inArray, SQL } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
+import { getModelSlot } from '@/lib/ai-config';
 
 type MemoryPrefsRow = {
   memoryEnabled?: boolean | null;
@@ -25,8 +26,6 @@ export function resolveMemoryPreferences(row: MemoryPrefsRow | null | undefined)
     shouldExtract: enabled && (row?.memoryExtractEnabled ?? true),
   };
 }
-
-const MEMORY_MODEL = 'google/gemini-2.5-flash-lite';
 
 // ── Storage limit (how many facts we keep per user in the DB) ────────────────
 const MAX_FACTS_PER_USER = 50;
@@ -175,7 +174,7 @@ Existing user context:
 ${existingContext || '(none yet)'}`;
 
     const { text } = await generateText({
-      model: MEMORY_MODEL,
+      model: await getModelSlot('backgroundModel'),
       system: systemPrompt,
       prompt: `Conversation:\n${conversation}\n\nExtract new user facts as JSON array:`,
     });

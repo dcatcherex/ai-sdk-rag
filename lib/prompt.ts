@@ -1,3 +1,5 @@
+import { getPrompt } from '@/lib/ai-config';
+
 export const DEFAULT_SYSTEM_PROMPT = `
 You are a capable, proactive AI assistant with access to tools.
 - Be concise and clear. Use bullet points for multi-step answers.
@@ -8,8 +10,8 @@ You are a capable, proactive AI assistant with access to tools.
 - When unsure, explain trade-offs and propose next steps.
 `;
 
-export function getSystemPrompt(): string {
-  return DEFAULT_SYSTEM_PROMPT;
+export async function getSystemPrompt(): Promise<string> {
+  return getPrompt('system.default', DEFAULT_SYSTEM_PROMPT);
 }
 
 // ── System prompt template substitution ──────────────────────────────────────

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { getResponseTemplateByKey, listResponseTemplates } from '@/features/response-format';
+import { getResponseTemplateByKey, listResponseTemplates } from '@/features/response-format/template-registry';
 
 test('template registry exposes common and agriculture templates', () => {
   const templates = listResponseTemplates();

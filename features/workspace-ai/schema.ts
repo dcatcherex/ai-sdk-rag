@@ -1,11 +1,13 @@
 import { z } from 'zod';
 
-export const workspaceAssistEntityTypeSchema = z.enum(['agent', 'skill']);
+export const workspaceAssistEntityTypeSchema = z.enum(['agent', 'skill', 'tool']);
 
 export const workspaceTextAssistKindSchema = z.enum([
   'agent-description',
   'agent-starters',
   'skill-description',
+  'tool-description',
+  'tool-input-help',
 ]);
 
 export const workspaceImageAssistKindSchema = z.enum([

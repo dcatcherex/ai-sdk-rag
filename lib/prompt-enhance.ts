@@ -1,6 +1,5 @@
 import { generateText } from 'ai';
-
-const ENHANCE_MODEL = 'google/gemini-2.5-flash-lite';
+import { getModelSlot } from '@/lib/ai-config';
 const ENHANCE_SYSTEM = `You are a prompt engineer. Your only job is to rewrite prompts that have enough substance to improve.
 
 Rules:
@@ -22,7 +21,7 @@ export async function enhancePrompt(prompt: string, userContext: string): Promis
   try {
     const contextBlock = userContext ? `\n\nUser context:\n${userContext}` : '';
     const { text } = await generateText({
-      model: ENHANCE_MODEL,
+      model: await getModelSlot('backgroundModel'),
       system: ENHANCE_SYSTEM + contextBlock,
       prompt,
     });

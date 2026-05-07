@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { nanoid } from "nanoid";
 
 import type { AgentStructuredBehavior } from "@/lib/agent-structured-behavior";
 import type { McpServerConfig } from "@/features/agents/types";
@@ -94,6 +95,30 @@ export const publicAgentShare = pgTable("public_agent_share", {
 export const publicAgentShareRelations = relations(publicAgentShare, ({ one }) => ({
   agent: one(agent, { fields: [publicAgentShare.agentId], references: [agent.id] }),
 }));
+
+// ── Agent Audit Run ────────────────────────────────────────────────────────────
+
+export const agentAuditRun = pgTable('agent_audit_run', {
+  id: text('id').primaryKey().$defaultFn(() => nanoid()),
+  agentId: text('agent_id')
+    .notNull()
+    .references(() => agent.id, { onDelete: 'cascade' }),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  scoreBefore: integer('score_before').notNull(),
+  scoreAfter: integer('score_after'),
+  statusBefore: text('status_before').notNull(),
+  statusAfter: text('status_after'),
+  testMessage: text('test_message').notNull().default(''),
+  findings: jsonb('findings').notNull(),
+  plan: jsonb('plan').notNull(),
+  appliedChangeIds: text('applied_change_ids').array().notNull().default(sql`'{}'::text[]`),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('agent_audit_run_agent_id_idx').on(table.agentId),
+  index('agent_audit_run_user_id_idx').on(table.userId),
+]);
 
 // ── Public Agent Share Events (analytics) ─────────────────────────────────────
 

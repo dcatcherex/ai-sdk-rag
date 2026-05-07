@@ -1,4 +1,4 @@
-import { availableModels, isStrongModel, chatModel, type Capability, type ModelOption } from '@/lib/ai';
+import { availableModels, chatModel, type Capability, type ModelOption } from '@/lib/ai';
 import type { ModelScoreMap } from '@/lib/model-scores';
 import { detectRoutingIntent } from './routing-intent';
 
@@ -66,12 +66,12 @@ function selectTextModel(options: {
 
   let candidates = textModels;
   if (preferStrong) {
-    const strong = textModels.filter((m) => isStrongModel(m.id));
+    const strong = textModels.filter((m) => (m.capabilityTier ?? 'standard') !== 'standard');
     if (strong.length > 0) candidates = strong;
   } else if (preferCheap) {
-    // Mirror of preferStrong: filter to non-strong (cheap) models first.
+    // Mirror of preferStrong: filter to standard-tier (cheap) models first.
     // Falls back to full set if no cheap model is enabled.
-    const cheap = textModels.filter((m) => !isStrongModel(m.id));
+    const cheap = textModels.filter((m) => (m.capabilityTier ?? 'standard') === 'standard');
     if (cheap.length > 0) candidates = cheap;
   }
 

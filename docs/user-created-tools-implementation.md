@@ -56,6 +56,8 @@ Current progress:
 - Done: workflow execution now supports declarative multi-step compositions that create native Vaja records through service-layer integrations
 - Done: the `/user-tools` builder now supports both `webhook` and `workflow` execution types
 - Done: workflow runs now persist richer artifacts for created campaign briefs, calendar entries, and social post drafts while returning artifact links in the unified tool result envelope
+- Done: `toolRun` now carries `toolKind`, `toolId`, `toolVersionId`, and `agentId` attribution columns so custom-tool runs are traceable in history (migration `0045_polite_black_bolt`)
+- Done: workspace AI assist extended to support `tool` entity type and `tool-description` / `tool-input-help` assist kinds; the tool builder description field now has a "Generate" button wired to the new kinds
 - Pending: richer visual builder for field editing
 - Pending: skill-based unlocks for custom tools
 - Pending: templates and broader publish/catalog flows

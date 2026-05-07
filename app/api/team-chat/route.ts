@@ -152,7 +152,7 @@ export async function POST(req: Request) {
   }
 
   // ── Credit pre-check ──────────────────────────────────────────────────────
-  const estimatedCost = estimateRunCost(team);
+  const estimatedCost = await estimateRunCost(team);
   const balance = await getUserBalance(authResult.user.id);
   if (balance < estimatedCost) {
     return Response.json(

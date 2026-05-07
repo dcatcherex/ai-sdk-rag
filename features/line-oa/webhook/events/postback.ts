@@ -4,8 +4,9 @@ import type { messagingApi } from '@line/bot-sdk';
 import { db } from '@/lib/db';
 import { agent, chatMessage, chatThread, lineAccountLink, lineConversation, lineOaChannel, lineUserAgentSession } from '@/db/schema';
 import { resolveApprovalRequest } from '@/features/collaboration/service';
+import { addCaseNote, createCase, readPendingCaseWorkspaceDraft } from '@/features/case-workspace/service';
 import { runLogActivity } from '@/features/record-keeper/service';
-import { buildResponsePlan } from '@/features/response-format';
+import { buildResponsePlan } from '@/features/response-format/server/select';
 import { renderResponseForLineFromCatalog } from '@/features/response-format/server/line-render';
 import { setUserRichMenu } from '../rich-menu';
 import { readPendingFarmRecordDraft } from './farm-records';
@@ -59,6 +60,11 @@ export async function handlePostbackEvent(
       .select({ userId: lineOaChannel.userId })
       .from(lineOaChannel)
       .where(eq(lineOaChannel.id, channelId))
+      .limit(1);
+    const [linkRow] = await db
+      .select({ userId: lineAccountLink.userId })
+      .from(lineAccountLink)
+      .where(and(eq(lineAccountLink.channelId, channelId), eq(lineAccountLink.lineUserId, lineUserId)))
       .limit(1);
 
     const [conversation] = await db
@@ -214,6 +220,144 @@ export async function handlePostbackEvent(
     await lineClient.replyMessage({
       replyToken: event.replyToken,
       messages: await renderResponseForLineFromCatalog(savePlan),
+    });
+    return;
+  }
+
+  if (data.startsWith('case_workspace:')) {
+    if (!event.replyToken) {
+      return;
+    }
+
+    const [, action, draftId] = data.split(':');
+    const conversationKey = event.source?.groupId ?? lineUserId;
+
+    const [channel] = await db
+      .select({ userId: lineOaChannel.userId })
+      .from(lineOaChannel)
+      .where(eq(lineOaChannel.id, channelId))
+      .limit(1);
+    const [linkRow] = await db
+      .select({ userId: lineAccountLink.userId })
+      .from(lineAccountLink)
+      .where(and(eq(lineAccountLink.channelId, channelId), eq(lineAccountLink.lineUserId, lineUserId)))
+      .limit(1);
+
+    const [conversation] = await db
+      .select({ threadId: lineConversation.threadId })
+      .from(lineConversation)
+      .where(and(
+        eq(lineConversation.channelId, channelId),
+        eq(lineConversation.lineUserId, conversationKey),
+      ))
+      .limit(1);
+
+    if (!channel || !conversation?.threadId) {
+      await lineClient.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{ type: 'text', text: 'Could not resolve this conversation for the case action.' }],
+      });
+      return;
+    }
+
+    const recentMessages = await db
+      .select({
+        metadata: chatMessage.metadata,
+        position: chatMessage.position,
+      })
+      .from(chatMessage)
+      .where(eq(chatMessage.threadId, conversation.threadId))
+      .orderBy(desc(chatMessage.position))
+      .limit(20);
+
+    const draft = recentMessages
+      .map((row) => readPendingCaseWorkspaceDraft(row.metadata))
+      .find((item) => item?.draftId === draftId) ?? null;
+
+    if (!draft) {
+      await lineClient.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{ type: 'text', text: 'This case action is no longer available. Please retry from the latest message.' }],
+      });
+      return;
+    }
+
+    if (action === 'cancel') {
+      await lineClient.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{ type: 'text', text: 'Okay, I left it in chat only and did not update the Case Workspace.' }],
+      });
+      return;
+    }
+
+    let replyText = 'Case action completed.';
+    if (draft.action === 'create_case') {
+      if (!draft.profileId) {
+        await lineClient.replyMessage({
+          replyToken: event.replyToken,
+          messages: [{ type: 'text', text: 'This draft is missing a workspace profile, so I could not create the case.' }],
+        });
+        return;
+      }
+
+      const createdCase = await createCase(
+        {
+          profileId: draft.profileId,
+          name: draft.title,
+          description: draft.body ?? null,
+          data: {
+            ...draft.data,
+            lineUserId,
+            channelId,
+          },
+        },
+        linkRow?.userId ? { userId: linkRow.userId } : { lineUserId, channelId },
+      );
+      replyText = `Created case "${createdCase.name}" from this LINE conversation.`;
+    } else if (draft.action === 'add_note' && draft.caseId) {
+      await addCaseNote(
+        draft.caseId,
+        {
+          title: draft.title,
+          body: draft.body,
+          kind: 'message_summary',
+          data: {
+            ...draft.data,
+            lineUserId,
+            channelId,
+          },
+        },
+        linkRow?.userId ? { userId: linkRow.userId } : { lineUserId, channelId },
+      );
+      replyText = 'Saved this LINE update to the matched case timeline.';
+    }
+
+    const nextPosition = (recentMessages[0]?.position ?? -1) + 1;
+    await Promise.all([
+      db.insert(chatMessage).values([
+        {
+          id: crypto.randomUUID(),
+          threadId: conversation.threadId,
+          role: 'user',
+          parts: [{ type: 'text', text: 'Confirmed case workspace action from LINE postback' }],
+          position: nextPosition,
+          createdAt: new Date(),
+        },
+        {
+          id: crypto.randomUUID(),
+          threadId: conversation.threadId,
+          role: 'assistant',
+          parts: [{ type: 'text', text: replyText }],
+          position: nextPosition + 1,
+          createdAt: new Date(),
+        },
+      ]),
+      db.update(chatThread).set({ updatedAt: new Date() }).where(eq(chatThread.id, conversation.threadId)),
+    ]);
+
+    await lineClient.replyMessage({
+      replyToken: event.replyToken,
+      messages: [{ type: 'text', text: replyText }],
     });
     return;
   }
