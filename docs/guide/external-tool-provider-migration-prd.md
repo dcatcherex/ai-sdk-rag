@@ -1,10 +1,25 @@
 # External Tool Provider Migration - PRD and Implementation Plan
 
 > Audience: Product, AI coders, and developers evolving Vaja's tool platform.
-> Status: Draft PRD for triage.
-> Triage label: `needs-triage`.
+> Status: Phase 0–6 complete · Phase 7 pending.
+> Triage label: `in-progress`.
 > Scope: Defines how Vaja should externalize specialized tools while keeping the agent, skills, LINE OA, credits, and workspace experience coherent.
 > Last updated: May 7, 2026.
+
+---
+
+## Implementation Progress
+
+| Phase | Status | Notes |
+| --- | --- | --- |
+| Phase 0 — Classification & Runbook | ✅ Complete | Tool classification table in PRD. `certificate` selected as tracer bullet. |
+| Phase 1 — Provider Contract & Adapter Runtime | ✅ Complete | `features/external-tools/` built: types, schema, errors, registry, provider-client, run-lifecycle, normalize, artifacts, service, index. `ToolExecutionMode`, `ExternalToolProviderMetadata`, `ToolProviderHealthStatus` added to `features/tools/registry/types.ts`. 12/12 tests passing. |
+| Phase 2 — Certificate Tracer Bullet | ✅ Complete | `features/certificate/service.ts` is now an adapter: checks `CERTIFICATE_PROVIDER_URL` env, routes to external or local. `features/certificate/provider-adapter.ts` maps inputs/outputs. API routes (`generate`, `batch`) updated to import canonical service. Certificate provider auto-registered in `features/external-tools/registry.ts`. Provider app stub at `apps/certificate-provider/` with health, manifest, sync-run, and run-status endpoints. `pnpm-workspace.yaml` updated with `apps/*`. 20/20 tests passing. |
+| Phase 3 — Shared Async Provider Jobs | ✅ Complete | `features/external-tools/callbacks.ts` (HMAC-verified callback processing, idempotent), `status.ts` + `status-normalize.ts` (user-scoped run status), `polling.ts` (provider poll-on-demand), `callback-crypto.ts` (pure HMAC-SHA256). API routes: `POST /api/external-tools/callback/[providerKey]` and `GET /api/external-tools/runs/[runId]?poll=true`. 33/33 tests passing. |
+| Phase 4 — Vaja Media Provider | ✅ Complete | `features/external-tools/media/` bridge: `types.ts` (KieOutputJson, MediaJobStatus), `metadata.ts` (KIE_MEDIA_PROVIDER_METADATA with executionMode:'hybrid'), `kie-bridge.ts` (pure: kieRunToProviderEnvelope, toolRunToMediaJobStatus, scopeBrandContextForProvider). image/video/audio/speech manifests updated with `provider: KIE_MEDIA_PROVIDER_METADATA`. `lib/generation/create-media-run.ts` stores `{ providerRunId: kieTaskId }` in outputJson at creation so Phase 3 polling/callbacks can resolve KIE runs. 45/45 tests passing. |
+| Phase 5 — Vaja Integrations Provider | ✅ Complete | `features/external-tools/integrations/` bridge: `metadata.ts` (GOOGLE_WORKSPACE_PROVIDER_METADATA with executionMode:'external', supportsSync:true), `google-bridge.ts` (pure: toGoogleSheetsProviderOptions, toGoogleDocsProviderOptions, toGoogleDriveProviderOptions, toGoogleSlidesProviderOptions + fromXxx extractors). All 4 Google manifests updated with `provider: GOOGLE_WORKSPACE_PROVIDER_METADATA`. All 4 service.ts files updated: action functions check `GOOGLE_INTEGRATIONS_PROVIDER_URL` and route to `runExternalTool()` + `toToolExecutionResult()` when set. `runXxx()` raw functions stay local (agent adapter path). `google-workspace` provider auto-registered in registry.ts. 60/60 tests passing. |
+| Phase 6 — Vaja Web Publisher | ✅ Complete | `features/external-tools/web-publisher/` bridge: `metadata.ts` (WEBSITE_BUILDER_PROVIDER_METADATA hybrid/async, WEB_DEPLOY_PROVIDER_METADATA external/sync — both providerKey:'web-publisher'), `web-bridge.ts` (pure: toWebsiteBuilderProviderOptions, toWebDeployProviderOptions + fromXxx extractors). `website-builder/manifest.ts` and `deploy/manifest.ts` updated with provider metadata. `website-builder/service.ts` transformed from thin re-export to adapter: websiteGenerateAction + websiteEditAction check WEB_PUBLISHER_URL, delegate to runExternalTool() when set; runXxx() functions stay local. `deploy/service.ts` updated: runReadWebFile, runPreviewWebChange, runConfirmWebChange all check WEB_PUBLISHER_URL after assertDeployAccess — confirm-change passes vajaRunId so provider can look up its staged preview state. `web-publisher` registered in registry.ts. 74/74 tests passing. |
+| Phase 7 — Marketplace Foundation | 🔲 Pending | Partner provider support (deferred until Phase 4-5 stable). |
 
 ---
 

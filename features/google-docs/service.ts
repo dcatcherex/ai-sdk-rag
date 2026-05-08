@@ -8,6 +8,8 @@ import {
   createGoogleDoc,
   createGoogleDocFromTemplate,
 } from '@/lib/google/docs';
+import { runExternalTool, toToolExecutionResult } from '@/features/external-tools';
+import { toGoogleDocsProviderOptions } from '@/features/external-tools/integrations/google-bridge';
 import type {
   AppendGoogleDocSectionInput,
   CreateGoogleDocFromTemplateInput,
@@ -71,6 +73,11 @@ export async function createGoogleDocAction(
   input: CreateGoogleDocInput,
   userId: string,
 ): Promise<ToolExecutionResult> {
+  if (process.env.GOOGLE_INTEGRATIONS_PROVIDER_URL) {
+    const opts = toGoogleDocsProviderOptions('create-doc', input as Record<string, unknown>, userId);
+    const result = await runExternalTool(opts);
+    return toToolExecutionResult('google_docs', result);
+  }
   const runId = await createPendingToolRun(userId, input);
   try {
     const data = await runCreateGoogleDoc(input, userId);
@@ -94,6 +101,11 @@ export async function createGoogleDocFromTemplateAction(
   input: CreateGoogleDocFromTemplateInput,
   userId: string,
 ): Promise<ToolExecutionResult> {
+  if (process.env.GOOGLE_INTEGRATIONS_PROVIDER_URL) {
+    const opts = toGoogleDocsProviderOptions('create-doc-from-template', input as Record<string, unknown>, userId);
+    const result = await runExternalTool(opts);
+    return toToolExecutionResult('google_docs', result);
+  }
   const runId = await createPendingToolRun(userId, input);
   try {
     const data = await runCreateGoogleDocFromTemplate(input, userId);
@@ -118,6 +130,11 @@ export async function appendGoogleDocSectionAction(
   input: AppendGoogleDocSectionInput,
   userId: string,
 ): Promise<ToolExecutionResult> {
+  if (process.env.GOOGLE_INTEGRATIONS_PROVIDER_URL) {
+    const opts = toGoogleDocsProviderOptions('append-doc-section', input as Record<string, unknown>, userId);
+    const result = await runExternalTool(opts);
+    return toToolExecutionResult('google_docs', result);
+  }
   const runId = await createPendingToolRun(userId, input);
   try {
     const data = await runAppendGoogleDocSection(input, userId);

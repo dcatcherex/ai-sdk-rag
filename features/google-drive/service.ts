@@ -5,6 +5,8 @@ import { mediaAsset, toolArtifact, toolRun } from '@/db/schema';
 import { validateUrl } from '@/lib/security/ssrfProtection';
 import { createDriveFolder, listDriveFiles, uploadDriveFile } from '@/lib/google/drive';
 import type { ToolExecutionResult } from '@/features/tools/registry/types';
+import { runExternalTool, toToolExecutionResult } from '@/features/external-tools';
+import { toGoogleDriveProviderOptions } from '@/features/external-tools/integrations/google-bridge';
 import type {
   CreateDriveFolderInput,
   ListDriveFilesInput,
@@ -124,6 +126,11 @@ export async function listDriveFilesAction(
   input: ListDriveFilesInput,
   userId: string,
 ): Promise<ToolExecutionResult> {
+  if (process.env.GOOGLE_INTEGRATIONS_PROVIDER_URL) {
+    const opts = toGoogleDriveProviderOptions('list-files', input as Record<string, unknown>, userId);
+    const result = await runExternalTool(opts);
+    return toToolExecutionResult('google_drive', result);
+  }
   const runId = await createPendingToolRun(userId, input);
   try {
     const data = await runListDriveFiles(input, userId);
@@ -147,6 +154,11 @@ export async function createDriveFolderAction(
   input: CreateDriveFolderInput,
   userId: string,
 ): Promise<ToolExecutionResult> {
+  if (process.env.GOOGLE_INTEGRATIONS_PROVIDER_URL) {
+    const opts = toGoogleDriveProviderOptions('create-folder', input as Record<string, unknown>, userId);
+    const result = await runExternalTool(opts);
+    return toToolExecutionResult('google_drive', result);
+  }
   const runId = await createPendingToolRun(userId, input);
   try {
     const data = await runCreateDriveFolder(input, userId);
@@ -170,6 +182,11 @@ export async function uploadFileToDriveAction(
   input: UploadFileToDriveInput,
   userId: string,
 ): Promise<ToolExecutionResult> {
+  if (process.env.GOOGLE_INTEGRATIONS_PROVIDER_URL) {
+    const opts = toGoogleDriveProviderOptions('upload-file', input as Record<string, unknown>, userId);
+    const result = await runExternalTool(opts);
+    return toToolExecutionResult('google_drive', result);
+  }
   const runId = await createPendingToolRun(userId, input);
   try {
     const data = await runUploadFileToDrive(input, userId);

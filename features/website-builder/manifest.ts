@@ -1,4 +1,5 @@
 import type { ToolManifest } from '@/features/tools/registry/types';
+import { WEBSITE_BUILDER_PROVIDER_METADATA } from '@/features/external-tools/web-publisher/metadata';
 
 export const websiteBuilderManifest: ToolManifest = {
   id: 'website_builder',
@@ -16,4 +17,5 @@ export const websiteBuilderManifest: ToolManifest = {
     order: 180,
   },
   access: { requiresAuth: true, enabled: true },
+  provider: WEBSITE_BUILDER_PROVIDER_METADATA,
 };

@@ -14,6 +14,14 @@ export async function createMediaRun(params: {
   threadId?: string | null;
   source?: string;
 }): Promise<{ generationId: string }> {
+  // If the caller has already obtained a KIE task ID, store it as providerRunId
+  // in outputJson so Phase 3 status/polling infrastructure can find this run.
+  // The completeMediaRun helper spreads existingOutputJson, so providerRunId is
+  // preserved in the final outputJson when the job completes.
+  const kieTaskId = typeof params.inputJson.kieTaskId === 'string'
+    ? params.inputJson.kieTaskId
+    : undefined;
+
   const [record] = await db.insert(toolRun).values({
     id: nanoid(),
     toolSlug: params.toolSlug,
@@ -22,6 +30,7 @@ export async function createMediaRun(params: {
     source: params.source ?? 'api',
     status: 'pending',
     inputJson: params.inputJson,
+    outputJson: kieTaskId ? { providerRunId: kieTaskId } : undefined,
   }).returning();
 
   return { generationId: record!.id };

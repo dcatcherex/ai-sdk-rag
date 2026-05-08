@@ -9,6 +9,8 @@ import { db } from '@/lib/db'
 import { toolRun } from '@/db/schema/tools'
 import { user } from '@/db/schema/auth'
 import { isAdminEmail } from '@/lib/admin'
+import { runExternalTool } from '@/features/external-tools'
+import { toWebDeployProviderOptions, fromWebDeployResult } from '@/features/external-tools/web-publisher/web-bridge'
 import type { ReadWebFileInput, PreviewWebChangeInput, ConfirmWebChangeInput } from './schema'
 import type { DeployPreviewData, DeployResultData, DeployRunOutput } from './types'
 
@@ -148,6 +150,11 @@ export async function runReadWebFile(
   ctx: { userId: string },
 ) {
   await assertDeployAccess(ctx.userId)
+  if (process.env.WEB_PUBLISHER_URL) {
+    const opts = toWebDeployProviderOptions('read-file', input as Record<string, unknown>, ctx.userId)
+    const result = await runExternalTool(opts)
+    return fromWebDeployResult(result) as { exists: boolean; content: string | null; sha: string | null; path: string }
+  }
   const file = await readGitHubFile(input.path)
   if (!file) {
     return { exists: false as const, content: null, sha: null, path: input.path }
@@ -160,6 +167,15 @@ export async function runPreviewWebChange(
   ctx: { userId: string; threadId?: string },
 ): Promise<{ toolRunId: string; preview: DeployPreviewData }> {
   await assertDeployAccess(ctx.userId)
+  if (process.env.WEB_PUBLISHER_URL) {
+    const opts = toWebDeployProviderOptions('preview-change', input as Record<string, unknown>, ctx.userId, ctx.threadId)
+    const result = await runExternalTool(opts)
+    const data = fromWebDeployResult(result)
+    return {
+      toolRunId: result.vajaRunId,
+      preview: data.preview as DeployPreviewData,
+    }
+  }
 
   const timestamp = new Date()
     .toISOString()
@@ -206,6 +222,12 @@ export async function runConfirmWebChange(
   ctx: { userId: string },
 ): Promise<DeployResultData> {
   await assertDeployAccess(ctx.userId)
+  if (process.env.WEB_PUBLISHER_URL) {
+    // toolRunId is the vajaRunId from runPreviewWebChange; provider uses it to look up staged change.
+    const opts = toWebDeployProviderOptions('confirm-change', input as Record<string, unknown>, ctx.userId)
+    const result = await runExternalTool(opts)
+    return fromWebDeployResult(result) as DeployResultData
+  }
 
   const rows = await db
     .select()

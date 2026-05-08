@@ -4,6 +4,8 @@ import { db } from '@/lib/db';
 import { toolRun } from '@/db/schema';
 import type { ToolExecutionResult } from '@/features/tools/registry/types';
 import { appendSheetValues, createSheetTab, createSpreadsheet, readSheetRange, updateSheetValues } from '@/lib/google/sheets';
+import { runExternalTool, toToolExecutionResult } from '@/features/external-tools';
+import { toGoogleSheetsProviderOptions } from '@/features/external-tools/integrations/google-bridge';
 import type {
   AppendSheetRowInput,
   CreateSheetTabInput,
@@ -100,6 +102,11 @@ export async function readSheetRangeAction(
   input: ReadSheetRangeInput,
   userId: string,
 ): Promise<ToolExecutionResult> {
+  if (process.env.GOOGLE_INTEGRATIONS_PROVIDER_URL) {
+    const opts = toGoogleSheetsProviderOptions('read-sheet-range', input as Record<string, unknown>, userId);
+    const result = await runExternalTool(opts);
+    return toToolExecutionResult('google_sheets', result);
+  }
   const runId = await createPendingToolRun(userId, input);
   try {
     const data = await runReadSheetRange(input, userId);
@@ -123,6 +130,11 @@ export async function appendSheetRowAction(
   input: AppendSheetRowInput,
   userId: string,
 ): Promise<ToolExecutionResult> {
+  if (process.env.GOOGLE_INTEGRATIONS_PROVIDER_URL) {
+    const opts = toGoogleSheetsProviderOptions('append-sheet-row', input as Record<string, unknown>, userId);
+    const result = await runExternalTool(opts);
+    return toToolExecutionResult('google_sheets', result);
+  }
   const runId = await createPendingToolRun(userId, input);
   try {
     const data = await runAppendSheetRow(input, userId);
@@ -146,6 +158,11 @@ export async function updateSheetRangeAction(
   input: UpdateSheetRangeInput,
   userId: string,
 ): Promise<ToolExecutionResult> {
+  if (process.env.GOOGLE_INTEGRATIONS_PROVIDER_URL) {
+    const opts = toGoogleSheetsProviderOptions('update-sheet-range', input as Record<string, unknown>, userId);
+    const result = await runExternalTool(opts);
+    return toToolExecutionResult('google_sheets', result);
+  }
   const runId = await createPendingToolRun(userId, input);
   try {
     const data = await runUpdateSheetRange(input, userId);
@@ -169,6 +186,11 @@ export async function createSheetTabAction(
   input: CreateSheetTabInput,
   userId: string,
 ): Promise<ToolExecutionResult> {
+  if (process.env.GOOGLE_INTEGRATIONS_PROVIDER_URL) {
+    const opts = toGoogleSheetsProviderOptions('create-sheet-tab', input as Record<string, unknown>, userId);
+    const result = await runExternalTool(opts);
+    return toToolExecutionResult('google_sheets', result);
+  }
   const runId = await createPendingToolRun(userId, input);
   try {
     const data = await runCreateSheetTab(input, userId);
@@ -192,6 +214,11 @@ export async function createSpreadsheetAction(
   input: CreateSpreadsheetInput,
   userId: string,
 ): Promise<ToolExecutionResult> {
+  if (process.env.GOOGLE_INTEGRATIONS_PROVIDER_URL) {
+    const opts = toGoogleSheetsProviderOptions('create-spreadsheet', input as Record<string, unknown>, userId);
+    const result = await runExternalTool(opts);
+    return toToolExecutionResult('google_sheets', result);
+  }
   const runId = await createPendingToolRun(userId, input);
   try {
     const data = await runCreateSpreadsheet(input, userId);

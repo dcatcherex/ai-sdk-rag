@@ -1,4 +1,5 @@
 import type { ToolManifest } from '@/features/tools/registry/types';
+import { GOOGLE_WORKSPACE_PROVIDER_METADATA } from '@/features/external-tools/integrations/metadata';
 
 export const googleDriveManifest: ToolManifest = {
   id: 'google_drive',
@@ -20,4 +21,5 @@ export const googleDriveManifest: ToolManifest = {
     requiresAuth: true,
     enabled: true,
   },
+  provider: GOOGLE_WORKSPACE_PROVIDER_METADATA,
 };

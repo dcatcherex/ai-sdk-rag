@@ -1,4 +1,5 @@
 import type { ToolManifest } from '@/features/tools/registry/types';
+import { GOOGLE_WORKSPACE_PROVIDER_METADATA } from '@/features/external-tools/integrations/metadata';
 
 export const googleSheetsManifest: ToolManifest = {
   id: 'google_sheets',
@@ -20,4 +21,5 @@ export const googleSheetsManifest: ToolManifest = {
     requiresAuth: true,
     enabled: true,
   },
+  provider: GOOGLE_WORKSPACE_PROVIDER_METADATA,
 };

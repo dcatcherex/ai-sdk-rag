@@ -1,4 +1,5 @@
 import type { ToolManifest } from '@/features/tools/registry/types';
+import { KIE_MEDIA_PROVIDER_METADATA } from '@/features/external-tools/media/metadata';
 
 export const speechManifest: ToolManifest = {
   id: 'speech',
@@ -19,4 +20,5 @@ export const speechManifest: ToolManifest = {
     requiresAuth: true,
     enabled: true,
   },
+  provider: KIE_MEDIA_PROVIDER_METADATA,
 };

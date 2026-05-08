@@ -7,6 +7,8 @@ import {
   createGoogleSlidesDeck,
   createGoogleSlidesFromTemplate,
 } from '@/lib/google/slides';
+import { runExternalTool, toToolExecutionResult } from '@/features/external-tools';
+import { toGoogleSlidesProviderOptions } from '@/features/external-tools/integrations/google-bridge';
 import type {
   CreateGoogleSlidesDeckInput,
   CreateGoogleSlidesFromTemplateInput,
@@ -65,6 +67,11 @@ export async function createGoogleSlidesDeckAction(
   input: CreateGoogleSlidesDeckInput,
   userId: string,
 ): Promise<ToolExecutionResult> {
+  if (process.env.GOOGLE_INTEGRATIONS_PROVIDER_URL) {
+    const opts = toGoogleSlidesProviderOptions('create-deck', input as Record<string, unknown>, userId);
+    const result = await runExternalTool(opts);
+    return toToolExecutionResult('google_slides', result);
+  }
   const runId = await createPendingToolRun(userId, input);
   try {
     const data = await runCreateGoogleSlidesDeck(input, userId);
@@ -89,6 +96,11 @@ export async function createGoogleSlidesFromTemplateAction(
   input: CreateGoogleSlidesFromTemplateInput,
   userId: string,
 ): Promise<ToolExecutionResult> {
+  if (process.env.GOOGLE_INTEGRATIONS_PROVIDER_URL) {
+    const opts = toGoogleSlidesProviderOptions('create-deck-from-template', input as Record<string, unknown>, userId);
+    const result = await runExternalTool(opts);
+    return toToolExecutionResult('google_slides', result);
+  }
   const runId = await createPendingToolRun(userId, input);
   try {
     const data = await runCreateGoogleSlidesFromTemplate(input, userId);

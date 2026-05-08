@@ -1,3 +1,26 @@
+// External provider execution modes — used when a tool delegates execution to an external service.
+export type ToolExecutionMode = 'local' | 'external' | 'hybrid';
+
+export type ExternalToolProviderMetadata = {
+  providerKey: string;
+  executionMode: ToolExecutionMode;
+  supportsSync: boolean;
+  supportsAsync: boolean;
+  supportsConfigureUrl: boolean;
+  supportsHealthCheck: boolean;
+  estimatedCreditCost?: number;
+  requiredPermissions?: string[];
+  allowedSources?: Array<'agent' | 'sidebar' | 'api' | 'line'>;
+};
+
+export type ToolProviderHealthStatus = {
+  providerKey: string;
+  healthy: boolean;
+  latencyMs?: number;
+  checkedAt: string;
+  error?: string;
+};
+
 export type ProfessionId =
   | 'all'
   | 'teacher'
@@ -45,6 +68,8 @@ export type ToolManifest = {
     /** Master on/off switch — false means tool is hidden everywhere */
     enabled: boolean;
   };
+  /** Present only for tools that delegate execution to an external provider */
+  provider?: ExternalToolProviderMetadata;
 };
 
 export type RegisteredTool = {

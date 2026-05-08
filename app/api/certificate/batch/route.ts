@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from "@/lib/auth-server";
-import { generateCertificateOutput } from '@/lib/certificate-service';
+import { generateCertificateOutput } from '@/features/certificate/service';
 import type { CertificateField } from '@/lib/certificate-generator';
 import type { PdfQuality } from '@/features/certificate/types';
 

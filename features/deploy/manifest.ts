@@ -1,4 +1,5 @@
 import type { ToolManifest } from '@/features/tools/registry/types'
+import { WEB_DEPLOY_PROVIDER_METADATA } from '@/features/external-tools/web-publisher/metadata'
 
 export const webDeployManifest: ToolManifest = {
   id: 'web_deploy',
@@ -22,4 +23,5 @@ export const webDeployManifest: ToolManifest = {
     roles: ['admin'],
     enabled: true,
   },
+  provider: WEB_DEPLOY_PROVIDER_METADATA,
 }
