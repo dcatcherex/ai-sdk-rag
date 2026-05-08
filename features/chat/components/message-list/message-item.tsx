@@ -210,7 +210,7 @@ export const MessageItem = ({
         </MessageContent>
 
         <MessageToolbar
-          className={`mt-2 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 ${
+          className={`mt-2 hidden opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 md:flex ${
             message.role === 'user' ? 'justify-end' : 'justify-start'
           }`}
         >

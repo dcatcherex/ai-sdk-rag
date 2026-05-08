@@ -202,7 +202,7 @@ export const ChatMessageList = ({
         scrollPositionsRef={scrollPositionsRef}
       />
       <ConversationContent
-        className="px-3 md:px-6"
+        className="gap-3 px-3 pb-2 md:px-5 md:gap-0"
         scrollClassName="chat-scroll-area h-full"
       >
         {messages.length === 0 ? (

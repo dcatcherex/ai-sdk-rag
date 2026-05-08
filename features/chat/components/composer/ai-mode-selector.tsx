@@ -66,10 +66,10 @@ export const AiModeSelector = ({
         <Button
           variant="default"
           size="sm"
-          className="h-8 gap-1.5 px-2.5 text-xs"
+          className="h-9 min-w-0 max-w-[172px] gap-1.5 rounded-full bg-primary px-3 text-xs shadow-sm"
         >
           <BotIcon className="size-3.5" />
-          <span className="max-w-[100px] truncate">{label}</span>
+          <span className="min-w-0 truncate">{label}</span>
           <ChevronsUpDownIcon className="size-3 opacity-50" />
         </Button>
       </PopoverTrigger>

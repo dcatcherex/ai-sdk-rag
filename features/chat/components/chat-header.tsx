@@ -105,26 +105,40 @@ export const ChatHeader = ({
   const headerSubtitle = activeThread
     ? (displayedModelName ? `กำลังใช้ ${displayedModelName}` : 'พร้อมช่วยงานถัดไปของคุณ')
     : 'เริ่มจากงาน คำถาม หรือร่างข้อความที่คุณอยากให้ช่วย';
+  const statusText = status === 'submitted' || status === 'streaming' ? 'กำลังทำงาน' : 'พร้อมช่วย';
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 px-3 py-2 dark:border-border md:gap-3 md:px-6 md:py-1.5">
-      <div className="flex items-center gap-2">
+    <div className="flex items-center justify-between gap-2 border-b border-black/6 bg-white/45 px-3 py-2.5 backdrop-blur dark:border-white/10 dark:bg-white/[0.03] md:gap-3 md:px-5">
+      <div className="flex min-w-0 items-center gap-2.5">
         <Button
           size="icon"
           variant="ghost"
-          className="md:hidden"
+          className="size-9 shrink-0 rounded-full text-slate-700 hover:bg-white/70 dark:text-zinc-200 dark:hover:bg-white/10 md:hidden"
           onClick={onOpenMobileSidebar}
+          aria-label="Open sidebar"
         >
           <MenuIcon className="size-5" />
         </Button>
         <div className="min-w-0">
-          <h2 className="truncate text-base font-medium text-foreground md:text-lg">
+          <h2 className="truncate text-[15px] font-semibold leading-5 text-slate-900 dark:text-zinc-50 md:text-base">
             {activeThread?.title ?? 'New chat'}
           </h2>
-          <div className="flex items-center gap-1.5">
-            <p className="truncate text-xs text-muted-foreground">{headerSubtitle}</p>
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
+            <span
+              className={`size-1.5 shrink-0 rounded-full ${
+                status === 'submitted' || status === 'streaming'
+                  ? 'animate-pulse bg-amber-500'
+                  : 'bg-emerald-500'
+              }`}
+              aria-hidden="true"
+            />
+            <p className="truncate text-[11px] leading-4 text-slate-500 dark:text-zinc-400">
+              <span className="font-medium text-slate-600 dark:text-zinc-300">{statusText}</span>
+              <span className="mx-1 text-slate-300 dark:text-zinc-600">/</span>
+              {headerSubtitle}
+            </p>
             {isManualOverride && (
-              <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+              <Badge variant="outline" className="hidden h-5 shrink-0 rounded-full px-1.5 text-[10px] sm:inline-flex">
                 Override
               </Badge>
             )}
@@ -132,7 +146,7 @@ export const ChatHeader = ({
         </div>
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -140,7 +154,7 @@ export const ChatHeader = ({
                 size="icon"
                 variant={knowledgePanelOpen ? 'default' : 'ghost'}
                 onClick={onToggleKnowledgePanel}
-                className="relative size-8 hover:cursor-pointer"
+                className="relative size-9 rounded-full hover:cursor-pointer"
               >
                 <BookOpenIcon className="size-4" />
                 {docCount > 0 && (
@@ -162,7 +176,7 @@ export const ChatHeader = ({
             <Tooltip>
               <TooltipTrigger asChild>
                 <DropdownMenuTrigger asChild>
-                  <Button size="icon" variant="ghost" className="size-8 hover:cursor-pointer">
+                  <Button size="icon" variant="ghost" className="size-9 rounded-full hover:cursor-pointer">
                     <MoreHorizontalIcon className="size-4" />
                   </Button>
                 </DropdownMenuTrigger>

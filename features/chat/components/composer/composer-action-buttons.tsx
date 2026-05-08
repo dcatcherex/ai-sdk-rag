@@ -76,10 +76,10 @@ export const ComposerActionButtons = ({
 
   if (isGenerating) {
     return (
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex shrink-0 items-center gap-2">
         {(!isEmpty || isDictating) ? (
           <div className="relative">
-            <PromptInputSubmit />
+            <PromptInputSubmit className="size-9 rounded-full" />
             {queuedMessageCount > 0 ? (
               <span className="absolute -right-1.5 -top-1.5 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] font-medium leading-4 text-primary-foreground">
                 {queuedMessageCount + 1}
@@ -87,7 +87,7 @@ export const ComposerActionButtons = ({
             ) : null}
           </div>
         ) : null}
-        <PromptInputSubmit onStop={onStop} status={status} />
+        <PromptInputSubmit className="size-9 rounded-full" onStop={onStop} status={status} />
       </div>
     );
   }
@@ -95,12 +95,12 @@ export const ComposerActionButtons = ({
   // Voice mode active: mute toggle + close button
   if (voiceOpen) {
     return (
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex shrink-0 items-center gap-2">
         <button
           type="button"
           title={speakAloud ? 'Mute AI voice' : 'Unmute AI voice'}
           onClick={onToggleSpeakAloud}
-          className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-zinc-100 dark:hover:bg-muted hover:text-foreground"
+          className="flex size-9 items-center justify-center rounded-full bg-slate-100 text-muted-foreground transition-colors hover:bg-slate-200 hover:text-foreground dark:bg-white/10 dark:hover:bg-white/15"
         >
           {speakAloud ? <Volume2Icon className="size-4" /> : <VolumeXIcon className="size-4" />}
         </button>
@@ -108,7 +108,7 @@ export const ComposerActionButtons = ({
           type="button"
           title="End voice conversation"
           onClick={onCloseVoice}
-          className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground transition-colors hover:bg-primary/90"
+          className="flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
         >
           <AudioLinesIcon className="size-4" />
         </button>
@@ -117,11 +117,11 @@ export const ComposerActionButtons = ({
   }
 
   return (
-    <div className="ml-auto flex items-center gap-2">
+    <div className="ml-auto flex shrink-0 items-center gap-1.5">
       <SpeechInput
         size="icon"
         variant="ghost"
-        className="size-8"
+        className="size-9 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-zinc-200 dark:hover:bg-white/15"
         lang={typeof navigator !== 'undefined' ? navigator.language : 'en-US'}
         onTranscriptionChange={handleTranscription}
         onAudioRecorded={handleAudioRecorded}
@@ -132,12 +132,17 @@ export const ComposerActionButtons = ({
           type="button"
           title="Voice conversation"
           onClick={onOpenVoice}
-          className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-zinc-100 dark:hover:bg-muted"
+          className="flex size-9 items-center justify-center rounded-full bg-slate-950 text-white shadow-sm transition-colors hover:bg-slate-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
         >
           <AudioLinesIcon className="size-4" />
         </button>
       ) : (
-        <PromptInputSubmit onStop={onStop} status={status} disabled={anyUploading || undefined} />
+        <PromptInputSubmit
+          className="size-9 rounded-full shadow-sm"
+          onStop={onStop}
+          status={status}
+          disabled={anyUploading || undefined}
+        />
       )}
     </div>
   );

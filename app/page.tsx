@@ -392,8 +392,8 @@ function ChatShell() {
   });
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f2f0fa,#e8e4f5_55%,#dddaf0_100%)] dark:bg-[radial-gradient(circle_at_top,#1c1a2e,#181628_55%,#141220_100%)] dark:font-light">
-      <div className={`mx-auto flex min-h-screen w-full gap-3 px-2 py-2 transition-all duration-300 md:gap-6 md:px-4 md:py-6 ${widenMode ? 'w-full' : outlinePanelOpen ? 'max-w-360' : 'max-w-6xl'}`}>
+    <div className="min-h-screen bg-[linear-gradient(135deg,#f7f4ed_0%,#eef6f5_46%,#eeeaf8_100%)] text-foreground dark:bg-[linear-gradient(135deg,#15161d_0%,#101a1a_48%,#171323_100%)] dark:font-light">
+      <div className={`mx-auto flex min-h-screen w-full gap-2 px-0 py-0 transition-all duration-300 md:gap-5 md:px-4 md:py-5 ${widenMode ? 'w-full' : outlinePanelOpen ? 'max-w-360' : 'max-w-6xl'}`}>
         <ChatSidebar
           activeThreadId={activeThreadId}
           threads={threads}
@@ -413,7 +413,7 @@ function ChatShell() {
           forceCollapsed={widenMode}
         />
 
-        <main className="flex h-[calc(100dvh-1rem)] flex-1 flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-border bg-card/80 dark:bg-card/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur md:h-[calc(100vh-3rem)] md:rounded-3xl">
+        <main className="flex h-dvh flex-1 flex-col overflow-hidden border border-black/5 bg-[rgba(255,253,249,0.88)] shadow-[0_28px_70px_-48px_rgba(31,41,55,0.55)] backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/72 dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.75)] md:h-[calc(100vh-2.5rem)] md:rounded-[28px]">
           <GuestBanner />
           {editorOpen && selectedAsset ? (
             <ImageEditor
