@@ -327,7 +327,8 @@ export function ChatComposer({
 
   return (
     <div
-      className="relative border-t border-black/6 bg-white/55 px-2.5 py-2.5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/42 md:px-4 md:py-3"
+            className="relative px-3 pb-3 md:px-6 md:pb-4"
+
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
