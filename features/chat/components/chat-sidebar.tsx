@@ -120,7 +120,7 @@ export const ChatSidebar = ({
       </aside>
 
       <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
-        <SheetContent side="left" className="w-[85vw] max-w-xs p-5 sm:max-w-xs">
+        <SheetContent side="left" className="flex h-full w-[82vw] flex-col p-5 sm:max-w-xs">
           <SheetTitle className="sr-only">Thread list</SheetTitle>
           <SidebarContent {...sharedProps} />
         </SheetContent>

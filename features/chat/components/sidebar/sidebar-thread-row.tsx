@@ -37,7 +37,7 @@ export const SidebarThreadRow = forwardRef<HTMLDivElement, Props>(({
 }, ref) => (
   <div
     ref={ref}
-    className={`group flex w-59 cursor-pointer items-center rounded-lg text-sm transition  ${
+    className={`group flex w-[286px] md:w-59 cursor-pointer items-center rounded-lg text-sm transition  ${
       isActive
         ? "bg-secondary font-medium text-foreground"
         : "text-foreground/80 hover:bg-accent"
@@ -57,7 +57,7 @@ export const SidebarThreadRow = forwardRef<HTMLDivElement, Props>(({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="mr-1 shrink-0 rounded p-1 text-muted-foreground opacity-0 transition hover:cursor-pointer hover:text-foreground group-hover:opacity-100 "
+          className="mr-1 hidden shrink-0 rounded p-1 text-muted-foreground opacity-0 transition hover:cursor-pointer hover:text-foreground group-hover:opacity-100 md:block"
           onClick={(e) => e.stopPropagation()}
           aria-label="Thread actions"
         >
