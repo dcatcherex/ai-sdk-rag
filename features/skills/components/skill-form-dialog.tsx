@@ -135,7 +135,7 @@ export const SkillFormDialog = ({ open, skill, onClose, onSubmit, isPending }: P
         description: description.trim(),
         activationMode,
         triggerType,
-        trigger: activationMode === 'rule' && triggerType !== 'always' ? trigger.trim() || undefined : undefined,
+        trigger: triggerType !== 'always' ? trigger.trim() || undefined : undefined,
         promptFragment: promptFragment.trim(),
         isPublic,
       });
@@ -147,7 +147,7 @@ export const SkillFormDialog = ({ open, skill, onClose, onSubmit, isPending }: P
       name: toSkillSlug(name),
       description: description.trim(),
       activationMode,
-      triggerType: activationMode === 'rule' ? triggerType : 'always',
+      triggerType,
       trigger: activationMode === 'rule' && triggerType !== 'always' ? trigger.trim() || undefined : undefined,
       promptFragment: promptFragment.trim(),
       skillKind: 'package',
@@ -288,7 +288,7 @@ export const SkillFormDialog = ({ open, skill, onClose, onSubmit, isPending }: P
             </p>
           </div>
 
-          {activationMode === 'rule' && triggerType !== 'always' && (
+          {triggerType !== 'always' && (
             <div className="space-y-1.5">
               <Label htmlFor="skill-trigger">
                 {triggerType === 'slash' ? 'Slash command *' : 'Keyword *'}

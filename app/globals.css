@@ -655,6 +655,15 @@
   * {
     @apply border-border outline-ring/50;
   }
+  [contenteditable][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: var(--color-slate-400, #94a3b8);
+    pointer-events: none;
+    font-weight: 300;
+  }
+  .dark [contenteditable][data-placeholder]:empty::before {
+    color: var(--color-zinc-500, #71717a);
+  }
   html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;

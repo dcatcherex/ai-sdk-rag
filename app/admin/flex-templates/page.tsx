@@ -1,14 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArchiveIcon,
   ArrowLeftIcon,
+  CheckCircle2Icon,
   DownloadIcon,
+  EyeIcon,
+  FileJsonIcon,
+  FilterIcon,
+  LayersIcon,
   PencilIcon,
   PlusIcon,
   RocketIcon,
+  SearchIcon,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,11 +28,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 import { FLEX_CATEGORY_LABELS } from '@/features/line-oa/flex/utils';
 import { FlexEditor } from '@/features/line-oa/flex/components/flex-editor';
+import { FlexPreview } from '@/features/line-oa/flex/components/flex-preview';
 import type { FlexTemplateRecord, FlexCategory } from '@/features/line-oa/flex/types';
 
 const CATEGORIES: FlexCategory[] = ['agriculture', 'ecommerce', 'general', 'alert', 'other'];
+const STATUS_FILTERS = ['all', 'published', 'draft', 'archived'] as const;
+
+type StatusFilter = (typeof STATUS_FILTERS)[number];
 
 type FormState = {
   name: string;
@@ -67,6 +78,161 @@ function parsePayload(value: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+function getPayloadType(payload: Record<string, unknown>) {
+  return typeof payload.type === 'string' ? payload.type : 'unknown';
+}
+
+function getPayloadCount(payload: Record<string, unknown>) {
+  if (payload.type === 'carousel' && Array.isArray(payload.contents)) {
+    return `${payload.contents.length} bubbles`;
+  }
+
+  return '1 bubble';
+}
+
+function formatDate(value: string | null) {
+  if (!value) return 'Not published';
+
+  return new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(value));
+}
+
+function StatTile({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: number;
+  icon: typeof LayersIcon;
+}) {
+  return (
+    <Card className="rounded-lg">
+      <CardContent className="flex items-center gap-3 p-4">
+        <div className="flex size-10 items-center justify-center rounded-lg border bg-background">
+          <Icon className="size-4 text-primary" />
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">{label}</p>
+          <p className="text-2xl font-bold tabular-nums">{value}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EmptyPreview() {
+  return (
+    <div className="flex h-[560px] items-center justify-center rounded-lg border bg-card text-sm text-muted-foreground">
+      Select a template to preview it.
+    </div>
+  );
+}
+
+function TemplatePreviewPanel({
+  template,
+  onEdit,
+  onPublish,
+  onArchive,
+  isPublishing,
+  isArchiving,
+}: {
+  template: FlexTemplateRecord | null;
+  onEdit: (template: FlexTemplateRecord) => void;
+  onPublish: (id: string) => void;
+  onArchive: (id: string) => void;
+  isPublishing: boolean;
+  isArchiving: boolean;
+}) {
+  if (!template) return <EmptyPreview />;
+
+  return (
+    <Card className="overflow-hidden rounded-lg">
+      <CardHeader className="space-y-3 border-b p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge status={template.catalogStatus} />
+              <Badge variant="outline">{FLEX_CATEGORY_LABELS[template.category] ?? template.category}</Badge>
+            </div>
+            <CardTitle className="break-words text-lg leading-snug">{template.name}</CardTitle>
+          </div>
+          <Badge variant="outline" className="shrink-0 gap-1">
+            <FileJsonIcon className="size-3" />
+            {getPayloadType(template.flexPayload)}
+          </Badge>
+        </div>
+
+        {template.description && (
+          <p className="text-sm leading-relaxed text-muted-foreground">{template.description}</p>
+        )}
+
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="rounded-lg border bg-muted/30 p-2">
+            <p className="text-muted-foreground">Structure</p>
+            <p className="font-medium">{getPayloadCount(template.flexPayload)}</p>
+          </div>
+          <div className="rounded-lg border bg-muted/30 p-2">
+            <p className="text-muted-foreground">Published</p>
+            <p className="font-medium">{formatDate(template.publishedAt)}</p>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-4 p-4">
+        <div className="h-[520px] overflow-hidden rounded-lg border bg-[#EEF2F0]">
+          <FlexPreview payload={template.flexPayload} />
+        </div>
+
+        <div className="space-y-2 text-sm">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">Alt text</p>
+            <p className="break-words">{template.altText}</p>
+          </div>
+          {template.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {template.tags.map((tag) => (
+                <Badge key={tag} variant="outline" className="font-normal">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+          <Button variant="outline" className="gap-1.5" onClick={() => onEdit(template)}>
+            <PencilIcon className="size-4" />
+            Edit
+          </Button>
+          <Button
+            className="gap-1.5"
+            onClick={() => onPublish(template.id)}
+            disabled={isPublishing}
+          >
+            <RocketIcon className="size-4" />
+            {template.catalogStatus === 'published' ? 'Republish' : 'Publish'}
+          </Button>
+          {template.catalogStatus !== 'archived' && (
+            <Button
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => onArchive(template.id)}
+              disabled={isArchiving}
+            >
+              <ArchiveIcon className="size-4" />
+              Archive
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 function FlexTemplateEditor({
@@ -165,7 +331,7 @@ function FlexTemplateEditor({
         <div className="flex justify-end gap-2 border-t pt-4">
           <Button variant="outline" onClick={onBack}>Cancel</Button>
           <Button onClick={() => onSubmit(form)} disabled={!isValid || isPending}>
-            {isPending ? 'Saving…' : template ? 'Save changes' : 'Create template'}
+            {isPending ? 'Saving...' : template ? 'Save changes' : 'Create template'}
           </Button>
         </div>
       </div>
@@ -177,6 +343,10 @@ export default function AdminFlexTemplatesPage() {
   const qc = useQueryClient();
   const [editingTemplate, setEditingTemplate] = useState<FlexTemplateRecord | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<FlexCategory | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const { data, isLoading } = useQuery<{ templates: FlexTemplateRecord[] }>({
     queryKey: ['admin', 'flex-templates'],
@@ -188,6 +358,33 @@ export default function AdminFlexTemplatesPage() {
   });
 
   const templates = data?.templates ?? [];
+  const publishedCount = templates.filter((t) => t.catalogStatus === 'published').length;
+  const draftCount = templates.filter((t) => t.catalogStatus === 'draft').length;
+  const archivedCount = templates.filter((t) => t.catalogStatus === 'archived').length;
+  const filteredTemplates = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return templates.filter((template) => {
+      const matchesQuery =
+        !query ||
+        [
+          template.name,
+          template.description ?? '',
+          template.altText,
+          template.category,
+          ...template.tags,
+        ].some((value) => value.toLowerCase().includes(query));
+      const matchesCategory = categoryFilter === 'all' || template.category === categoryFilter;
+      const matchesStatus = statusFilter === 'all' || template.catalogStatus === statusFilter;
+
+      return matchesQuery && matchesCategory && matchesStatus;
+    });
+  }, [categoryFilter, searchQuery, statusFilter, templates]);
+  const selectedTemplate =
+    templates.find((template) => template.id === selectedTemplateId) ??
+    filteredTemplates[0] ??
+    templates[0] ??
+    null;
 
   const saveMutation = useMutation({
     mutationFn: async (payload: { id?: string; body: Record<string, unknown> }) => {
@@ -206,6 +403,7 @@ export default function AdminFlexTemplatesPage() {
       void qc.invalidateQueries({ queryKey: ['admin', 'flex-templates'] });
       setEditingTemplate(null);
       setIsCreating(false);
+      setSelectedTemplateId(null);
     },
   });
 
@@ -268,15 +466,19 @@ export default function AdminFlexTemplatesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Flex Templates</h1>
-          <p className="text-sm text-muted-foreground">
+          <div className="mb-2 inline-flex items-center gap-2 rounded-lg border bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground">
+            <EyeIcon className="size-3.5 text-primary" />
+            Live LINE preview
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight">Flex Templates</h1>
+          <p className="max-w-2xl text-sm text-muted-foreground">
             Manage platform Flex Message templates. Published templates appear in the user gallery.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Button
             variant="outline"
             className="gap-1.5"
@@ -284,7 +486,7 @@ export default function AdminFlexTemplatesPage() {
             disabled={seedMutation.isPending}
           >
             <DownloadIcon className="size-4" />
-            {seedMutation.isPending ? 'Importing…' : 'Import AgriSpark Templates'}
+            {seedMutation.isPending ? 'Importing...' : 'Import AgriSpark Templates'}
           </Button>
           <Button className="gap-1.5" onClick={() => setIsCreating(true)}>
             <PlusIcon className="size-4" />
@@ -293,98 +495,159 @@ export default function AdminFlexTemplatesPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-bold">{templates.length}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Published</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-bold">
-            {templates.filter((t) => t.catalogStatus === 'published').length}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Drafts</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-bold">
-            {templates.filter((t) => t.catalogStatus === 'draft').length}
-          </CardContent>
-        </Card>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile label="Total" value={templates.length} icon={LayersIcon} />
+        <StatTile label="Published" value={publishedCount} icon={CheckCircle2Icon} />
+        <StatTile label="Drafts" value={draftCount} icon={FileJsonIcon} />
+        <StatTile label="Archived" value={archivedCount} icon={ArchiveIcon} />
       </div>
 
-      <div className="grid gap-3">
-        {isLoading ? (
-          <Card>
-            <CardContent className="py-10 text-sm text-muted-foreground">Loading…</CardContent>
-          </Card>
-        ) : templates.length === 0 ? (
-          <Card>
-            <CardContent className="py-10 text-sm text-muted-foreground">
-              No flex templates yet. Click &quot;Import AgriSpark Templates&quot; to get started.
+      <div className="grid min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_390px]">
+        <div className="min-w-0 space-y-3">
+          <Card className="rounded-lg">
+            <CardContent className="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_170px_150px]">
+              <div className="relative min-w-0">
+                <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search name, tag, alt text"
+                  className="pl-9"
+                />
+              </div>
+              <Select
+                value={categoryFilter}
+                onValueChange={(value) => setCategoryFilter(value as FlexCategory | 'all')}
+              >
+                <SelectTrigger>
+                  <FilterIcon className="mr-2 size-4 text-muted-foreground" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All categories</SelectItem>
+                  {CATEGORIES.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {FLEX_CATEGORY_LABELS[category]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => setStatusFilter(value as StatusFilter)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_FILTERS.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status === 'all' ? 'All status' : status[0].toUpperCase() + status.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </CardContent>
           </Card>
-        ) : (
-          templates.map((t) => (
-            <Card key={t.id}>
-              <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-                <div className="min-w-0 space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <CardTitle className="text-base">{t.name}</CardTitle>
-                    <StatusBadge status={t.catalogStatus} />
-                    <Badge variant="outline">{FLEX_CATEGORY_LABELS[t.category] ?? t.category}</Badge>
-                  </div>
-                  {t.description && (
-                    <p className="text-sm text-muted-foreground">{t.description}</p>
-                  )}
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => setEditingTemplate(t)}
+
+          <div className="space-y-2">
+            {isLoading ? (
+              <Card className="rounded-lg">
+                <CardContent className="py-10 text-sm text-muted-foreground">Loading...</CardContent>
+              </Card>
+            ) : templates.length === 0 ? (
+              <Card className="rounded-lg">
+                <CardContent className="py-10 text-sm text-muted-foreground">
+                  No flex templates yet. Click &quot;Import AgriSpark Templates&quot; to get started.
+                </CardContent>
+              </Card>
+            ) : filteredTemplates.length === 0 ? (
+              <Card className="rounded-lg">
+                <CardContent className="py-10 text-sm text-muted-foreground">
+                  No templates match the current filters.
+                </CardContent>
+              </Card>
+            ) : (
+              filteredTemplates.map((template) => {
+                const isSelected = selectedTemplate?.id === template.id;
+
+                return (
+                  <Card
+                    key={template.id}
+                    className={cn(
+                      'cursor-pointer rounded-lg transition-colors hover:border-primary/50',
+                      isSelected && 'border-primary bg-primary/5 shadow-sm',
+                    )}
+                    onClick={() => setSelectedTemplateId(template.id)}
                   >
-                    <PencilIcon className="size-3.5" />
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => publishMutation.mutate(t.id)}
-                    disabled={publishMutation.isPending}
-                  >
-                    <RocketIcon className="size-3.5" />
-                    {t.catalogStatus === 'published' ? 'Republish' : 'Publish'}
-                  </Button>
-                  {t.catalogStatus !== 'archived' && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5"
-                      onClick={() => archiveMutation.mutate(t.id)}
-                      disabled={archiveMutation.isPending}
-                    >
-                      <ArchiveIcon className="size-3.5" />
-                      Archive
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                <span>Alt text: {t.altText}</span>
-                {t.tags.length > 0 && (
-                  <span className="ml-4">Tags: {t.tags.join(', ')}</span>
-                )}
-              </CardContent>
-            </Card>
-          ))
-        )}
+                    <CardContent className="grid gap-4 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                      <div className="min-w-0 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <CardTitle className="break-words text-base leading-snug">
+                            {template.name}
+                          </CardTitle>
+                          <StatusBadge status={template.catalogStatus} />
+                          <Badge variant="outline">
+                            {FLEX_CATEGORY_LABELS[template.category] ?? template.category}
+                          </Badge>
+                        </div>
+                        {template.description && (
+                          <p className="line-clamp-2 text-sm text-muted-foreground">
+                            {template.description}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          <span className="inline-flex items-center gap-1">
+                            <FileJsonIcon className="size-3" />
+                            {getPayloadType(template.flexPayload)} / {getPayloadCount(template.flexPayload)}
+                          </span>
+                          <span className="break-words">Alt: {template.altText}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 md:justify-end">
+                        <Button
+                          variant={isSelected ? 'default' : 'outline'}
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelectedTemplateId(template.id);
+                          }}
+                        >
+                          <EyeIcon className="size-3.5" />
+                          Preview
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setEditingTemplate(template);
+                          }}
+                        >
+                          <PencilIcon className="size-3.5" />
+                          Edit
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        <aside className="min-w-0 lg:sticky lg:top-8 lg:self-start">
+          <TemplatePreviewPanel
+            template={selectedTemplate}
+            onEdit={setEditingTemplate}
+            onPublish={(id) => publishMutation.mutate(id)}
+            onArchive={(id) => archiveMutation.mutate(id)}
+            isPublishing={publishMutation.isPending}
+            isArchiving={archiveMutation.isPending}
+          />
+        </aside>
       </div>
     </div>
   );
