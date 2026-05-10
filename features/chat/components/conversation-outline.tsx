@@ -37,9 +37,10 @@ function extractHeadings(text: string): Array<{ text: string; level: number }> {
 type ConversationOutlineProps = {
   messages: ChatMessage[];
   activeMessageId?: string | null;
+  className?: string;
 };
 
-export const ConversationOutline = ({ messages, activeMessageId }: ConversationOutlineProps) => {
+export const ConversationOutline = ({ messages, activeMessageId, className }: ConversationOutlineProps) => {
   const [filter, setFilter] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -127,8 +128,15 @@ export const ConversationOutline = ({ messages, activeMessageId }: ConversationO
 
   const WIDTH = 'w-70';
 
+  const isMobileSheet = !!className;
+
   return (
-    <div className={`flex h-[calc(100vh-3rem)] ${WIDTH} flex-col rounded-2xl border border-black/5 dark:border-border bg-white/80 dark:bg-card/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur overflow-hidden md:rounded-3xl`}>
+    <div className={className ?? `flex h-[calc(100vh-3rem)] ${WIDTH} flex-col rounded-2xl border border-black/5 dark:border-border bg-white/80 dark:bg-card/80 shadow-[0_35px_80px_-60px_rgba(15,23,42,0.5)] dark:shadow-[0_35px_80px_-60px_rgba(0,0,0,0.7)] backdrop-blur overflow-hidden md:rounded-3xl`}>
+      {isMobileSheet && (
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="h-1 w-10 rounded-full bg-black/15 dark:bg-white/20" />
+        </div>
+      )}
       <div className="flex items-center justify-between border-b border-black/5 dark:border-border px-4 py-3.5">
         <span className="text-sm font-semibold">Outline</span>
         <button

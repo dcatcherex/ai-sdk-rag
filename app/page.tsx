@@ -26,6 +26,7 @@ import { CompareGrid, type ComparePrompt } from '@/features/chat/components/comp
 import type { ChatMessage, ChatReferenceImage, QuizFollowUpContext, RoutingMetadata } from '@/features/chat/types';
 import type { PromptInputMessage } from '@/components/ai-elements/prompt-input';
 import { ThreadWorkingMemorySheet } from '@/features/memory/components/thread-working-memory-sheet';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { consumePendingChatIntent } from '@/features/chat/lib/pending-chat-intent';
 import { GuestBanner } from '@/features/auth/components/guest-banner';
 import { useUserPreferences } from '@/features/settings/hooks/use-user-preferences';
@@ -547,6 +548,7 @@ function ChatShell() {
           )}
         </main>
 
+        {/* Desktop: side panel */}
         {outlinePanelOpen && (
           <div className="hidden lg:block">
             <ConversationOutline
@@ -555,6 +557,22 @@ function ChatShell() {
             />
           </div>
         )}
+
+        {/* Mobile: bottom sheet */}
+        <Sheet open={outlinePanelOpen} onOpenChange={setOutlinePanelOpen}>
+          <SheetContent
+            side="bottom"
+            showCloseButton={false}
+            className="lg:hidden h-[72vh] p-0 rounded-t-2xl data-[state=open]:duration-[420ms] data-[state=closed]:duration-[250ms] data-[state=open]:[animation-timing-function:cubic-bezier(0.32,0.72,0,1)] data-[state=closed]:[animation-timing-function:cubic-bezier(0.4,0,1,1)]"
+          >
+            <SheetTitle className="sr-only">Outline</SheetTitle>
+            <ConversationOutline
+              messages={messages}
+              activeMessageId={activeOutlineMessageId}
+              className="flex h-full flex-col overflow-hidden"
+            />
+          </SheetContent>
+        </Sheet>
       </div>
     </div>
   );
