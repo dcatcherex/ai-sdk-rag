@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import { BotIcon, SparklesIcon } from 'lucide-react';
-import { AgentTaskCard } from './agent-task-card';
+import { AgentTaskRow } from './agent-task-row';
 import { getAgentStarterTasks } from './task-starter-data';
 import type { AgentStarterTask } from './types';
 
@@ -32,8 +32,8 @@ export function AgentChatEmptyState({
   const subtitle = agentDescription ?? 'เลือกงานเริ่มต้น หรือพิมพ์สิ่งที่อยากให้ช่วยด้านล่าง';
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-0 py-4 text-left md:gap-6 md:px-2 md:py-10">
-      <section className="mx-1 md:mx-3">
+    <div className="mx-auto flex w-full max-w-lg flex-col gap-4 px-3 py-4 text-left md:gap-5 md:py-10">
+      <section>
         {agentImageUrl ? (
           <div className="flex flex-col items-center gap-3 py-2 text-center">
             <div className="relative size-24 overflow-hidden rounded-3xl md:size-28">
@@ -76,10 +76,10 @@ export function AgentChatEmptyState({
         )}
       </section>
 
-      <section className="px-1 md:px-3">
-        <div className="grid gap-2.5 md:grid-cols-2 md:gap-3 xl:grid-cols-4">
+      <section>
+        <div className="flex flex-col gap-2.5">
           {primaryTasks.map((task) => (
-            <AgentTaskCard key={task.id} task={task} onSelect={onSelectTask} />
+            <AgentTaskRow key={task.id} task={task} onSelect={onSelectTask} />
           ))}
         </div>
       </section>

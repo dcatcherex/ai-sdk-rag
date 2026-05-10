@@ -8,6 +8,7 @@ import {
   MenuIcon,
   MoreHorizontalIcon,
   PanelRightOpenIcon,
+  PlusIcon,
   Trash2Icon,
 } from 'lucide-react';
 
@@ -69,6 +70,7 @@ type ChatHeaderProps = {
   fontSize: FontSize;
   onChangeFontSize: (size: FontSize) => void;
   onOpenMobileSidebar?: () => void;
+  onNewChat?: () => void;
   // Mobile agent selector
   agents: Agent[];
   essentials: Agent[];
@@ -98,6 +100,7 @@ export const ChatHeader = ({
   fontSize,
   onChangeFontSize,
   onOpenMobileSidebar,
+  onNewChat,
   agents,
   essentials,
   selectedAgentId,
@@ -146,30 +149,20 @@ export const ChatHeader = ({
           <h2 className="truncate text-[15px] font-semibold leading-5 text-slate-900 dark:text-zinc-50 md:text-base">
             {activeThread?.title ?? 'New chat'}
           </h2>
-          <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
-            <span
-              className={`size-1.5 shrink-0 rounded-full ${
-                status === 'submitted' || status === 'streaming'
-                  ? 'animate-pulse bg-amber-500'
-                  : 'bg-emerald-500'
-              }`}
-              aria-hidden="true"
-            />
-            <p className="truncate text-[11px] leading-4 text-slate-500 dark:text-zinc-400">
-              <span className="font-medium text-slate-600 dark:text-zinc-300">{statusText}</span>
-              <span className="mx-1 text-slate-300 dark:text-zinc-600">/</span>
-              {headerSubtitle}
-            </p>
-            {isManualOverride && (
-              <Badge variant="outline" className="hidden h-5 shrink-0 rounded-full px-1.5 text-[10px] sm:inline-flex">
-                Override
-              </Badge>
-            )}
-          </div>
         </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={onNewChat}
+          className="size-9 shrink-0 rounded-full text-slate-700 hover:bg-white/70 dark:text-zinc-200 dark:hover:bg-white/10 md:hidden"
+          aria-label="New chat"
+        >
+          <PlusIcon className="size-5" />
+        </Button>
+
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>

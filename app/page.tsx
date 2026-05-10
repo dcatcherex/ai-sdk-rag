@@ -446,6 +446,7 @@ function ChatShell() {
                 onChangeFontSize={handleChangeFontSize}
                 docCount={docStats?.totalDocuments ?? 0}
                 onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
+                onNewChat={handleCreateThread}
                 agents={agents}
                 essentials={essentials}
                 selectedAgentId={selectedAgentId}
