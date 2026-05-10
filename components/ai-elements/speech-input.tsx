@@ -72,7 +72,7 @@ const RecordingWaveform = ({ barsRef }: { barsRef: React.RefObject<HTMLDivElemen
       <div
         key={i}
         className="w-[3px] rounded-full bg-slate-500 dark:bg-zinc-400"
-        style={{ height: "3px", transition: "height 60ms linear" }}
+        style={{ height: "3px", transition: "height 90ms ease-out" }}
       />
     ))}
   </div>
@@ -155,21 +155,21 @@ export const SpeechInput = ({
       const ctx = new AudioContext();
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.75;
+      analyser.smoothingTimeConstant = 0.88;
       const source = ctx.createMediaStreamSource(stream);
       source.connect(analyser);
       audioCtxRef.current = ctx;
       analyserRef.current = analyser;
 
       const dataArray = new Uint8Array(analyser.fftSize);
+      const smoothed = new Float32Array(NUM_BARS).fill(3);
 
       const tick = () => {
         analyser.getByteTimeDomainData(dataArray);
         const container = barsRef.current;
         if (container) {
           const bars = container.children;
-          // Lower = more sensitive. Typical speech peak is 10-30 out of 128,
-          // so we scale against 22 instead of 128 to fill the bar range.
+          // Lower = more sensitive. Typical speech peak is 10-30 out of 128.
           const SENSITIVITY = 22;
           const segLen = Math.floor(dataArray.length / NUM_BARS);
           for (let i = 0; i < NUM_BARS; i++) {
@@ -177,8 +177,11 @@ export const SpeechInput = ({
             for (let j = i * segLen; j < (i + 1) * segLen; j++) {
               peak = Math.max(peak, Math.abs((dataArray[j] ?? 128) - 128));
             }
-            const h = Math.max(3, Math.min(20, Math.round((peak / SENSITIVITY) * 20)));
-            (bars[i] as HTMLElement).style.height = `${h}px`;
+            const target = Math.max(3, Math.min(20, (peak / SENSITIVITY) * 20));
+            // Lerp: rise fast (0.4), fall slow (0.15) for natural decay
+            const alpha = target > (smoothed[i] ?? 3) ? 0.4 : 0.15;
+            smoothed[i] = (smoothed[i] ?? 3) * (1 - alpha) + target * alpha;
+            (bars[i] as HTMLElement).style.height = `${smoothed[i].toFixed(1)}px`;
           }
         }
         rafRef.current = requestAnimationFrame(tick);
