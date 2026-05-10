@@ -1,6 +1,5 @@
 import { BotIcon, SparklesIcon } from 'lucide-react';
 import { AgentTaskCard } from './agent-task-card';
-import { AgentTaskRow } from './agent-task-row';
 import { getAgentStarterTasks } from './task-starter-data';
 import type { AgentStarterTask } from './types';
 
@@ -26,7 +25,6 @@ export function AgentChatEmptyState({
     generalStarterPrompts,
   });
   const primaryTasks = tasks.filter((task) => task.priority === 'primary').slice(0, 4);
-  const secondaryTasks = tasks.filter((task) => task.priority === 'secondary').slice(0, 6);
   const title = agentName ?? 'Vaja AI พร้อมช่วยงานแล้ว';
   const subtitle = agentDescription ?? 'เลือกงานเริ่มต้น หรือพิมพ์สิ่งที่อยากให้ช่วยด้านล่าง';
 
@@ -52,32 +50,12 @@ export function AgentChatEmptyState({
       </section>
 
       <section className="px-1 md:px-3">
-        <div className="mb-2 flex items-center justify-between px-1 md:mb-3">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-zinc-400">
-            เริ่มเร็ว
-          </h2>
-        </div>
         <div className="grid gap-2.5 md:grid-cols-2 md:gap-3 xl:grid-cols-4">
           {primaryTasks.map((task) => (
             <AgentTaskCard key={task.id} task={task} onSelect={onSelectTask} />
           ))}
         </div>
       </section>
-
-      {secondaryTasks.length > 0 ? (
-        <section className="px-1 md:px-3">
-          <div className="mb-2 flex items-center justify-between px-1 md:mb-3">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-zinc-400">
-              งานอื่นที่ช่วยได้
-            </h2>
-          </div>
-          <div className="grid gap-2.5 md:grid-cols-2">
-            {secondaryTasks.map((task) => (
-              <AgentTaskRow key={task.id} task={task} onSelect={onSelectTask} />
-            ))}
-          </div>
-        </section>
-      ) : null}
     </div>
   );
 }

@@ -45,17 +45,23 @@ export function AgentTaskCard({ task, onSelect }: AgentTaskCardProps) {
     <button
       type="button"
       onClick={() => onSelect(task)}
-      className="group flex min-h-[92px] w-full cursor-pointer flex-col rounded-[18px] border border-black/6 bg-white/72 p-3.5 text-left shadow-[0_14px_42px_-36px_rgba(15,23,42,0.65)] transition-all hover:-translate-y-0.5 hover:border-black/10 hover:bg-white/92 hover:shadow-[0_18px_48px_-34px_rgba(15,23,42,0.7)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 dark:border-white/10 dark:bg-white/[0.045] dark:hover:bg-white/[0.075] md:min-h-32 md:p-4"
+      className="group flex w-full cursor-pointer items-center gap-3 rounded-[18px] border border-black/6 bg-white/72 p-3 text-left shadow-[0_14px_42px_-36px_rgba(15,23,42,0.65)] transition-all hover:border-black/10 hover:bg-white/92 hover:shadow-[0_18px_48px_-34px_rgba(15,23,42,0.7)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 dark:border-white/10 dark:bg-white/[0.045] dark:hover:bg-white/[0.075] md:min-h-32 md:flex-col md:items-start md:p-4 md:hover:-translate-y-0.5"
     >
-      <span className={cn('mb-3 inline-flex size-9 items-center justify-center rounded-xl ring-1 md:mb-4 md:size-10', accentClass[task.icon])}>
-        <Icon className="size-4 md:size-5" aria-hidden="true" />
+      {/* Mobile: theme-consistent icon | Desktop: colored accent icon */}
+      <span className={cn('inline-flex shrink-0 items-center justify-center rounded-xl ring-1 size-8 md:mb-4 md:size-10', 'bg-primary/10 text-primary ring-primary/15 md:hidden')}>
+        <Icon className="size-4" aria-hidden="true" />
       </span>
-      <span className="text-sm font-medium leading-5 text-slate-800 dark:text-zinc-100">{task.title}</span>
-      {task.description ? (
-        <span className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-zinc-400">
-          {task.description}
-        </span>
-      ) : null}
+      <span className={cn('hidden shrink-0 items-center justify-center rounded-xl ring-1 md:inline-flex md:size-10', accentClass[task.icon])}>
+        <Icon className="size-5" aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium leading-5 text-slate-800 dark:text-zinc-100">{task.title}</span>
+        {task.description ? (
+          <span className="mt-1 hidden line-clamp-2 text-xs leading-5 text-slate-500 dark:text-zinc-400 md:block">
+            {task.description}
+          </span>
+        ) : null}
+      </span>
     </button>
   );
 }

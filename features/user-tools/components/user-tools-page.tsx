@@ -465,7 +465,7 @@ export function UserToolsPage() {
         )}
       />
 
-      <div className="flex-1 p-6">
+      <div className="flex-1 overflow-y-auto p-6">
         <div className="grid items-start gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
           <div className="rounded-xl border">
             <div className="border-b px-4 py-3">
