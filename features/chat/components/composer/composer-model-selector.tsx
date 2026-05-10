@@ -38,7 +38,7 @@ export const ComposerModelSelector = ({
       <PromptInputButton
         aria-label="Select model"
         title="Select model"
-        className="hidden size-9 shrink-0 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-zinc-200 dark:hover:bg-white/15 md:inline-flex"
+        className="hidden"
       >
         <ModelSelectorLogo provider={currentModel.provider} />
       </PromptInputButton>

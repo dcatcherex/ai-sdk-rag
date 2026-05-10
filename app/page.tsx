@@ -447,6 +447,7 @@ function ChatShell() {
                 docCount={docStats?.totalDocuments ?? 0}
                 onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
                 onNewChat={handleCreateThread}
+                onOpenModelSelector={() => setModelSelectorOpen(true)}
                 agents={agents}
                 essentials={essentials}
                 selectedAgentId={selectedAgentId}

@@ -28,6 +28,7 @@ export async function GET(_req: Request, { params }: Params) {
       id: agent.id,
       name: agent.name,
       description: agent.description,
+      imageUrl: agent.imageUrl,
       modelId: agent.modelId,
       enabledTools: agent.enabledTools,
       documentIds: agent.documentIds,

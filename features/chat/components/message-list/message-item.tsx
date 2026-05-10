@@ -5,11 +5,19 @@ import {
   CheckIcon,
   CopyIcon,
   InfoIcon,
+  MoreHorizontalIcon,
   RefreshCwIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
   Trash2Icon,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Message,
   MessageContent,
@@ -28,7 +36,7 @@ import { filterRenderableMessageParts, getTextContentFromParts } from '@/feature
 import type { ChatMessage, ChatMessageMetadata, ChatMessagePart, ChatReferenceImage, MessageReaction, QuizFollowUpContext } from '@/features/chat/types';
 import type { MediaAsset } from '@/features/gallery/types';
 import { EnhancedPromptChip, GenerationDetails } from './generation-details';
-import { ReadAloudButton } from './read-aloud-button';
+import { ReadAloudMenuItem } from './read-aloud-button';
 import { FollowUpChips } from './follow-up-chips';
 import { SkillBadges } from './skill-badges';
 import type { ReactionMap, PendingDelete } from './types';
@@ -215,68 +223,6 @@ export const MessageItem = ({
           }`}
         >
           <div className="flex gap-1">
-            {textContent && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-7"
-                      onClick={() => onCopyMessage(message.id, textContent)}
-                    >
-                      {copiedMessageId === message.id ? (
-                        <CheckIcon className="size-3 text-green-600" />
-                      ) : (
-                        <CopyIcon className="size-3" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {copiedMessageId === message.id ? 'Copied!' : 'Copy message'}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-            {message.role === 'assistant' && textContent && (
-              <ReadAloudButton text={textContent} />
-            )}
-            {message.role === 'assistant' && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-7"
-                      onClick={() => onRegenerateMessage(message.id)}
-                      disabled={isGenerating}
-                    >
-                      <RefreshCwIcon className="size-3" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Regenerate response</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="size-7 text-muted-foreground hover:text-red-500"
-                    onClick={handleDeleteClick}
-                    onMouseEnter={handleDeleteEnter}
-                    onMouseLeave={onHoverDeleteLeave}
-                    disabled={isGenerating}
-                  >
-                    <Trash2Icon className="size-3" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Delete exchange</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
             {message.role === 'assistant' && (
               <>
                 <TooltipProvider>
@@ -309,25 +255,85 @@ export const MessageItem = ({
                     <TooltipContent>Not helpful</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-                {(message.metadata as ChatMessageMetadata | undefined)?.routing && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className={`size-7 ${openInfoId === message.id ? 'text-blue-500' : ''}`}
-                          onClick={() => onToggleInfo(openInfoId === message.id ? null : message.id)}
-                        >
-                          <InfoIcon className="size-3" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Generation details</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-7"
+                        onClick={() => onRegenerateMessage(message.id)}
+                        disabled={isGenerating}
+                      >
+                        <RefreshCwIcon className="size-3" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Regenerate response</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </>
             )}
+            {textContent && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-7"
+                      onClick={() => onCopyMessage(message.id, textContent)}
+                    >
+                      {copiedMessageId === message.id ? (
+                        <CheckIcon className="size-3 text-green-600" />
+                      ) : (
+                        <CopyIcon className="size-3" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {copiedMessageId === message.id ? 'Copied!' : 'Copy message'}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+
+            {/* More menu — read aloud, delete, generation details */}
+            <DropdownMenu>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="icon" variant="ghost" className="size-7">
+                        <MoreHorizontalIcon className="size-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>More</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <DropdownMenuContent align={message.role === 'user' ? 'end' : 'start'}>
+                {message.role === 'assistant' && textContent && (
+                  <ReadAloudMenuItem text={textContent} />
+                )}
+                {message.role === 'assistant' && (message.metadata as ChatMessageMetadata | undefined)?.routing && (
+                  <DropdownMenuItem onClick={() => onToggleInfo(openInfoId === message.id ? null : message.id)}>
+                    <InfoIcon className="mr-2 size-4" />
+                    Generation details
+                  </DropdownMenuItem>
+                )}
+                {(message.role === 'assistant' && textContent) && <DropdownMenuSeparator />}
+                <DropdownMenuItem
+                  onClick={handleDeleteClick}
+                  onMouseEnter={handleDeleteEnter}
+                  onMouseLeave={onHoverDeleteLeave}
+                  disabled={isGenerating}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2Icon className="mr-2 size-4" />
+                  Delete exchange
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </MessageToolbar>
       </Message>

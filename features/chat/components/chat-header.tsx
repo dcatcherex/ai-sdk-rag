@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import {
   BookOpenIcon,
+  BotIcon,
   DownloadIcon,
   FileTextIcon,
   MenuIcon,
@@ -71,6 +72,7 @@ type ChatHeaderProps = {
   onChangeFontSize: (size: FontSize) => void;
   onOpenMobileSidebar?: () => void;
   onNewChat?: () => void;
+  onOpenModelSelector?: () => void;
   // Mobile agent selector
   agents: Agent[];
   essentials: Agent[];
@@ -101,6 +103,7 @@ export const ChatHeader = ({
   onChangeFontSize,
   onOpenMobileSidebar,
   onNewChat,
+  onOpenModelSelector,
   agents,
   essentials,
   selectedAgentId,
@@ -173,14 +176,6 @@ export const ChatHeader = ({
                 className="relative hidden size-9 rounded-full hover:cursor-pointer md:inline-flex"
               >
                 <BookOpenIcon className="size-4" />
-                {docCount > 0 && (
-                  <Badge
-                    variant="secondary"
-                    className="absolute -right-1.5 -top-1.5 size-4 justify-center p-0 text-[9px]"
-                  >
-                    {docCount}
-                  </Badge>
-                )}
               </Button>
             </TooltipTrigger>
             <TooltipContent>Knowledge base</TooltipContent>
@@ -201,6 +196,13 @@ export const ChatHeader = ({
             </Tooltip>
           </TooltipProvider>
           <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuItem onClick={onOpenModelSelector} className="hidden md:flex">
+              <BotIcon className="mr-2 size-4" />
+              Select model
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator className="hidden md:block" />
+
             <DropdownMenuItem onClick={onToggleOutlinePanel}>
               <PanelRightOpenIcon className="mr-2 size-4" />
               {outlinePanelOpen ? 'Hide outline' : 'Show outline'}
