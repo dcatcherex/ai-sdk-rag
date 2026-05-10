@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { BotIcon, CheckIcon, ChevronsUpDownIcon, PinIcon } from 'lucide-react';
+import { BotIcon, CheckIcon, ChevronDownIcon, ChevronsUpDownIcon, PinIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -28,6 +28,7 @@ type AiModeSelectorProps = {
   essentials: Agent[];
   selectedAgentId: string | null;
   onSelectAgent: (id: string | null) => void;
+  variant?: 'default' | 'minimal';
 };
 
 export const AiModeSelector = ({
@@ -35,6 +36,7 @@ export const AiModeSelector = ({
   essentials,
   selectedAgentId,
   onSelectAgent,
+  variant = 'default',
 }: AiModeSelectorProps) => {
   const [open, setOpen] = useState(false);
   const { pinnedAgentIds, isPinned, togglePinned } = useChatVisibleAgents();
@@ -63,15 +65,25 @@ export const AiModeSelector = ({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="default"
-          size="sm"
-          className="h-9 min-w-0 max-w-[172px] gap-1.5 rounded-full bg-primary px-3 text-xs shadow-sm"
-        >
-          <BotIcon className="size-3.5" />
-          <span className="min-w-0 truncate">{label}</span>
-          <ChevronsUpDownIcon className="size-3 opacity-50" />
-        </Button>
+        {variant === 'minimal' ? (
+          <button
+            type="button"
+            className="flex items-center gap-1 text-base font-semibold text-foreground hover:opacity-70 transition-opacity"
+          >
+            <span className="min-w-0 truncate max-w-[200px]">{label}</span>
+            <ChevronDownIcon className="size-4 opacity-60" />
+          </button>
+        ) : (
+          <Button
+            variant="default"
+            size="sm"
+            className="h-9 min-w-0 max-w-[172px] gap-1.5 rounded-full bg-primary px-3 text-xs shadow-sm"
+          >
+            <BotIcon className="size-3.5" />
+            <span className="min-w-0 truncate">{label}</span>
+            <ChevronsUpDownIcon className="size-3 opacity-50" />
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="start">
         <Command>

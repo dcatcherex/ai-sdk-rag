@@ -33,6 +33,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { AiModeSelector } from './composer/ai-mode-selector';
+import type { Agent } from '@/features/agents/types';
 import type { ChatStatus } from 'ai';
 
 import type { ThreadItem, RoutingMetadata } from '../types';
@@ -67,6 +69,11 @@ type ChatHeaderProps = {
   fontSize: FontSize;
   onChangeFontSize: (size: FontSize) => void;
   onOpenMobileSidebar?: () => void;
+  // Mobile agent selector
+  agents: Agent[];
+  essentials: Agent[];
+  selectedAgentId: string | null;
+  onSelectAgent: (id: string | null) => void;
 };
 
 export const ChatHeader = ({
@@ -91,6 +98,10 @@ export const ChatHeader = ({
   fontSize,
   onChangeFontSize,
   onOpenMobileSidebar,
+  agents,
+  essentials,
+  selectedAgentId,
+  onSelectAgent,
 }: ChatHeaderProps) => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
@@ -119,7 +130,19 @@ export const ChatHeader = ({
         >
           <MenuIcon className="size-5" />
         </Button>
-        <div className="min-w-0">
+
+        {/* Mobile: agent selector in header */}
+        <div className="md:hidden">
+          <AiModeSelector
+            agents={agents}
+            essentials={essentials}
+            selectedAgentId={selectedAgentId}
+            onSelectAgent={onSelectAgent}
+            variant="minimal"
+          />
+        </div>
+
+        <div className="hidden min-w-0 md:block">
           <h2 className="truncate text-[15px] font-semibold leading-5 text-slate-900 dark:text-zinc-50 md:text-base">
             {activeThread?.title ?? 'New chat'}
           </h2>
@@ -154,7 +177,7 @@ export const ChatHeader = ({
                 size="icon"
                 variant={knowledgePanelOpen ? 'default' : 'ghost'}
                 onClick={onToggleKnowledgePanel}
-                className="relative size-9 rounded-full hover:cursor-pointer"
+                className="relative hidden size-9 rounded-full hover:cursor-pointer md:inline-flex"
               >
                 <BookOpenIcon className="size-4" />
                 {docCount > 0 && (

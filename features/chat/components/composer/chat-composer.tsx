@@ -686,12 +686,14 @@ export function ChatComposer({
                 </PromptInputActionMenuContent>
               </PromptInputActionMenu>
               {!compareMode && (
-                <AiModeSelector
-                  agents={agents}
-                  essentials={essentials}
-                  selectedAgentId={selectedAgentId}
-                  onSelectAgent={onSelectAgent}
-                />
+                <div className="hidden md:contents">
+                  <AiModeSelector
+                    agents={agents}
+                    essentials={essentials}
+                    selectedAgentId={selectedAgentId}
+                    onSelectAgent={onSelectAgent}
+                  />
+                </div>
               )}
               {!compareMode && (
                 <ModelSelector open={modelSelectorOpen} onOpenChange={onModelSelectorOpenChange}>
@@ -699,7 +701,7 @@ export function ChatComposer({
                     <PromptInputButton
                       aria-label="Select model"
                       title="Select model"
-                      className="size-9 shrink-0 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-zinc-200 dark:hover:bg-white/15"
+                      className="hidden size-9 shrink-0 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-zinc-200 dark:hover:bg-white/15 md:inline-flex"
                     >
                       <ModelSelectorLogo provider={currentModel.provider} />
                     </PromptInputButton>
