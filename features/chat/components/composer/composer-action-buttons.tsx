@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import type { ChatStatus } from 'ai';
 import { toast } from 'sonner';
 import { AudioLinesIcon, Volume2Icon, VolumeXIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   PromptInputSubmit,
   usePromptInputAttachments,
@@ -116,8 +117,13 @@ export const ComposerActionButtons = ({
     );
   }
 
+  // While recording, the SpeechInput renders its own full-width bar with cancel/confirm.
+  // We expand the container and hide the voice/submit button so the bar has room.
   return (
-    <div className="ml-auto flex shrink-0 items-center gap-1.5">
+    <div className={cn(
+      "ml-auto flex shrink-0 items-center gap-1.5",
+      isDictating && "flex-1",
+    )}>
       <SpeechInput
         size="icon"
         variant="ghost"
@@ -127,12 +133,12 @@ export const ComposerActionButtons = ({
         onAudioRecorded={handleAudioRecorded}
         onListeningChange={setIsDictating}
       />
-      {isEmpty && !isDictating ? (
+      {!isDictating && (isEmpty ? (
         <button
           type="button"
           title="Voice conversation"
           onClick={onOpenVoice}
-          className="flex size-9 items-center justify-center rounded-full bg-slate-950 text-white shadow-sm transition-colors hover:bg-slate-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
+          className="hidden md:flex size-9 items-center justify-center rounded-full bg-slate-950 text-white shadow-sm transition-colors hover:bg-slate-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
         >
           <AudioLinesIcon className="size-4" />
         </button>
@@ -143,7 +149,7 @@ export const ComposerActionButtons = ({
           status={status}
           disabled={anyUploading || undefined}
         />
-      )}
+      ))}
     </div>
   );
 };
