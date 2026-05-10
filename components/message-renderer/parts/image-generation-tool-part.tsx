@@ -313,7 +313,7 @@ export function ImageGenerationToolPart({
       })()}
 
       {resolvedImageUrls.length > 0 && (
-        <div className="space-y-3 rounded-2xl border bg-muted/20 p-3">
+        <div className="space-y-3">
           {hasStock && (
             <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
               <Sparkles className="size-3.5" />
