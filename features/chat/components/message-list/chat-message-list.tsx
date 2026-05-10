@@ -115,6 +115,7 @@ export const ChatMessageList = ({
   fontSize = 'sm',
   agentName,
   agentDescription,
+  agentImageUrl,
   starterTasks,
   generalStarterPrompts = [],
   onEmptyStateTaskSelect,
@@ -209,6 +210,7 @@ export const ChatMessageList = ({
           <AgentChatEmptyState
             agentName={agentName}
             agentDescription={agentDescription}
+            agentImageUrl={agentImageUrl}
             starterTasks={starterTasks}
             generalStarterPrompts={generalStarterPrompts}
             onSelectTask={onEmptyStateTaskSelect}

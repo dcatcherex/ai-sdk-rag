@@ -465,6 +465,7 @@ function ChatShell() {
                   fontSize={fontSize}
                   agentName={selectedAgent?.name}
                   agentDescription={selectedAgent?.description}
+                  agentImageUrl={selectedAgent?.imageUrl}
                   starterTasks={selectedAgent?.starterTasks}
                   generalStarterPrompts={GENERAL_STARTER_PROMPTS}
                   onEmptyStateTaskSelect={handleEmptyStateTaskSelect}

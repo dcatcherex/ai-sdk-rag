@@ -34,6 +34,7 @@ export type ChatMessageListProps = {
   // agent starter prompts shown on empty state
   agentName?: string;
   agentDescription?: string | null;
+  agentImageUrl?: string | null;
   starterTasks?: AgentStarterTask[];
   generalStarterPrompts?: string[];
   onEmptyStateTaskSelect: (task: AgentStarterTask) => void;
