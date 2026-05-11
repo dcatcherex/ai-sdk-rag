@@ -352,6 +352,18 @@ function ChatShell() {
     [ensureThread, queryClient, setMessages]
   );
 
+  const getRealtimeVoiceContext = useCallback(async () => {
+    const threadId = await ensureThread();
+    return {
+      threadId,
+      agentId: selectedAgentIdRef.current,
+      model: selectedModelRef.current,
+      enabledModelIds: enabledModelIdsRef.current,
+      selectedDocumentIds: Array.from(selectedDocIdsRef.current),
+      useWebSearch: useWebSearchRef.current,
+    };
+  }, [enabledModelIdsRef, ensureThread, selectedModelRef]);
+
   const handleSuggestionClick = useCallback(
     (suggestion: string) => {
       handleSubmitMessage({ text: suggestion, files: [] });
@@ -519,6 +531,7 @@ function ChatShell() {
                 onTranscriptionChange={handleTranscription}
                 onSubmit={compareMode ? handleCompareSubmit : handleChatSubmit}
                 onVoiceTurnComplete={handleVoiceTurnComplete}
+                getRealtimeVoiceContext={getRealtimeVoiceContext}
                 voiceHistory={voiceHistory}
                 selectedVoice={prefs.selectedVoice}
                 referenceImages={compareMode ? [] : referenceImages}

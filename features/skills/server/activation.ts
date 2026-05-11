@@ -182,6 +182,35 @@ export async function resolveSkillRuntimeContext(
   };
 }
 
+export async function resolveRealtimeVoiceSkillRuntimeContext(
+  skills: Skill[],
+): Promise<SkillRuntimeContext> {
+  const catalogBlock = buildAvailableSkillsCatalog(skills);
+  if (skills.length === 0) {
+    return {
+      catalogBlock,
+      activatedSkills: [],
+      activeSkillsBlock: '',
+      skillResourcesBlock: '',
+      skillToolIds: [],
+    };
+  }
+
+  const filesBySkillId = await getSkillFilesBySkillIds(skills.map((skill) => skill.id));
+  const activatedSkills = skills.map((skill) =>
+    buildActivatedSkill(skill, 'rule', filesBySkillId[skill.id] ?? []),
+  );
+  const voicePrompt = 'Realtime voice conversation with the selected agent.';
+
+  return {
+    catalogBlock,
+    activatedSkills,
+    activeSkillsBlock: buildActiveSkillsBlock(activatedSkills),
+    skillResourcesBlock: getResolvedSkillResourcesForPrompt(activatedSkills, voicePrompt, filesBySkillId),
+    skillToolIds: [...new Set(activatedSkills.flatMap((entry) => entry.skill.enabledTools))],
+  };
+}
+
 function buildActivatedSkill(
   skill: Skill,
   activationSource: SkillActivationSource,

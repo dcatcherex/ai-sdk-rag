@@ -187,6 +187,14 @@ export type ChatComposerProps = {
   onTranscriptionChange: (transcript: string) => void;
   onSubmit: (message: PromptInputMessage) => void | Promise<void>;
   onVoiceTurnComplete?: (userText: string, aiText: string) => Promise<void>;
+  getRealtimeVoiceContext?: () => Promise<{
+    threadId: string;
+    agentId?: string | null;
+    model?: string;
+    enabledModelIds?: string[];
+    selectedDocumentIds?: string[];
+    useWebSearch?: boolean;
+  }>;
   voiceHistory?: VoiceHistoryTurn[];
   selectedVoice?: string | null;
   referenceImages: ChatReferenceImage[];
@@ -224,6 +232,7 @@ export function ChatComposer({
   onTranscriptionChange,
   onSubmit,
   onVoiceTurnComplete,
+  getRealtimeVoiceContext,
   voiceHistory,
   selectedVoice,
   referenceImages,
@@ -256,6 +265,7 @@ export function ChatComposer({
       onError: (msg) => toast.error('Voice error', { description: msg }),
       onTurnComplete: onVoiceTurnComplete,
       history: voiceHistory,
+      getRealtimeContext: getRealtimeVoiceContext,
     });
 
   const handleOpenVoice = useCallback(() => setVoiceOpen(true), []);

@@ -17,10 +17,21 @@ export type VoiceHistoryTurn = {
 
 type UseLiveVoiceOptions = {
   enabled: boolean;
+  provider?: 'openai' | 'gemini';
   voiceName?: string;
   onError?: (message: string) => void;
   onTurnComplete?: (userText: string, aiText: string) => void;
   history?: VoiceHistoryTurn[];
+  getRealtimeContext?: () => Promise<RealtimeVoiceClientContext>;
+};
+
+export type RealtimeVoiceClientContext = {
+  threadId: string;
+  agentId?: string | null;
+  model?: string;
+  enabledModelIds?: string[];
+  selectedDocumentIds?: string[];
+  useWebSearch?: boolean;
 };
 
 type LiveBlob = {
@@ -61,7 +72,15 @@ function buildSystemInstruction(history?: VoiceHistoryTurn[]) {
   return `${BASE_SYSTEM_INSTRUCTION}\n\nConversation context from the existing text chat:\n${serializedHistory}`;
 }
 
-export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, history }: UseLiveVoiceOptions) {
+export function useLiveVoice({
+  enabled,
+  provider = 'openai',
+  voiceName,
+  onError,
+  onTurnComplete,
+  history,
+  getRealtimeContext,
+}: UseLiveVoiceOptions) {
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [transcript, setTranscript] = useState<VoiceTurn[]>([]);
   const [micLevel, setMicLevel] = useState(0);
@@ -69,6 +88,13 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
 
   // Internal refs — not state so they don't cause re-renders
   const sessionRef = useRef<LiveWebSocketSession | null>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const openAIContextRef = useRef<(RealtimeVoiceClientContext & {
+    voiceName?: string | null;
+    history?: VoiceHistoryTurn[];
+  }) | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -82,6 +108,9 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
   const reconnectTimeoutRef = useRef<number | null>(null);
   const goAwayReconnectTimeoutRef = useRef<number | null>(null);
   const activityEndTimeoutRef = useRef<number | null>(null);
+  const meterAnimationRef = useRef<number | null>(null);
+  const openAIFinalizeTimeoutRef = useRef<number | null>(null);
+  const pendingOpenAIToolCallsRef = useRef(0);
   const activeConnectionIdRef = useRef<symbol | null>(null);
   const enabledRef = useRef(enabled);
   const manualDisconnectRef = useRef(false);
@@ -90,13 +119,48 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
   const isActivityActiveRef = useRef(false);
   const lowActivityChunkCountRef = useRef(0);
   const connectRef = useRef<(() => Promise<void>) | null>(null);
+  const providerRef = useRef(provider);
 
   enabledRef.current = enabled;
+  providerRef.current = provider;
 
   const reportError = useCallback((msg: string) => {
     setVoiceState('error');
     onError?.(msg);
   }, [onError]);
+
+  const clearOpenAIFinalizeTimeout = useCallback(() => {
+    if (openAIFinalizeTimeoutRef.current !== null) {
+      window.clearTimeout(openAIFinalizeTimeoutRef.current);
+      openAIFinalizeTimeoutRef.current = null;
+    }
+  }, []);
+
+  const finalizeOpenAITurn = useCallback(() => {
+    clearOpenAIFinalizeTimeout();
+    if (pendingOpenAIToolCallsRef.current > 0) return;
+
+    const userText = inputTranscriptAccRef.current.trim();
+    const aiText = outputTranscriptAccRef.current.trim();
+    if (!userText && !aiText) {
+      setVoiceState('listening');
+      return;
+    }
+    if (userText && !aiText) {
+      return;
+    }
+
+    inputTranscriptAccRef.current = '';
+    outputTranscriptAccRef.current = '';
+    setTranscript((prev) => prev.map((turn) => turn.partial ? { ...turn, partial: false } : turn));
+    onTurnCompleteRef.current?.(userText, aiText);
+    setVoiceState('listening');
+  }, [clearOpenAIFinalizeTimeout]);
+
+  const scheduleOpenAITurnFinalize = useCallback(() => {
+    clearOpenAIFinalizeTimeout();
+    openAIFinalizeTimeoutRef.current = window.setTimeout(finalizeOpenAITurn, 250);
+  }, [clearOpenAIFinalizeTimeout, finalizeOpenAITurn]);
 
   const isSessionSocketOpen = useCallback((session: LiveWebSocketSession | null) => {
     if (!session) {
@@ -436,6 +500,10 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
     clearActivityEndTimeout();
     isActivityActiveRef.current = false;
     lowActivityChunkCountRef.current = 0;
+    if (meterAnimationRef.current !== null) {
+      window.cancelAnimationFrame(meterAnimationRef.current);
+      meterAnimationRef.current = null;
+    }
     workletNodeRef.current?.disconnect();
     workletNodeRef.current = null;
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
@@ -449,10 +517,288 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
     setMicLevel(0);
   }, [clearActivityEndTimeout]);
 
+  const startOpenAIMicrophoneMeter = useCallback((stream: MediaStream) => {
+    const ctx = new AudioContext();
+    audioContextRef.current = ctx;
+    const source = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+
+    const levelData = new Uint8Array(analyser.frequencyBinCount);
+    const measureLevel = () => {
+      if (!streamRef.current || providerRef.current !== 'openai') return;
+      analyser.getByteFrequencyData(levelData);
+      const avg = levelData.reduce((a, b) => a + b, 0) / levelData.length;
+      setMicLevel(avg / 128);
+      meterAnimationRef.current = requestAnimationFrame(measureLevel);
+    };
+    meterAnimationRef.current = requestAnimationFrame(measureLevel);
+  }, []);
+
+  const closeOpenAIConnection = useCallback(() => {
+    clearOpenAIFinalizeTimeout();
+    pendingOpenAIToolCallsRef.current = 0;
+    dataChannelRef.current?.close();
+    dataChannelRef.current = null;
+    peerConnectionRef.current?.close();
+    peerConnectionRef.current = null;
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.pause();
+      remoteAudioRef.current.srcObject = null;
+      remoteAudioRef.current = null;
+    }
+    openAIContextRef.current = null;
+  }, [clearOpenAIFinalizeTimeout]);
+
+  const sendOpenAIEvent = useCallback((event: Record<string, unknown>) => {
+    const channel = dataChannelRef.current;
+    if (!channel || channel.readyState !== 'open') return;
+    channel.send(JSON.stringify(event));
+  }, []);
+
+  const runOpenAIToolCall = useCallback(async (event: Record<string, unknown>) => {
+    const context = openAIContextRef.current;
+    const callId = typeof event.call_id === 'string' ? event.call_id : '';
+    const toolName = typeof event.name === 'string' ? event.name : '';
+    const argumentsJson = typeof event.arguments === 'string' ? event.arguments : '{}';
+    if (!context || !callId || !toolName) return;
+
+    pendingOpenAIToolCallsRef.current += 1;
+    try {
+      const response = await fetch('/api/realtime/tool-call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context,
+          callId,
+          toolName,
+          argumentsJson,
+        }),
+      });
+      const payload = await response.json() as { output?: unknown; error?: string };
+      const output = response.ok
+        ? payload.output
+        : { error: payload.error ?? 'Tool call failed' };
+
+      sendOpenAIEvent({
+        type: 'conversation.item.create',
+        item: {
+          type: 'function_call_output',
+          call_id: callId,
+          output: JSON.stringify(output ?? null),
+        },
+      });
+      sendOpenAIEvent({ type: 'response.create' });
+    } catch (error) {
+      sendOpenAIEvent({
+        type: 'conversation.item.create',
+        item: {
+          type: 'function_call_output',
+          call_id: callId,
+          output: JSON.stringify({
+            error: error instanceof Error ? error.message : 'Tool call failed',
+          }),
+        },
+      });
+      sendOpenAIEvent({ type: 'response.create' });
+    } finally {
+      pendingOpenAIToolCallsRef.current = Math.max(0, pendingOpenAIToolCallsRef.current - 1);
+    }
+  }, [sendOpenAIEvent]);
+
+  const handleOpenAIMessage = useCallback((message: Record<string, unknown>) => {
+    const type = typeof message.type === 'string' ? message.type : '';
+
+    if (type === 'error') {
+      const error = message.error as { message?: string } | undefined;
+      reportError(error?.message ?? 'Realtime voice error');
+      return;
+    }
+
+    if (type === 'input_audio_buffer.speech_started') {
+      clearOpenAIFinalizeTimeout();
+      outputTranscriptAccRef.current = '';
+      setVoiceState('listening');
+      return;
+    }
+
+    if (
+      type === 'conversation.item.input_audio_transcription.delta' ||
+      type === 'conversation.item.input_audio_transcription.segment'
+    ) {
+      const delta = typeof message.delta === 'string'
+        ? message.delta
+        : typeof message.text === 'string'
+          ? message.text
+          : '';
+      if (!delta) return;
+      inputTranscriptAccRef.current += delta;
+      const text = inputTranscriptAccRef.current;
+      setTranscript((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === 'user' && last.partial) {
+          return [...prev.slice(0, -1), { role: 'user', text, partial: true }];
+        }
+        return [...prev, { role: 'user', text, partial: true }];
+      });
+      return;
+    }
+
+    if (type === 'conversation.item.input_audio_transcription.completed') {
+      const transcriptText = typeof message.transcript === 'string' ? message.transcript : '';
+      if (transcriptText) {
+        inputTranscriptAccRef.current = transcriptText;
+        setTranscript((prev) => {
+          const last = prev[prev.length - 1];
+          if (last?.role === 'user' && last.partial) {
+            return [...prev.slice(0, -1), { role: 'user', text: transcriptText, partial: true }];
+          }
+          return [...prev, { role: 'user', text: transcriptText, partial: true }];
+        });
+      }
+      return;
+    }
+
+    if (type === 'response.created' || type === 'response.output_audio.delta') {
+      setVoiceState('ai-speaking');
+      return;
+    }
+
+    if (type === 'response.output_audio_transcript.delta' || type === 'response.output_text.delta') {
+      const delta = typeof message.delta === 'string' ? message.delta : '';
+      if (!delta) return;
+      outputTranscriptAccRef.current += delta;
+      const text = outputTranscriptAccRef.current;
+      setTranscript((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === 'ai' && last.partial) {
+          return [...prev.slice(0, -1), { role: 'ai', text, partial: true }];
+        }
+        return [...prev, { role: 'ai', text, partial: true }];
+      });
+      return;
+    }
+
+    if (type === 'response.output_audio_transcript.done' || type === 'response.output_text.done') {
+      const text = typeof message.transcript === 'string'
+        ? message.transcript
+        : typeof message.text === 'string'
+          ? message.text
+          : outputTranscriptAccRef.current;
+      if (text) {
+        outputTranscriptAccRef.current = text;
+        setTranscript((prev) => {
+          const last = prev[prev.length - 1];
+          if (last?.role === 'ai' && last.partial) {
+            return [...prev.slice(0, -1), { role: 'ai', text, partial: true }];
+          }
+          return [...prev, { role: 'ai', text, partial: true }];
+        });
+      }
+      scheduleOpenAITurnFinalize();
+      return;
+    }
+
+    if (type === 'response.function_call_arguments.done') {
+      void runOpenAIToolCall(message);
+      return;
+    }
+
+    if (type === 'response.done') {
+      scheduleOpenAITurnFinalize();
+    }
+  }, [clearOpenAIFinalizeTimeout, reportError, runOpenAIToolCall, scheduleOpenAITurnFinalize]);
+
+  const connectOpenAI = useCallback(async (connectionAttemptId: symbol) => {
+    if (!getRealtimeContext) {
+      throw new Error('Realtime voice context is not configured');
+    }
+
+    const baseContext = await getRealtimeContext();
+    const context = {
+      ...baseContext,
+      voiceName: voiceName ?? null,
+      history: historyRef.current ?? [],
+    };
+    openAIContextRef.current = context;
+
+    const pc = new RTCPeerConnection();
+    peerConnectionRef.current = pc;
+
+    const remoteAudio = new Audio();
+    remoteAudio.autoplay = true;
+    remoteAudio.muted = !speakAloudRef.current;
+    remoteAudioRef.current = remoteAudio;
+    pc.ontrack = (event) => {
+      remoteAudio.srcObject = event.streams[0] ?? null;
+      void remoteAudio.play().catch(() => {
+        // Browser autoplay can be finicky; the active click usually unlocks it.
+      });
+    };
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    streamRef.current = stream;
+    startOpenAIMicrophoneMeter(stream);
+    for (const track of stream.getAudioTracks()) {
+      pc.addTrack(track, stream);
+    }
+
+    const dataChannel = pc.createDataChannel('oai-events');
+    dataChannelRef.current = dataChannel;
+    dataChannel.addEventListener('open', () => {
+      if (activeConnectionIdRef.current !== connectionAttemptId) return;
+      isConnectingRef.current = false;
+      setVoiceState('listening');
+    });
+    dataChannel.addEventListener('message', (event: MessageEvent<string>) => {
+      if (activeConnectionIdRef.current !== connectionAttemptId) return;
+      try {
+        handleOpenAIMessage(JSON.parse(event.data) as Record<string, unknown>);
+      } catch (error) {
+        console.error('[useLiveVoice] invalid OpenAI realtime event:', error, event.data);
+      }
+    });
+
+    pc.addEventListener('connectionstatechange', () => {
+      if (activeConnectionIdRef.current !== connectionAttemptId) return;
+      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        reportError(`Realtime connection ${pc.connectionState}`);
+      }
+    });
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    if (!offer.sdp) {
+      throw new Error('Failed to create realtime voice offer');
+    }
+
+    const response = await fetch('/api/realtime/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...context,
+        sdp: offer.sdp,
+      }),
+    });
+
+    const answerSdp = await response.text();
+    if (!response.ok) {
+      throw new Error(answerSdp || 'Failed to create realtime session');
+    }
+
+    if (activeConnectionIdRef.current !== connectionAttemptId) {
+      pc.close();
+      return;
+    }
+
+    await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+  }, [getRealtimeContext, handleOpenAIMessage, reportError, startOpenAIMicrophoneMeter, voiceName]);
+
   // ── Connect / Disconnect ───────────────────────────────────────────────────
 
   const connect = useCallback(async () => {
-    if (sessionRef.current || isConnectingRef.current) return;
+    if (sessionRef.current || peerConnectionRef.current || isConnectingRef.current) return;
     manualDisconnectRef.current = false;
     clearReconnectTimeout();
     isConnectingRef.current = true;
@@ -466,6 +812,11 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
     }
 
     try {
+      if (providerRef.current === 'openai') {
+        await connectOpenAI(connectionAttemptId);
+        return;
+      }
+
       // Get ephemeral token from our backend
       const res = await fetch('/api/live-token');
       if (!res.ok) throw new Error('Failed to get live token');
@@ -619,13 +970,15 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
     } catch (err) {
       isConnectingRef.current = false;
       isGoAwayReconnectPendingRef.current = false;
+      closeOpenAIConnection();
+      stopMicrophone();
       if (activeConnectionIdRef.current === connectionAttemptId) {
         activeConnectionIdRef.current = null;
       }
       const msg = err instanceof Error ? err.message : 'Unknown error';
       reportError(msg);
     }
-  }, [voiceName, clearPlaybackQueue, clearReconnectTimeout, handleMessage, reportError, scheduleReconnect, startMicrophone, stopMicrophone]);
+  }, [voiceName, clearPlaybackQueue, clearReconnectTimeout, closeOpenAIConnection, connectOpenAI, handleMessage, reportError, scheduleReconnect, startMicrophone, stopMicrophone]);
 
   connectRef.current = connect;
 
@@ -651,15 +1004,19 @@ export function useLiveVoice({ enabled, voiceName, onError, onTurnComplete, hist
       finishActivity(session);
       try { session.close(); } catch { /* ignore */ }
     }
+    closeOpenAIConnection();
     stopMicrophone();
     clearPlaybackQueue();
     setVoiceState('idle');
     setMicLevel(0);
-  }, [clearPlaybackQueue, clearReconnectTimeout, finishActivity, stopMicrophone]);
+  }, [clearPlaybackQueue, clearReconnectTimeout, closeOpenAIConnection, finishActivity, stopMicrophone]);
 
   const toggleSpeakAloud = useCallback(() => {
     speakAloudRef.current = !speakAloudRef.current;
     setSpeakAloudState(speakAloudRef.current);
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.muted = !speakAloudRef.current;
+    }
     if (!speakAloudRef.current) clearPlaybackQueue();
   }, [clearPlaybackQueue]);
 

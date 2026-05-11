@@ -35,6 +35,7 @@ export {
   buildActiveSkillsBlock,
   resolveActivatedSkills,
   resolveSkillRuntimeContext,
+  resolveRealtimeVoiceSkillRuntimeContext,
 } from './server/activation';
 
 export {
