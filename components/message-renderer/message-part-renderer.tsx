@@ -23,6 +23,7 @@ import { MediaGenerationToolPart } from "./parts/media-generation-tool-part";
 import { useToolApproval } from "@/features/chat/contexts/tool-approval-context";
 import {
   isFilePart,
+  isRichMessageDataPart,
   isToolLikePart,
   normalizeToolName,
   isCertificateToolName,
@@ -35,6 +36,7 @@ import {
   toolNameToMediaKind,
 } from "./types";
 import type { MessagePartRendererProps } from "./types";
+import { RichMessagePart } from "@/features/rich-messages/components/rich-message-part";
 
 function MessagePartRendererInner({
   part,
@@ -69,6 +71,10 @@ function MessagePartRendererInner({
         {reasoningText.length > 0 ? <ReasoningContent>{reasoningText}</ReasoningContent> : null}
       </Reasoning>
     );
+  }
+
+  if (isRichMessageDataPart(part)) {
+    return <RichMessagePart key={key} instance={part.data} />;
   }
 
   if (isToolLikePart(part) && "state" in part) {

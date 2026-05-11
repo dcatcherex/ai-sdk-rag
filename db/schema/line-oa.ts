@@ -374,6 +374,7 @@ export const lineBeaconDeviceRelations = relations(lineBeaconDevice, ({ one }) =
 
 export type FlexCatalogStatus = 'draft' | 'published' | 'archived';
 export type FlexCategory = 'agriculture' | 'ecommerce' | 'general' | 'alert' | 'other';
+export type FlexTemplateType = 'line_only' | 'line_override';
 
 /**
  * Platform-managed Flex Message templates (admin-created, user-discoverable).
@@ -385,6 +386,8 @@ export const lineFlexTemplate = pgTable('line_flex_template', {
   description: text('description'),
   category: text('category').notNull().$type<FlexCategory>().default('general'),
   tags: text('tags').array().default([]),
+  templateType: text('template_type').notNull().default('line_only').$type<FlexTemplateType>(),
+  richTemplateKey: text('rich_template_key'),
   /** FlexContainer JSON — bubble or carousel */
   flexPayload: jsonb('flex_payload').notNull().$type<Record<string, unknown>>(),
   /** Short text for LINE notifications (< 400 chars) */
@@ -399,6 +402,8 @@ export const lineFlexTemplate = pgTable('line_flex_template', {
 }, (table) => [
   index('line_flex_template_status_idx').on(table.catalogStatus),
   index('line_flex_template_category_idx').on(table.category),
+  index('line_flex_template_template_type_idx').on(table.templateType),
+  index('line_flex_template_rich_template_key_idx').on(table.richTemplateKey),
 ]);
 
 /**

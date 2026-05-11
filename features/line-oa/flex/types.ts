@@ -1,6 +1,6 @@
-import type { FlexCategory, FlexCatalogStatus } from '@/db/schema/line-oa';
+import type { FlexCategory, FlexCatalogStatus, FlexTemplateType } from '@/db/schema/line-oa';
 
-export type { FlexCategory, FlexCatalogStatus };
+export type { FlexCategory, FlexCatalogStatus, FlexTemplateType };
 
 export type FlexTemplateRecord = {
   id: string;
@@ -8,6 +8,8 @@ export type FlexTemplateRecord = {
   description: string | null;
   category: FlexCategory;
   tags: string[];
+  templateType: FlexTemplateType;
+  richTemplateKey: string | null;
   flexPayload: Record<string, unknown>;
   altText: string;
   previewImageUrl: string | null;

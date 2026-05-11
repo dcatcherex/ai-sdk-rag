@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildFallbackResponsePlan } from '@/features/response-format/service';
+import { buildFallbackResponsePlan, buildResponsePlanFromTaskFlow } from '@/features/response-format/service';
 import { buildResponsePlan } from '@/features/response-format/server/select';
 import { renderResponseForLine } from '@/features/response-format/channels/line';
 import { renderResponseForWeb } from '@/features/response-format/channels/web';
@@ -248,4 +248,62 @@ test('buildResponsePlan marks restricted human-review workflows when actor lacks
   assert.equal(plan.workflow?.type, 'human_review');
   assert.equal(plan.workflow?.status, 'restricted');
   assert.equal(plan.quickReplies?.length ?? 0, 0);
+});
+
+test('buildResponsePlanFromTaskFlow creates a diagnosis response plan with task-flow metadata', () => {
+  const plan = buildResponsePlanFromTaskFlow({
+    assistantText: [
+      'Likely issue: Leaf blight',
+      'Confidence: Medium',
+      'Severity: High',
+      'Immediate action: Remove infected leaves.',
+    ].join('\n'),
+    userText: 'Tomato yellow leaves with black spots',
+    locale: 'en-US',
+    taskFlowDecision: {
+      status: 'ready',
+      flowKey: 'agriculture.diagnosis',
+      confidence: 0.91,
+      source: 'rule',
+      outputTemplateKey: 'agriculture.diagnosis',
+      slots: {
+        crop_name: 'Tomato',
+        symptoms: 'yellow leaves, black spots',
+      },
+    },
+  });
+
+  assert.equal(plan.intent, 'diagnosis');
+  assert.equal(plan.card?.templateKey, 'agriculture.diagnosis');
+  assert.equal((plan.metadata?.taskFlow as { flowKey?: string } | undefined)?.flowKey, 'agriculture.diagnosis');
+  assert.equal(plan.formats[0], 'card');
+});
+
+test('buildResponsePlanFromTaskFlow creates a lesson-plan summary card via the canonical bridge', () => {
+  const plan = buildResponsePlanFromTaskFlow({
+    assistantText: [
+      'Lesson title: Plant Life Cycle',
+      'Learning objectives: Students identify each stage.',
+      'Materials: Slides, worksheet.',
+    ].join('\n'),
+    userText: 'Make a Grade 5 science lesson plan for 50 minutes',
+    locale: 'en-US',
+    taskFlowDecision: {
+      status: 'ready',
+      flowKey: 'education.lesson_plan',
+      confidence: 0.88,
+      source: 'rule',
+      outputTemplateKey: 'common.summary',
+      slots: {
+        grade_level: 'Grade 5',
+        subject: 'Science - plant life cycle',
+        duration: '50 minutes',
+      },
+    },
+  });
+
+  assert.equal(plan.intent, 'lesson_plan');
+  assert.equal(plan.card?.templateKey, 'common.summary');
+  assert.match(String(plan.card?.data.title), /Grade 5/);
+  assert.equal((plan.metadata?.taskFlow as { flowKey?: string } | undefined)?.flowKey, 'education.lesson_plan');
 });

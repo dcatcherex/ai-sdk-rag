@@ -3,13 +3,12 @@
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import type { FileUIPart } from 'ai';
 import { ArrowLeftIcon, CheckIcon, CopyIcon, ImageIcon } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import type { ChatStatus } from 'ai';
 import { cn } from '@/lib/utils';
-import { MarkdownText } from '@/components/message-renderer/markdown-text';
+import { MessagePartRenderer } from '@/components/message-renderer';
 import {
   Attachment,
   AttachmentPreview,
@@ -37,6 +36,8 @@ import { SpeechInput } from '@/components/ai-elements/speech-input';
 import { AgentChatEmptyState } from '@/features/chat/components/empty-state/agent-chat-empty-state';
 import type { AgentStarterTask } from '@/features/chat/components/empty-state/types';
 import { Button } from '@/components/ui/button';
+import { filterRenderableMessageParts } from '@/features/chat/utils/message-parts';
+import type { ChatMessage, ChatMessageMetadata, ChatMessagePart } from '@/features/chat/types';
 
 type AgentMeta = {
   name: string;
@@ -49,6 +50,10 @@ type ShareMeta = { welcomeMessage: string | null };
 const SESSION_KEY = (token: string) => `guest-session-${token}`;
 const SESSION_ID_KEY = (token: string) => `guest-sid-${token}`;
 const GUEST_ID_KEY = (token: string) => `guest-id-${token}`;
+const FOLLOW_UP_SYNC_RETRY_DELAY_MS = 500;
+const FOLLOW_UP_SYNC_MAX_ATTEMPTS = 15;
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function getOrCreateGuestId(token: string): string {
   let id = localStorage.getItem(GUEST_ID_KEY(token));
@@ -148,23 +153,6 @@ const GuestActionButtons = ({
   );
 };
 
-// ── File thumbnail in user bubble ─────────────────────────────────────────────
-
-function FilePart({ part }: { part: FileUIPart }) {
-  if (part.mediaType?.startsWith('image/')) {
-    return <img src={part.url} alt={part.filename ?? 'image'} className="mt-2 max-h-48 max-w-full rounded-lg object-contain" />;
-  }
-  if (part.mediaType === 'application/pdf') {
-    return (
-      <div className="mt-2 flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs">
-        <span>📄</span>
-        <span className="truncate">{part.filename ?? 'document.pdf'}</span>
-      </div>
-    );
-  }
-  return null;
-}
-
 // ── Copy button ───────────────────────────────────────────────────────────────
 
 function CopyButton({ text }: { text: string }) {
@@ -223,14 +211,69 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
 
   const { messages, sendMessage, status, stop, setMessages } = useChat({ transport });
 
-  useEffect(() => {
+  const fetchThreadMessages = useCallback(async () => {
     const guestId = getOrCreateGuestId(token);
-    fetch(`/api/agent/${token}/thread`, { headers: { 'x-guest-id': guestId } })
-      .then((r) => r.ok ? r.json() : null)
+    const response = await fetch(`/api/agent/${token}/thread`, {
+      headers: { 'x-guest-id': guestId },
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      throw new Error('Failed to load guest thread messages');
+    }
+    return response.json() as Promise<{ threadId: string | null; messages: ChatMessage[] }>;
+  }, [token]);
+
+  useEffect(() => {
+    fetchThreadMessages()
+      .then((data) => data ?? null)
       .then((data) => { if (data?.messages?.length > 0) setMessages(data.messages); })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [fetchThreadMessages, token]);
+
+  useEffect(() => {
+    if (status !== 'ready' || messages.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const syncFinalizedMessages = async () => {
+      for (let attempt = 0; attempt < FOLLOW_UP_SYNC_MAX_ATTEMPTS; attempt += 1) {
+        try {
+          const payload = await fetchThreadMessages();
+          if (cancelled || !payload.messages?.length) {
+            return;
+          }
+
+          const lastDbAssistant = [...payload.messages].reverse().find((message) => message.role === 'assistant');
+          const hasDbRichMessage = Boolean(
+            lastDbAssistant?.parts?.some((part) => part.type === 'data-rich-message'),
+          );
+          const hasDbFollowUps = Boolean(
+            (lastDbAssistant?.metadata as ChatMessageMetadata | undefined)?.followUpSuggestions?.length,
+          );
+
+          if (hasDbRichMessage || hasDbFollowUps) {
+            setMessages(payload.messages);
+            return;
+          }
+        } catch {
+          // retry below
+        }
+
+        if (attempt < FOLLOW_UP_SYNC_MAX_ATTEMPTS - 1) {
+          await delay(FOLLOW_UP_SYNC_RETRY_DELAY_MS);
+        }
+      }
+    };
+
+    void syncFinalizedMessages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchThreadMessages, messages.length, setMessages, status]);
 
   const isLoading = status === 'streaming' || status === 'submitted';
 
@@ -295,23 +338,45 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`group relative max-w-[80%]`}>
-                    <div
-                      className={`rounded-2xl px-4 py-2.5 text-sm ${
-                        msg.role === 'user'
-                          ? 'bg-primary text-primary-foreground rounded-tr-sm'
-                          : 'bg-muted/40 border border-black/5 dark:border-white/8 rounded-tl-sm'
-                      }`}
-                    >
-                      {msg.role === 'user'
-                        ? msg.parts.map((part, i) => {
-                            if (part.type === 'text') return <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
-                            if (part.type === 'file') return <FilePart key={i} part={part as FileUIPart} />;
-                            return null;
-                          })
-                        : msg.parts.map((part, i) =>
-                            part.type === 'text' ? <MarkdownText key={i} content={part.text} isAssistant /> : null
-                          )}
-                    </div>
+                    {msg.role === 'user' ? (
+                      <div className="rounded-2xl rounded-tr-sm bg-primary px-4 py-2.5 text-sm text-primary-foreground">
+                        {filterRenderableMessageParts(msg.parts as ChatMessagePart[]).map((part, i) => (
+                          <MessagePartRenderer
+                            key={`${msg.id}-${i}`}
+                            part={part}
+                            messageId={msg.id}
+                            index={i}
+                            role={msg.role}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {filterRenderableMessageParts(msg.parts as ChatMessagePart[]).map((part, i) => (
+                          part.type === 'text' ? (
+                            <div
+                              key={`${msg.id}-${i}`}
+                              className="rounded-2xl rounded-tl-sm border border-black/5 bg-muted/40 px-4 py-2.5 text-sm dark:border-white/8"
+                            >
+                              <MessagePartRenderer
+                                part={part}
+                                messageId={msg.id}
+                                index={i}
+                                role={msg.role}
+                              />
+                            </div>
+                          ) : (
+                            <MessagePartRenderer
+                              key={`${msg.id}-${i}`}
+                              part={part}
+                              messageId={msg.id}
+                              index={i}
+                              role={msg.role}
+                            />
+                          )
+                        ))}
+                      </div>
+                    )}
                     {msg.role === 'assistant' && (
                       <div className="mt-1 flex items-center gap-0.5 pl-1">
                         <CopyButton

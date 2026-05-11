@@ -19,6 +19,16 @@ export const filterRenderableMessageParts = (parts: ChatMessagePart[]) =>
 
 export const getTextContentFromParts = (parts: ChatMessagePart[]) =>
   parts
-    .filter((part): part is TextUIPart => part.type === 'text')
-    .map((part) => part.text)
+    .flatMap((part) => {
+      if (part.type === 'text') {
+        return [(part as TextUIPart).text];
+      }
+
+      if (part.type === 'data-rich-message') {
+        const data = (part as { data?: { fallbackText?: unknown } }).data;
+        return typeof data?.fallbackText === 'string' ? [data.fallbackText] : [];
+      }
+
+      return [];
+    })
     .join('\n');

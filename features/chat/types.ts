@@ -1,6 +1,8 @@
 import type { UIDataTypes, UIMessage, UIMessagePart } from 'ai';
 import type { ChatTools } from '@/lib/tools';
 import type { ResponseAuditSummary } from '@/features/response-format/server/audit';
+import type { RichMessageInstance } from '@/features/rich-messages/types';
+import type { TaskFlowMessageState } from '@/features/task-flows/types';
 
 export type ThreadItem = {
   id: string;
@@ -31,6 +33,7 @@ export type ChatMessageMetadata = {
   followUpSuggestions?: string[];
   responseFormat?: ResponseAuditSummary;
   activatedSkills?: ActivatedSkillBadge[];
+  taskFlow?: TaskFlowMessageState;
   // Compare mode
   compareGroupId?: string;
   compareModelId?: string;
@@ -79,14 +82,18 @@ export type ChatReferenceImage = {
 
 export type MessageReaction = 'thumbs_up' | 'thumbs_down';
 
+export type ChatDataTypes = UIDataTypes & {
+  'rich-message': RichMessageInstance;
+};
+
 export type StepControlPart = {
   type: 'step-start' | 'step-finish' | 'step-result';
 };
 
 export type ChatMessagePart =
-  | UIMessagePart<UIDataTypes, ChatTools>
+  | UIMessagePart<ChatDataTypes, ChatTools>
   | StepControlPart;
 
-export type ChatMessage = UIMessage<ChatMessageMetadata, UIDataTypes, ChatTools> & {
+export type ChatMessage = UIMessage<ChatMessageMetadata, ChatDataTypes, ChatTools> & {
   reaction?: MessageReaction | null;
 };

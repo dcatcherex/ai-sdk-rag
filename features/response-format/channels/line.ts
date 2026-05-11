@@ -2,8 +2,9 @@ import type { LineMessage, QuickReply, QuickReplyItem, Sender } from '@/features
 import { buildReplyMessages } from '@/features/line-oa/webhook/flex';
 import { stripMarkdown } from '@/features/line-oa/webhook/utils/markdown';
 import { QUICK_REPLY_LABEL_MAX } from '@/features/line-oa/webhook/types';
+import { renderRichMessage, type RenderRichMessageResult } from '@/features/rich-messages/service';
+import { renderRichMessageForLine } from '@/features/rich-messages/adapters/line';
 import type { ResponsePlan, ResponseQuickReply } from '@/features/response-format/types';
-import { canRenderResponseTemplate, getResponseTemplateByKey } from '@/features/response-format/template-registry';
 import { interpolateTemplatePayload } from '@/features/response-format/templates/shared';
 
 type RenderResponseForLineOptions = {
@@ -236,6 +237,24 @@ function attachLineMeta(
   } as LineMessage;
 }
 
+function renderResolvedRichMessageForLine(
+  richMessageResult: RenderRichMessageResult,
+  sender: Sender | undefined,
+  quickReply: QuickReply | undefined,
+): LineMessage[] | null {
+  if (!richMessageResult.ok) {
+    return null;
+  }
+
+  return [
+    attachLineMeta(
+      renderRichMessageForLine(richMessageResult.instance) as LineMessage,
+      sender,
+      quickReply,
+    ),
+  ];
+}
+
 export function renderResponseForLine(
   plan: ResponsePlan,
   options: RenderResponseForLineOptions = {},
@@ -257,16 +276,67 @@ export function renderResponseForLine(
       }
     }
 
-    const template = getResponseTemplateByKey(plan.card.templateKey);
-    if (template?.renderLine && canRenderResponseTemplate(template, plan.card.data)) {
+    const richMessageResult = renderRichMessage({
+      templateKey: plan.card.templateKey,
+      data: plan.card.data,
+      channel: 'line',
+      locale: plan.locale,
+      metadata: plan.metadata,
+    });
+    const richMessageMessages = renderResolvedRichMessageForLine(
+      richMessageResult,
+      sender,
+      quickReply,
+    );
+    if (richMessageMessages) {
+      return richMessageMessages;
+    }
+  }
+
+  const rawText = resolveLineBodyText(plan);
+  const cleanText = stripMarkdown(rawText).trim();
+  const lineText = cleanText ? maybeCompactLineText(plan, cleanText) : cleanText;
+  const safeText = lineText || 'No response available.';
+
+  return buildReplyMessages(safeText, sender, quickReply);
+}
+
+export async function renderResponseForLineServer(
+  plan: ResponsePlan,
+  options: RenderResponseForLineOptions = {},
+): Promise<LineMessage[]> {
+  const { renderRichMessageServer } = await import('@/features/rich-messages/server/runtime');
+  const quickReply = buildLineQuickReply(plan);
+  const sender = options.sender;
+
+  if (plan.card && plan.formats.includes('card')) {
+    const override = options.templateOverrides?.[plan.card.templateKey];
+    if (override) {
       try {
-        const rendered = template.renderLine(plan.card.data);
-        if (rendered && typeof rendered === 'object') {
-          return [attachLineMeta(rendered as LineMessage, sender, quickReply)];
-        }
+        return [attachLineMeta({
+          type: 'flex',
+          altText: String(plan.card.data.altText ?? plan.card.altText ?? override.altText),
+          contents: interpolateTemplatePayload(override.flexPayload, plan.card.data),
+        } as LineMessage, sender, quickReply)];
       } catch (error) {
-        console.warn('[response-format] LINE card render failed:', error);
+        console.warn('[response-format] LINE catalog card render failed:', error);
       }
+    }
+
+    const richMessageResult = await renderRichMessageServer({
+      templateKey: plan.card.templateKey,
+      data: plan.card.data,
+      channel: 'line',
+      locale: plan.locale,
+      metadata: plan.metadata,
+    });
+    const richMessageMessages = renderResolvedRichMessageForLine(
+      richMessageResult,
+      sender,
+      quickReply,
+    );
+    if (richMessageMessages) {
+      return richMessageMessages;
     }
   }
 

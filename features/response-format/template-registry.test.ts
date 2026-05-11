@@ -25,5 +25,5 @@ test('agriculture weather template is mapped from the registry', () => {
   assert.equal(template?.intent, 'risk_summary');
   assert.ok(template?.supportedChannels.includes('line'));
   assert.ok(template?.supportedChannels.includes('web'));
-  assert.ok(template?.renderWeb);
+  assert.deepEqual(template?.requiredDataKeys, ['location', 'temperature', 'humidity', 'rain_chance', 'farm_advice']);
 });

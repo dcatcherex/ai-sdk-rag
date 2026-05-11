@@ -32,7 +32,7 @@ import { cn } from '@/lib/utils';
 import { FLEX_CATEGORY_LABELS } from '@/features/line-oa/flex/utils';
 import { FlexEditor } from '@/features/line-oa/flex/components/flex-editor';
 import { FlexPreview } from '@/features/line-oa/flex/components/flex-preview';
-import type { FlexTemplateRecord, FlexCategory } from '@/features/line-oa/flex/types';
+import type { FlexTemplateRecord, FlexCategory, FlexTemplateType } from '@/features/line-oa/flex/types';
 
 const CATEGORIES: FlexCategory[] = ['agriculture', 'ecommerce', 'general', 'alert', 'other'];
 const STATUS_FILTERS = ['all', 'published', 'draft', 'archived'] as const;
@@ -44,6 +44,8 @@ type FormState = {
   description: string;
   category: FlexCategory;
   tags: string;
+  templateType: FlexTemplateType;
+  richTemplateKey: string;
   flexPayload: string;
   altText: string;
 };
@@ -53,6 +55,8 @@ const emptyForm = (): FormState => ({
   description: '',
   category: 'general',
   tags: '',
+  templateType: 'line_only',
+  richTemplateKey: '',
   flexPayload: JSON.stringify({ type: 'bubble', body: { type: 'box', layout: 'vertical', contents: [] } }, null, 2),
   altText: '',
 });
@@ -62,9 +66,16 @@ const toForm = (t: FlexTemplateRecord): FormState => ({
   description: t.description ?? '',
   category: t.category,
   tags: t.tags.join(', '),
+  templateType: t.templateType,
+  richTemplateKey: t.richTemplateKey ?? '',
   flexPayload: JSON.stringify(t.flexPayload, null, 2),
   altText: t.altText,
 });
+
+type RichTemplateOption = {
+  key: string;
+  title: string;
+};
 
 function StatusBadge({ status }: { status: FlexTemplateRecord['catalogStatus'] }) {
   if (status === 'published') return <Badge variant="secondary">Published</Badge>;
@@ -136,6 +147,7 @@ function EmptyPreview() {
 
 function TemplatePreviewPanel({
   template,
+  richTemplateOptions,
   onEdit,
   onPublish,
   onArchive,
@@ -143,6 +155,7 @@ function TemplatePreviewPanel({
   isArchiving,
 }: {
   template: FlexTemplateRecord | null;
+  richTemplateOptions: RichTemplateOption[];
   onEdit: (template: FlexTemplateRecord) => void;
   onPublish: (id: string) => void;
   onArchive: (id: string) => void;
@@ -150,6 +163,10 @@ function TemplatePreviewPanel({
   isArchiving: boolean;
 }) {
   if (!template) return <EmptyPreview />;
+
+  const linkedTemplate = template.richTemplateKey
+    ? richTemplateOptions.find((option) => option.key === template.richTemplateKey) ?? null
+    : null;
 
   return (
     <Card className="overflow-hidden rounded-lg">
@@ -159,6 +176,9 @@ function TemplatePreviewPanel({
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={template.catalogStatus} />
               <Badge variant="outline">{FLEX_CATEGORY_LABELS[template.category] ?? template.category}</Badge>
+              <Badge variant={template.templateType === 'line_override' ? 'default' : 'secondary'}>
+                {template.templateType === 'line_override' ? 'LINE override' : 'LINE-only'}
+              </Badge>
             </div>
             <CardTitle className="break-words text-lg leading-snug">{template.name}</CardTitle>
           </div>
@@ -203,6 +223,14 @@ function TemplatePreviewPanel({
               ))}
             </div>
           )}
+          {template.richTemplateKey ? (
+            <div>
+              <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">Linked rich template</p>
+              <p className="break-words">
+                {linkedTemplate ? `${linkedTemplate.title} (${linkedTemplate.key})` : template.richTemplateKey}
+              </p>
+            </div>
+          ) : null}
         </div>
 
         <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
@@ -237,17 +265,22 @@ function TemplatePreviewPanel({
 
 function FlexTemplateEditor({
   template,
+  richTemplateOptions,
   isPending,
   onBack,
   onSubmit,
 }: {
   template: FlexTemplateRecord | null;
+  richTemplateOptions: RichTemplateOption[];
   isPending: boolean;
   onBack: () => void;
   onSubmit: (form: FormState) => void;
 }) {
   const [form, setForm] = useState<FormState>(template ? toForm(template) : emptyForm());
-  const isValid = form.name.trim().length > 0 && form.altText.trim().length > 0 && Boolean(parsePayload(form.flexPayload));
+  const isValid = form.name.trim().length > 0
+    && form.altText.trim().length > 0
+    && Boolean(parsePayload(form.flexPayload))
+    && (form.templateType === 'line_only' || form.richTemplateKey.trim().length > 0);
 
   return (
     <div className="space-y-6">
@@ -315,6 +348,45 @@ function FlexTemplateEditor({
           />
         </div>
 
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label>Template type</Label>
+            <Select
+              value={form.templateType}
+              onValueChange={(value) => setForm((f) => ({
+                ...f,
+                templateType: value as FlexTemplateType,
+                richTemplateKey: value === 'line_only' ? '' : f.richTemplateKey,
+              }))}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="line_only">LINE-only</SelectItem>
+                <SelectItem value="line_override">LINE override</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Linked rich template</Label>
+            <Select
+              value={form.richTemplateKey || '__none__'}
+              onValueChange={(value) => setForm((f) => ({
+                ...f,
+                richTemplateKey: value === '__none__' ? '' : value,
+              }))}
+              disabled={form.templateType !== 'line_override'}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">No linked template</SelectItem>
+                {richTemplateOptions.map((option) => (
+                  <SelectItem key={option.key} value={option.key}>{option.title} ({option.key})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         <div className="space-y-1.5">
           <Label>Flex JSON &amp; Preview</Label>
           <div style={{ height: 520 }}>
@@ -356,8 +428,20 @@ export default function AdminFlexTemplatesPage() {
       return res.json() as Promise<{ templates: FlexTemplateRecord[] }>;
     },
   });
+  const { data: richTemplateData } = useQuery<{ templates: Array<{ key: string; title: string }> }>({
+    queryKey: ['admin', 'rich-message-template-options'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/rich-message-templates');
+      if (!res.ok) throw new Error('Failed to load rich templates');
+      return res.json() as Promise<{ templates: Array<{ key: string; title: string }> }>;
+    },
+  });
 
   const templates = data?.templates ?? [];
+  const richTemplateOptions = (richTemplateData?.templates ?? []).map((template) => ({
+    key: template.key,
+    title: template.title,
+  }));
   const publishedCount = templates.filter((t) => t.catalogStatus === 'published').length;
   const draftCount = templates.filter((t) => t.catalogStatus === 'draft').length;
   const archivedCount = templates.filter((t) => t.catalogStatus === 'archived').length;
@@ -372,6 +456,8 @@ export default function AdminFlexTemplatesPage() {
           template.description ?? '',
           template.altText,
           template.category,
+          template.richTemplateKey ?? '',
+          template.templateType,
           ...template.tags,
         ].some((value) => value.toLowerCase().includes(query));
       const matchesCategory = categoryFilter === 'all' || template.category === categoryFilter;
@@ -443,6 +529,8 @@ export default function AdminFlexTemplatesPage() {
       description: form.description.trim() || null,
       category: form.category,
       tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
+      templateType: form.templateType,
+      richTemplateKey: form.richTemplateKey.trim() || null,
       flexPayload: payload,
       altText: form.altText.trim(),
     };
@@ -458,6 +546,7 @@ export default function AdminFlexTemplatesPage() {
     return (
       <FlexTemplateEditor
         template={editingTemplate}
+        richTemplateOptions={richTemplateOptions}
         isPending={saveMutation.isPending}
         onBack={handleBack}
         onSubmit={handleSubmit}
@@ -473,9 +562,9 @@ export default function AdminFlexTemplatesPage() {
             <EyeIcon className="size-3.5 text-primary" />
             Live LINE preview
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">Flex Templates</h1>
+          <h1 className="text-3xl font-bold tracking-tight">LINE Flex Templates</h1>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Manage platform Flex Message templates. Published templates appear in the user gallery.
+            Manage LINE-only templates and LINE override payloads. The main cross-channel catalog now lives in Message Templates.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -587,6 +676,9 @@ export default function AdminFlexTemplatesPage() {
                             {template.name}
                           </CardTitle>
                           <StatusBadge status={template.catalogStatus} />
+                          <Badge variant={template.templateType === 'line_override' ? 'default' : 'secondary'}>
+                            {template.templateType === 'line_override' ? 'LINE override' : 'LINE-only'}
+                          </Badge>
                           <Badge variant="outline">
                             {FLEX_CATEGORY_LABELS[template.category] ?? template.category}
                           </Badge>
@@ -641,6 +733,7 @@ export default function AdminFlexTemplatesPage() {
         <aside className="min-w-0 lg:sticky lg:top-8 lg:self-start">
           <TemplatePreviewPanel
             template={selectedTemplate}
+            richTemplateOptions={richTemplateOptions}
             onEdit={setEditingTemplate}
             onPublish={(id) => publishMutation.mutate(id)}
             onArchive={(id) => archiveMutation.mutate(id)}

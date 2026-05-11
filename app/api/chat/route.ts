@@ -42,6 +42,7 @@ import type { ChatMessage, ChatMessageMetadata, RoutingMetadata } from '@/featur
 import { finalizeImageChatTurn, finalizeTextChatTurn } from '@/features/chat/server/finalization';
 import { hydrateIncomingChatMessages } from '@/features/chat/server/message-hydration';
 import { isImageFilePart, uploadImagePart } from '@/features/chat/server/image-upload';
+import { buildAssistantResponseArtifacts } from '@/features/chat/server/finalization-helpers';
 import { resolveWebChatIdentity } from '@/features/chat/server/web-chat-identity';
 import { resolveWebActiveAgent } from '@/features/chat/server/web-active-agent';
 import {
@@ -51,6 +52,12 @@ import {
   resolvePromptEnhancement,
 } from '@/features/chat/server/web-channel-context';
 import { buildImageChannelContext } from '@/features/chat/server/web-image-channel-context';
+import {
+  applyReadyTaskFlowPrompt,
+  buildNeedsMoreInfoIntercept,
+  buildReadyTaskFlowMessageMetadata,
+  resolveTaskFlowRuntime,
+} from '@/features/task-flows/server/runtime';
 
 export { type ChatMessage };
 export const maxDuration = 30;
@@ -165,6 +172,67 @@ export async function POST(req: Request) {
     const lastUserPrompt = getLastUserPrompt(messages);
 
     const skillRuntime = await resolveAgentSkillRuntime(activeAgent, lastUserPrompt);
+    const taskFlowRuntime = await resolveTaskFlowRuntime({
+      channel: 'web',
+      lastUserPrompt,
+      messages: eagerUploadedMessages as ChatMessage[],
+      activeSkillIds: skillRuntime.activatedSkills.map((entry) => entry.skill.id),
+      activeSkillNames: skillRuntime.activatedSkills.map((entry) => entry.skill.name),
+    });
+    const { locale: taskFlowLocale, decision: taskFlowDecision } = taskFlowRuntime;
+
+    if (taskFlowDecision.status === 'needs_more_info') {
+      const intercept = buildNeedsMoreInfoIntercept(taskFlowDecision);
+
+      return createUIMessageStreamResponse({
+        stream: createUIMessageStream<ChatMessage>({
+          originalMessages: messages,
+          onFinish: async ({ messages: updatedMessages }) => {
+            const textResult = await finalizeTextChatTurn({
+              updatedMessages: updatedMessages as ChatMessage[],
+              usage: null,
+              finishCtx: {
+                threadId,
+                userId: isGuest ? null : effectiveUserId,
+                guestSessionId: isGuest ? guestSessionId : null,
+                currentTitle,
+                resolvedModel: model ?? activeAgent?.modelId ?? 'task-flow-follow-up',
+                creditCost: 0,
+                brandId: brandId ?? null,
+                currentChatRunId: null,
+                followUpSuggestionsEnabled: false,
+                memoryEnabled: false,
+                memoryExtractEnabled: false,
+                memoryContext: '',
+                lastUserPrompt,
+              },
+            });
+            if (!textResult.ok) {
+              console.error('[chat] task-flow follow-up finalization failure', {
+                step: textResult.failure.step,
+                threadId,
+                error: textResult.failure.error,
+              });
+            }
+          },
+          execute: ({ writer }) => {
+            const textId = crypto.randomUUID();
+            writer.write({
+              type: 'start',
+              messageMetadata: intercept.messageMetadata,
+            });
+            writer.write({ type: 'text-start', id: textId });
+            writer.write({
+              type: 'text-delta',
+              id: textId,
+              delta: intercept.assistantText,
+            });
+            writer.write({ type: 'text-end', id: textId });
+            writer.write({ type: 'finish', finishReason: 'stop' });
+          },
+        }),
+      });
+    }
 
     // ── Stage 3: memory + brand (authenticated users only) ───────────────────
     const [memoryContext, brandRuntime] = await Promise.all([
@@ -207,6 +275,11 @@ export async function POST(req: Request) {
     } else {
       baseSystemPrompt = activeAgent?.systemPrompt ?? '';
     }
+    baseSystemPrompt = applyReadyTaskFlowPrompt({
+      baseSystemPrompt,
+      decision: taskFlowDecision.status === 'ready' ? taskFlowDecision : null,
+      locale: taskFlowLocale,
+    });
 
 
     // ── Model routing ────────────────────────────────────────────────────────
@@ -373,6 +446,9 @@ export async function POST(req: Request) {
             })),
           }
         : {}),
+      ...(taskFlowDecision.status === 'ready'
+        ? buildReadyTaskFlowMessageMetadata(taskFlowDecision)
+        : {}),
     });
 
     // ── Async KIE image generation path ─────────────────────────────────────
@@ -458,34 +534,58 @@ export async function POST(req: Request) {
     });
 
     const autonomyLevel = (activeAgent?.structuredBehavior as { autonomyLevel?: number } | null)?.autonomyLevel ?? 2;
+    const modelMessages = await convertToModelMessages(messagesForLLM);
 
     const result = streamText({
       model: resolvedModel,
       system: effectiveSystemPrompt,
-      messages: await convertToModelMessages(messagesForLLM),
+      messages: modelMessages,
       stopWhen: stepCountIs(preparedRun.request.policy.maxSteps),
       ...(preparedRun.supportsTools ? { tools: activeTools } : {}),
       experimental_context: { autonomyLevel, userId: effectiveUserId || null },
     });
 
-    return result.toUIMessageStreamResponse({
-      originalMessages: messages,
-      messageMetadata,
-      onFinish: async ({ messages: updatedMessages }) => {
-        const usage = (await result.usage) as { promptTokens?: number; completionTokens?: number; totalTokens?: number } | null;
-        const textResult = await finalizeTextChatTurn({
-          updatedMessages: updatedMessages as ChatMessage[],
-          usage,
-          finishCtx,
-        });
-        if (!textResult.ok) {
-          console.error('[chat] fatal finalization failure', {
-            step: textResult.failure.step,
-            threadId: finishCtx.threadId,
-            error: textResult.failure.error,
+    return createUIMessageStreamResponse({
+      stream: createUIMessageStream<ChatMessage>({
+        originalMessages: messages,
+        onFinish: async ({ messages: updatedMessages }) => {
+          const usage = (await result.usage) as { inputTokens?: number; outputTokens?: number; totalTokens?: number } | null;
+          const textResult = await finalizeTextChatTurn({
+            updatedMessages: updatedMessages as ChatMessage[],
+            usage: usage ? {
+              promptTokens: usage.inputTokens ?? 0,
+              completionTokens: usage.outputTokens ?? 0,
+              totalTokens: usage.totalTokens ?? (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
+            } : null,
+            finishCtx,
           });
-        }
-      },
+          if (!textResult.ok) {
+            console.error('[chat] fatal finalization failure', {
+              step: textResult.failure.step,
+              threadId: finishCtx.threadId,
+              error: textResult.failure.error,
+            });
+          }
+        },
+        execute: async ({ writer }) => {
+          writer.merge(result.toUIMessageStream<ChatMessage>({
+            messageMetadata,
+            sendFinish: false,
+          }));
+          await result.consumeStream();
+          const assistantText = await result.text;
+          const artifacts = await buildAssistantResponseArtifacts({
+            assistantText,
+            lastUserPrompt,
+            taskFlowDecision: taskFlowDecision.status === 'ready' ? taskFlowDecision : null,
+            source: 'live_stream',
+          });
+          if (artifacts.richMessagePart) {
+            writer.write(artifacts.richMessagePart);
+          }
+          writer.write({ type: 'finish', finishReason: 'stop' });
+        },
+      }),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

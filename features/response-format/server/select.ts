@@ -40,6 +40,7 @@ export type BuildResponsePlanInput = {
   userText?: string;
   locale?: string;
   intent?: ResponseIntent;
+  card?: ResponseCard;
   quickReplies?: ResponseQuickReply[];
   safety?: ResponseSafety;
   workflow?: ResponseWorkflow;
@@ -73,6 +74,7 @@ export function buildResponsePlan({
   workflowContext,
   metadata,
   toolResults,
+  card,
 }: BuildResponsePlanInput): ResponsePlan {
   const toolSelection = selectResponseFromToolResults(toolResults, locale);
   const resolvedIntent =
@@ -100,7 +102,11 @@ export function buildResponsePlan({
     buildWorkflowQuickReplies(resolvedWorkflow, locale),
   );
   const bodyText = text.trim() || toolSelection?.bodyText || '';
-  const heuristicCard = !toolSelection?.card
+  const resolvedCard =
+    card
+    ?? toolSelection?.card
+    ?? null;
+  const heuristicCard = !resolvedCard
     ? buildHeuristicCardFromText({
         text: bodyText,
         userText,
@@ -110,7 +116,7 @@ export function buildResponsePlan({
     : null;
   const formats = dedupeFormats([
     ...(toolSelection?.preferredFormats ?? [
-      ...(heuristicCard ? ['card' as const] : []),
+      ...(resolvedCard || heuristicCard ? ['card' as const] : []),
       detectFallbackFormat(text),
     ]),
     ...(resolvedQuickReplies.length > 0 ? ['quick_replies' as const] : []),
@@ -122,7 +128,7 @@ export function buildResponsePlan({
     bodyText,
     formats,
     quickReplies: resolvedQuickReplies.length > 0 ? resolvedQuickReplies : undefined,
-    ...(toolSelection?.card ? { card: toolSelection.card } : heuristicCard ? { card: heuristicCard } : {}),
+    ...(resolvedCard ? { card: resolvedCard } : heuristicCard ? { card: heuristicCard } : {}),
     ...(resolvedWorkflow ? { workflow: resolvedWorkflow } : {}),
     ...(resolvedSafety ? { safety: resolvedSafety } : {}),
     metadata: {

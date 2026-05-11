@@ -7,7 +7,7 @@ import {
   extractAndStoreLineUserMemory,
   extractAndStoreMemory,
 } from '@/lib/memory';
-import { buildFallbackResponsePlan } from '@/features/response-format/service';
+import { buildFallbackResponsePlan, buildResponsePlanFromTaskFlow } from '@/features/response-format/service';
 import { buildResponsePlan } from '@/features/response-format/server/select';
 import { renderResponseForLineFromCatalog } from '@/features/response-format/server/line-render';
 import { mergeResponseQuickReplies } from '@/features/response-format/workflow';
@@ -22,6 +22,7 @@ import { pollAndPushGeneratedLineImage, buildLineToolSet } from '../tools';
 import { generateLineFollowUpSuggestions as generateFollowUpSuggestions } from '../utils/follow-up-suggestions';
 import { stripMarkdown } from '../utils/markdown';
 import type { AgentRow, LineMessage, LinkedUser, Sender } from '../types';
+import type { ChatMessage } from '@/features/chat/types';
 import type { ResolvedDomainContext } from '@/features/domain-profiles/types';
 import type { Brand } from '@/features/brands/types';
 import type { ResolvedCaseWorkspacePromptContext } from '@/features/case-workspace/service';
@@ -44,6 +45,8 @@ import { wantsVideoGeneration, generateAndDeliverVideo } from './media-handlers'
 import { FRIENDLY_STICKERS, pickRandom, shouldAddFriendlySticker } from '@/features/line-oa/utils/stickers';
 import { recordMessageEvent } from '@/features/line-oa/analytics';
 import { getForecastForLocation } from '@/lib/tools/weather';
+import { applyReadyTaskFlowPrompt } from '@/features/task-flows/server/runtime';
+import { resolveLineTaskFlowAction } from '@/features/task-flows/server/line-runtime';
 
 type RunCanonicalLineReplyInput = {
   runtimeUserText: string;
@@ -71,6 +74,9 @@ type RunCanonicalLineReplyContext = {
   replyToken: string;
   followUpDomainHint?: string;
   followUpSkillHints?: string[];
+  taskFlowDecision?: Extract<Awaited<ReturnType<typeof resolveLineTaskFlowAction>>, { kind: 'ready' }>['taskFlowDecision'];
+  taskFlowLocale?: string;
+  taskFlowAssistantMetadata?: Record<string, unknown>;
 };
 
 type HandleTextMessageInput = {
@@ -290,6 +296,13 @@ export async function runCanonicalLineReply(
 
   const generateResult = await runAgentText({
     ...prepared,
+    systemPrompt: context.taskFlowDecision
+      ? applyReadyTaskFlowPrompt({
+          baseSystemPrompt: prepared.systemPrompt,
+          decision: context.taskFlowDecision,
+          locale: context.taskFlowLocale ?? 'th-TH',
+        })
+      : prepared.systemPrompt,
     ...(prepared.supportsTools ? { tools: mergedTools } : {}),
   });
 
@@ -324,6 +337,7 @@ export async function runCanonicalLineReply(
       now: context.now,
       userText: storedUserText,
       assistantText: replyText,
+      ...(context.taskFlowAssistantMetadata ? { assistantMetadata: context.taskFlowAssistantMetadata } : {}),
     }),
   ]);
 
@@ -355,7 +369,19 @@ export async function runCanonicalLineReply(
     buildSuggestionQuickReplies(suggestions),
   );
 
-  const responsePlan = generateResult.responsePlan
+  const responsePlan = context.taskFlowDecision
+    ? buildResponsePlanFromTaskFlow({
+        assistantText: displayText,
+        userText: storedUserText,
+        locale: context.taskFlowLocale ?? 'th-TH',
+        taskFlowDecision: context.taskFlowDecision,
+        quickReplies: buildSuggestionQuickReplies(suggestions),
+        metadata: {
+          channel: 'line',
+          source: 'line_task_flow',
+        },
+      })
+    : generateResult.responsePlan
     ? {
         ...generateResult.responsePlan,
         bodyText: displayText,
@@ -440,6 +466,79 @@ export async function handleTextMessage(input: HandleTextMessageInput): Promise<
       followUpDomainHint: input.domainContext?.profile.domain,
       followUpSkillHints: input.followUpSkillHints,
     });
+
+  const lineTaskFlowAction = await resolveLineTaskFlowAction({
+    lastUserPrompt: input.userText,
+    messages: input.historyMessages.map((message) => ({
+      id: crypto.randomUUID(),
+      role: message.role,
+      parts: [{ type: 'text', text: message.content }],
+      metadata: {},
+    })) as ChatMessage[],
+    activeSkillIds: Array.isArray(input.agentRow?.skillIds)
+      ? input.agentRow.skillIds.filter((value): value is string => typeof value === 'string')
+      : [],
+    activeSkillNames: input.followUpSkillHints ?? [],
+  });
+
+  if (lineTaskFlowAction.kind === 'follow_up') {
+    await persistLineTurn({
+      threadId: input.threadId,
+      nextPosition: input.nextPosition,
+      now: input.now,
+      userText: input.userText,
+      assistantText: lineTaskFlowAction.assistantText,
+      assistantMetadata: lineTaskFlowAction.assistantMetadata,
+    });
+    await input.lineClient.replyMessage({
+      replyToken: input.replyToken,
+      messages: [
+        ...(input.displayUserText
+          ? [{ type: 'text' as const, text: input.displayUserText, ...(input.sender ? { sender: input.sender } : {}) }]
+          : []),
+        { type: 'text' as const, text: lineTaskFlowAction.assistantText, ...(input.sender ? { sender: input.sender } : {}) },
+      ].slice(0, 5),
+    });
+    recordMessageEvent(input.channel.id, input.lineUserId).catch(() => {});
+    return { replyText: lineTaskFlowAction.assistantText };
+  }
+
+  if (
+    lineTaskFlowAction.kind === 'ready'
+    && (
+      lineTaskFlowAction.flowKey === 'education.lesson_plan'
+      || lineTaskFlowAction.flowKey === 'agriculture.diagnosis'
+    )
+  ) {
+    return runCanonicalLineReply({
+      runtimeUserText: input.userText,
+      ...(input.displayUserText
+        ? { displayReplyText: (replyText: string) => `${input.displayUserText}\n\n${replyText}` }
+        : {}),
+    }, {
+      agentRow: input.agentRow,
+      modelId: input.modelId,
+      linkedUser: input.linkedUser,
+      lineUserId: input.lineUserId,
+      activeLineUserId: input.activeLineUserId,
+      channel: input.channel,
+      threadId: input.threadId,
+      historyMessages: input.historyMessages,
+      nextPosition: input.nextPosition,
+      now: input.now,
+      memoryContext: input.memoryContext,
+      lineExtraBlocks: input.lineExtraBlocks,
+      shouldExtractMemory: input.shouldExtractMemory,
+      lineClient: input.lineClient,
+      sender: input.sender,
+      replyToken: input.replyToken,
+      followUpDomainHint: input.domainContext?.profile.domain,
+      followUpSkillHints: input.followUpSkillHints,
+      taskFlowDecision: lineTaskFlowAction.taskFlowDecision,
+      taskFlowLocale: lineTaskFlowAction.locale,
+      taskFlowAssistantMetadata: lineTaskFlowAction.assistantMetadata,
+    });
+  }
 
   const hasPendingFarmRecordDraft = Boolean(readPendingFarmRecordDraft(input.latestPendingFarmRecordDraft));
   const intentDecision = await resolveLineAgricultureIntent({

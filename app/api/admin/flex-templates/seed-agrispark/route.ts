@@ -4,6 +4,7 @@ import { nanoid } from 'nanoid';
 import { requireAdmin } from '@/lib/admin';
 import { db } from '@/lib/db';
 import { lineFlexTemplate } from '@/db/schema';
+import { inferFlexTemplateType, inferLinkedRichTemplateKey } from '@/features/line-oa/flex/linking';
 import { AGRISPARK_TEMPLATES } from '@/features/line-oa/flex/seeds/agrispark-templates';
 
 export async function POST() {
@@ -31,6 +32,8 @@ export async function POST() {
       description: seed.description,
       category: seed.category,
       tags: seed.tags,
+      templateType: inferFlexTemplateType({ name: seed.name }),
+      richTemplateKey: inferLinkedRichTemplateKey({ name: seed.name }),
       flexPayload: seed.flexPayload,
       altText: seed.altText,
       previewImageUrl: null,

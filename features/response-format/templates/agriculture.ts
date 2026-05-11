@@ -1,11 +1,4 @@
-import type { FlexMessage } from '@/features/line-oa/webhook/types';
-import { AGRISPARK_TEMPLATES } from '@/features/line-oa/flex/seeds/agrispark-templates';
 import type { ResponseTemplate } from '@/features/response-format/types';
-import {
-  buildWebCardFields,
-  interpolateTemplatePayload,
-  readTemplateString,
-} from '@/features/response-format/templates/shared';
 
 type SeedTemplateConfig = {
   key: string;
@@ -61,100 +54,11 @@ const AGRICULTURE_TEMPLATE_CONFIG: SeedTemplateConfig[] = [
 ];
 
 export const AGRICULTURE_RESPONSE_TEMPLATES: ResponseTemplate[] = AGRICULTURE_TEMPLATE_CONFIG.flatMap((config) => {
-  const seed = AGRISPARK_TEMPLATES.find((entry) => entry.name === config.seedName);
-  if (!seed) return [];
-
   return [{
     key: config.key,
     title: config.title,
     supportedChannels: ['line', 'web'],
     intent: config.intent,
     requiredDataKeys: config.requiredDataKeys,
-    renderLine(data) {
-      return {
-        type: 'flex',
-        altText: String(data.altText ?? seed.altText),
-        contents: interpolateTemplatePayload(seed.flexPayload, data),
-      } as FlexMessage;
-    },
-    renderWeb(data) {
-      if (config.key === 'agriculture.weather_risk') {
-        return {
-          kind: 'card',
-          tone: 'warning',
-          eyebrow: 'Weather Risk',
-          title: readTemplateString(data, 'location', 'Weather summary'),
-          summary: readTemplateString(data, 'farm_advice'),
-          fields: buildWebCardFields([
-            { label: 'Temperature', value: data.temperature },
-            { label: 'Humidity', value: data.humidity },
-            { label: 'Rain chance', value: data.rain_chance },
-          ]),
-        };
-      }
-
-      if (config.key === 'agriculture.forecast_7day') {
-        return {
-          kind: 'card',
-          tone: 'neutral',
-          eyebrow: 'Forecast',
-          title: '7-day forecast',
-          summary: readTemplateString(data, 'summary'),
-        };
-      }
-
-      if (config.key === 'agriculture.record_entry') {
-        return {
-          kind: 'card',
-          tone: 'success',
-          eyebrow: 'Record Saved',
-          title: readTemplateString(data, 'activity', 'Record entry'),
-          summary: readTemplateString(data, 'plot'),
-          fields: buildWebCardFields([
-            { label: 'Date', value: data.date },
-            { label: 'Cost', value: data.cost },
-          ]),
-        };
-      }
-
-      if (config.key === 'agriculture.record_confirmation') {
-        return {
-          kind: 'card',
-          tone: 'warning',
-          eyebrow: 'Confirm',
-          title: readTemplateString(data, 'activity', 'Confirm record'),
-          summary: readTemplateString(data, 'plot'),
-          fields: buildWebCardFields([
-            { label: 'Date', value: data.date },
-          ]),
-        };
-      }
-
-      if (config.key === 'agriculture.weekly_summary') {
-        return {
-          kind: 'card',
-          tone: 'success',
-          eyebrow: 'Summary',
-          title: readTemplateString(data, 'week_range', 'Weekly summary'),
-          summary: readTemplateString(data, 'highlight'),
-          fields: buildWebCardFields([
-            { label: 'Activities', value: data.total_activities },
-            { label: 'Cost', value: data.total_cost },
-          ]),
-        };
-      }
-
-      return {
-        kind: 'card',
-        tone: 'neutral',
-        eyebrow: 'Diagnosis',
-        title: readTemplateString(data, 'crop_name', 'Diagnosis'),
-        summary: readTemplateString(data, 'diagnosis'),
-        fields: buildWebCardFields([
-          { label: 'Severity', value: data.severity },
-          { label: 'Recommendation', value: data.recommendation },
-        ]),
-      };
-    },
   }];
 });

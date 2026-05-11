@@ -1,6 +1,7 @@
 import type { UIMessagePart } from "ai";
 import type { MediaAsset } from "@/features/gallery/types";
 import type { ChatReferenceImage, QuizFollowUpContext } from "@/features/chat/types";
+import type { RichMessageInstance } from "@/features/rich-messages/types";
 
 // ─── Public Props ────────────────────────────────────────────────────────────
 
@@ -39,6 +40,12 @@ export type ToolLikePart = UIMessagePart<any, any> & {
   state?: unknown;
   toolName?: string;
   type: string;
+};
+
+export type RichMessageDataPart = {
+  type: "data-rich-message";
+  id?: string;
+  data: RichMessageInstance;
 };
 
 // ─── Tool Output Shapes ──────────────────────────────────────────────────────
@@ -169,6 +176,19 @@ export const isToolLikePart = (part: UIMessagePart<any, any>): part is ToolLikeP
   if (typeof part.type !== "string") return false;
   const r = part as Record<string, unknown>;
   return part.type.startsWith("tool-") && "input" in r;
+};
+
+export const isRichMessageDataPart = (part: UIMessagePart<any, any>): part is RichMessageDataPart => {
+  if (part.type !== "data-rich-message") return false;
+  const record = part as Record<string, unknown>;
+  const data = record.data;
+  if (!data || typeof data !== "object") return false;
+  const rich = data as Record<string, unknown>;
+  return (
+    rich.kind === "rich_message" &&
+    typeof rich.templateKey === "string" &&
+    typeof rich.fallbackText === "string"
+  );
 };
 
 export const isCertificateToolOutput = (output: unknown): output is CertificateToolOutput => {

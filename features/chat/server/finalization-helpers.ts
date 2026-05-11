@@ -1,7 +1,10 @@
 import { buildResponseAuditSummary } from '@/features/response-format/server/audit';
 import { buildResponsePlan } from '@/features/response-format/server/select';
+import { buildResponsePlanFromTaskFlow } from '@/features/response-format/service';
 import type { ChatMessage, ChatMessageMetadata } from '@/features/chat/types';
 import type { ResponseAuditSummary } from '@/features/response-format/server/audit';
+import type { RichMessageInstance } from '@/features/rich-messages/types';
+import type { TaskFlowDecision } from '@/features/task-flows/types';
 
 type PrepareTextMessagesOptions = {
   messages: ChatMessage[];
@@ -13,6 +16,14 @@ type PrepareTextMessagesOptions = {
 type PrepareTextMessagesResult = {
   messages: ChatMessage[];
   responseAudit: ResponseAuditSummary | null;
+};
+
+export type AssistantResponseArtifacts = {
+  responseAudit: ResponseAuditSummary | null;
+  richMessagePart?: {
+    type: 'data-rich-message';
+    data: RichMessageInstance;
+  };
 };
 
 export async function prepareTextMessagesForFinalization({
@@ -41,7 +52,7 @@ export async function prepareTextMessagesForFinalization({
 
     const suggestions = await generateSuggestions(contextStr);
     if (suggestions.length > 0) {
-      messagesWithSuggestions = messages.map((message, index) =>
+      messagesWithSuggestions = messages.map<ChatMessage>((message, index) =>
         index === lastAssistantIdx
           ? {
               ...message,
@@ -56,20 +67,40 @@ export async function prepareTextMessagesForFinalization({
   }
 
   const lastAssistantText = getLastAssistantText(messagesWithSuggestions);
-  const responsePlan = lastAssistantText
-    ? buildResponsePlan({
-        text: lastAssistantText,
-        userText: lastUserPrompt ?? '',
-        locale: inferFinalizationLocale(lastAssistantText, lastUserPrompt ?? ''),
-        quickReplies: normalizeSuggestionQuickReplies(
-          ((messagesWithSuggestions[lastAssistantIdx]?.metadata as ChatMessageMetadata | undefined)?.followUpSuggestions) ?? [],
-        ),
-      })
+  const lastAssistantMetadata = lastAssistantIdx !== -1
+    ? messagesWithSuggestions[lastAssistantIdx]?.metadata as ChatMessageMetadata | undefined
+    : undefined;
+  const taskFlowDecision = lastAssistantMetadata?.taskFlow
+    ? buildTaskFlowDecisionFromMetadata(lastAssistantMetadata)
     : null;
-  const responseAudit = responsePlan ? buildResponseAuditSummary(responsePlan) : null;
+  const artifacts = lastAssistantText
+    ? await buildAssistantResponseArtifacts({
+        assistantText: lastAssistantText,
+        lastUserPrompt,
+        followUpSuggestions:
+          (lastAssistantMetadata?.followUpSuggestions) ?? [],
+        taskFlowDecision,
+        source: 'finalization',
+      })
+    : { responseAudit: null };
 
-  if (responseAudit && lastAssistantIdx !== -1) {
-    messagesWithSuggestions = messagesWithSuggestions.map((message, index) =>
+  if (artifacts.richMessagePart && lastAssistantIdx !== -1) {
+    messagesWithSuggestions = messagesWithSuggestions.map<ChatMessage>((message, index) =>
+      index === lastAssistantIdx
+        ? {
+            ...message,
+            parts: [
+              ...message.parts.filter((part) => part.type !== 'data-rich-message'),
+              artifacts.richMessagePart as ChatMessage['parts'][number],
+            ],
+          }
+        : message,
+    );
+  }
+
+  const responseAudit = artifacts.responseAudit;
+  if (responseAudit != null && lastAssistantIdx !== -1) {
+    messagesWithSuggestions = messagesWithSuggestions.map<ChatMessage>((message, index) =>
       index === lastAssistantIdx
         ? { ...message, metadata: { ...(message.metadata ?? {}), responseFormat: responseAudit } }
         : message,
@@ -79,6 +110,58 @@ export async function prepareTextMessagesForFinalization({
   return {
     messages: messagesWithSuggestions,
     responseAudit,
+  };
+}
+
+export async function buildAssistantResponseArtifacts(input: {
+  assistantText: string;
+  lastUserPrompt: string | null | undefined;
+  followUpSuggestions?: string[];
+  taskFlowDecision?: Extract<TaskFlowDecision, { status: 'ready' }> | null;
+  source: 'finalization' | 'live_stream';
+}): Promise<AssistantResponseArtifacts> {
+  const locale = inferFinalizationLocale(input.assistantText, input.lastUserPrompt ?? '');
+  const responsePlan = input.taskFlowDecision
+    ? buildResponsePlanFromTaskFlow({
+        assistantText: input.assistantText,
+        userText: input.lastUserPrompt ?? '',
+        locale,
+        quickReplies: normalizeSuggestionQuickReplies(input.followUpSuggestions ?? []),
+        taskFlowDecision: input.taskFlowDecision,
+      })
+    : buildResponsePlan({
+        text: input.assistantText,
+        userText: input.lastUserPrompt ?? '',
+        locale,
+        quickReplies: normalizeSuggestionQuickReplies(input.followUpSuggestions ?? []),
+      });
+  const responseAudit = buildResponseAuditSummary(responsePlan);
+
+  if (!responsePlan.card) {
+    return { responseAudit };
+  }
+
+  const { renderRichMessageServer } = await import('@/features/rich-messages/server/runtime');
+  const renderedRichMessage = await renderRichMessageServer({
+    templateKey: responsePlan.card.templateKey,
+    data: responsePlan.card.data,
+    channel: 'web',
+    locale: responsePlan.locale,
+    metadata: {
+      source: input.source,
+    },
+  });
+
+  if (!renderedRichMessage.ok) {
+    return { responseAudit };
+  }
+
+  return {
+    responseAudit,
+    richMessagePart: {
+      type: 'data-rich-message',
+      data: renderedRichMessage.instance,
+    },
   };
 }
 
@@ -113,4 +196,20 @@ function normalizeSuggestionQuickReplies(suggestions: string[]) {
       label: suggestion,
       text: suggestion,
     }));
+}
+
+function buildTaskFlowDecisionFromMetadata(
+  metadata: ChatMessageMetadata,
+): Extract<TaskFlowDecision, { status: 'ready' }> | null {
+  if (metadata.taskFlow?.status !== 'ready') {
+    return null;
+  }
+
+  return {
+    status: 'ready',
+    flowKey: metadata.taskFlow.flowKey,
+    confidence: 1,
+    source: 'state',
+    slots: metadata.taskFlow.slots,
+  };
 }

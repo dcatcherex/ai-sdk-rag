@@ -26,6 +26,12 @@ const fetchThreadMessages = async (threadId: string): Promise<ChatMessage[]> => 
   return payload.messages;
 };
 
+const messageHasRichMessagePart = (message: ChatMessage | undefined) =>
+  Boolean(message?.parts?.some((part) => part.type === 'data-rich-message'));
+
+const messageHasFollowUpSuggestions = (message: ChatMessage | undefined) =>
+  Boolean(message?.metadata?.followUpSuggestions?.length);
+
 type UseChatSessionOptions = {
   activeThreadId: string;
   activeThreadIdRef: React.RefObject<string>;
@@ -104,13 +110,11 @@ export const useChatSession = ({
           queryKey: ['threads', threadId, 'working-memory'],
         });
 
-        if (followUpSuggestionsEnabled) {
-          setIsSyncingFollowUpSuggestions(true);
-          try {
-            await syncFollowUpSuggestions(threadId);
-          } finally {
-            setIsSyncingFollowUpSuggestions(false);
-          }
+        setIsSyncingFollowUpSuggestions(true);
+        try {
+          await syncFinalizedAssistantState(threadId);
+        } finally {
+          setIsSyncingFollowUpSuggestions(false);
         }
       }
     },
@@ -149,7 +153,7 @@ export const useChatSession = ({
     setMessages(messagesToSync);
   }, [setMessages]);
 
-  const syncFollowUpSuggestions = useCallback(async (threadId: string) => {
+  const syncFinalizedAssistantState = useCallback(async (threadId: string) => {
     let attempts = 0;
     while (attempts < FOLLOW_UP_SYNC_MAX_ATTEMPTS) {
       try {
@@ -160,15 +164,23 @@ export const useChatSession = ({
         const lastAssistantMessage = [...threadMessages]
           .reverse()
           .find((message) => message.role === 'assistant');
-        const hasFollowUpSuggestions = !!lastAssistantMessage?.metadata?.followUpSuggestions?.length;
+        const currentLastAssistantMessage = [...messages]
+          .reverse()
+          .find((message) => message.role === 'assistant');
+        const hasFollowUpSuggestions = messageHasFollowUpSuggestions(lastAssistantMessage);
+        const hasRichMessage = messageHasRichMessagePart(lastAssistantMessage);
+        const needsFollowUpSync =
+          hasFollowUpSuggestions && !messageHasFollowUpSuggestions(currentLastAssistantMessage);
+        const needsRichMessageSync =
+          hasRichMessage && !messageHasRichMessagePart(currentLastAssistantMessage);
 
-        if (hasFollowUpSuggestions) {
+        if (needsFollowUpSync || needsRichMessageSync) {
           replaceMessagesFromDb(threadMessages);
           return;
         }
       } catch (error) {
         if (attempts === FOLLOW_UP_SYNC_MAX_ATTEMPTS - 1) {
-          console.error('Failed to sync follow-up suggestions:', error);
+          console.error('Failed to sync finalized assistant state:', error);
           return;
         }
       }
@@ -178,7 +190,7 @@ export const useChatSession = ({
         await delay(FOLLOW_UP_SYNC_RETRY_DELAY_MS);
       }
     }
-  }, [mergeFollowUpSuggestions, queryClient, replaceMessagesFromDb]);
+  }, [mergeFollowUpSuggestions, messages, queryClient, replaceMessagesFromDb]);
 
   // Sync messages when thread changes (including clearing for new chat)
   useEffect(() => {
