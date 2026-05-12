@@ -4,9 +4,11 @@ import { z } from 'zod';
 import { requireUser } from '@/lib/auth-server';
 import {
   buildRealtimeFunctionTools,
+  buildRealtimeVoiceInstructions,
   prepareRealtimeVoiceRun,
   realtimeVoiceContextSchema,
   resolveOpenAIRealtimeModel,
+  resolveOpenAIRealtimeReasoningEffort,
   resolveOpenAIRealtimeVoice,
 } from '@/features/chat/server/realtime-voice';
 
@@ -18,6 +20,10 @@ export const maxDuration = 30;
 
 function hashSafetyIdentifier(userId: string) {
   return createHash('sha256').update(userId).digest('hex');
+}
+
+function encodeHeaderJson(value: unknown) {
+  return encodeURIComponent(JSON.stringify(value));
 }
 
 export async function POST(req: Request) {
@@ -38,14 +44,23 @@ export async function POST(req: Request) {
     });
     const tools = await buildRealtimeFunctionTools(preparedRun.tools);
     const realtimeModel = resolveOpenAIRealtimeModel();
+    const reasoningEffort = resolveOpenAIRealtimeReasoningEffort();
+    const activatedSkills = preparedRun.skillRuntime.activatedSkills.slice(0, 20).map((entry) => ({
+      id: entry.skill.id,
+      name: entry.skill.name,
+      source: entry.activationSource,
+    }));
 
     const sessionConfig = {
       type: 'realtime',
       model: realtimeModel,
       instructions: [
         preparedRun.systemPrompt,
-        'Realtime voice behavior: speak naturally, stay concise, and respond in the same language as the user. If a tool is useful, call it before answering.',
+        buildRealtimeVoiceInstructions(),
       ].filter(Boolean).join('\n\n'),
+      reasoning: {
+        effort: reasoningEffort,
+      },
       audio: {
         input: {
           transcription: {
@@ -89,7 +104,9 @@ export async function POST(req: Request) {
     return new Response(answerSdp, {
       headers: {
         'Content-Type': 'application/sdp',
+        'X-Vaja-Realtime-Provider': 'openai',
         'X-Vaja-Realtime-Model': realtimeModel,
+        'X-Vaja-Realtime-Activated-Skills': encodeHeaderJson(activatedSkills),
       },
     });
   } catch (error) {

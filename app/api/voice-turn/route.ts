@@ -1,19 +1,49 @@
 import { NextResponse } from 'next/server';
 import { and, count, eq } from 'drizzle-orm';
+import { z } from 'zod';
 
 import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
 import { chatThread, chatMessage } from '@/db/schema';
 
+const voiceTurnMetadataSchema = z.object({
+  provider: z.enum(['openai', 'gemini']),
+  realtimeModel: z.string().min(1).max(120).optional(),
+  activatedSkills: z.array(z.object({
+    id: z.string().min(1).max(120),
+    name: z.string().min(1).max(160),
+    source: z.enum(['rule', 'model']),
+  })).max(20).optional(),
+  toolCalls: z.array(z.object({
+    name: z.string().min(1).max(120),
+    callId: z.string().min(1).max(160).optional(),
+    ok: z.boolean(),
+    durationMs: z.number().int().min(0).max(300_000).optional(),
+    error: z.string().max(500).optional(),
+  })).max(50).optional(),
+}).optional();
+
+const voiceTurnRequestSchema = z.object({
+  threadId: z.string().min(1),
+  userText: z.string().default(''),
+  aiText: z.string().default(''),
+  metadata: voiceTurnMetadataSchema,
+});
+
 export async function POST(req: Request) {
   const authResult = await requireUser();
   if (!authResult.ok) return authResult.response;
-  const body = (await req.json()) as { threadId?: string; userText?: string; aiText?: string };
-  const { threadId, userText = '', aiText = '' } = body;
+  const parsed = voiceTurnRequestSchema.safeParse(await req.json());
 
-  if (!threadId) {
-    return NextResponse.json({ error: 'threadId is required' }, { status: 400 });
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid voice turn request' }, { status: 400 });
   }
+
+  const { threadId, userText, aiText, metadata } = parsed.data;
+  const messageMetadata = {
+    source: 'voice',
+    ...(metadata ? { voice: metadata } : {}),
+  };
 
   // Verify thread belongs to the authenticated user
   const [thread] = await db
@@ -45,7 +75,7 @@ export async function POST(req: Request) {
       threadId,
       role: 'user',
       parts: [{ type: 'text', text: userText }],
-      metadata: { source: 'voice' },
+      metadata: messageMetadata,
       position: nextPosition++,
       createdAt: now,
     });
@@ -57,7 +87,7 @@ export async function POST(req: Request) {
       threadId,
       role: 'assistant',
       parts: [{ type: 'text', text: aiText }],
-      metadata: { source: 'voice' },
+      metadata: messageMetadata,
       position: nextPosition++,
       createdAt: now,
     });

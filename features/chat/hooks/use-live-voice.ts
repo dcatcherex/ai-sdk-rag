@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ActivatedSkillBadge, VoiceToolCallMetadata, VoiceTurnMetadata } from '@/features/chat/types';
 
 export type VoiceState = 'idle' | 'connecting' | 'listening' | 'ai-speaking' | 'error';
 
@@ -20,7 +21,7 @@ type UseLiveVoiceOptions = {
   provider?: 'openai' | 'gemini';
   voiceName?: string;
   onError?: (message: string) => void;
-  onTurnComplete?: (userText: string, aiText: string) => void;
+  onTurnComplete?: (userText: string, aiText: string, metadata?: VoiceTurnMetadata) => void | Promise<void>;
   history?: VoiceHistoryTurn[];
   getRealtimeContext?: () => Promise<RealtimeVoiceClientContext>;
 };
@@ -58,6 +59,17 @@ const BASE_SYSTEM_INSTRUCTION = 'You are a helpful, friendly assistant. Always r
 const AUDIO_ACTIVITY_THRESHOLD = 20;
 const AUDIO_ACTIVITY_HOLD_MS = 900;
 const AUDIO_ACTIVITY_FORCE_START_CHUNKS = 6;
+const OPENAI_WAIT_FOR_USER_TOOL_NAME = 'wait_for_user';
+
+function decodeHeaderJson<T>(value: string | null): T | undefined {
+  if (!value) return undefined;
+
+  try {
+    return JSON.parse(decodeURIComponent(value)) as T;
+  } catch {
+    return undefined;
+  }
+}
 
 function buildSystemInstruction(history?: VoiceHistoryTurn[]) {
   const priorTurns = (history ?? []).slice(-12).filter((turn) => turn.text.trim());
@@ -95,6 +107,8 @@ export function useLiveVoice({
     voiceName?: string | null;
     history?: VoiceHistoryTurn[];
   }) | null>(null);
+  const voiceSessionMetadataRef = useRef<VoiceTurnMetadata | null>(null);
+  const openAITurnToolCallsRef = useRef<VoiceToolCallMetadata[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -136,6 +150,25 @@ export function useLiveVoice({
     }
   }, []);
 
+  const buildCurrentVoiceTurnMetadata = useCallback((): VoiceTurnMetadata | undefined => {
+    const sessionMetadata = voiceSessionMetadataRef.current;
+    if (!sessionMetadata) return undefined;
+
+    const activatedSkills = sessionMetadata.activatedSkills?.length
+      ? sessionMetadata.activatedSkills
+      : undefined;
+    const toolCalls = openAITurnToolCallsRef.current.length > 0
+      ? openAITurnToolCallsRef.current.slice()
+      : undefined;
+
+    return {
+      provider: sessionMetadata.provider,
+      ...(sessionMetadata.realtimeModel ? { realtimeModel: sessionMetadata.realtimeModel } : {}),
+      ...(activatedSkills ? { activatedSkills } : {}),
+      ...(toolCalls ? { toolCalls } : {}),
+    };
+  }, []);
+
   const finalizeOpenAITurn = useCallback(() => {
     clearOpenAIFinalizeTimeout();
     if (pendingOpenAIToolCallsRef.current > 0) return;
@@ -152,15 +185,32 @@ export function useLiveVoice({
 
     inputTranscriptAccRef.current = '';
     outputTranscriptAccRef.current = '';
+    const metadata = buildCurrentVoiceTurnMetadata();
+    openAITurnToolCallsRef.current = [];
     setTranscript((prev) => prev.map((turn) => turn.partial ? { ...turn, partial: false } : turn));
-    onTurnCompleteRef.current?.(userText, aiText);
+    onTurnCompleteRef.current?.(userText, aiText, metadata);
     setVoiceState('listening');
-  }, [clearOpenAIFinalizeTimeout]);
+  }, [buildCurrentVoiceTurnMetadata, clearOpenAIFinalizeTimeout]);
 
   const scheduleOpenAITurnFinalize = useCallback(() => {
     clearOpenAIFinalizeTimeout();
     openAIFinalizeTimeoutRef.current = window.setTimeout(finalizeOpenAITurn, 250);
   }, [clearOpenAIFinalizeTimeout, finalizeOpenAITurn]);
+
+  const completeOpenAIWaitForUserTurn = useCallback(() => {
+    clearOpenAIFinalizeTimeout();
+    inputTranscriptAccRef.current = '';
+    outputTranscriptAccRef.current = '';
+    openAITurnToolCallsRef.current = [];
+    setTranscript((prev) => {
+      const next = [...prev];
+      while (next.at(-1)?.partial) {
+        next.pop();
+      }
+      return next;
+    });
+    setVoiceState('listening');
+  }, [clearOpenAIFinalizeTimeout]);
 
   const isSessionSocketOpen = useCallback((session: LiveWebSocketSession | null) => {
     if (!session) {
@@ -400,11 +450,11 @@ export function useLiveVoice({
 
       setTranscript((prev) => prev.map((turn) => turn.partial ? { ...turn, partial: false } : turn));
       if (userText || aiText) {
-        onTurnCompleteRef.current?.(userText, aiText);
+        onTurnCompleteRef.current?.(userText, aiText, buildCurrentVoiceTurnMetadata());
       }
       setVoiceState('listening');
     }
-  }, [clearPlaybackQueue, enqueueAudio]);
+  }, [buildCurrentVoiceTurnMetadata, clearPlaybackQueue, enqueueAudio]);
 
   // ── Microphone setup ───────────────────────────────────────────────────────
 
@@ -549,6 +599,8 @@ export function useLiveVoice({
       remoteAudioRef.current = null;
     }
     openAIContextRef.current = null;
+    voiceSessionMetadataRef.current = null;
+    openAITurnToolCallsRef.current = [];
   }, [clearOpenAIFinalizeTimeout]);
 
   const sendOpenAIEvent = useCallback((event: Record<string, unknown>) => {
@@ -565,6 +617,7 @@ export function useLiveVoice({
     if (!context || !callId || !toolName) return;
 
     pendingOpenAIToolCallsRef.current += 1;
+    const startedAt = performance.now();
     try {
       const response = await fetch('/api/realtime/tool-call', {
         method: 'POST',
@@ -580,6 +633,13 @@ export function useLiveVoice({
       const output = response.ok
         ? payload.output
         : { error: payload.error ?? 'Tool call failed' };
+      openAITurnToolCallsRef.current.push({
+        name: toolName,
+        callId,
+        ok: response.ok,
+        durationMs: Math.round(performance.now() - startedAt),
+        ...(!response.ok ? { error: payload.error ?? 'Tool call failed' } : {}),
+      });
 
       sendOpenAIEvent({
         type: 'conversation.item.create',
@@ -589,8 +649,19 @@ export function useLiveVoice({
           output: JSON.stringify(output ?? null),
         },
       });
+      if (toolName === OPENAI_WAIT_FOR_USER_TOOL_NAME) {
+        completeOpenAIWaitForUserTurn();
+        return;
+      }
       sendOpenAIEvent({ type: 'response.create' });
     } catch (error) {
+      openAITurnToolCallsRef.current.push({
+        name: toolName,
+        callId,
+        ok: false,
+        durationMs: Math.round(performance.now() - startedAt),
+        error: error instanceof Error ? error.message : 'Tool call failed',
+      });
       sendOpenAIEvent({
         type: 'conversation.item.create',
         item: {
@@ -601,11 +672,15 @@ export function useLiveVoice({
           }),
         },
       });
+      if (toolName === OPENAI_WAIT_FOR_USER_TOOL_NAME) {
+        completeOpenAIWaitForUserTurn();
+        return;
+      }
       sendOpenAIEvent({ type: 'response.create' });
     } finally {
       pendingOpenAIToolCallsRef.current = Math.max(0, pendingOpenAIToolCallsRef.current - 1);
     }
-  }, [sendOpenAIEvent]);
+  }, [completeOpenAIWaitForUserTurn, sendOpenAIEvent]);
 
   const handleOpenAIMessage = useCallback((message: Record<string, unknown>) => {
     const type = typeof message.type === 'string' ? message.type : '';
@@ -787,6 +862,14 @@ export function useLiveVoice({
       throw new Error(answerSdp || 'Failed to create realtime session');
     }
 
+    voiceSessionMetadataRef.current = {
+      provider: 'openai',
+      realtimeModel: response.headers.get('X-Vaja-Realtime-Model') ?? undefined,
+      activatedSkills: decodeHeaderJson<ActivatedSkillBadge[]>(
+        response.headers.get('X-Vaja-Realtime-Activated-Skills'),
+      ) ?? [],
+    };
+
     if (activeConnectionIdRef.current !== connectionAttemptId) {
       pc.close();
       return;
@@ -824,6 +907,10 @@ export function useLiveVoice({
       if (!model || model.trim().length === 0) {
         throw new Error('Live token response missing model');
       }
+      voiceSessionMetadataRef.current = {
+        provider: 'gemini',
+        realtimeModel: model,
+      };
 
       let connected = false;
 
@@ -997,6 +1084,8 @@ export function useLiveVoice({
     sessionHandleRef.current = null;
     inputTranscriptAccRef.current = '';
     outputTranscriptAccRef.current = '';
+    voiceSessionMetadataRef.current = null;
+    openAITurnToolCallsRef.current = [];
     const session = sessionRef.current;
     sessionRef.current = null; // null first so onmessage/worklet stops sending
 

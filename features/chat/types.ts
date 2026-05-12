@@ -27,7 +27,24 @@ export type ActivatedSkillBadge = {
   source: 'rule' | 'model';
 };
 
+export type VoiceToolCallMetadata = {
+  name: string;
+  callId?: string;
+  ok: boolean;
+  durationMs?: number;
+  error?: string;
+};
+
+export type VoiceTurnMetadata = {
+  provider: 'openai' | 'gemini';
+  realtimeModel?: string;
+  activatedSkills?: ActivatedSkillBadge[];
+  toolCalls?: VoiceToolCallMetadata[];
+};
+
 export type ChatMessageMetadata = {
+  source?: 'voice';
+  voice?: VoiceTurnMetadata;
   routing?: RoutingMetadata;
   enhancedPrompt?: string;
   followUpSuggestions?: string[];

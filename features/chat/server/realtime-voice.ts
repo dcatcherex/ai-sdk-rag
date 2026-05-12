@@ -21,6 +21,25 @@ import type { Agent } from '@/features/agents/types';
 
 const DEFAULT_REALTIME_MODEL = 'gpt-realtime-2';
 const DEFAULT_REALTIME_VOICE = 'marin';
+const DEFAULT_REALTIME_REASONING_EFFORT = 'low';
+export const WAIT_FOR_USER_TOOL_NAME = 'wait_for_user';
+
+const REALTIME_REASONING_EFFORTS = new Set(['minimal', 'low', 'medium', 'high', 'xhigh']);
+
+const WAIT_FOR_USER_TOOL: RealtimeFunctionTool = {
+  type: 'function',
+  name: WAIT_FOR_USER_TOOL_NAME,
+  description: [
+    'Call this when the latest audio does not need a spoken response, such as silence, background noise, hold music, TV audio, side conversation, or speech not addressed to the assistant.',
+    'This tool ends the turn without a spoken reply.',
+  ].join(' '),
+  parameters: {
+    type: 'object',
+    properties: {},
+    required: [],
+    additionalProperties: false,
+  },
+};
 
 export const realtimeVoiceHistorySchema = z.array(z.object({
   role: z.enum(['user', 'assistant']),
@@ -60,6 +79,15 @@ export function resolveOpenAIRealtimeVoice(voiceName?: string | null) {
 
   const allowedVoices = new Set(['marin', 'cedar']);
   return allowedVoices.has(normalized) ? normalized : DEFAULT_REALTIME_VOICE;
+}
+
+export function resolveOpenAIRealtimeReasoningEffort() {
+  const configured = process.env.OPENAI_REALTIME_REASONING_EFFORT?.trim().toLowerCase();
+  if (configured && REALTIME_REASONING_EFFORTS.has(configured)) {
+    return configured;
+  }
+
+  return DEFAULT_REALTIME_REASONING_EFFORT;
 }
 
 export async function assertOwnedThread(input: {
@@ -214,19 +242,205 @@ function ensureObjectJsonSchema(schema: unknown): Record<string, unknown> {
   };
 }
 
+function getSchemaPropertyNames(schema: Record<string, unknown>): string[] {
+  const properties = schema.properties;
+  if (!properties || typeof properties !== 'object') {
+    return [];
+  }
+
+  return Object.keys(properties);
+}
+
+function includesAny(value: string, terms: string[]) {
+  return terms.some((term) => value.includes(term));
+}
+
+function includesExactIdentifierTerm(value: string) {
+  return /(^|[\s_-])id($|[\s_-])/.test(value) || includesAny(value, [
+    'account',
+    'claim',
+    'code',
+    'confirmation',
+    'email',
+    'identifier',
+    'order',
+    'phone',
+    'ticket',
+    'tracking',
+  ]);
+}
+
+function buildRealtimeToolDescription(input: {
+  name: string;
+  description?: string;
+  parameters: Record<string, unknown>;
+}) {
+  const baseDescription = input.description?.trim() || `Run ${input.name}.`;
+  const haystack = [
+    input.name,
+    baseDescription,
+    ...getSchemaPropertyNames(input.parameters),
+  ].join(' ').toLowerCase();
+  const looksWriteAction = includesAny(haystack, [
+    'add',
+    'append',
+    'cancel',
+    'charge',
+    'confirm',
+    'create',
+    'delete',
+    'export',
+    'generate',
+    'log',
+    'order',
+    'publish',
+    'remove',
+    'save',
+    'send',
+    'submit',
+    'transfer',
+    'update',
+    'upload',
+  ]);
+  const looksCommunicationAction = includesAny(haystack, [
+    'broadcast',
+    'email',
+    'line',
+    'message',
+    'notification',
+    'sms',
+    'webhook',
+  ]);
+  const hasExactIdentifier = includesExactIdentifierTerm(haystack);
+
+  const policyLines = [
+    'Voice behavior:',
+    '- Use only when the user intent is clear and the required fields are available.',
+    '- Ask one short clarification question if a required field is missing, ambiguous, or conflicting.',
+  ];
+
+  if (hasExactIdentifier) {
+    policyLines.push('- For exact identifiers such as IDs, phone numbers, email addresses, order numbers, or codes, confirm the normalized value before calling.');
+  }
+
+  if (looksWriteAction || looksCommunicationAction) {
+    policyLines.push('- Before calling for write actions, external communications, publishing, cancellations, purchases, payments, or user-visible changes, summarize the consequence and ask for confirmation.');
+  } else {
+    policyLines.push('- For low-risk read-only lookups, call proactively after a brief preamble when the needed details are clear.');
+  }
+
+  policyLines.push(
+    'Failure handling:',
+    '- If the tool fails, explain the failure briefly, avoid raw errors, and give one clear next step.',
+  );
+
+  return `${baseDescription}\n\n${policyLines.join('\n')}`;
+}
+
+export function buildRealtimeVoiceInstructions() {
+  return `# Realtime Voice Behavior
+
+## Objective
+
+You are speaking as the selected Vaja agent. Use the agent instructions, active skills, memory, brand context, and available tools to help the user by voice.
+
+## Language
+
+- Respond in Thai when the user clearly speaks Thai.
+- Respond in English when the user clearly speaks English.
+- Do not switch language based on accent alone.
+- Ignore short filler sounds, backchannels, names, addresses, and isolated foreign words for language switching.
+- If language is unclear, ask one short clarification.
+- Keep preambles, tool updates, and final answers in the same language as the user.
+
+## Verbosity
+
+- Direct answers: use 1-2 short sentences.
+- Clarifying questions: ask one question at a time.
+- Tool results: summarize the result first, then give only the next useful action.
+- Troubleshooting: give one step at a time unless the user asks for the full procedure.
+- Escalation: briefly explain why escalation is needed and what will happen next.
+
+## Preambles
+
+Use a short preamble only when it helps the user understand that work is happening.
+Use a preamble before slower tool calls, multi-step reasoning, record checks, policy checks, or escalation preparation.
+Do not use a preamble for direct answers, simple confirmations, unclear audio, silence, background noise, or lightweight tool calls.
+When using a preamble, use one short natural sentence. Describe the action, not private reasoning.
+
+## Tools
+
+Use only the tools explicitly provided in the current tool list. Do not invent, rename, simulate, or assume tools.
+
+For read-only tools:
+- Call the tool when the user's intent is clear and all required fields are available.
+- Do not ask for confirmation unless the lookup depends on a high-precision identifier or there is meaningful risk of using the wrong record.
+- Ask a clarification question only if a required field is missing, ambiguous, or conflicting.
+
+For write tools or external actions:
+- Summarize the intended action before calling the tool.
+- Include the key consequence: what will be changed, sent, canceled, ordered, charged, saved, or published.
+- Ask for confirmation.
+- Do not call the tool until the user clearly confirms.
+
+After tool calls:
+- Only say an action was completed after the tool succeeds.
+- If the tool fails, explain the failure briefly, avoid raw errors, and give one clear next step.
+- Do not repeatedly call the same tool with the same arguments after failure.
+
+## Unclear Audio
+
+- Only act on clear audio or text.
+- If the user's audio is unclear, noisy, silent, partially cut off, or ambiguous, ask one short clarification.
+- Do not guess missing words.
+- Do not call tools from unclear audio.
+- Do not use a preamble when asking for unclear-audio clarification.
+
+## Exact Entity Capture
+
+Treat order IDs, tracking numbers, account numbers, confirmation codes, phone numbers, email addresses, ticket IDs, claim IDs, and similar values as high precision.
+
+- Collect one exact value at a time.
+- Normalize only what is clear.
+- Preserve explicitly spoken separators like dash, dot, underscore, slash, and plus.
+- Confirm the final normalized value before account-specific lookups, validation, write actions, or external actions.
+- Read numeric identifiers back digit by digit.
+- Ask users to spell email addresses character by character when precision matters.
+- If the user corrects any part of the value, repeat the full corrected value and ask for confirmation again.
+
+Never call tools with guessed, partial, ambiguous, or unconfirmed exact values.
+
+## Silence and Background Audio
+
+If the latest audio is silence, background noise, hold music, TV audio, side conversation, or speech not addressed to you, call wait_for_user if it is available.
+Do not say "I'm here," "I didn't catch that," "Take your time," or "Let me know when you're ready" after calling wait_for_user.
+Resume normal responses only when the user clearly addresses you or asks for help.`;
+}
+
 export async function buildRealtimeFunctionTools(tools?: ToolSet): Promise<RealtimeFunctionTool[]> {
   const entries = Object.entries(tools ?? {}).filter(([, tool]) => typeof tool.execute === 'function');
 
-  return Promise.all(entries.map(async ([name, tool]) => {
+  const realtimeTools = await Promise.all(entries.map(async ([name, tool]) => {
     const schema = await asSchema(tool.inputSchema).jsonSchema;
+    const parameters = ensureObjectJsonSchema(schema);
 
     return {
       type: 'function' as const,
       name,
-      description: tool.description ?? `Run ${name}.`,
-      parameters: ensureObjectJsonSchema(schema),
+      description: buildRealtimeToolDescription({
+        name,
+        description: tool.description,
+        parameters,
+      }),
+      parameters,
     };
   }));
+
+  if (realtimeTools.some((tool) => tool.name === WAIT_FOR_USER_TOOL_NAME)) {
+    return realtimeTools;
+  }
+
+  return [...realtimeTools, WAIT_FOR_USER_TOOL];
 }
 
 export async function executeRealtimeToolCall(input: {
@@ -237,6 +451,11 @@ export async function executeRealtimeToolCall(input: {
   argumentsJson: string;
   signal?: AbortSignal;
 }) {
+  if (input.toolName === WAIT_FOR_USER_TOOL_NAME) {
+    await assertOwnedThread({ threadId: input.context.threadId, userId: input.userId });
+    return { ok: true };
+  }
+
   const preparedRun = await prepareRealtimeVoiceRun({
     userId: input.userId,
     context: input.context,

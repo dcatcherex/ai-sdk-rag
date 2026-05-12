@@ -23,7 +23,7 @@ import { useAgents } from '@/features/agents/hooks/use-agents';
 import { useChatVisibleAgents } from '@/features/agents/hooks/use-chat-visible-agents';
 import { useComparePreset } from '@/features/chat/hooks/use-compare-preset';
 import { CompareGrid, type ComparePrompt } from '@/features/chat/components/compare-grid';
-import type { ChatMessage, ChatReferenceImage, QuizFollowUpContext, RoutingMetadata } from '@/features/chat/types';
+import type { ChatMessage, ChatReferenceImage, QuizFollowUpContext, RoutingMetadata, VoiceTurnMetadata } from '@/features/chat/types';
 import type { PromptInputMessage } from '@/components/ai-elements/prompt-input';
 import { ThreadWorkingMemorySheet } from '@/features/memory/components/thread-working-memory-sheet';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
@@ -330,12 +330,12 @@ function ChatShell() {
   );
 
   const handleVoiceTurnComplete = useCallback(
-    async (userText: string, aiText: string) => {
+    async (userText: string, aiText: string, metadata?: VoiceTurnMetadata) => {
       const threadId = await ensureThread();
       await fetch('/api/voice-turn', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ threadId, userText, aiText }),
+        body: JSON.stringify({ threadId, userText, aiText, metadata }),
       });
 
       // Fetch fresh messages and replace local state directly.

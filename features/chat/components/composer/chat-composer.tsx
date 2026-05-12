@@ -38,7 +38,7 @@ import {
 import { CompareModelPicker } from './compare-model-picker';
 import { ComposerActionButtons } from './composer-action-buttons';
 import { PromptPickerModal } from '@/features/prompts/components/prompt-picker-modal';
-import type { ChatReferenceImage } from '@/features/chat/types';
+import type { ChatReferenceImage, VoiceTurnMetadata } from '@/features/chat/types';
 
 // ── Small inline helpers (require PromptInputProvider context) ────────────────
 
@@ -186,7 +186,7 @@ export type ChatComposerProps = {
   onSuggestionClick: (suggestion: string) => void;
   onTranscriptionChange: (transcript: string) => void;
   onSubmit: (message: PromptInputMessage) => void | Promise<void>;
-  onVoiceTurnComplete?: (userText: string, aiText: string) => Promise<void>;
+  onVoiceTurnComplete?: (userText: string, aiText: string, metadata?: VoiceTurnMetadata) => Promise<void>;
   getRealtimeVoiceContext?: () => Promise<{
     threadId: string;
     agentId?: string | null;
