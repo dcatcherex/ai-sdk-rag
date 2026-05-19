@@ -50,7 +50,7 @@ Runtime override:
 ```txt
 OPENAI_REALTIME_MODEL=gpt-realtime-2
 OPENAI_REALTIME_VOICE=marin
-OPENAI_REALTIME_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe
+OPENAI_REALTIME_TRANSCRIPTION_MODEL=gpt-realtime-whisper
 OPENAI_REALTIME_REASONING_EFFORT=low
 ```
 
@@ -420,7 +420,7 @@ Recommended:
 ```txt
 OPENAI_REALTIME_MODEL=gpt-realtime-2
 OPENAI_REALTIME_VOICE=marin
-OPENAI_REALTIME_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe
+OPENAI_REALTIME_TRANSCRIPTION_MODEL=gpt-realtime-whisper
 ```
 
 Existing Gemini fallback:

@@ -1,5 +1,5 @@
 import type { FlexBubble, FlexComponent, FlexMessage } from '@/features/line-oa/webhook/types';
-import type { RichMessageInstance, RichMessageTone } from '@/features/rich-messages/types';
+import type { RichMessageAction, RichMessageInstance, RichMessageTone } from '@/features/rich-messages/types';
 
 function toneToLineColor(tone: RichMessageTone | undefined): string {
   switch (tone) {
@@ -44,10 +44,51 @@ function buildSectionComponent(section: {
   } as FlexComponent;
 }
 
+function actionStyleToLineStyle(action: RichMessageAction): 'primary' | 'secondary' {
+  return action.style === 'primary' ? 'primary' : 'secondary';
+}
+
+function actionStyleToColor(action: RichMessageAction): string | undefined {
+  if (action.style === 'danger') return '#C62828';
+  if (action.style === 'primary') return '#2E7D32';
+  return undefined;
+}
+
+function buildActionComponent(action: RichMessageAction): FlexComponent | null {
+  if (!action.label.trim() || !action.value.trim()) return null;
+
+  const baseAction = (() => {
+    switch (action.kind) {
+      case 'message':
+        return { type: 'message' as const, label: action.label, text: action.value };
+      case 'postback':
+        return { type: 'postback' as const, label: action.label, data: action.value, displayText: action.label };
+      case 'uri':
+        return { type: 'uri' as const, label: action.label, uri: action.value };
+      default:
+        return null;
+    }
+  })();
+
+  if (!baseAction) return null;
+
+  return {
+    type: 'button',
+    style: actionStyleToLineStyle(action),
+    height: 'sm',
+    ...(actionStyleToColor(action) ? { color: actionStyleToColor(action) } : {}),
+    action: baseAction,
+  } as FlexComponent;
+}
+
 export function renderRichMessageForLine(instance: RichMessageInstance): FlexMessage {
   const layout = instance.resolvedLayout;
   const headerColor = toneToLineColor(layout.tone);
   const bodyContents: FlexComponent[] = [];
+  const actionContents = (layout.actions ?? [])
+    .map(buildActionComponent)
+    .filter((action): action is FlexComponent => action !== null)
+    .slice(0, 3);
 
   if (layout.summary?.trim()) {
     bodyContents.push({
@@ -122,6 +163,17 @@ export function renderRichMessageForLine(instance: RichMessageInstance): FlexMes
             color: '#374151',
           } as FlexComponent],
     },
+    ...(actionContents.length > 0
+      ? {
+          footer: {
+            type: 'box',
+            layout: 'vertical',
+            spacing: 'sm',
+            paddingAll: '16px',
+            contents: actionContents,
+          },
+        }
+      : {}),
   };
 
   return {

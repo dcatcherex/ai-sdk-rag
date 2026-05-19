@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
 import { requireUser } from '@/lib/auth-server';
 import {
   buildRealtimeTranscriptionSessionConfig,
@@ -24,37 +25,69 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid realtime transcription request' }, { status: 400 });
     }
 
-    const { sdp, language, latencyMode } = parsed.data;
-    const formData = new FormData();
-    formData.set('sdp', sdp);
-    formData.set(
-      'session',
-      JSON.stringify(buildRealtimeTranscriptionSessionConfig({ language, latencyMode })),
-    );
+    const { language, latencyMode } = parsed.data;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    const clientRequestId = randomUUID();
 
-    const response = await fetch('https://api.openai.com/v1/realtime/calls', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        'OpenAI-Safety-Identifier': hashRealtimeSafetyIdentifier(authResult.user.id),
-      },
-      body: formData,
-    });
+    let response: Response;
+    try {
+      response = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+          'OpenAI-Safety-Identifier': hashRealtimeSafetyIdentifier(authResult.user.id),
+          'X-Client-Request-Id': clientRequestId,
+        },
+        body: JSON.stringify({
+          session: buildRealtimeTranscriptionSessionConfig({ language, latencyMode }),
+        }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      clearTimeout(timeoutId);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return NextResponse.json(
+        {
+          error: `Failed to mint realtime transcription client secret: ${message}`,
+          clientRequestId,
+        },
+        { status: 504 },
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
-    const answerSdp = await response.text();
+    const bodyText = await response.text();
     if (!response.ok) {
       return NextResponse.json(
-        { error: answerSdp || 'Failed to create realtime transcription session' },
+        {
+          error: bodyText || 'Failed to create realtime transcription client secret',
+          clientRequestId,
+        },
         { status: response.status },
       );
     }
 
-    return new Response(answerSdp, {
-      headers: {
-        'Content-Type': 'application/sdp',
-        'X-Vaja-Realtime-Provider': 'openai',
-        'X-Vaja-Realtime-Model': resolveOpenAIRealtimeTranscriptionModel(),
-      },
+    let payload: unknown;
+    try {
+      payload = JSON.parse(bodyText);
+    } catch {
+      return NextResponse.json(
+        {
+          error: 'OpenAI returned an invalid client secret payload',
+          clientRequestId,
+        },
+        { status: 502 },
+      );
+    }
+
+    return NextResponse.json({
+      ...(payload as Record<string, unknown>),
+      model: resolveOpenAIRealtimeTranscriptionModel(),
+      provider: 'openai',
+      clientRequestId,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

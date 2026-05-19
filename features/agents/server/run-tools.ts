@@ -26,6 +26,19 @@ export type ToolBuildInput = {
   referenceImageUrls?: string[];
 };
 
+export type RunToolAdapterInput = {
+  enabledToolIds: string[] | null;
+  userId: string;
+  agentId?: string | null;
+  brandId?: string;
+  documentIds?: string[];
+  rerankEnabled?: boolean;
+  threadId: string;
+  referenceImageUrls?: string[];
+};
+
+export type RunToolAdapter = (input: RunToolAdapterInput) => ToolSet | Promise<ToolSet>;
+
 /**
  * Single entry point for building a ToolSet across chat, agent, and team runs.
  *
@@ -67,6 +80,7 @@ export function resolveRunToolIds(input: {
 export async function buildPreparedRunTools(input: {
   supportsTools: boolean;
   toolsOverride?: ToolSet;
+  toolAdapter?: RunToolAdapter;
   resolvedAgent: RunToolsAgent | null;
   activeToolIds: string[] | null;
   billingUserId: string;
@@ -80,6 +94,19 @@ export async function buildPreparedRunTools(input: {
   mcpCredentials?: Record<string, string>;
 }): Promise<ToolSet | undefined> {
   if (!input.supportsTools) return undefined;
+
+  if (input.toolAdapter) {
+    return input.toolAdapter({
+      enabledToolIds: input.activeToolIds,
+      userId: input.billingUserId,
+      agentId: input.resolvedAgent?.id ?? null,
+      brandId: input.activeBrandId,
+      documentIds: input.effectiveDocumentIds,
+      rerankEnabled: input.rerankEnabled,
+      threadId: input.threadId,
+      referenceImageUrls: input.referenceImageUrls,
+    });
+  }
 
   const builtInTools = input.toolsOverride ?? buildToolsForRun({
     enabledToolIds: input.activeToolIds,

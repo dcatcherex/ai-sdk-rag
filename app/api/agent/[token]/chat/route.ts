@@ -3,32 +3,29 @@
  * Credits are billed to the agent owner.
  */
 import {
-  streamText,
-  convertToModelMessages,
-  stepCountIs,
   createUIMessageStreamResponse,
   createUIMessageStream,
 } from 'ai';
 import { eq, and, sql, asc } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { agent, publicAgentShare, chatThread, chatMessage } from '@/db/schema';
+import { agent, publicAgentShare, chatThread } from '@/db/schema';
 import { getUserBalance, deductCredits } from '@/lib/credits';
 import { verifySessionToken } from '@/lib/guest-session';
 import { publicAgentShareEvent } from '@/db/schema';
 import { nanoid } from 'nanoid';
 import { SHARED_LINK_AGENT_RUN_POLICY } from '@/features/agents/server/channel-policies';
 import {
-  prepareAgentRun,
-  prepareCanonicalAgentImageGeneration,
-  startAgentImageRun,
-} from '@/features/agents/server/run-service';
-import { buildAgentRunModelMessages } from '@/features/agents/server/run-helpers';
+  finalizeConversationTurnImage,
+  finalizeConversationTurnText,
+  prepareConversationTurn,
+  startConversationTurnImage,
+  streamConversationTurnText,
+} from '@/features/agents/server/conversation-turn';
 import type { AgentRunInputMessage } from '@/features/agents/server/run-types';
 import type { ChatMessage } from '@/features/chat/types';
 import { finalizeTextChatTurn } from '@/features/chat/server/finalization';
 import { buildAssistantResponseArtifacts } from '@/features/chat/server/finalization-helpers';
 import {
-  applyReadyTaskFlowPrompt,
   buildNeedsMoreInfoIntercept,
   buildReadyTaskFlowMessageMetadata,
   resolveTaskFlowRuntime,
@@ -42,6 +39,28 @@ type SharedUiMessage = {
   role: AgentRunInputMessage['role'];
   parts: Array<Record<string, unknown>>;
 };
+
+async function recordSharedLinkTurnUsage(input: {
+  ownerId: string;
+  creditCost: number;
+  agentName: string;
+  token: string;
+}) {
+  await Promise.all([
+    deductCredits({
+      userId: input.ownerId,
+      amount: input.creditCost,
+      description: `Guest chat on shared agent "${input.agentName}" (token: ${input.token})`,
+    }),
+    db
+      .update(publicAgentShare)
+      .set({
+        conversationCount: sql`${publicAgentShare.conversationCount} + 1`,
+        creditsUsed: sql`${publicAgentShare.creditsUsed} + ${input.creditCost}`,
+      })
+      .where(eq(publicAgentShare.shareToken, input.token)),
+  ]);
+}
 
 export async function POST(req: Request, { params }: Params) {
   try {
@@ -222,19 +241,25 @@ export async function POST(req: Request, { params }: Params) {
       });
     }
 
-    let prepared;
+    let turn: Awaited<ReturnType<typeof prepareConversationTurn>>;
     try {
-      prepared = await prepareAgentRun({
-        identity: {
-          channel: 'shared_link',
-          userId: null,
-          billingUserId: ownerId,
-          guestId,
+      turn = await prepareConversationTurn({
+        request: {
+          identity: {
+            channel: 'shared_link',
+            userId: null,
+            billingUserId: ownerId,
+            guestId,
+          },
+          threadId: threadId ?? nanoid(),
+          agentId: agentRow.id,
+          messages,
+          policy: SHARED_LINK_AGENT_RUN_POLICY,
         },
-        threadId: threadId ?? nanoid(),
-        agentId: agentRow.id,
-        messages,
-        policy: SHARED_LINK_AGENT_RUN_POLICY,
+        taskFlow: {
+          decision: taskFlowDecision,
+          locale: taskFlowLocale,
+        },
       });
     } catch (error) {
       return Response.json(
@@ -243,15 +268,8 @@ export async function POST(req: Request, { params }: Params) {
       );
     }
 
-    const imagePreflight =
-      prepared.lastUserPrompt && SHARED_LINK_AGENT_RUN_POLICY.allowDirectImageGeneration
-        ? await prepareCanonicalAgentImageGeneration({
-            prompt: prepared.lastUserPrompt,
-            activeBrand: prepared.activeBrand,
-            source: 'shared_link',
-          })
-        : null;
-    const creditCost = imagePreflight?.creditCost ?? prepared.creditCost;
+    const prepared = turn.preparedRun;
+    const creditCost = turn.creditCost;
 
     // ── Credit limit check (link budget) ──────────────────────────────────────
     if (share.creditLimit !== null && share.creditsUsed + creditCost > share.creditLimit) {
@@ -294,8 +312,12 @@ export async function POST(req: Request, { params }: Params) {
       });
     }
 
-    if (imagePreflight) {
-      const imageRun = await startAgentImageRun(prepared);
+    if (turn.executionMode === 'direct_image') {
+      const imageRun = await startConversationTurnImage({
+        turn,
+        userId: ownerId,
+        threadId: prepared.request.threadId,
+      });
       const toolCallId = nanoid();
 
       return createUIMessageStreamResponse({
@@ -304,33 +326,43 @@ export async function POST(req: Request, { params }: Params) {
           onFinish: async ({ messages: updatedMessages }) => {
             if (!threadId) return;
             try {
-              type UIMsg = { id?: string; role: string; parts: unknown[] };
-              await db.delete(chatMessage).where(eq(chatMessage.threadId, threadId));
-              await db.insert(chatMessage).values(
-                (updatedMessages as UIMsg[]).map((msg, i) => ({
-                  id: msg.id || nanoid(),
+              const finalizationResult = await finalizeConversationTurnImage({
+                turn,
+                updatedMessages: updatedMessages as ChatMessage[],
+                toolMessage: 'Image generation started. The image will appear in this chat when it is ready.',
+                finish: {
                   threadId,
-                  role: msg.role,
-                  parts: msg.parts,
-                  position: i,
-                })),
-              );
-              await db.update(chatThread).set({
-                preview: imageRun.prompt.slice(0, 120),
-                updatedAt: new Date(),
-              }).where(eq(chatThread.id, threadId));
-              await deductCredits({
-                userId: ownerId,
-                amount: creditCost,
-                description: `Guest chat on shared agent "${agentRow.name}" (token: ${token})`,
+                  userId: null,
+                  guestSessionId: null,
+                  currentTitle: 'Guest chat',
+                  brandId: prepared.activeBrand?.id ?? null,
+                  currentChatRunId: null,
+                  followUpSuggestionsEnabled: false,
+                  memoryEnabled: false,
+                  memoryExtractEnabled: false,
+                  memoryContext: '',
+                  lastUserPrompt: prepared.lastUserPrompt,
+                },
               });
-              await db
-                .update(publicAgentShare)
-                .set({
-                  conversationCount: sql`${publicAgentShare.conversationCount} + 1`,
-                  creditsUsed: sql`${publicAgentShare.creditsUsed} + ${creditCost}`,
-                })
-                .where(eq(publicAgentShare.shareToken, token));
+              if (!finalizationResult.ok) {
+                console.error('[guest-chat] image finalization failed', {
+                  step: finalizationResult.failure.step,
+                  error: finalizationResult.failure.error,
+                });
+                return;
+              }
+              await Promise.all([
+                db.update(chatThread).set({
+                  preview: imageRun.prompt.slice(0, 120),
+                  updatedAt: new Date(),
+                }).where(eq(chatThread.id, threadId)),
+                recordSharedLinkTurnUsage({
+                  ownerId,
+                  creditCost,
+                  agentName: agentRow.name,
+                  token,
+                }),
+              ]);
             } catch (e) {
               console.error('[guest-chat] finalize image run error', e);
             }
@@ -362,18 +394,8 @@ export async function POST(req: Request, { params }: Params) {
       });
     }
 
-    const result = streamText({
-      model: prepared.modelId,
-      system: applyReadyTaskFlowPrompt({
-        baseSystemPrompt: prepared.systemPrompt,
-        decision: taskFlowDecision.status === 'ready' ? taskFlowDecision : null,
-        locale: taskFlowLocale,
-      }),
-      messages: await convertToModelMessages(
-        buildAgentRunModelMessages(prepared.request.messages) as Parameters<typeof convertToModelMessages>[0],
-      ),
-      stopWhen: stepCountIs(prepared.request.policy.maxSteps),
-      ...(prepared.supportsTools && prepared.tools ? { tools: prepared.tools } : {}),
+    const result = await streamConversationTurnText({
+      turn,
       onFinish: async ({ text }) => {
         if (!threadId) return;
         try {
@@ -388,21 +410,15 @@ export async function POST(req: Request, { params }: Params) {
                 : {},
             },
           ] as ChatMessage[];
-          const usage = await result.usage;
-          const finalizationResult = await finalizeTextChatTurn({
+          const finalizationResult = await finalizeConversationTurnText({
+            turn,
             updatedMessages: allMessages,
-            usage: usage ? {
-              promptTokens: usage.inputTokens ?? 0,
-              completionTokens: usage.outputTokens ?? 0,
-              totalTokens: usage.totalTokens ?? (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-            } : null,
-            finishCtx: {
+            usage: await result.usage,
+            finish: {
               threadId,
               userId: null,
-              guestSessionId: guestId,
+              guestSessionId: null,
               currentTitle: 'Guest chat',
-              resolvedModel: prepared.modelId,
-              creditCost,
               brandId: prepared.activeBrand?.id ?? null,
               currentChatRunId: null,
               followUpSuggestionsEnabled: false,
@@ -428,18 +444,12 @@ export async function POST(req: Request, { params }: Params) {
     void (async () => {
       try {
         await result.consumeStream();
-        await deductCredits({
-          userId: ownerId,
-          amount: creditCost,
-          description: `Guest chat on shared agent "${agentRow.name}" (token: ${token})`,
+        await recordSharedLinkTurnUsage({
+          ownerId,
+          creditCost,
+          agentName: agentRow.name,
+          token,
         });
-        await db
-          .update(publicAgentShare)
-          .set({
-            conversationCount: sql`${publicAgentShare.conversationCount} + 1`,
-            creditsUsed: sql`${publicAgentShare.creditsUsed} + ${creditCost}`,
-          })
-          .where(eq(publicAgentShare.shareToken, token));
       } catch (err) {
         console.error('[guest-chat] post-stream error', err);
       }
@@ -458,10 +468,14 @@ export async function POST(req: Request, { params }: Params) {
             sendFinish: false,
           }));
           await result.consumeStream();
-          const assistantText = await result.text;
+          const [assistantText, toolResults] = await Promise.all([
+            result.text,
+            result.toolResults,
+          ]);
           const artifacts = await buildAssistantResponseArtifacts({
             assistantText,
             lastUserPrompt: prepared.lastUserPrompt,
+            toolResults,
             taskFlowDecision: taskFlowDecision.status === 'ready' ? taskFlowDecision : null,
             source: 'live_stream',
           });

@@ -49,6 +49,43 @@ function insertItemAfter(
   return next;
 }
 
+function waitForIceGatheringComplete(
+  peerConnection: RTCPeerConnection,
+  timeoutMs = 4_000,
+) {
+  if (peerConnection.iceGatheringState === 'complete') {
+    return Promise.resolve();
+  }
+
+  return new Promise<void>((resolve) => {
+    const timeoutId = window.setTimeout(() => {
+      peerConnection.removeEventListener('icegatheringstatechange', handleStateChange);
+      resolve();
+    }, timeoutMs);
+
+    const handleStateChange = () => {
+      if (peerConnection.iceGatheringState !== 'complete') {
+        return;
+      }
+
+      window.clearTimeout(timeoutId);
+      peerConnection.removeEventListener('icegatheringstatechange', handleStateChange);
+      resolve();
+    };
+
+    peerConnection.addEventListener('icegatheringstatechange', handleStateChange);
+  });
+}
+
+type ClientSecretResponse = {
+  clientRequestId?: string;
+  client_secret?: {
+    value?: string;
+  };
+  value?: string;
+  error?: string;
+};
+
 export function useLiveTranscription({
   composerText,
   onComposerTextChange,
@@ -364,21 +401,44 @@ export function useLiveTranscription({
 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
+      await waitForIceGatheringComplete(pc);
 
-      const response = await fetch('/api/realtime/transcription-session', {
+      const clientSecretResponse = await fetch('/api/realtime/transcription-session', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          sdp: pc.localDescription?.sdp ?? offer.sdp,
           language,
           latencyMode,
         }),
       });
 
-      const answerSdp = await response.text();
-      if (!response.ok) {
+      const tokenPayload = await clientSecretResponse.json() as ClientSecretResponse;
+      if (!clientSecretResponse.ok) {
+        throw new Error(
+          tokenPayload.error
+          || 'Failed to create realtime transcription client secret.',
+        );
+      }
+
+      const ephemeralKey = tokenPayload.client_secret?.value ?? tokenPayload.value;
+      const localSdp = pc.localDescription?.sdp ?? offer.sdp;
+      if (!ephemeralKey || !localSdp) {
+        throw new Error('Missing OpenAI realtime transcription client secret.');
+      }
+
+      const openAIResponse = await fetch('https://api.openai.com/v1/realtime/calls', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${ephemeralKey}`,
+          'Content-Type': 'application/sdp',
+        },
+        body: localSdp,
+      });
+
+      const answerSdp = await openAIResponse.text();
+      if (!openAIResponse.ok) {
         throw new Error(answerSdp || 'Failed to start live dictation.');
       }
 

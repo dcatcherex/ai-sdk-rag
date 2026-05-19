@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DefaultChatTransport } from 'ai';
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai';
 import { useChat } from '@ai-sdk/react';
 import type { QueryClient } from '@tanstack/react-query';
 import { getTextContentFromParts } from '../utils/message-parts';
@@ -97,6 +97,7 @@ export const useChatSession = ({
 
   const { messages, sendMessage, setMessages, status, stop, error, addToolApprovalResponse } = useChat<ChatMessage>({
     transport,
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     onFinish: async () => {
       await queryClient.invalidateQueries({ queryKey: ['threads'] });
       await queryClient.invalidateQueries({ queryKey: ['credits'] });

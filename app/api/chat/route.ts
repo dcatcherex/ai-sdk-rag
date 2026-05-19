@@ -1,9 +1,6 @@
 import {
-  streamText,
   createUIMessageStream,
   createUIMessageStreamResponse,
-  convertToModelMessages,
-  stepCountIs,
 } from 'ai';
 import { headers } from 'next/headers';
 import { count, eq } from 'drizzle-orm';
@@ -28,6 +25,7 @@ import { getWorkspaceContext } from '@/features/platform-agent/service';
 import { buildPlatformAgentSystemPrompt } from '@/features/platform-agent/prompts';
 import { getPlatformAgentTools } from '@/features/platform-agent/agent';
 import { prepareAgentRun, startCanonicalAgentImageGeneration } from '@/features/agents/server/run-service';
+import { streamConversationTurnText } from '@/features/agents/server/conversation-turn';
 import type { Agent } from '@/features/agents/types';
 import { getLastUserPrompt } from '@/features/chat/server/thread-utils';
 import { isImageOnlyModel } from '@/features/chat/server/routing';
@@ -534,15 +532,19 @@ export async function POST(req: Request) {
     });
 
     const autonomyLevel = (activeAgent?.structuredBehavior as { autonomyLevel?: number } | null)?.autonomyLevel ?? 2;
-    const modelMessages = await convertToModelMessages(messagesForLLM);
-
-    const result = streamText({
-      model: resolvedModel,
-      system: effectiveSystemPrompt,
-      messages: modelMessages,
-      stopWhen: stepCountIs(preparedRun.request.policy.maxSteps),
-      ...(preparedRun.supportsTools ? { tools: activeTools } : {}),
-      experimental_context: { autonomyLevel, userId: effectiveUserId || null },
+    const result = await streamConversationTurnText({
+      turn: {
+        preparedRun: {
+          ...preparedRun,
+          ...(preparedRun.supportsTools ? { tools: activeTools } : {}),
+        },
+        systemPrompt: effectiveSystemPrompt,
+        executionMode: 'text',
+        creditCost: preparedRun.creditCost,
+        imagePreflight: null,
+      },
+      messages: messagesForLLM,
+      experimentalContext: { autonomyLevel, userId: effectiveUserId || null },
     });
 
     return createUIMessageStreamResponse({
@@ -573,10 +575,14 @@ export async function POST(req: Request) {
             sendFinish: false,
           }));
           await result.consumeStream();
-          const assistantText = await result.text;
+          const [assistantText, toolResults] = await Promise.all([
+            result.text,
+            result.toolResults,
+          ]);
           const artifacts = await buildAssistantResponseArtifacts({
             assistantText,
             lastUserPrompt,
+            toolResults,
             taskFlowDecision: taskFlowDecision.status === 'ready' ? taskFlowDecision : null,
             source: 'live_stream',
           });

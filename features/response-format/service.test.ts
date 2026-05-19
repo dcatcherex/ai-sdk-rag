@@ -116,6 +116,55 @@ test('buildResponsePlan maps record save tool results to record intent', () => {
   assert.equal(plan.metadata?.toolKind, 'record_saved');
 });
 
+test('buildResponsePlan maps record list tool results to a summary card', () => {
+  const plan = buildResponsePlan({
+    text: '',
+    locale: 'th-TH',
+    toolResults: [
+      {
+        toolName: 'get_activity_records',
+        result: {
+          kind: 'record_list',
+          contextType: 'farm',
+          total: 1,
+          records: [
+            {
+              activity: 'ใส่ปุ๋ย 16-16-16 ให้พริก',
+              quantity: '100 กก.',
+              date: '2026-05-16',
+            },
+          ],
+        },
+      },
+    ],
+  });
+
+  assert.equal(plan.intent, 'record_confirmation');
+  assert.equal(plan.card?.templateKey, 'common.summary');
+  assert.equal(plan.metadata?.toolKind, 'record_list');
+  assert.match(plan.bodyText, /ใส่ปุ๋ย/);
+});
+
+test('renderResponseForLine renders record list as a Flex summary card', () => {
+  const messages = renderResponseForLine(buildResponsePlan({
+    text: '',
+    locale: 'th-TH',
+    toolResults: [
+      {
+        toolName: 'get_activity_records',
+        result: {
+          kind: 'record_list',
+          contextType: 'farm',
+          total: 1,
+          records: [{ activity: 'ใส่ปุ๋ย', date: '2026-05-16' }],
+        },
+      },
+    ],
+  }));
+
+  assert.equal(messages[0]?.type, 'flex');
+});
+
 test('renderResponseForLine renders registry-backed cards as flex messages', () => {
   const plan = buildResponsePlan({
     text: '',
@@ -181,8 +230,49 @@ test('buildResponsePlan maps approval results to approval workflow and card rend
   assert.equal(plan.intent, 'approval_request');
   assert.equal(plan.formats[0], 'workflow');
   assert.equal(plan.card?.templateKey, 'common.approval_request');
+  assert.equal(plan.card?.data.approvalRequestId, 'apr-123');
   assert.equal(plan.workflow?.type, 'approval');
   assert.equal(plan.workflow?.data?.approvalRequestId, 'apr-123');
+});
+
+test('renderResponseForLine renders approval Flex postback buttons with request id', () => {
+  const plan = buildResponsePlan({
+    text: '',
+    locale: 'en-US',
+    toolResults: [
+      {
+        toolName: 'create_approval_request',
+        result: {
+          kind: 'approval_request_created',
+          approvalRequestId: 'apr-123',
+          contentPieceId: 'piece-123',
+          contentPieceTitle: 'June campaign post',
+          assigneeName: 'Nok',
+          status: 'pending',
+        },
+      },
+    ],
+  });
+
+  const messages = renderResponseForLine(plan);
+  const flex = messages[0] as {
+    type?: string;
+    contents?: {
+      footer?: {
+        contents?: Array<{
+          action?: { type?: string; data?: string };
+        }>;
+      };
+    };
+  };
+  const footerActions = flex.contents?.footer?.contents?.map((item) => item.action?.data);
+
+  assert.equal(flex.type, 'flex');
+  assert.deepEqual(footerActions, [
+    'approve_content:apr-123',
+    'request_changes:apr-123',
+    'reject_content:apr-123',
+  ]);
 });
 
 test('renderResponseForWeb returns rendered registry-backed card payloads', () => {

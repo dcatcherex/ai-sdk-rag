@@ -178,6 +178,15 @@ export const isToolLikePart = (part: UIMessagePart<any, any>): part is ToolLikeP
   return part.type.startsWith("tool-") && "input" in r;
 };
 
+export function getToolApprovalId(part: UIMessagePart<any, any>): string | null {
+  if (!isToolLikePart(part) || part.state !== "approval-requested") {
+    return null;
+  }
+
+  const approval = (part as { approval?: { id?: unknown } }).approval;
+  return typeof approval?.id === "string" ? approval.id : null;
+}
+
 export const isRichMessageDataPart = (part: UIMessagePart<any, any>): part is RichMessageDataPart => {
   if (part.type !== "data-rich-message") return false;
   const record = part as Record<string, unknown>;

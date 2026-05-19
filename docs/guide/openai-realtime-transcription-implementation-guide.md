@@ -2,7 +2,7 @@
 
 Status: implementation guide for AI coders and developers
 
-Last updated: May 11, 2026
+Last updated: May 12, 2026
 
 ## Implementation Progress
 
@@ -87,18 +87,18 @@ Use request-based speech-to-text when:
 Default live transcription model:
 
 ```txt
-gpt-4o-mini-transcribe
+gpt-realtime-whisper
 ```
 
 Recommended env var:
 
 ```txt
-OPENAI_REALTIME_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe
+OPENAI_REALTIME_TRANSCRIPTION_MODEL=gpt-realtime-whisper
 ```
 
 Implementation note:
 
-- the current Vaja code defaults to `gpt-4o-mini-transcribe`
+- the current Vaja code defaults to `gpt-realtime-whisper`
 - this is configurable via `OPENAI_REALTIME_TRANSCRIPTION_MODEL`
 - keep request-based models for file uploads and bounded audio workflows
 
@@ -239,7 +239,9 @@ Start with a balanced configuration for Thai/English composer dictation:
 
 Current implementation note:
 
-- the code currently builds the same session shape but uses `gpt-4o-mini-transcribe` by default
+- the code currently builds the same session shape and uses `gpt-realtime-whisper` by default
+- current API behavior on May 12, 2026 rejects `turn_detection` for `gpt-realtime-whisper`
+- because of that, Vaja omits `turn_detection` for `gpt-realtime-whisper` sessions and only sends the transcription config
 - latency presets map to different `server_vad` values:
   - `fast`: lower silence threshold for quicker turn commits
   - `balanced`: `threshold: 0.5`, `prefix_padding_ms: 300`, `silence_duration_ms: 500`

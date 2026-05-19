@@ -1,6 +1,7 @@
 import { buildResponseAuditSummary } from '@/features/response-format/server/audit';
 import { buildResponsePlan } from '@/features/response-format/server/select';
 import { buildResponsePlanFromTaskFlow } from '@/features/response-format/service';
+import { renderRichMessage } from '@/features/rich-messages/service';
 import type { ChatMessage, ChatMessageMetadata } from '@/features/chat/types';
 import type { ResponseAuditSummary } from '@/features/response-format/server/audit';
 import type { RichMessageInstance } from '@/features/rich-messages/types';
@@ -70,6 +71,9 @@ export async function prepareTextMessagesForFinalization({
   const lastAssistantMetadata = lastAssistantIdx !== -1
     ? messagesWithSuggestions[lastAssistantIdx]?.metadata as ChatMessageMetadata | undefined
     : undefined;
+  const toolResults = lastAssistantIdx !== -1
+    ? extractResponseToolResults(messagesWithSuggestions[lastAssistantIdx])
+    : [];
   const taskFlowDecision = lastAssistantMetadata?.taskFlow
     ? buildTaskFlowDecisionFromMetadata(lastAssistantMetadata)
     : null;
@@ -79,6 +83,7 @@ export async function prepareTextMessagesForFinalization({
         lastUserPrompt,
         followUpSuggestions:
           (lastAssistantMetadata?.followUpSuggestions) ?? [],
+        toolResults,
         taskFlowDecision,
         source: 'finalization',
       })
@@ -117,6 +122,7 @@ export async function buildAssistantResponseArtifacts(input: {
   assistantText: string;
   lastUserPrompt: string | null | undefined;
   followUpSuggestions?: string[];
+  toolResults?: unknown[];
   taskFlowDecision?: Extract<TaskFlowDecision, { status: 'ready' }> | null;
   source: 'finalization' | 'live_stream';
 }): Promise<AssistantResponseArtifacts> {
@@ -134,6 +140,7 @@ export async function buildAssistantResponseArtifacts(input: {
         userText: input.lastUserPrompt ?? '',
         locale,
         quickReplies: normalizeSuggestionQuickReplies(input.followUpSuggestions ?? []),
+        toolResults: input.toolResults,
       });
   const responseAudit = buildResponseAuditSummary(responsePlan);
 
@@ -141,8 +148,7 @@ export async function buildAssistantResponseArtifacts(input: {
     return { responseAudit };
   }
 
-  const { renderRichMessageServer } = await import('@/features/rich-messages/server/runtime');
-  const renderedRichMessage = await renderRichMessageServer({
+  const renderedRichMessage = renderRichMessage({
     templateKey: responsePlan.card.templateKey,
     data: responsePlan.card.data,
     channel: 'web',
@@ -152,7 +158,28 @@ export async function buildAssistantResponseArtifacts(input: {
     },
   });
 
-  if (!renderedRichMessage.ok) {
+  if (renderedRichMessage.ok) {
+    return {
+      responseAudit,
+      richMessagePart: {
+        type: 'data-rich-message',
+        data: renderedRichMessage.instance,
+      },
+    };
+  }
+
+  const { renderRichMessageServer } = await import('@/features/rich-messages/server/runtime');
+  const serverRenderedRichMessage = await renderRichMessageServer({
+    templateKey: responsePlan.card.templateKey,
+    data: responsePlan.card.data,
+    channel: 'web',
+    locale: responsePlan.locale,
+    metadata: {
+      source: input.source,
+    },
+  });
+
+  if (!serverRenderedRichMessage.ok) {
     return { responseAudit };
   }
 
@@ -160,9 +187,32 @@ export async function buildAssistantResponseArtifacts(input: {
     responseAudit,
     richMessagePart: {
       type: 'data-rich-message',
-      data: renderedRichMessage.instance,
+      data: serverRenderedRichMessage.instance,
     },
   };
+}
+
+function extractResponseToolResults(message: ChatMessage | undefined): unknown[] {
+  if (!message?.parts?.length) return [];
+
+  return message.parts.flatMap((part) => {
+    if (!part || typeof part !== 'object') return [];
+    const record = part as Record<string, unknown>;
+    if (
+      typeof record.type !== 'string'
+      || !record.type.startsWith('tool-')
+      || record.state !== 'output-available'
+      || !('output' in record)
+    ) {
+      return [];
+    }
+
+    const toolName = typeof record.toolName === 'string'
+      ? record.toolName
+      : record.type.slice('tool-'.length);
+
+    return [{ toolName, result: record.output }];
+  });
 }
 
 export function buildImageResponseAudit(message: string, userText: string | null | undefined): ResponseAuditSummary {

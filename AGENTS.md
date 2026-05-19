@@ -195,6 +195,22 @@ documents/                    # Reference docs for AI coders
 
 ---
 
+## Agent Skills
+
+### Issue tracker
+
+Issues and PRDs are tracked in GitHub Issues for this repo. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the default engineering triage label vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repo: read `CONTEXT.md` and relevant ADRs in `docs/adr/` before architecture-sensitive work. See `docs/agents/domain.md`.
+
+---
+
 ## Critical Rules
 
 ### 1. Tool Architecture — The One Rule
@@ -208,6 +224,14 @@ Agent   → agent.ts (thin wrapper)  → service.ts
 ```
 
 **Never duplicate logic** between the agent adapter and a sidebar/API route.
+
+### 1A. Conversation Turn Architecture — The Channel Rule
+
+Authenticated web chat, shared web agent links, and LINE OA must share core conversation-turn semantics through `features/agents/server/conversation-turn.ts`.
+
+Routes and webhook handlers may own channel access checks, limits, transport, rendering, and analytics. They must not duplicate agent, skill, task-flow, tool, model, run-mode, billing, or persistence-contract resolution.
+
+See `CONTEXT.md` and `docs/adr/0001-conversation-turn-runtime.md`.
 
 ### 2. Tool Registry Split
 
@@ -346,6 +370,8 @@ Tier 3 — Skill Resources (skill_resources tag)
 
 ## AI Chat Route (`app/api/chat/route.ts`)
 
+Architecture rule: keep authenticated web chat aligned with the Conversation Turn Runtime. Do not add new agent, skill, task-flow, tool, model, run-mode, billing, or persistence-ordering logic only in this route if it should also apply to shared web links or LINE.
+
 ```
 Stage 1  — auth + body parse (parallel)
 Stage 2  — DB queries: user, thread, prefs, balance, agent, persona (parallel)
@@ -359,6 +385,7 @@ Stage 8  — on finish: persist messages, token usage, follow-up suggestions, me
 ```
 
 Key functions:
+- `prepareConversationTurn()` — `features/agents/server/conversation-turn.ts`
 - `buildToolSet()` — `lib/tools/index.ts`
 - `getSystemPrompt()` — `lib/prompt.ts`
 - `detectPersona()` — `lib/persona-detection.ts`
@@ -374,6 +401,8 @@ Key functions:
 ## LINE OA Integration
 
 LINE is the primary communication channel for Thai users (54M users). Vaja treats LINE OA as the **front door** for end users, and the web app as the **control room**.
+
+Architecture rule: LINE handlers are channel adapters. Keep LINE-specific access, reply-token, quick-reply, Flex, sticker, and analytics behavior here, but route shared agent-turn semantics through the Conversation Turn Runtime.
 
 ### Architecture
 

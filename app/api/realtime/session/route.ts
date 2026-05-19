@@ -64,7 +64,7 @@ export async function POST(req: Request) {
       audio: {
         input: {
           transcription: {
-            model: process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL?.trim() || 'gpt-4o-mini-transcribe',
+            model: process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL?.trim() || 'gpt-realtime-whisper',
           },
           turn_detection: {
             type: 'server_vad',

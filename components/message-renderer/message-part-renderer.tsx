@@ -34,6 +34,7 @@ import {
   isMediaGenerationToolName,
   isMediaGenerationToolOutput,
   toolNameToMediaKind,
+  getToolApprovalId,
 } from "./types";
 import type { MessagePartRendererProps } from "./types";
 import { RichMessagePart } from "@/features/rich-messages/components/rich-message-part";
@@ -132,8 +133,8 @@ function MessagePartRendererInner({
       );
     }
 
-    const toolCallId = (part as { toolCallId?: string }).toolCallId;
-    const isAwaitingApproval = part.state === "approval-requested" && !!toolCallId && !!onToolApproval;
+    const approvalId = getToolApprovalId(part);
+    const isAwaitingApproval = !!approvalId && !!onToolApproval;
 
     return (
       <Tool key={key}>
@@ -146,7 +147,7 @@ function MessagePartRendererInner({
                 size="sm"
                 variant="default"
                 className="gap-1.5"
-                onClick={() => onToolApproval({ id: toolCallId!, approved: true })}
+                onClick={() => onToolApproval({ id: approvalId!, approved: true })}
               >
                 <CheckIcon className="size-3.5" />
                 Approve
@@ -155,7 +156,7 @@ function MessagePartRendererInner({
                 size="sm"
                 variant="outline"
                 className="gap-1.5 text-destructive hover:text-destructive"
-                onClick={() => onToolApproval({ id: toolCallId!, approved: false })}
+                onClick={() => onToolApproval({ id: approvalId!, approved: false })}
               >
                 <XIcon className="size-3.5" />
                 Deny

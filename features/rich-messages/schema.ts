@@ -15,6 +15,9 @@ export const commonSummaryRichMessageSchema = z.object({
 export const commonApprovalRequestRichMessageSchema = z.object({
   title: z.string().min(1),
   summary: z.string().min(1),
+  approvalRequestId: z.string().min(1).optional(),
+  contentPieceId: z.string().min(1).optional(),
+  assigneeId: z.string().min(1).optional(),
   status: z.string().min(1).optional(),
   assigneeName: z.string().min(1).optional(),
   dueAt: z.string().min(1).optional(),

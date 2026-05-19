@@ -14,26 +14,22 @@ test('realtime transcription config uses balanced defaults', () => {
 
   assert.equal(config.type, 'transcription');
   assert.deepEqual(config.audio.input.transcription, {
-    model: 'gpt-4o-mini-transcribe',
+    model: 'gpt-realtime-whisper',
   });
-  assert.deepEqual(config.audio.input.turn_detection, {
-    type: 'server_vad',
-    threshold: 0.5,
-    prefix_padding_ms: 300,
-    silence_duration_ms: 500,
-  });
+  assert.equal('turn_detection' in config.audio.input, false);
 });
 
 test('realtime transcription config includes language hint when provided', () => {
   const config = buildRealtimeTranscriptionSessionConfig({ language: 'th' });
 
   assert.deepEqual(config.audio.input.transcription, {
-    model: 'gpt-4o-mini-transcribe',
+    model: 'gpt-realtime-whisper',
     language: 'th',
   });
 });
 
-test('realtime transcription config maps accurate latency mode to slower VAD', () => {
+test('realtime transcription config maps accurate latency mode to slower VAD when model supports it', () => {
+  process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL = 'gpt-4o-mini-transcribe';
   const config = buildRealtimeTranscriptionSessionConfig({ latencyMode: 'accurate' });
 
   assert.deepEqual(config.audio.input.turn_detection, {
@@ -42,6 +38,7 @@ test('realtime transcription config maps accurate latency mode to slower VAD', (
     prefix_padding_ms: 400,
     silence_duration_ms: 800,
   });
+  delete process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL;
 });
 
 test('realtime transcription model honors env override', () => {

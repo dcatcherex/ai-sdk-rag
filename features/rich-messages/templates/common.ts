@@ -72,6 +72,26 @@ export const COMMON_RICH_MESSAGE_TEMPLATES: RichMessageTemplate[] = [
           value: '{{dueAt}}',
         },
       ],
+      actions: [
+        {
+          label: 'Approve',
+          kind: 'postback',
+          value: 'approve_content:{{approvalRequestId}}',
+          style: 'primary',
+        },
+        {
+          label: 'Changes',
+          kind: 'postback',
+          value: 'request_changes:{{approvalRequestId}}',
+          style: 'secondary',
+        },
+        {
+          label: 'Reject',
+          kind: 'postback',
+          value: 'reject_content:{{approvalRequestId}}',
+          style: 'danger',
+        },
+      ],
     },
     fallback: {
       altText: '{{altText}}',

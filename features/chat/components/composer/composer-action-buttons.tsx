@@ -37,6 +37,46 @@ function resolveDictationLanguage() {
   return undefined;
 }
 
+const DICTATION_WAVEFORM_BARS = [0.34, 0.52, 0.74, 0.42, 0.86, 0.6, 0.96, 0.48, 0.7, 0.9, 0.56, 0.78, 0.44, 0.66, 0.84, 0.5];
+
+const DictationWaveform = ({
+  micLevel,
+  state,
+}: {
+  micLevel: number;
+  state: 'connecting' | 'listening' | 'error' | 'idle';
+}) => {
+  const isListening = state === 'listening';
+  const level = isListening ? Math.max(0.16, Math.min(micLevel, 1)) : 0.14;
+
+  return (
+    <div
+      className="pointer-events-none flex h-9 min-w-0 flex-1 items-center justify-center gap-1 px-1"
+      aria-hidden="true"
+    >
+      <div className="hidden h-px min-w-8 flex-1 border-t border-dotted border-slate-300 dark:border-white/20 sm:block" />
+      <div className="flex h-7 shrink-0 items-center justify-center gap-[3px] rounded-full px-2">
+        {DICTATION_WAVEFORM_BARS.map((base, index) => {
+          const height = Math.max(4, Math.round(base * level * 28));
+
+          return (
+            <span
+              key={index}
+              className={cn(
+                'w-[3px] rounded-full bg-slate-950 transition-[height,opacity] duration-100 dark:bg-white',
+                state === 'connecting' && 'animate-pulse opacity-45',
+                state === 'listening' && 'opacity-90',
+              )}
+              style={{ height }}
+            />
+          );
+        })}
+      </div>
+      <div className="hidden h-px min-w-8 flex-1 border-t border-dotted border-slate-300 dark:border-white/20 sm:block" />
+    </div>
+  );
+};
+
 export const ComposerActionButtons = ({
   status,
   queuedMessageCount = 0,
@@ -56,6 +96,7 @@ export const ComposerActionButtons = ({
   const {
     dictationState,
     isDictating,
+    micLevel,
     noteManualTextChange,
     start,
     stop,
@@ -132,7 +173,17 @@ export const ComposerActionButtons = ({
   }
 
   return (
-    <div className={cn('ml-auto flex shrink-0 items-center gap-1.5', isDictating && 'flex-1')}>
+    <div
+      className={cn(
+        'ml-auto flex min-w-0 shrink-0 items-center gap-1.5',
+        isDictating && 'flex-1',
+      )}
+      data-dictation-active={isDictating ? 'true' : undefined}
+    >
+      {isDictating ? (
+        <DictationWaveform micLevel={micLevel} state={dictationState} />
+      ) : null}
+
       <button
         type="button"
         title={isDictating ? 'Stop dictation' : 'Dictate message'}
@@ -141,7 +192,7 @@ export const ComposerActionButtons = ({
         className={cn(
           'flex size-9 items-center justify-center rounded-full transition-colors',
           isDictating
-            ? 'bg-rose-500 text-white shadow-sm hover:bg-rose-600'
+            ? 'shrink-0 bg-rose-500 text-white shadow-[0_8px_24px_-12px_rgba(244,63,94,0.9)] hover:bg-rose-600'
             : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-zinc-200 dark:hover:bg-white/15',
         )}
       >

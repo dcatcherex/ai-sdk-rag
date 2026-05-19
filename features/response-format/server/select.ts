@@ -385,6 +385,31 @@ function mapToolPayloadToSelection(
         },
       };
     }
+    case 'record_list': {
+      const fallbackText = buildRecordListText(toolPayload, locale);
+      const contextType = readString(toolPayload.contextType);
+      const title = locale.startsWith('th') ? 'บันทึกกิจกรรมล่าสุด' : 'Recent activity records';
+      return {
+        intent: 'record_confirmation',
+        preferredFormats: ['card', 'structured_text'],
+        bodyText: fallbackText,
+        card: {
+          templateKey: 'common.summary',
+          altText: title,
+          data: {
+            title,
+            summary: fallbackText,
+            altText: title,
+          },
+          fallbackText,
+        },
+        metadata: {
+          toolName,
+          toolKind: kind,
+          templateCandidate: contextType === 'farm' ? 'agriculture.record_list' : 'common.summary',
+        },
+      };
+    }
     case 'weather_forecast': {
       const fallbackText = buildWeatherSummary(toolPayload, locale);
       return {
@@ -487,6 +512,11 @@ function mapToolPayloadToSelection(
     }
     case 'approval_request_created': {
       const fallbackText = buildApprovalSummary(toolPayload, locale);
+      const approvalRequestId = readString(toolPayload.approvalRequestId) ?? readString(toolPayload.id);
+      const contentPieceId = readString(toolPayload.contentPieceId);
+      const assigneeId = readString(toolPayload.assigneeId);
+      const assigneeName = readString(toolPayload.assigneeName) ?? assigneeId;
+      const dueAt = readString(toolPayload.dueAt);
       return {
         intent: 'approval_request',
         preferredFormats: ['workflow', 'card', 'structured_text'],
@@ -497,9 +527,12 @@ function mapToolPayloadToSelection(
           data: {
             title: locale.startsWith('th') ? 'คำขออนุมัติ' : 'Approval request',
             summary: fallbackText,
+            ...(approvalRequestId ? { approvalRequestId } : {}),
+            ...(contentPieceId ? { contentPieceId } : {}),
+            ...(assigneeId ? { assigneeId } : {}),
             status: readString(toolPayload.status) ?? 'pending',
-            assigneeName: readString(toolPayload.assigneeName) ?? readString(toolPayload.assigneeId) ?? '',
-            dueAt: readString(toolPayload.dueAt) ?? '',
+            ...(assigneeName ? { assigneeName } : {}),
+            ...(dueAt ? { dueAt } : {}),
             altText: locale.startsWith('th') ? 'คำขออนุมัติ' : 'Approval request',
           },
           fallbackText,
@@ -510,10 +543,10 @@ function mapToolPayloadToSelection(
           reason: fallbackText,
           assigneeRole: 'reviewer',
           data: {
-            approvalRequestId: readString(toolPayload.approvalRequestId) ?? readString(toolPayload.id),
-            contentPieceId: readString(toolPayload.contentPieceId),
-            assigneeId: readString(toolPayload.assigneeId),
-            dueAt: readString(toolPayload.dueAt),
+            approvalRequestId,
+            contentPieceId,
+            assigneeId,
+            dueAt,
             status: readString(toolPayload.status) ?? 'pending',
           },
         },
@@ -571,6 +604,44 @@ function buildRecordSummaryText(payload: ToolPayload, locale: string): string {
     `Total entries: ${total}`,
     `Total cost: ${totalCost}`,
     `Total income: ${totalIncome}`,
+  ].join('\n');
+}
+
+function buildRecordListText(payload: ToolPayload, locale: string): string {
+  const records = Array.isArray(payload.records) ? payload.records : [];
+  const total = readNumber(payload.total) ?? records.length;
+  const items = records
+    .slice(0, 5)
+    .flatMap((entry) => {
+      const record = readObject(entry);
+      const activity = readString(record?.activity);
+      if (!activity) return [];
+
+      const date = readString(record?.date);
+      const quantity = readString(record?.quantity);
+      const cost = readString(record?.cost);
+      const income = readString(record?.income);
+      const suffix = [
+        quantity,
+        ...(cost ? [locale.startsWith('th') ? `ค่าใช้จ่าย ${cost} บาท` : `cost ${cost}`] : []),
+        ...(income ? [locale.startsWith('th') ? `รายได้ ${income} บาท` : `income ${income}`] : []),
+      ].filter(Boolean).join(', ');
+
+      return locale.startsWith('th')
+        ? [`${date ? `${date}: ` : ''}${activity}${suffix ? ` (${suffix})` : ''}`]
+        : [`${date ? `${date}: ` : ''}${activity}${suffix ? ` (${suffix})` : ''}`];
+    });
+
+  if (locale.startsWith('th')) {
+    return [
+      `พบ ${total} รายการ`,
+      ...items.map((item) => `- ${item}`),
+    ].join('\n');
+  }
+
+  return [
+    `Found ${total} records`,
+    ...items.map((item) => `- ${item}`),
   ].join('\n');
 }
 

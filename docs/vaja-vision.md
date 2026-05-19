@@ -1,12 +1,12 @@
 # Vaja AI — Core Vision Document
 
-> วาจา (Waja) — "word, speech" in Thai
+> วาจา (Waja) — Thai for utterance, spoken words, or speech: ถ้อยคำ, คำกล่าว, คำพูด. It carries a sense of how words are used, as in วาจาสุภาพ, วาจาอ่อนหวาน, and วาจาสัตย์.
 
 ---
 
 ## One-Line Definition
 
-**Vaja AI is a skill-first AI cowork platform where any profession can load domain-specific skills into an AI workspace — accessible through LINE OA, with shared credit pools for teams and communities.**
+**Vaja AI is a skill-first AI cowork platform where any profession can load domain-specific skills into an AI workspace — accessible through web chat, public shared web links, and LINE OA, with shared credit pools for teams and communities.**
 
 ---
 
@@ -16,7 +16,7 @@ AI tools like ChatGPT, Claude, and Gemini have a fundamental access problem in T
 
 1. **Cost barrier** — Each person must subscribe separately. A family or small team of 5 each paying $20/month = $100/month for what could be shared.
 2. **Knowledge barrier** — Generic AI doesn't know your profession. A farmer asking about tomato leaf disease gets a generic answer, not one that accounts for Thai climate, local pesticide availability, or regional market prices.
-3. **App barrier** — Thai users live in LINE. Asking them to download another app, create another account, and learn another interface creates friction that loses 80% of potential users before they start.
+3. **Access barrier** — Thai users live in LINE, while owners and teams still need a web control room. Customers, students, patients, or community members should be able to use an agent from a LINE chat or a simple shared web link without installing another app.
 4. **Complexity barrier** — Choosing AI models, configuring tools, writing prompts — this is invisible work that knowledge workers shouldn't have to do.
 
 ---
@@ -29,7 +29,7 @@ AI tools like ChatGPT, Claude, and Gemini have a fundamental access problem in T
 |---------|----------|
 | Cost | Shared credit pools — one person buys, the group uses |
 | Knowledge | Contextual Skills Engine — domain skills load automatically |
-| App | LINE OA as the front door — no new app required |
+| Access | Web chat for work, shared web links for no-account guests, LINE OA for no-install daily conversations |
 | Complexity | Agent-first — General Assistant is ready on first load, skills activate automatically |
 
 ---
@@ -72,7 +72,7 @@ Vaja is built for **Thai users who need AI to help them work**, not just chat. S
 │  ┌──────────────────────────────────▼──────────────────┐ │
 │  │                  Channel Layer                       │ │
 │  │                                                     │ │
-│  │    LINE OA (front door)    Web App (control room)   │ │
+│  │   Web Chat     Shared Web Links     LINE OA          │ │
 │  └─────────────────────────────────────────────────────┘ │
 │                                                         │
 │  ┌─────────────────────────────────────────────────────┐ │
@@ -125,9 +125,17 @@ pest-disease-consult/
 
 ---
 
-## LINE OA as the Delivery Channel
+## Channel Strategy: Web, Shared Web, and LINE OA
 
-For Thai SMEs and rural users, LINE OA is more important than any web feature.
+Vaja is not a single-interface AI app. It is one agent runtime exposed through the right channel for the job:
+
+| Channel | Primary user | Role |
+|---------|--------------|------|
+| Web chat | Owner, team member, power user | The control room for building agents, attaching skills, managing knowledge, reviewing work, and doing deeper tasks |
+| Shared web link | Customer, student, patient, community member, temporary collaborator | A no-account guest doorway to one specific agent, with owner-funded credits and optional limits |
+| LINE OA | Thai customer or field user | The no-install daily conversation surface where people already message businesses and communities |
+
+For Thai SMEs and rural users, LINE OA remains the highest-trust channel. Web and shared web links extend the same agent beyond LINE: owners manage and run serious work in the web app, while anyone can try a focused agent from a browser link.
 
 ### The Trust Journey
 
@@ -221,7 +229,7 @@ Vaja: you collaborate with agents that have roles, memory, and skills.
 | Memory | Per-session | Long-term memory of your business |
 | Persona | Fixed | Your brand voice and tone |
 | Presence | Reactive (you ask) | Proactive (it suggests) |
-| Channel | One interface | Web + LINE OA |
+| Channel | One interface | Web chat + shared web links + LINE OA |
 | Sharing | Solo | Team/family/community |
 
 ---
@@ -236,6 +244,7 @@ Vaja: you collaborate with agents that have roles, memory, and skills.
 - [x] Credit system + sharing
 - [x] RAG/Knowledge base
 - [x] Agent Teams (multi-agent orchestration)
+- [x] Public shared web agent links (guest chat, owner-funded credits, limits, analytics)
 - [x] Content marketing + calendar + distribution
 - [ ] Skills Marketplace (community gallery — basic UI exists)
 
@@ -246,10 +255,11 @@ Vaja: you collaborate with agents that have roles, memory, and skills.
 - [ ] Skill sync checking (update from GitHub source)
 - [ ] Skill ratings and reviews in community gallery
 
-### Phase 3 — LINE-Native Experience
+### Phase 3 — LINE-Native and Shared-Web Experience
 - [ ] LINE OA approval flows (approve content drafts via LINE itself)
 - [ ] LINE push notifications for agent activity
 - [ ] Voice interface improvement for Thai language
+- [ ] Shared web link polish: branded landing pages, lead capture, and stronger guest analytics
 
 ### Phase 4 — Organization & Monetization
 - [ ] Organization credit pools (school/hospital/company admin dashboard)
@@ -274,7 +284,7 @@ Vaja: you collaborate with agents that have roles, memory, and skills.
 | Open skill standard | ❌ | ❌ | ❌ | ✅ |
 | Multi-model | ❌ | ❌ | ❌ | ✅ |
 | Thai-first UX | ❌ | ❌ | ❌ | ✅ |
-| No app install needed | ❌ | ❌ | ❌ | ✅ (LINE) |
+| No app install needed | ❌ | ❌ | ❌ | ✅ (LINE + shared web links) |
 
 ---
 

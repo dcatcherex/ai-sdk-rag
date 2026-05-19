@@ -84,6 +84,34 @@ function buildSystemInstruction(history?: VoiceHistoryTurn[]) {
   return `${BASE_SYSTEM_INSTRUCTION}\n\nConversation context from the existing text chat:\n${serializedHistory}`;
 }
 
+function waitForIceGatheringComplete(
+  peerConnection: RTCPeerConnection,
+  timeoutMs = 4_000,
+) {
+  if (peerConnection.iceGatheringState === 'complete') {
+    return Promise.resolve();
+  }
+
+  return new Promise<void>((resolve) => {
+    const timeoutId = window.setTimeout(() => {
+      peerConnection.removeEventListener('icegatheringstatechange', handleStateChange);
+      resolve();
+    }, timeoutMs);
+
+    const handleStateChange = () => {
+      if (peerConnection.iceGatheringState !== 'complete') {
+        return;
+      }
+
+      window.clearTimeout(timeoutId);
+      peerConnection.removeEventListener('icegatheringstatechange', handleStateChange);
+      resolve();
+    };
+
+    peerConnection.addEventListener('icegatheringstatechange', handleStateChange);
+  });
+}
+
 export function useLiveVoice({
   enabled,
   provider = 'openai',
@@ -844,7 +872,9 @@ export function useLiveVoice({
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-    if (!offer.sdp) {
+    await waitForIceGatheringComplete(pc);
+
+    if (!pc.localDescription?.sdp && !offer.sdp) {
       throw new Error('Failed to create realtime voice offer');
     }
 
@@ -853,7 +883,7 @@ export function useLiveVoice({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...context,
-        sdp: offer.sdp,
+        sdp: pc.localDescription?.sdp ?? offer.sdp,
       }),
     });
 

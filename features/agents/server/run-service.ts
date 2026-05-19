@@ -15,7 +15,7 @@ import {
 } from './runtime';
 import { resolveRunModel, type ModelSelection } from './run-model';
 import { resolveRunContext } from './run-context';
-import { buildPreparedRunTools, resolveRunToolIds } from './run-tools';
+import { buildPreparedRunTools, resolveRunToolIds, type RunToolAdapter } from './run-tools';
 import { buildPreparedRunPrompt } from './run-prompt';
 import type { ResolvedPromptContext } from '@/features/chat/server/prompt-context';
 import {
@@ -69,6 +69,7 @@ export type PreparedAgentRunChannelContext = {
   baseSystemPromptOverride?: string;
   userScores?: Map<string, number>;
   toolsOverride?: ToolSet;
+  toolAdapter?: RunToolAdapter;
   skillRuntimeOverride?: SkillRuntimeContext;
 };
 
@@ -236,6 +237,19 @@ export async function startCanonicalAgentImageGeneration(input: {
     source: input.source,
   });
 
+  return startPreparedAgentImageGeneration({
+    prepared,
+    userId: input.userId,
+    threadId: input.threadId,
+  });
+}
+
+export async function startPreparedAgentImageGeneration(input: {
+  prepared: PreparedAgentImageRun;
+  userId: string;
+  threadId?: string;
+}): Promise<AgentRunImageStartedResult> {
+  const { prepared } = input;
   const { taskId, generationId } = await triggerImageGeneration(
     {
       prompt: prepared.prompt,
@@ -332,6 +346,7 @@ export async function prepareAgentRun(request: AgentRunRequest): Promise<Prepare
   const tools = await buildPreparedRunTools({
     supportsTools,
     toolsOverride: channelContext.toolsOverride,
+    toolAdapter: channelContext.toolAdapter,
     resolvedAgent,
     activeToolIds,
     billingUserId: request.identity.billingUserId,

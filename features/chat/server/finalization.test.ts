@@ -61,6 +61,46 @@ test('prepareTextMessagesForFinalization skips follow-up generation when disable
   assert.ok(result.messages[1]?.metadata?.responseFormat);
 });
 
+test('prepareTextMessagesForFinalization adds rich message card from completed tool output', async () => {
+  const messages: ChatMessage[] = [
+    createMessage({ id: 'u1', role: 'user', text: 'บันทึกว่าใส่ปุ๋ยพริกวันนี้' }),
+    {
+      id: 'a1',
+      role: 'assistant',
+      metadata: {},
+      parts: [
+        {
+          type: 'tool-log_activity',
+          toolCallId: 'call-1',
+          toolName: 'log_activity',
+          state: 'output-available',
+          input: { contextType: 'farm', activity: 'ใส่ปุ๋ยพริก' },
+          output: {
+            success: true,
+            kind: 'record_saved',
+            contextType: 'farm',
+            activity: 'ใส่ปุ๋ยพริก',
+            date: '2026-05-16',
+            recordId: 'rec-1',
+          },
+        },
+        { type: 'text', text: 'บันทึกกิจกรรมเรียบร้อยแล้วครับ' },
+      ],
+    } as ChatMessage,
+  ];
+
+  const result = await prepareTextMessagesForFinalization({
+    messages,
+    lastUserPrompt: 'บันทึกว่าใส่ปุ๋ยพริกวันนี้',
+    followUpSuggestionsEnabled: false,
+  });
+
+  const richPart = result.messages[1]?.parts.find((part) => part.type === 'data-rich-message');
+  assert.ok(richPart);
+  assert.equal((richPart as { data: { templateKey: string } }).data.templateKey, 'agriculture.record_entry');
+  assert.equal(result.messages[1]?.metadata?.responseFormat?.templateKey, 'agriculture.record_entry');
+});
+
 test('inferFinalizationLocale detects Thai text', () => {
   assert.equal(inferFinalizationLocale('สร้างภาพใหม่ให้หน่อย', 'ขออีกภาพ'), 'th-TH');
 });

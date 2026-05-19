@@ -3,10 +3,6 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '@/lib/db';
 import { chatMessage, chatThread } from '@/db/schema';
-import {
-  extractAndStoreLineUserMemory,
-  extractAndStoreMemory,
-} from '@/lib/memory';
 import { buildFallbackResponsePlan, buildResponsePlanFromTaskFlow } from '@/features/response-format/service';
 import { buildResponsePlan } from '@/features/response-format/server/select';
 import { renderResponseForLineFromCatalog } from '@/features/response-format/server/line-render';
@@ -14,10 +10,14 @@ import { mergeResponseQuickReplies } from '@/features/response-format/workflow';
 import { LINE_AGENT_RUN_POLICY } from '@/features/agents/server/channel-policies';
 import { wantsImageGeneration } from '@/features/agents/server/media-intent';
 import {
-  prepareAgentRun,
-  runAgentText,
   startCanonicalAgentImageGeneration,
 } from '@/features/agents/server/run-service';
+import {
+  finalizeLineTextConversationTurn,
+  prepareConversationTurn,
+  runConversationTurnText,
+} from '@/features/agents/server/conversation-turn';
+import type { RunToolAdapterInput } from '@/features/agents/server/run-tools';
 import { pollAndPushGeneratedLineImage, buildLineToolSet } from '../tools';
 import { generateLineFollowUpSuggestions as generateFollowUpSuggestions } from '../utils/follow-up-suggestions';
 import { stripMarkdown } from '../utils/markdown';
@@ -45,7 +45,6 @@ import { wantsVideoGeneration, generateAndDeliverVideo } from './media-handlers'
 import { FRIENDLY_STICKERS, pickRandom, shouldAddFriendlySticker } from '@/features/line-oa/utils/stickers';
 import { recordMessageEvent } from '@/features/line-oa/analytics';
 import { getForecastForLocation } from '@/lib/tools/weather';
-import { applyReadyTaskFlowPrompt } from '@/features/task-flows/server/runtime';
 import { resolveLineTaskFlowAction } from '@/features/task-flows/server/line-runtime';
 
 type RunCanonicalLineReplyInput = {
@@ -264,47 +263,47 @@ export async function runCanonicalLineReply(
   input: RunCanonicalLineReplyInput,
   context: RunCanonicalLineReplyContext,
 ): Promise<{ replyText: string } | null> {
-  const prepared = await prepareAgentRun({
-    identity: {
-      channel: 'line',
-      userId: context.linkedUser?.userId ?? null,
-      billingUserId: context.channel.userId,
-      lineUserId: context.lineUserId,
-      isOwner: context.linkedUser?.userId === context.channel.userId,
+  const turn = await prepareConversationTurn({
+    request: {
+      identity: {
+        channel: 'line',
+        userId: context.linkedUser?.userId ?? null,
+        billingUserId: context.channel.userId,
+        lineUserId: context.lineUserId,
+        isOwner: context.linkedUser?.userId === context.channel.userId,
+      },
+      threadId: context.threadId,
+      agentId: context.agentRow?.id ?? null,
+      model: context.modelId,
+      messages: [...context.historyMessages, { role: 'user', content: input.runtimeUserText }],
+      policy: LINE_AGENT_RUN_POLICY,
+      channelContext: {
+        memoryContext: context.memoryContext,
+        lineChannelId: context.channel.id,
+        extraBlocks: context.lineExtraBlocks,
+        toolAdapter: (toolInput: RunToolAdapterInput) => buildLineToolSet({
+          enabledToolIds: toolInput.enabledToolIds ?? [],
+          userId: toolInput.userId,
+          brandId: toolInput.brandId,
+          lineUserId: context.activeLineUserId,
+          channelId: context.channel.id,
+          documentIds: toolInput.documentIds,
+          rerankEnabled: toolInput.rerankEnabled,
+          threadId: toolInput.threadId,
+          lineClient: context.lineClient,
+        }),
+      },
     },
-    threadId: context.threadId,
-    agentId: context.agentRow?.id ?? null,
-    model: context.modelId,
-    messages: [...context.historyMessages, { role: 'user', content: input.runtimeUserText }],
-    policy: LINE_AGENT_RUN_POLICY,
-    channelContext: {
-      memoryContext: context.memoryContext,
-      lineChannelId: context.channel.id,
-      extraBlocks: context.lineExtraBlocks,
-    },
+    ...(context.taskFlowDecision
+      ? {
+          taskFlow: {
+            decision: context.taskFlowDecision,
+            locale: context.taskFlowLocale ?? 'th-TH',
+          },
+        }
+      : {}),
   });
-
-  const mergedTools = buildLineToolSet({
-    enabledToolIds: prepared.activeToolIds ?? [],
-    userId: context.channel.userId,
-    brandId: prepared.activeBrand?.id ?? undefined,
-    lineUserId: context.activeLineUserId,
-    channelId: context.channel.id,
-    threadId: context.threadId,
-    lineClient: context.lineClient,
-  });
-
-  const generateResult = await runAgentText({
-    ...prepared,
-    systemPrompt: context.taskFlowDecision
-      ? applyReadyTaskFlowPrompt({
-          baseSystemPrompt: prepared.systemPrompt,
-          decision: context.taskFlowDecision,
-          locale: context.taskFlowLocale ?? 'th-TH',
-        })
-      : prepared.systemPrompt,
-    ...(prepared.supportsTools ? { tools: mergedTools } : {}),
-  });
+  const generateResult = await runConversationTurnText(turn);
 
   const rawReplyText = generateResult.text;
   if (!rawReplyText) {
@@ -317,21 +316,18 @@ export async function runCanonicalLineReply(
   const memoryUserText = input.memoryUserText ?? input.runtimeUserText;
   const assistantSuggestionContext = buildAssistantSuggestionContext(replyText);
 
-  const contextStr = [
-    ...context.historyMessages
-      .slice(-4)
-      .map((message) => `${message.role}: ${message.content.slice(0, 200)}`),
-    `user: ${storedUserText.slice(0, 200)}`,
-    `assistant: ${assistantSuggestionContext.text}`,
-  ].join('\n');
-
-  const [suggestions] = await Promise.all([
-    generateFollowUpSuggestions(contextStr, {
-      domainHint: context.followUpDomainHint,
-      skillHints: context.followUpSkillHints,
-      latestAssistantQuestion: assistantSuggestionContext.latestQuestion,
-    }),
-    persistLineTurn({
+  const { suggestions } = await finalizeLineTextConversationTurn({
+    historyMessages: context.historyMessages,
+    storedUserText,
+    memoryUserText,
+    assistantText: replyText,
+    suggestionAssistantText: assistantSuggestionContext.text,
+    threadId: context.threadId,
+    memoryContext: context.memoryContext,
+    shouldExtractMemory: context.shouldExtractMemory,
+    linkedUserId: context.linkedUser?.userId,
+    lineUserId: context.lineUserId,
+    persist: () => persistLineTurn({
       threadId: context.threadId,
       nextPosition: context.nextPosition,
       now: context.now,
@@ -339,30 +335,11 @@ export async function runCanonicalLineReply(
       assistantText: replyText,
       ...(context.taskFlowAssistantMetadata ? { assistantMetadata: context.taskFlowAssistantMetadata } : {}),
     }),
-  ]);
-
-  if (context.shouldExtractMemory) {
-    const messagesForMemory = [
-      ...context.historyMessages,
-      { role: 'user' as const, content: memoryUserText },
-      { role: 'assistant' as const, content: replyText },
-    ];
-    if (context.linkedUser) {
-      void extractAndStoreMemory(
-        context.linkedUser.userId,
-        messagesForMemory,
-        context.threadId,
-        context.memoryContext,
-      );
-    } else if (context.lineUserId) {
-      void extractAndStoreLineUserMemory(
-        context.lineUserId,
-        messagesForMemory,
-        context.threadId,
-        context.memoryContext,
-      );
-    }
-  }
+    generateFollowUpSuggestions,
+    followUpDomainHint: context.followUpDomainHint,
+    followUpSkillHints: context.followUpSkillHints,
+    latestAssistantQuestion: assistantSuggestionContext.latestQuestion,
+  });
 
   const mergedQuickReplies = mergeResponseQuickReplies(
     generateResult.responsePlan?.quickReplies,

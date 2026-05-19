@@ -2,7 +2,6 @@ import { createHash } from 'crypto';
 import { z } from 'zod';
 
 export const realtimeTranscriptionSessionRequestSchema = z.object({
-  sdp: z.string().min(1),
   language: z.string().trim().min(1).max(16).optional(),
   latencyMode: z.enum(['fast', 'balanced', 'accurate']).optional(),
 });
@@ -10,7 +9,7 @@ export const realtimeTranscriptionSessionRequestSchema = z.object({
 export type RealtimeTranscriptionLatencyMode =
   z.infer<typeof realtimeTranscriptionSessionRequestSchema>['latencyMode'];
 
-const DEFAULT_REALTIME_TRANSCRIPTION_MODEL = 'gpt-4o-mini-transcribe';
+const DEFAULT_REALTIME_TRANSCRIPTION_MODEL = 'gpt-realtime-whisper';
 
 export function hashRealtimeSafetyIdentifier(userId: string) {
   return createHash('sha256').update(userId).digest('hex');
@@ -19,6 +18,10 @@ export function hashRealtimeSafetyIdentifier(userId: string) {
 export function resolveOpenAIRealtimeTranscriptionModel() {
   return process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL?.trim()
     || DEFAULT_REALTIME_TRANSCRIPTION_MODEL;
+}
+
+function supportsRealtimeTurnDetection(model: string) {
+  return model !== 'gpt-realtime-whisper';
 }
 
 function resolveTurnDetection(latencyMode?: RealtimeTranscriptionLatencyMode) {
@@ -53,16 +56,19 @@ export function buildRealtimeTranscriptionSessionConfig(input: {
   latencyMode?: RealtimeTranscriptionLatencyMode;
 }) {
   const language = input.language?.trim();
+  const model = resolveOpenAIRealtimeTranscriptionModel();
 
   return {
     type: 'transcription' as const,
     audio: {
       input: {
         transcription: {
-          model: resolveOpenAIRealtimeTranscriptionModel(),
+          model,
           ...(language ? { language } : {}),
         },
-        turn_detection: resolveTurnDetection(input.latencyMode),
+        ...(supportsRealtimeTurnDetection(model)
+          ? { turn_detection: resolveTurnDetection(input.latencyMode) }
+          : {}),
       },
     },
   };

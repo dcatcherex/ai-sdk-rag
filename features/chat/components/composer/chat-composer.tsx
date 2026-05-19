@@ -321,7 +321,7 @@ export function ChatComposer({
           <SlashCommandMenu skills={slashSkills} onSelect={handleSkillSelect} />
           <PromptInput
             globalDrop
-            className="rounded-[22px] [&_[data-slot=input-group]]:rounded-[22px] [&_[data-slot=input-group]]:border-black/8 [&_[data-slot=input-group]]:bg-white/86 [&_[data-slot=input-group]]:shadow-[0_18px_55px_-36px_rgba(15,23,42,0.75)] [&_[data-slot=input-group]]:backdrop-blur dark:[&_[data-slot=input-group]]:border-white/12 dark:[&_[data-slot=input-group]]:bg-white/[0.06]"
+            className="rounded-[22px] [&_[data-slot=input-group]]:rounded-[22px] [&_[data-slot=input-group]]:border-black/8 [&_[data-slot=input-group]]:bg-white/86 [&_[data-slot=input-group]]:shadow-[0_18px_55px_-36px_rgba(15,23,42,0.75)] [&_[data-slot=input-group]]:backdrop-blur dark:[&_[data-slot=input-group]]:border-white/12 dark:[&_[data-slot=input-group]]:bg-white/[0.06] [&:has([data-dictation-active=true])_[data-slot=input-group]]:border-violet-400 [&:has([data-dictation-active=true])_[data-slot=input-group]]:bg-white/95 [&:has([data-dictation-active=true])_[data-slot=input-group]]:shadow-[0_0_0_3px_rgba(139,92,246,0.18),0_22px_64px_-36px_rgba(76,29,149,0.75)] dark:[&:has([data-dictation-active=true])_[data-slot=input-group]]:border-violet-300/70 dark:[&:has([data-dictation-active=true])_[data-slot=input-group]]:bg-zinc-950/90"
             onSubmit={(message) => onSubmit(message)}
           >
             <PreparedPromptBridge preparedPrompt={preparedPrompt} onApplied={onPreparedPromptApplied} textareaRef={textareaRef} />
