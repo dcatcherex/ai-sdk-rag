@@ -20,6 +20,9 @@ type UseLiveVoiceOptions = {
   enabled: boolean;
   provider?: 'openai' | 'gemini';
   voiceName?: string;
+  sessionEndpoint?: string;
+  toolCallEndpoint?: string;
+  realtimeHeaders?: () => Record<string, string>;
   onError?: (message: string) => void;
   onTurnComplete?: (userText: string, aiText: string, metadata?: VoiceTurnMetadata) => void | Promise<void>;
   history?: VoiceHistoryTurn[];
@@ -116,6 +119,9 @@ export function useLiveVoice({
   enabled,
   provider = 'openai',
   voiceName,
+  sessionEndpoint = '/api/realtime/session',
+  toolCallEndpoint = '/api/realtime/tool-call',
+  realtimeHeaders,
   onError,
   onTurnComplete,
   history,
@@ -647,9 +653,9 @@ export function useLiveVoice({
     pendingOpenAIToolCallsRef.current += 1;
     const startedAt = performance.now();
     try {
-      const response = await fetch('/api/realtime/tool-call', {
+      const response = await fetch(toolCallEndpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(realtimeHeaders?.() ?? {}) },
         body: JSON.stringify({
           context,
           callId,
@@ -666,6 +672,7 @@ export function useLiveVoice({
         callId,
         ok: response.ok,
         durationMs: Math.round(performance.now() - startedAt),
+        ...(response.ok ? { output } : {}),
         ...(!response.ok ? { error: payload.error ?? 'Tool call failed' } : {}),
       });
 
@@ -708,7 +715,7 @@ export function useLiveVoice({
     } finally {
       pendingOpenAIToolCallsRef.current = Math.max(0, pendingOpenAIToolCallsRef.current - 1);
     }
-  }, [completeOpenAIWaitForUserTurn, sendOpenAIEvent]);
+  }, [completeOpenAIWaitForUserTurn, realtimeHeaders, sendOpenAIEvent, toolCallEndpoint]);
 
   const handleOpenAIMessage = useCallback((message: Record<string, unknown>) => {
     const type = typeof message.type === 'string' ? message.type : '';
@@ -878,9 +885,9 @@ export function useLiveVoice({
       throw new Error('Failed to create realtime voice offer');
     }
 
-    const response = await fetch('/api/realtime/session', {
+    const response = await fetch(sessionEndpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(realtimeHeaders?.() ?? {}) },
       body: JSON.stringify({
         ...context,
         sdp: pc.localDescription?.sdp ?? offer.sdp,
@@ -906,7 +913,7 @@ export function useLiveVoice({
     }
 
     await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
-  }, [getRealtimeContext, handleOpenAIMessage, reportError, startOpenAIMicrophoneMeter, voiceName]);
+  }, [getRealtimeContext, handleOpenAIMessage, realtimeHeaders, reportError, sessionEndpoint, startOpenAIMicrophoneMeter, voiceName]);
 
   // ── Connect / Disconnect ───────────────────────────────────────────────────
 

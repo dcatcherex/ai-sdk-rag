@@ -1,6 +1,10 @@
 import { and, asc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { chatMessage, chatThread, publicAgentShare } from '@/db/schema';
+import {
+  ensurePublicAgentThread,
+  resolvePublicAgentShare,
+} from '@/features/agents/server/public-realtime-voice';
 
 type Params = { params: Promise<{ token: string }> };
 
@@ -32,4 +36,22 @@ export async function GET(req: Request, { params }: Params) {
     .orderBy(asc(chatMessage.position));
 
   return Response.json({ threadId: thread.id, messages });
+}
+
+export async function POST(req: Request, { params }: Params) {
+  try {
+    const { token } = await params;
+    const publicContext = await resolvePublicAgentShare(req, token);
+    const threadId = await ensurePublicAgentThread({
+      token,
+      guestId: publicContext.guestId,
+      agentId: publicContext.agent.id,
+    });
+
+    return Response.json({ threadId });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to create guest thread.';
+    const status = message === 'Password required.' ? 401 : 400;
+    return Response.json({ error: message }, { status });
+  }
 }

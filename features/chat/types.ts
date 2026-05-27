@@ -33,6 +33,7 @@ export type VoiceToolCallMetadata = {
   ok: boolean;
   durationMs?: number;
   error?: string;
+  output?: unknown;
 };
 
 export type VoiceTurnMetadata = {

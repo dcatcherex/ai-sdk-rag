@@ -209,7 +209,7 @@ export const ComposerActionButtons = ({
           title="Talk with Vaja"
           aria-label="Talk with Vaja"
           onClick={onOpenVoice}
-          className="hidden md:flex size-9 items-center justify-center rounded-full bg-slate-950 text-white shadow-sm transition-colors hover:bg-slate-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
+          className="flex size-9 items-center justify-center rounded-full bg-slate-950 text-white shadow-sm transition-colors hover:bg-slate-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
         >
           <AudioLinesIcon className="size-4" />
         </button>

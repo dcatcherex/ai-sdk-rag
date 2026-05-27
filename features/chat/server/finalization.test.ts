@@ -4,6 +4,7 @@ import test from 'node:test';
 import type { ChatMessage } from '@/features/chat/types';
 import { buildImageResponseAudit, inferFinalizationLocale, prepareTextMessagesForFinalization } from './finalization-helpers';
 import { finalizeTextChatTurn, finalizeImageChatTurn, type FinalizationStepName } from './finalization';
+import { buildVoiceTurnAssistantArtifacts } from './voice-turn-artifacts';
 
 function createMessage(input: {
   id: string;
@@ -103,6 +104,58 @@ test('prepareTextMessagesForFinalization adds rich message card from completed t
 
 test('inferFinalizationLocale detects Thai text', () => {
   assert.equal(inferFinalizationLocale('สร้างภาพใหม่ให้หน่อย', 'ขออีกภาพ'), 'th-TH');
+});
+
+test('buildVoiceTurnAssistantArtifacts adds task-flow rich card for short English diagnosis audio', async () => {
+  const result = await buildVoiceTurnAssistantArtifacts({
+    userText: 'My rice leaves are turning yellow. What should I check?',
+    aiText: 'It could be nutrient stress, pest damage, or water stress. Check the leaf pattern and soil moisture first.',
+    metadata: { provider: 'openai', realtimeModel: 'gpt-realtime-2' },
+    taskFlowDecision: {
+      status: 'ready',
+      flowKey: 'agriculture.diagnosis',
+      confidence: 0.9,
+      source: 'rule',
+      outputTemplateKey: 'agriculture.diagnosis',
+      slots: {
+        crop_name: 'rice',
+        symptoms: 'yellow leaves',
+      },
+    },
+  });
+
+  const richPart = result.parts.find((part) => part.type === 'data-rich-message');
+  assert.ok(richPart);
+  assert.equal((richPart as { data: { templateKey: string } }).data.templateKey, 'agriculture.diagnosis');
+  assert.equal(result.metadata.responseFormat?.templateKey, 'agriculture.diagnosis');
+  assert.equal(result.metadata.taskFlow?.flowKey, 'agriculture.diagnosis');
+});
+
+test('buildVoiceTurnAssistantArtifacts uses realtime tool output for record cards', async () => {
+  const result = await buildVoiceTurnAssistantArtifacts({
+    userText: 'Yes, record that I checked yellow rice leaves today.',
+    aiText: 'Done. I saved that farm note.',
+    metadata: {
+      provider: 'openai',
+      toolCalls: [{
+        name: 'log_activity',
+        ok: true,
+        output: {
+          success: true,
+          kind: 'record_saved',
+          contextType: 'farm',
+          activity: 'Checked yellow rice leaves',
+          date: '2026-05-19',
+          recordId: 'rec-voice-1',
+        },
+      }],
+    },
+  });
+
+  const richPart = result.parts.find((part) => part.type === 'data-rich-message');
+  assert.ok(richPart);
+  assert.equal((richPart as { data: { templateKey: string } }).data.templateKey, 'agriculture.record_entry');
+  assert.equal(result.metadata.responseFormat?.templateKey, 'agriculture.record_entry');
 });
 
 test('buildImageResponseAudit returns a stable image audit summary', () => {

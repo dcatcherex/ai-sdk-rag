@@ -3,7 +3,7 @@
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { ArrowLeftIcon, CheckIcon, CopyIcon, ImageIcon } from 'lucide-react';
+import { ArrowLeftIcon, AudioLinesIcon, CheckIcon, CopyIcon, ImageIcon, Volume2Icon, VolumeXIcon } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import type { ChatStatus } from 'ai';
@@ -37,7 +37,8 @@ import { AgentChatEmptyState } from '@/features/chat/components/empty-state/agen
 import type { AgentStarterTask } from '@/features/chat/components/empty-state/types';
 import { Button } from '@/components/ui/button';
 import { filterRenderableMessageParts } from '@/features/chat/utils/message-parts';
-import type { ChatMessage, ChatMessageMetadata, ChatMessagePart } from '@/features/chat/types';
+import { useLiveVoice, type VoiceHistoryTurn, type VoiceState } from '@/features/chat/hooks/use-live-voice';
+import type { ChatMessage, ChatMessageMetadata, ChatMessagePart, VoiceTurnMetadata } from '@/features/chat/types';
 
 type AgentMeta = {
   name: string;
@@ -81,13 +82,68 @@ const ComposerAttachments = () => {
   );
 };
 
+const GUEST_VOICE_STATUS_DOT: Record<VoiceState, string> = {
+  idle: 'bg-zinc-400',
+  connecting: 'bg-yellow-400 animate-pulse',
+  listening: 'bg-green-500 animate-pulse',
+  'ai-speaking': 'bg-blue-400 animate-pulse',
+  error: 'bg-red-500',
+};
+
+const GUEST_VOICE_STATUS_TEXT: Record<VoiceState, string> = {
+  idle: 'Initializing...',
+  connecting: 'Connecting...',
+  listening: 'Listening',
+  'ai-speaking': 'AI is responding...',
+  error: 'Connection error',
+};
+
+const GuestVoiceInlineDisplay = ({ voiceState, micLevel }: { voiceState: VoiceState; micLevel: number }) => {
+  const bars = [0.4, 0.7, 1, 0.65, 0.35, 0.82, 0.55, 0.9, 0.45, 0.72];
+  const isActive = voiceState === 'listening' || voiceState === 'ai-speaking';
+  const level = voiceState === 'listening' ? Math.max(0.12, micLevel) : voiceState === 'ai-speaking' ? 0.6 : 0.22;
+
+  return (
+    <div className="flex min-h-[72px] flex-col items-center justify-center gap-1.5 px-4 py-2">
+      <div className="flex h-8 items-center justify-center gap-[3px]">
+        {bars.map((base, index) => (
+          <span
+            key={index}
+            className={cn(
+              'w-1 rounded-full transition-all duration-100',
+              isActive ? 'bg-primary' : 'bg-muted-foreground/40',
+            )}
+            style={{ height: Math.max(4, Math.round(base * level * 32)) }}
+          />
+        ))}
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className={cn('size-1.5 rounded-full', GUEST_VOICE_STATUS_DOT[voiceState])} />
+        <span className="text-xs text-muted-foreground">{GUEST_VOICE_STATUS_TEXT[voiceState]}</span>
+      </div>
+    </div>
+  );
+};
+
 const GuestActionButtons = ({
   status,
+  voiceOpen,
+  voiceState,
+  speakAloud,
   onStop,
+  onOpenVoice,
+  onCloseVoice,
+  onToggleSpeakAloud,
   onTranscriptionChange,
 }: {
   status: ChatStatus;
+  voiceOpen: boolean;
+  voiceState: VoiceState;
+  speakAloud: boolean;
   onStop: () => void;
+  onOpenVoice: () => void;
+  onCloseVoice: () => void;
+  onToggleSpeakAloud: () => void;
   onTranscriptionChange: (t: string) => void;
 }) => {
   const { textInput } = usePromptInputController();
@@ -130,6 +186,31 @@ const GuestActionButtons = ({
     );
   }
 
+  if (voiceOpen) {
+    return (
+      <div className="ml-auto flex shrink-0 items-center gap-2" data-voice-state={voiceState}>
+        <button
+          type="button"
+          title={speakAloud ? 'Mute AI voice' : 'Unmute AI voice'}
+          aria-label={speakAloud ? 'Mute AI voice' : 'Unmute AI voice'}
+          onClick={onToggleSpeakAloud}
+          className="flex size-9 items-center justify-center rounded-full bg-slate-100 text-muted-foreground transition-colors hover:bg-slate-200 hover:text-foreground dark:bg-white/10 dark:hover:bg-white/15"
+        >
+          {speakAloud ? <Volume2Icon className="size-4" /> : <VolumeXIcon className="size-4" />}
+        </button>
+        <button
+          type="button"
+          title="End voice conversation"
+          aria-label="End voice conversation"
+          onClick={onCloseVoice}
+          className="flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+        >
+          <AudioLinesIcon className="size-4" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className={cn('ml-auto flex shrink-0 items-center gap-1.5', isDictating && 'flex-1')}>
       <SpeechInput
@@ -141,14 +222,24 @@ const GuestActionButtons = ({
         onAudioRecorded={handleAudioRecorded}
         onListeningChange={setIsDictating}
       />
-      {!isDictating && !isEmpty && (
+      {!isDictating && (isEmpty ? (
+        <button
+          type="button"
+          title="Talk with Vaja"
+          aria-label="Talk with Vaja"
+          onClick={onOpenVoice}
+          className="flex size-9 items-center justify-center rounded-full bg-slate-950 text-white shadow-sm transition-colors hover:bg-slate-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
+        >
+          <AudioLinesIcon className="size-4" />
+        </button>
+      ) : (
         <PromptInputSubmit
           className="size-9 rounded-full shadow-sm"
           onStop={onStop}
           status={status}
           disabled={anyUploading || undefined}
         />
-      )}
+      ))}
     </div>
   );
 };
@@ -180,6 +271,8 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
   const [agentMeta, setAgentMeta] = useState<AgentMeta | null>(null);
   const [shareMeta, setShareMeta] = useState<ShareMeta | null>(null);
   const [preparedPrompt, setPreparedPrompt] = useState<string | null>(null);
+  const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounter = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -223,10 +316,40 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
     return response.json() as Promise<{ threadId: string | null; messages: ChatMessage[] }>;
   }, [token]);
 
+  const realtimeHeaders = useCallback(() => {
+    const guestId = getOrCreateGuestId(token);
+    const sessionToken = sessionStorage.getItem(SESSION_KEY(token)) ?? '';
+    return {
+      'x-guest-id': guestId,
+      ...(sessionToken ? { 'x-guest-token': sessionToken } : {}),
+    };
+  }, [token]);
+
+  const ensureGuestThread = useCallback(async () => {
+    if (currentThreadId) {
+      return currentThreadId;
+    }
+
+    const response = await fetch(`/api/agent/${token}/thread`, {
+      method: 'POST',
+      headers: realtimeHeaders(),
+      cache: 'no-store',
+    });
+    const payload = await response.json() as { threadId?: string; error?: string };
+    if (!response.ok || !payload.threadId) {
+      throw new Error(payload.error ?? 'Unable to start voice chat.');
+    }
+    setCurrentThreadId(payload.threadId);
+    return payload.threadId;
+  }, [currentThreadId, realtimeHeaders, token]);
+
   useEffect(() => {
     fetchThreadMessages()
       .then((data) => data ?? null)
-      .then((data) => { if (data?.messages?.length > 0) setMessages(data.messages); })
+      .then((data) => {
+        if (data?.threadId) setCurrentThreadId(data.threadId);
+        if (data?.messages?.length > 0) setMessages(data.messages);
+      })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchThreadMessages, token]);
@@ -244,6 +367,9 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
           const payload = await fetchThreadMessages();
           if (cancelled || !payload.messages?.length) {
             return;
+          }
+          if (payload.threadId) {
+            setCurrentThreadId(payload.threadId);
           }
 
           const lastDbAssistant = [...payload.messages].reverse().find((message) => message.role === 'assistant');
@@ -276,6 +402,66 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
   }, [fetchThreadMessages, messages.length, setMessages, status]);
 
   const isLoading = status === 'streaming' || status === 'submitted';
+
+  const voiceHistory = useMemo<VoiceHistoryTurn[]>(() => {
+    return messages
+      .map((message) => {
+        const text = (message.parts as ChatMessagePart[])
+          .filter((part): part is Extract<ChatMessagePart, { type: 'text' }> => part.type === 'text')
+          .map((part) => part.text)
+          .join('\n')
+          .trim();
+
+        if (!text || (message.role !== 'user' && message.role !== 'assistant')) {
+          return null;
+        }
+
+        return { role: message.role, text };
+      })
+      .filter((turn): turn is VoiceHistoryTurn => turn !== null)
+      .slice(-12);
+  }, [messages]);
+
+  const getRealtimeVoiceContext = useCallback(async () => ({
+    threadId: await ensureGuestThread(),
+  }), [ensureGuestThread]);
+
+  const handleVoiceTurnComplete = useCallback(async (
+    userText: string,
+    aiText: string,
+    metadata?: VoiceTurnMetadata,
+  ) => {
+    const threadId = await ensureGuestThread();
+    const response = await fetch(`/api/agent/${token}/voice-turn`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...realtimeHeaders() },
+      body: JSON.stringify({ threadId, userText, aiText, metadata }),
+    });
+    const payload = await response.json().catch(() => ({})) as { error?: string };
+    if (!response.ok) {
+      throw new Error(payload.error ?? 'Unable to save voice turn.');
+    }
+    const refreshed = await fetchThreadMessages();
+    if (refreshed.threadId) setCurrentThreadId(refreshed.threadId);
+    if (refreshed.messages?.length) setMessages(refreshed.messages);
+  }, [ensureGuestThread, fetchThreadMessages, realtimeHeaders, setMessages, token]);
+
+  const { voiceState, micLevel, speakAloud, disconnect, toggleSpeakAloud } = useLiveVoice({
+    enabled: voiceOpen,
+    sessionEndpoint: `/api/agent/${token}/realtime/session`,
+    toolCallEndpoint: `/api/agent/${token}/realtime/tool-call`,
+    realtimeHeaders,
+    onError: (message) => toast.error('Voice error', { description: message }),
+    onTurnComplete: handleVoiceTurnComplete,
+    history: voiceHistory,
+    getRealtimeContext: getRealtimeVoiceContext,
+  });
+
+  const handleOpenVoice = useCallback(() => setVoiceOpen(true), []);
+  const handleCloseVoice = useCallback(() => {
+    disconnect();
+    setVoiceOpen(false);
+  }, [disconnect]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -435,11 +621,15 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
                 <ComposerAttachments />
               </PromptInputHeader>
               <PromptInputBody>
-                <PromptInputTextarea
-                  placeholder="อยากให้ Vaja ช่วยอะไร?"
-                  className="flex-1 self-stretch resize-none rounded-none border-0 bg-transparent shadow-none max-h-[40vh] overflow-y-auto px-4 pb-2 pt-1 text-sm leading-6 font-light outline-none text-left"
-                  disabled={isLoading}
-                />
+                {voiceOpen ? (
+                  <GuestVoiceInlineDisplay voiceState={voiceState} micLevel={micLevel} />
+                ) : (
+                  <PromptInputTextarea
+                    placeholder="อยากให้ Vaja ช่วยอะไร?"
+                    className="flex-1 self-stretch resize-none rounded-none border-0 bg-transparent shadow-none max-h-[40vh] overflow-y-auto px-4 pb-2 pt-1 text-sm leading-6 font-light outline-none text-left"
+                    disabled={isLoading}
+                  />
+                )}
               </PromptInputBody>
               <PromptInputFooter className="px-2.5 pb-2.5 pt-1">
                 <PromptInputTools className="min-w-0 flex-1 gap-1.5 overflow-hidden">
@@ -456,7 +646,13 @@ export default function GuestChatPage({ params }: { params: Promise<{ token: str
                 </PromptInputTools>
                 <GuestActionButtons
                   status={status}
+                  voiceOpen={voiceOpen}
+                  voiceState={voiceState}
+                  speakAloud={speakAloud}
                   onStop={stop}
+                  onOpenVoice={handleOpenVoice}
+                  onCloseVoice={handleCloseVoice}
+                  onToggleSpeakAloud={toggleSpeakAloud}
                   onTranscriptionChange={() => {}}
                 />
               </PromptInputFooter>

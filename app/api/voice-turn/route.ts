@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
-import { and, count, eq } from 'drizzle-orm';
+import { and, asc, count, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { requireUser } from "@/lib/auth-server";
 import { db } from '@/lib/db';
-import { chatThread, chatMessage } from '@/db/schema';
+import { chatThread, chatMessage, agent } from '@/db/schema';
+import { buildVoiceTurnAssistantArtifacts } from '@/features/chat/server/voice-turn-artifacts';
+import { resolveTaskFlowRuntime } from '@/features/task-flows/server/runtime';
+import type { ChatMessage } from '@/features/chat/types';
 
 const voiceTurnMetadataSchema = z.object({
   provider: z.enum(['openai', 'gemini']),
@@ -20,6 +23,7 @@ const voiceTurnMetadataSchema = z.object({
     ok: z.boolean(),
     durationMs: z.number().int().min(0).max(300_000).optional(),
     error: z.string().max(500).optional(),
+    output: z.unknown().optional(),
   })).max(50).optional(),
 }).optional();
 
@@ -40,14 +44,9 @@ export async function POST(req: Request) {
   }
 
   const { threadId, userText, aiText, metadata } = parsed.data;
-  const messageMetadata = {
-    source: 'voice',
-    ...(metadata ? { voice: metadata } : {}),
-  };
-
   // Verify thread belongs to the authenticated user
   const [thread] = await db
-    .select({ id: chatThread.id })
+    .select({ id: chatThread.id, agentId: chatThread.agentId })
     .from(chatThread)
     .where(and(eq(chatThread.id, threadId), eq(chatThread.userId, authResult.user.id)))
     .limit(1);
@@ -61,10 +60,37 @@ export async function POST(req: Request) {
     .select({ value: count() })
     .from(chatMessage)
     .where(eq(chatMessage.threadId, threadId));
+  const [agentRow, existingMessages] = await Promise.all([
+    thread.agentId
+      ? db
+          .select({ skillIds: agent.skillIds })
+          .from(agent)
+          .where(eq(agent.id, thread.agentId))
+          .limit(1)
+      : Promise.resolve([]),
+    db
+      .select({ id: chatMessage.id, role: chatMessage.role, parts: chatMessage.parts, metadata: chatMessage.metadata })
+      .from(chatMessage)
+      .where(eq(chatMessage.threadId, threadId))
+      .orderBy(asc(chatMessage.position)),
+  ]);
+  const taskFlowRuntime = await resolveTaskFlowRuntime({
+    channel: 'web',
+    lastUserPrompt: userText.trim(),
+    messages: existingMessages as ChatMessage[],
+    activeSkillIds: Array.isArray(agentRow[0]?.skillIds)
+      ? agentRow[0].skillIds.filter((value): value is string => typeof value === 'string')
+      : [],
+    activeSkillNames: [],
+  });
 
   const now = new Date();
   const userMessageId = crypto.randomUUID();
   const aiMessageId = crypto.randomUUID();
+  const userMessageMetadata = {
+    source: 'voice',
+    ...(metadata ? { voice: metadata } : {}),
+  };
 
   const messagesToInsert = [];
   let nextPosition = existingCount;
@@ -75,19 +101,25 @@ export async function POST(req: Request) {
       threadId,
       role: 'user',
       parts: [{ type: 'text', text: userText }],
-      metadata: messageMetadata,
+      metadata: userMessageMetadata,
       position: nextPosition++,
       createdAt: now,
     });
   }
 
   if (aiText) {
+    const assistantArtifacts = await buildVoiceTurnAssistantArtifacts({
+      aiText,
+      userText,
+      metadata,
+      taskFlowDecision: taskFlowRuntime.decision,
+    });
     messagesToInsert.push({
       id: aiMessageId,
       threadId,
       role: 'assistant',
-      parts: [{ type: 'text', text: aiText }],
-      metadata: messageMetadata,
+      parts: assistantArtifacts.parts,
+      metadata: assistantArtifacts.metadata,
       position: nextPosition++,
       createdAt: now,
     });

@@ -6,7 +6,7 @@
 
 ## One-Line Definition
 
-**Vaja AI is a skill-first AI cowork platform where any profession can load domain-specific skills into an AI workspace — accessible through web chat, public shared web links, and LINE OA, with shared credit pools for teams and communities.**
+**Vaja AI is a skill-first AI cowork platform where any profession can load domain-specific skills into an AI workspace — accessible through a web control room, public shared web chat links, and LINE OA, with shared credit pools for teams and communities.**
 
 ---
 
@@ -16,7 +16,7 @@ AI tools like ChatGPT, Claude, and Gemini have a fundamental access problem in T
 
 1. **Cost barrier** — Each person must subscribe separately. A family or small team of 5 each paying $20/month = $100/month for what could be shared.
 2. **Knowledge barrier** — Generic AI doesn't know your profession. A farmer asking about tomato leaf disease gets a generic answer, not one that accounts for Thai climate, local pesticide availability, or regional market prices.
-3. **Access barrier** — Thai users live in LINE, while owners and teams still need a web control room. Customers, students, patients, or community members should be able to use an agent from a LINE chat or a simple shared web link without installing another app.
+3. **Access barrier** — Thai users live in LINE, while owners and teams still need a web control room, and many first interactions happen through links from Facebook, TikTok, websites, QR codes, classrooms, clinics, or events. Customers, students, patients, or community members should be able to use an agent from either a simple shared web chat link or LINE OA without installing another app or creating a full account.
 4. **Complexity barrier** — Choosing AI models, configuring tools, writing prompts — this is invisible work that knowledge workers shouldn't have to do.
 
 ---
@@ -29,7 +29,7 @@ AI tools like ChatGPT, Claude, and Gemini have a fundamental access problem in T
 |---------|----------|
 | Cost | Shared credit pools — one person buys, the group uses |
 | Knowledge | Contextual Skills Engine — domain skills load automatically |
-| Access | Web chat for work, shared web links for no-account guests, LINE OA for no-install daily conversations |
+| Access | Web control room for work, shared web chat links for no-account guests, LINE OA for no-install daily conversations |
 | Complexity | Agent-first — General Assistant is ready on first load, skills activate automatically |
 
 ---
@@ -49,7 +49,7 @@ Vaja is built for **Thai users who need AI to help them work**, not just chat. S
 - **Healthcare workers** — patient communication, report writing, medical information lookup
 - **Government officers** — document drafting, regulations lookup, form assistance
 
-**The common thread:** One person wearing 5 hats, time-poor, LINE-native, needing AI that understands their specific work.
+**The common thread:** One person wearing 5 hats, time-poor, mobile-first, often LINE-native, needing AI that understands their specific work.
 
 ---
 
@@ -132,21 +132,23 @@ Vaja is not a single-interface AI app. It is one agent runtime exposed through t
 | Channel | Primary user | Role |
 |---------|--------------|------|
 | Web chat | Owner, team member, power user | The control room for building agents, attaching skills, managing knowledge, reviewing work, and doing deeper tasks |
-| Shared web link | Customer, student, patient, community member, temporary collaborator | A no-account guest doorway to one specific agent, with owner-funded credits and optional limits |
+| Shared web chat link | Customer, student, patient, community member, temporary collaborator | The fastest no-account doorway to one specific agent, with owner-funded credits, optional limits, and analytics |
 | LINE OA | Thai customer or field user | The no-install daily conversation surface where people already message businesses and communities |
 
-For Thai SMEs and rural users, LINE OA remains the highest-trust channel. Web and shared web links extend the same agent beyond LINE: owners manage and run serious work in the web app, while anyone can try a focused agent from a browser link.
+Shared web chat and LINE OA should be treated as two first-class public doors into the same agent. Shared web chat is the lowest-friction discovery path: click a link, scan a QR code, open a demo, ask the agent. LINE OA is the strongest repeat-use path in Thailand: follow the business, keep the conversation history, receive updates, and return through a familiar chat surface. The web app remains the owner and team control room.
 
-### The Trust Journey
+This makes Vaja channel-flexible rather than only LINE-first. LINE is the Thai-native advantage; shared web chat is the universal doorway that makes agents easier to demo, distribute, embed, and share.
+
+### Discovery and Trust Journey
 
 ```
 Stage 1 — Discovery
-  Customer follows a business's LINE OA
+  Customer opens a shared web chat link or follows a business's LINE OA
   Messages: "เปิดกี่โมง?" (What time do you open?)
   Agent replies correctly → "This is useful"
 
 Stage 2 — Trust Building
-  Customer asks product questions, gets helpful answers
+  Customer asks product questions from the shared link or LINE chat
   Agent uses customer-service skill automatically
   → "This is better than the old auto-reply"
 
@@ -157,7 +159,7 @@ Stage 3 — Delegation
 
 Stage 4 — Expansion
   Adds more skills (promotion generator, complaint handler)
-  Links LINE OA to content calendar
+  Shares agents through links, QR codes, and LINE OA
   → "Vaja is my marketing assistant"
 ```
 
@@ -282,11 +284,12 @@ Vaja: you collaborate with agents that have roles, memory, and skills.
 | Credit sharing | ❌ | ❌ | ❌ | ✅ |
 | Domain skills | ❌ | ❌ | ❌ | ✅ |
 | Open skill standard | ❌ | ❌ | ❌ | ✅ |
+| Public shared web chat | ❌ | ❌ | ❌ | ✅ |
 | Multi-model | ❌ | ❌ | ❌ | ✅ |
 | Thai-first UX | ❌ | ❌ | ❌ | ✅ |
 | No app install needed | ❌ | ❌ | ❌ | ✅ (LINE + shared web links) |
 
 ---
 
-*Last updated: April 2026*
+*Last updated: May 2026*
 *This document describes the product vision and direction — not necessarily the current implemented state.*

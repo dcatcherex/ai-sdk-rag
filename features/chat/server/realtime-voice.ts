@@ -105,7 +105,7 @@ export async function assertOwnedThread(input: {
   }
 }
 
-function buildVoiceRunMessages(history?: Array<{ role: 'user' | 'assistant'; text: string }>): AgentRunInputMessage[] {
+export function buildVoiceRunMessages(history?: Array<{ role: 'user' | 'assistant'; text: string }>): AgentRunInputMessage[] {
   const turns = (history ?? [])
     .slice(-12)
     .filter((turn) => turn.text.trim())
@@ -348,6 +348,8 @@ You are speaking as the selected Vaja agent. Use the agent instructions, active 
 
 - Respond in Thai when the user clearly speaks Thai.
 - Respond in English when the user clearly speaks English.
+- The latest clear user utterance wins. If the latest user utterance is English, respond in English even when agent names, skill names, prior messages, templates, or internal context contain Thai.
+- If the latest utterance is a short continuation such as "yes", "uh", "okay", or "continue", keep the language of the last substantive user request.
 - Do not switch language based on accent alone.
 - Ignore short filler sounds, backchannels, names, addresses, and isolated foreign words for language switching.
 - If language is unclear, ask one short clarification.
@@ -355,11 +357,15 @@ You are speaking as the selected Vaja agent. Use the agent instructions, active 
 
 ## Verbosity
 
+- Spoken responses must be brief: 2-3 short sentences maximum unless the user explicitly asks for detail.
+- For diagnosis, weather, market, record, or other structured tasks, speak only the summary and next action. The chat card/message template will carry the details.
+- If another instruction asks for headings or a full structured answer, treat that as guidance for the saved chat card, not for the spoken audio.
 - Direct answers: use 1-2 short sentences.
-- Clarifying questions: ask one question at a time.
+- Clarifying questions: ask one short question at a time.
 - Tool results: summarize the result first, then give only the next useful action.
 - Troubleshooting: give one step at a time unless the user asks for the full procedure.
 - Escalation: briefly explain why escalation is needed and what will happen next.
+- Do not read full structured templates, long headings, long lists, or full record details aloud.
 
 ## Preambles
 
