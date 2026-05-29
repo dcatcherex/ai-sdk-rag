@@ -112,6 +112,14 @@ const skillExamples = [
   'brand-voice-guardrail',
 ];
 
+function professionIndexToDelay(title: string) {
+  return 120 + Math.max(0, professions.findIndex((profession) => profession.title === title)) * 70;
+}
+
+function channelIndexToDelay(label: string) {
+  return 120 + Math.max(0, channels.findIndex((channel) => channel.label === label)) * 90;
+}
+
 const surface = {
   page: 'bg-[#fcf8ff] text-[#1b1a26]',
   section: 'border-[#cac4d4]',
@@ -127,6 +135,7 @@ const surface = {
 export default function LandingPage() {
   return (
     <main className={`${surface.page} ${surface.body} min-h-screen overflow-hidden`}>
+      <LandingMotionStyles />
       <HeroSection />
       <ProfessionSection />
       <ChannelSection />
@@ -140,9 +149,9 @@ export default function LandingPage() {
 function HeroSection() {
   return (
     <section className={`relative border-b ${surface.section}`}>
-      <div className="absolute inset-0 opacity-70 [background-image:linear-gradient(#e3e0f1_1px,transparent_1px),linear-gradient(90deg,#e3e0f1_1px,transparent_1px)] [background-size:32px_32px]" />
+      <div className="landing-grid absolute inset-0 opacity-70 [background-image:linear-gradient(#e3e0f1_1px,transparent_1px),linear-gradient(90deg,#e3e0f1_1px,transparent_1px)] [background-size:32px_32px]" />
       <div className="relative mx-auto grid max-w-7xl gap-8 px-4 pb-10 pt-4 sm:px-6 lg:min-h-[88vh] lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
-        <header className={`col-span-full flex items-center justify-between gap-4 rounded-xl border px-3 py-3 ${surface.elevated}`}>
+        <header className={`landing-reveal landing-delay-0 col-span-full flex items-center justify-between gap-4 rounded-xl border px-3 py-3 ${surface.elevated}`}>
           <Link href="/landing" className="group inline-flex items-center gap-3">
             <span className="grid size-10 place-items-center rounded-md bg-[#624cb8] text-lg font-bold text-white">
               ว
@@ -171,45 +180,45 @@ function HeroSection() {
 
           <Link
             href="/sign-in"
-            className="inline-flex h-10 items-center justify-center rounded-md border border-[#cac4d4] bg-white px-4 text-sm font-semibold text-[#1b1a26] transition hover:border-[#624cb8] hover:text-[#624cb8]"
+            className="landing-secondary-action inline-flex h-10 items-center justify-center rounded-md border border-[#cac4d4] bg-white px-4 text-sm font-semibold text-[#1b1a26] transition hover:border-[#624cb8] hover:text-[#624cb8]"
           >
             Sign in
           </Link>
         </header>
 
         <div className="flex flex-col justify-center pb-6 pt-6 lg:pb-12">
-          <div className={`mb-5 inline-flex w-fit items-center gap-2 rounded-md border border-[#cac4d4] bg-white px-3 py-2 ${surface.label} text-[#624cb8]`}>
+          <div className={`landing-reveal landing-delay-1 mb-5 inline-flex w-fit items-center gap-2 rounded-md border border-[#cac4d4] bg-white px-3 py-2 ${surface.label} text-[#624cb8]`}>
             <SparklesIcon className="size-4" />
             agent.runtime.multi_channel
           </div>
 
-          <h1 className={`${surface.heading} max-w-4xl text-balance text-[40px] font-bold leading-[1.12] text-[#1b1a26] sm:text-6xl sm:leading-[1.05] lg:text-7xl`}>
+          <h1 className={`landing-reveal landing-delay-2 ${surface.heading} max-w-4xl text-balance text-[40px] font-bold leading-[1.12] text-[#1b1a26] sm:text-6xl sm:leading-[1.05] lg:text-7xl`}>
             AI coworkers with skills for every profession.
           </h1>
 
-          <p className="mt-5 max-w-2xl text-pretty text-lg leading-8 text-[#484552]">
+          <p className="landing-reveal landing-delay-3 mt-5 max-w-2xl text-pretty text-lg leading-8 text-[#484552]">
             Build an agent that understands your work, then share it through public web chat links,
             LINE OA, or your team workspace. Vaja is made for Thai professionals, care teams,
             educators, shops, farms, clinics, and communities.
           </p>
 
-          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+          <div className="landing-reveal landing-delay-4 mt-7 flex flex-col gap-3 sm:flex-row">
             <Link
               href="/sign-up"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#624cb8] px-5 text-sm font-semibold text-white transition hover:bg-[#4a329e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#624cb8] focus-visible:ring-offset-4"
+              className="landing-primary-action inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#624cb8] px-5 text-sm font-semibold text-white transition hover:bg-[#4a329e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#624cb8] focus-visible:ring-offset-4"
             >
               Create workspace
               <ArrowRightIcon className="size-4" />
             </Link>
             <a
               href="#professions"
-              className="inline-flex h-11 items-center justify-center rounded-md border border-[#cac4d4] bg-white px-5 text-sm font-semibold text-[#1b1a26] transition hover:border-[#624cb8] hover:text-[#624cb8]"
+              className="landing-secondary-action inline-flex h-11 items-center justify-center rounded-md border border-[#cac4d4] bg-white px-5 text-sm font-semibold text-[#1b1a26] transition hover:border-[#624cb8] hover:text-[#624cb8]"
             >
               Explore professions
             </a>
           </div>
 
-          <div className="mt-8 hidden max-w-2xl grid-cols-3 overflow-hidden rounded-xl border border-[#cac4d4] bg-white sm:grid">
+          <div className="landing-reveal landing-delay-5 mt-8 hidden max-w-2xl grid-cols-3 overflow-hidden rounded-xl border border-[#cac4d4] bg-white sm:grid">
             {[
               ['03', 'ACCESS CHANNELS'],
               ['01', 'CREDIT POOL'],
@@ -231,15 +240,15 @@ function HeroSection() {
 
 function ProductScene() {
   return (
-    <div className="relative hidden min-h-[560px] items-center justify-center lg:flex">
+    <div className="landing-reveal landing-delay-3 relative hidden min-h-[560px] items-center justify-center lg:flex">
       <div className="relative w-full max-w-[640px]">
-        <div className="rounded-xl border border-[#cac4d4] bg-white p-2 shadow-[0_32px_70px_-52px_rgba(31,26,61,0.75)]">
+        <div className="landing-console-shell rounded-xl border border-[#cac4d4] bg-white p-2 shadow-[0_32px_70px_-52px_rgba(31,26,61,0.75)]">
           <div className="overflow-hidden rounded-lg border border-[#cac4d4] bg-[#fcf8ff]">
             <div className="flex items-center justify-between border-b border-[#cac4d4] bg-white px-4 py-3">
               <div className="flex items-center gap-2">
                 <span className="size-2.5 rounded-full bg-[#ba1a1a]" />
                 <span className="size-2.5 rounded-full bg-[#d89a00]" />
-                <span className="size-2.5 rounded-full bg-[#178a55]" />
+                <span className="landing-status-dot size-2.5 rounded-full bg-[#178a55]" />
               </div>
               <span className={`${surface.label} text-[#797584]`}>workspace.control_room</span>
             </div>
@@ -252,7 +261,7 @@ function ProductScene() {
                     key={item}
                     className={`mb-2 rounded-md border px-3 py-2 text-sm ${
                       index === 1
-                        ? 'border-[#624cb8] bg-[#624cb8] text-white'
+                        ? 'landing-active-row border-[#624cb8] bg-[#624cb8] text-white'
                         : 'border-[#cac4d4] bg-white text-[#484552]'
                     }`}
                   >
@@ -275,27 +284,27 @@ function ProductScene() {
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className={`rounded-lg border p-4 ${surface.card}`}>
+                  <div className={`landing-inner-card rounded-lg border p-4 ${surface.card}`}>
                     <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#1b1a26]">
                       <BookOpenCheckIcon className="size-4 text-[#624cb8]" />
                       Skill stack
                     </div>
                     <div className="space-y-2 text-sm text-[#484552]">
                       {['care-note-summary', 'family-update-tone', 'medication-reminder'].map((item) => (
-                        <p key={item} className={`rounded-md border px-3 py-2 ${surface.cardTint} ${surface.label} text-[#484552]`}>
+                        <p key={item} className={`landing-chip rounded-md border px-3 py-2 ${surface.cardTint} ${surface.label} text-[#484552]`}>
                           {item}
                         </p>
                       ))}
                     </div>
                   </div>
 
-                  <div className={`rounded-lg border p-4 ${surface.card}`}>
+                  <div className={`landing-inner-card rounded-lg border p-4 ${surface.card}`}>
                     <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#1b1a26]">
                       <CoinsIcon className="size-4 text-[#624cb8]" />
                       Shared credits
                     </div>
                     <div className="h-2.5 overflow-hidden rounded-full bg-[#e3e0f1]">
-                      <div className="h-full w-2/3 rounded-full bg-[#624cb8]" />
+                      <div className="landing-progress-fill h-full w-2/3 rounded-full bg-[#624cb8]" />
                     </div>
                     <dl className="mt-4 grid grid-cols-2 gap-2 text-xs">
                       <div className="rounded-md border border-[#cac4d4] bg-[#f5f2ff] p-2">
@@ -310,14 +319,14 @@ function ProductScene() {
                   </div>
                 </div>
 
-                <div className={`mt-3 rounded-lg border p-4 sm:mr-48 ${surface.card}`}>
+                <div className={`landing-inner-card mt-3 rounded-lg border p-4 sm:mr-48 ${surface.card}`}>
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <span className="text-sm font-semibold text-[#1b1a26]">Public access</span>
                     <span className={`${surface.label} text-[#797584]`}>same_agent.many_doors</span>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-3">
                     {['web-link', 'line-oa', 'team-chat'].map((item) => (
-                      <div key={item} className={`${surface.label} rounded-md border border-[#cac4d4] bg-[#f5f2ff] px-3 py-2 text-center text-[#484552]`}>
+                      <div key={item} className={`landing-chip ${surface.label} rounded-md border border-[#cac4d4] bg-[#f5f2ff] px-3 py-2 text-center text-[#484552]`}>
                         {item}
                       </div>
                     ))}
@@ -328,10 +337,10 @@ function ProductScene() {
           </div>
         </div>
 
-        <div className="absolute -bottom-8 right-5 w-[220px] rounded-xl border border-[#cac4d4] bg-white p-3 shadow-[0_22px_50px_-34px_rgba(31,26,61,0.85)]">
+        <div className="landing-float-panel absolute -bottom-8 right-5 w-[220px] rounded-xl border border-[#cac4d4] bg-white p-3 shadow-[0_22px_50px_-34px_rgba(31,26,61,0.85)]">
           <div className="mb-3 flex items-center justify-between">
             <span className={`${surface.label} text-[#797584]`}>LINE_OA_PREVIEW</span>
-            <span className="size-2 rounded-full bg-[#178a55]" />
+            <span className="landing-status-dot size-2 rounded-full bg-[#178a55]" />
           </div>
           <div className="space-y-2 text-xs">
             <div className="mr-7 rounded-md border border-[#cac4d4] bg-[#f5f2ff] px-3 py-2 text-[#484552]">
@@ -370,9 +379,13 @@ function ProfessionSection() {
             {professions.map((profession) => {
               const Icon = profession.icon;
               return (
-                <article key={profession.title} className={`rounded-xl border p-4 ${surface.cardTint}`}>
+                <article
+                  key={profession.title}
+                  className={`landing-interactive-card landing-reveal rounded-xl border p-4 ${surface.cardTint}`}
+                  style={{ animationDelay: `${professionIndexToDelay(profession.title)}ms` }}
+                >
                   <div className="mb-4 flex items-start justify-between gap-3">
-                    <div className="grid size-10 place-items-center rounded-md border border-[#cbbeff] bg-[#e6deff] text-[#391e8d]">
+                    <div className="landing-icon-tile grid size-10 place-items-center rounded-md border border-[#cbbeff] bg-[#e6deff] text-[#391e8d]">
                       <Icon className="size-5" />
                     </div>
                     <span className={`${surface.label} rounded-md border border-[#cac4d4] bg-white px-2 py-1 text-[#797584]`}>
@@ -412,12 +425,16 @@ function ChannelSection() {
             {channels.map((channel) => {
               const Icon = channel.icon;
               return (
-                <article key={channel.label} className={`rounded-xl border p-4 ${surface.card}`}>
+                <article
+                  key={channel.label}
+                  className={`landing-interactive-card landing-reveal rounded-xl border p-4 ${surface.card}`}
+                  style={{ animationDelay: `${channelIndexToDelay(channel.label)}ms` }}
+                >
                   <div className="mb-4 flex items-center justify-between">
-                    <div className="grid size-10 place-items-center rounded-md border border-[#cbbeff] bg-[#e6deff] text-[#391e8d]">
+                    <div className="landing-icon-tile grid size-10 place-items-center rounded-md border border-[#cbbeff] bg-[#e6deff] text-[#391e8d]">
                       <Icon className="size-5" />
                     </div>
-                    <CheckCircle2Icon className="size-4 text-emerald-600" />
+                    <CheckCircle2Icon className="landing-status-check size-4 text-emerald-600" />
                   </div>
                   <p className={`${surface.label} text-[#797584]`}>{channel.status}</p>
                   <h3 className={`${surface.heading} mt-2 text-lg font-semibold text-[#1b1a26]`}>{channel.label}</h3>
@@ -437,9 +454,9 @@ function SkillsSection() {
     <section id="skills" className="border-b border-[#cac4d4] bg-white px-4 py-16 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
-          <div className={`rounded-xl border p-5 sm:p-6 ${surface.card}`}>
+          <div className={`landing-interactive-card rounded-xl border p-5 sm:p-6 ${surface.card}`}>
             <div className="mb-5 flex items-start gap-3">
-              <div className="grid size-10 place-items-center rounded-md border border-[#cbbeff] bg-[#e6deff] text-[#391e8d]">
+              <div className="landing-icon-tile grid size-10 place-items-center rounded-md border border-[#cbbeff] bg-[#e6deff] text-[#391e8d]">
                 <BotIcon className="size-5" />
               </div>
               <div>
@@ -458,7 +475,7 @@ function SkillsSection() {
 
             <div className="mt-6 grid gap-2 sm:grid-cols-2">
               {skillExamples.map((skill) => (
-                <div key={skill} className={`flex items-center gap-3 rounded-md border px-3 py-2 ${surface.cardTint}`}>
+                <div key={skill} className={`landing-chip flex items-center gap-3 rounded-md border px-3 py-2 ${surface.cardTint}`}>
                   <ShieldCheckIcon className="size-4 text-[#624cb8]" />
                   <span className={`${surface.label} text-[#484552]`}>{skill}</span>
                 </div>
@@ -467,7 +484,7 @@ function SkillsSection() {
           </div>
 
           <div className="grid gap-3">
-            <div className="rounded-xl border border-[#cac4d4] bg-[#302f3b] p-5 text-[#f2efff]">
+            <div className="landing-terminal-panel rounded-xl border border-[#cac4d4] bg-[#302f3b] p-5 text-[#f2efff]">
               <p className={`${surface.label} text-[#cbbeff]`}>OPEN_STANDARD</p>
               <h3 className={`${surface.heading} mt-3 text-2xl font-semibold`}>Open standard, local usefulness.</h3>
               <p className="mt-4 leading-7 text-[#e2dfff]">
@@ -476,7 +493,7 @@ function SkillsSection() {
               </p>
             </div>
 
-            <div className={`rounded-xl border p-5 ${surface.cardTint}`}>
+            <div className={`landing-interactive-card rounded-xl border p-5 ${surface.cardTint}`}>
               <p className={`${surface.label} text-[#797584]`}>USER_EXPERIENCE</p>
               <h3 className={`${surface.heading} mt-3 text-xl font-semibold text-[#1b1a26]`}>Less configuration, more work done.</h3>
               <p className="mt-3 leading-7 text-[#484552]">
@@ -511,7 +528,7 @@ function ControlRoomSection() {
               ['Knowledge base', 'Attach documents and resources that make answers specific.'],
               ['Analytics', 'See conversations, adoption, and what people need help with.'],
             ].map(([title, body]) => (
-              <article key={title} className={`rounded-xl border p-4 ${surface.card}`}>
+              <article key={title} className={`landing-interactive-card rounded-xl border p-4 ${surface.card}`}>
                 <h3 className={`${surface.heading} font-semibold text-[#1b1a26]`}>{title}</h3>
                 <p className="mt-2 text-sm leading-6 text-[#484552]">{body}</p>
               </article>
@@ -519,7 +536,7 @@ function ControlRoomSection() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-[#cac4d4] bg-[#302f3b] p-5 text-[#f2efff]">
+        <div className="landing-terminal-panel rounded-xl border border-[#cac4d4] bg-[#302f3b] p-5 text-[#f2efff]">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <p className={`${surface.label} text-[#cbbeff]`}>PUBLISH_PIPELINE</p>
@@ -529,7 +546,7 @@ function ControlRoomSection() {
           </div>
           <div className="space-y-2">
             {workflow.map(([step, title, body]) => (
-              <div key={step} className="flex gap-3 rounded-md border border-white/15 bg-white/[0.06] p-3">
+              <div key={step} className="landing-step flex gap-3 rounded-md border border-white/15 bg-white/[0.06] p-3">
                 <span className={`${surface.label} grid size-8 shrink-0 place-items-center rounded-sm bg-[#e6deff] text-[#391e8d]`}>
                   {step}
                 </span>
@@ -549,7 +566,7 @@ function ControlRoomSection() {
 function FinalCta() {
   return (
     <section className="bg-white px-4 py-16 sm:px-6 lg:px-8">
-      <div className={`mx-auto max-w-7xl rounded-xl border p-6 sm:p-8 lg:flex lg:items-center lg:justify-between lg:gap-8 ${surface.elevated}`}>
+      <div className={`landing-console-shell mx-auto max-w-7xl rounded-xl border p-6 sm:p-8 lg:flex lg:items-center lg:justify-between lg:gap-8 ${surface.elevated}`}>
         <div>
           <div className="mb-4 inline-flex items-center gap-2 rounded-md border border-[#cbbeff] bg-[#e6deff] px-3 py-2 text-sm font-semibold text-[#391e8d]">
             <UsersRoundIcon className="size-4" />
@@ -562,19 +579,217 @@ function FinalCta() {
         <div className="mt-6 flex flex-col gap-3 sm:flex-row lg:mt-0">
           <Link
             href="/sign-up"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#624cb8] px-5 text-sm font-semibold text-white transition hover:bg-[#4a329e]"
+            className="landing-primary-action inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#624cb8] px-5 text-sm font-semibold text-white transition hover:bg-[#4a329e]"
           >
             Create workspace
             <ArrowRightIcon className="size-4" />
           </Link>
           <Link
             href="/sign-in"
-            className="inline-flex h-11 items-center justify-center rounded-md border border-[#cac4d4] bg-white px-5 text-sm font-semibold text-[#1b1a26] transition hover:border-[#624cb8] hover:text-[#624cb8]"
+            className="landing-secondary-action inline-flex h-11 items-center justify-center rounded-md border border-[#cac4d4] bg-white px-5 text-sm font-semibold text-[#1b1a26] transition hover:border-[#624cb8] hover:text-[#624cb8]"
           >
             Sign in
           </Link>
         </div>
       </div>
     </section>
+  );
+}
+
+function LandingMotionStyles() {
+  return (
+    <style>{`
+      @keyframes landing-rise {
+        from {
+          transform: translateY(8px);
+        }
+        to {
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes landing-grid-drift {
+        from { background-position: 0 0, 0 0; }
+        to { background-position: 32px 32px, 32px 32px; }
+      }
+
+      @keyframes landing-status-pulse {
+        0%, 100% {
+          box-shadow: 0 0 0 0 rgba(23, 138, 85, 0);
+          opacity: 0.72;
+        }
+        50% {
+          box-shadow: 0 0 0 5px rgba(23, 138, 85, 0.14);
+          opacity: 1;
+        }
+      }
+
+      @keyframes landing-progress-scan {
+        from { background-position: 120% 0; }
+        to { background-position: -40% 0; }
+      }
+
+      @keyframes landing-float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-6px); }
+      }
+
+      @keyframes landing-terminal-glow {
+        0%, 100% { border-color: rgba(203, 190, 255, 0.22); }
+        50% { border-color: rgba(203, 190, 255, 0.46); }
+      }
+
+      .landing-grid {
+        animation: landing-grid-drift 26s linear infinite;
+      }
+
+      .landing-reveal {
+        animation: landing-rise 420ms cubic-bezier(0.2, 0.72, 0.16, 1) both;
+      }
+
+      .landing-delay-0 { animation-delay: 20ms; }
+      .landing-delay-1 { animation-delay: 60ms; }
+      .landing-delay-2 { animation-delay: 100ms; }
+      .landing-delay-3 { animation-delay: 140ms; }
+      .landing-delay-4 { animation-delay: 180ms; }
+      .landing-delay-5 { animation-delay: 220ms; }
+
+      .landing-primary-action,
+      .landing-secondary-action,
+      .landing-interactive-card,
+      .landing-inner-card,
+      .landing-chip,
+      .landing-icon-tile,
+      .landing-step {
+        transition:
+          transform 180ms ease,
+          border-color 180ms ease,
+          background-color 180ms ease,
+          box-shadow 180ms ease,
+          color 180ms ease;
+      }
+
+      .landing-primary-action {
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 12px 28px -18px rgba(98, 76, 184, 0.85);
+      }
+
+      .landing-primary-action::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        transform: translateX(-120%);
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+        transition: transform 520ms ease;
+      }
+
+      .landing-console-shell,
+      .landing-terminal-panel {
+        position: relative;
+        overflow: hidden;
+      }
+
+      .landing-console-shell::after {
+        content: "";
+        pointer-events: none;
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(120deg, transparent 0%, rgba(164, 143, 255, 0.10) 42%, transparent 62%);
+        opacity: 0;
+        transform: translateX(-24%);
+        transition: opacity 220ms ease, transform 700ms ease;
+      }
+
+      .landing-terminal-panel {
+        animation: landing-terminal-glow 4.8s ease-in-out infinite;
+      }
+
+      .landing-status-dot {
+        animation: landing-status-pulse 2.6s ease-in-out infinite;
+      }
+
+      .landing-status-check {
+        filter: drop-shadow(0 0 8px rgba(22, 163, 74, 0.22));
+      }
+
+      .landing-progress-fill {
+        background-image: linear-gradient(90deg, #624cb8, #a48fff, #624cb8);
+        background-size: 180% 100%;
+        animation: landing-progress-scan 3.6s ease-in-out infinite;
+      }
+
+      .landing-float-panel {
+        animation: landing-float 5.4s ease-in-out infinite;
+      }
+
+      .landing-active-row {
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.24), 0 10px 24px -20px rgba(98, 76, 184, 0.9);
+      }
+
+      @media (hover: hover) {
+        .landing-primary-action:hover::after {
+          transform: translateX(120%);
+        }
+
+        .landing-primary-action:hover,
+        .landing-secondary-action:hover {
+          transform: translateY(-1px);
+        }
+
+        .landing-interactive-card:hover,
+        .landing-inner-card:hover {
+          transform: translateY(-3px);
+          border-color: #a48fff;
+          box-shadow: 0 18px 36px -30px rgba(49, 49, 97, 0.55);
+        }
+
+        .landing-interactive-card:hover .landing-icon-tile {
+          border-color: #a48fff;
+          background-color: #e6deff;
+          transform: translateY(-1px);
+        }
+
+        .landing-chip:hover,
+        .landing-step:hover {
+          border-color: #a48fff;
+          background-color: rgba(230, 222, 255, 0.72);
+        }
+
+        .landing-console-shell:hover::after {
+          opacity: 1;
+          transform: translateX(24%);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .landing-grid,
+        .landing-reveal,
+        .landing-status-dot,
+        .landing-progress-fill,
+        .landing-float-panel,
+        .landing-terminal-panel {
+          animation: none;
+        }
+
+        .landing-reveal {
+          opacity: 1;
+          transform: none;
+          filter: none;
+        }
+
+        .landing-primary-action,
+        .landing-secondary-action,
+        .landing-interactive-card,
+        .landing-inner-card,
+        .landing-chip,
+        .landing-icon-tile,
+        .landing-step,
+        .landing-console-shell::after {
+          transition: none;
+        }
+      }
+    `}</style>
   );
 }
