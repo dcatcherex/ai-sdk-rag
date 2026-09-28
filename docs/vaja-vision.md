@@ -37,7 +37,7 @@ What is actually live (kept honest, updated monthly):
 - ✅ Public shared web agent links (guest chat, owner-funded credits, limits, analytics)
 - ✅ Credit system + credit sharing
 - ✅ RAG / knowledge base, long-term memory, voice (transcription + real-time)
-- ✅ Agent teams, content marketing / calendar / distribution, quiz, certificates *(maintenance-only — see Scope Discipline)*
+- 🗑️ Agent teams, content suite, teacher tools, Google Workspace, media/web builders, AgriSpark tools — **scheduled for deletion** (Sep 2026 compaction, see Scope Discipline)
 - ⏳ Real usage: a handful of informal testers; no paying customers yet
 - ❌ Not started: marketplace revenue sharing, org credit pools, developer API/SDK
 
@@ -103,27 +103,56 @@ needing AI that understands their specific work.
 
 ## Scope Discipline (solo operating constraints)
 
-Three buckets. A feature moves up a bucket only when a paying customer asks.
+**Lesson from July–Sep 2026:** a "maintenance-only" bucket did not stop scope
+growth — the codebase reached ~183k lines across 52 feature modules, most of them
+outside the wedge. Kept code still costs type-checks, migrations, tool-registry
+wiring, and every Next.js / AI SDK upgrade. So there are now only two buckets:
+**Keep** or **Delete**. Deleted code lives in git history (tag
+`pre-compaction-2026-09`); anything can come back when a paying customer asks.
 
-**Core — actively developed**
-- Chat runtime, Contextual Skills Engine, agent builder + template agents
-- LINE OA integration and in-LINE payments
-- Shared web agent links
-- Credits, credit sharing, top-up
+**Rules**
+- No new module without a paying customer (or a signed pilot) asking for it.
+- Domain features become **skills**, not modules. If it can be a SKILL.md plus
+  chat, it must be.
+- Delete, don't hide. Tables are dropped in a single later migration once the
+  code removal is stable.
 
-**Maintenance-only — keep working, no new features**
-- Agent teams, content marketing / calendar / distribution, collaboration &
-  approvals, quiz, certificates, gallery, analytics dashboards
+### Keep — the core (Sep 2026 compaction)
+
+| Area | Modules |
+|------|---------|
+| Chat runtime | `chat`, `agents` (incl. conversation-turn runtime), `models` (admin-only page) |
+| Skills Engine | `skills` |
+| LINE OA + payments | `line-oa` (minus AgriSpark farm-records handlers) |
+| LINE / channel rendering | `task-flows`, `response-format`, `rich-messages` — kept, simplify after cuts |
+| Shared web links | guest / public share (in `agents`) |
+| Credits + top-up | credits, `line-oa/payment` |
+| Knowledge | RAG / knowledge base, `memory` |
+| Media | `image`, `gallery`, `external-tools` (KIE provider for image gen only) |
+| Voice | transcription (LINE voice messages) |
+| Brand | `brands` — slimmed to brand voice + logo for promo copy |
+| Operator | `admin`, `settings`, `auth`, `ai-config`, `tools` (registry), `workspace` (catalog/prefs), `layout` |
+
+### Delete — in this order (one PR per batch)
+
+| # | Batch | Modules | Why |
+|---|-------|---------|-----|
+| 1 | AgriSpark | `crop-price`, `record-keeper`, `line-oa/webhook/events/farm-records.ts` | Competition finished; farm knowledge → skill |
+| 2 | Google Workspace | `google-docs`, `google-sheets`, `google-slides`, `google-drive`, `google-workspace` | No wedge demand; OAuth scope burden |
+| 3 | Media & web | `video`, `audio`, `speech`, `website-builder`, `deploy` (+ their `external-tools` providers) | Not part of shop-owner job |
+| 4 | Teacher tools | `quiz`, `certificate`, `exam-builder` | Teachers deferred; rebuild as a skill later |
+| 5 | Content suite | `content-marketing`, `content-calendar`, `content-hub`, `distribution`, `repurposing`, `long-form`, `collaboration`, `brand-guardrails`, `brand-photos`, `analytics` (content metrics) | Promotion = promotion skill + image gen + LINE broadcast |
+| 6 | Agent teams | `agent-teams` | Autonomy scope is Levels 1–3; one good agent per shop |
+| 7 | Workspace modules | `case-workspace`, `user-tools`, `workspace-ai`, `platform-agent`, `prompts` | Generic-professional surface; concierge onboarding replaces platform agent |
+| 8 | Domain profiles | `domain-profiles` | Coupled into core (13 imports) — separate careful PR |
+| 9 | Real-time voice | Gemini Live voice (`use-live-voice`, `live-token`, `realtime`, `voice-turn`) | Costly, fast-moving API; revive only if a shop owner asks |
+| 10 | Schema cleanup | Drop tables for batches 1–9 | After code removal has been stable in production |
 
 **Not now — do not build**
 - Skills marketplace with revenue sharing, verified/premium skills
 - Organization credit pools and admin dashboards
 - Developer API, skill-creation SDK, partner integrations
 - Agent autonomy Levels 4–5 (see Autonomy Model)
-
-**Kill criteria:** if a maintenance-only module produces zero usage from real
-customers for 3 consecutive months after first revenue, it gets hidden from the UI
-(code kept, surface removed) to cut the support burden.
 
 ---
 
@@ -138,7 +167,7 @@ customers for 3 consecutive months after first revenue, it gets hidden from the 
 │  │                 │    │                             │ │
 │  │  customer-svc   │───▶│  Template Agents (default)  │ │
 │  │  promotion-gen  │    │  Custom Agents              │ │
-│  │  lesson-plan    │    │  Agent Teams                │ │
+│  │  lesson-plan    │    │                             │ │
 │  │  exam-builder   │    │                             │ │
 │  │  [your skill]   │    │  Memory ▪ RAG ▪ Tools       │ │
 │  └─────────────────┘    └─────────────────────────────┘ │
@@ -399,6 +428,7 @@ Multi-model chat, agent builder, Skills Engine, LINE OA integration, credits +
 PromptPay top-up, RAG, shared web links, voice, agent teams, content suite.
 
 ### Phase 1.5 — First Revenue (now → Jan 2027) ★ current focus
+- [ ] Codebase compaction: delete batches 1–10 (see Scope Discipline)
 - [ ] Shop-owner template agent (customer-service + promotion skills preloaded)
 - [ ] 10-minute onboarding: connect LINE OA → pick template → answer 5 questions
 - [ ] Server-side rate limits and spend caps on shared links
@@ -431,6 +461,6 @@ PromptPay top-up, RAG, shared web links, voice, agent teams, content suite.
 
 ---
 
-*Last updated: July 2026*
+*Last updated: September 2026 (scope compaction)*
 *The "Current Status" section is kept honest and updated monthly. Everything else
 describes direction, filtered through the solo operating constraints at the top.*
